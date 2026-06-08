@@ -1,0 +1,18 @@
+{
+  "name": "ptp",
+  "description": "Self-hosted marketplace for the PtP plugin (PRD to PR, peer-reviewed).",
+  "owner": {
+    "name": "Maayan Almog"
+  },
+  "plugins": [
+    {
+      "name": "ptp",
+      "description": "PtP — PRD to PR, peer-reviewed: an autonomous, dual-reviewed change pipeline for Claude Code.",
+      "version": "0.1.0",
+      "source": "./",
+      "author": {
+        "name": "Maayan Almog"
+      }
+    }
+  ]
+}
