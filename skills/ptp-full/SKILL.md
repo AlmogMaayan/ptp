@@ -47,7 +47,7 @@ Enter Phase B **only if every** captured slice reached `BOTH PHASES DONE` in Pha
    ```
    Workflow({ name: 'ptp-full-run', args: { stories } })
    ```
-   where `stories = [{ id, model, effort }, …]`. The workflow loops the slices in order, spawning `agentType:'ptp-apply'` at each slice's `model` (effort injected as a prompt directive) then `agentType:'ptp-review'` at `opus`, one slice fully before the next, and returns `{ results, halted, total }`.
+   where `stories = [{ id, model, effort }, …]`. The workflow loops the slices in order, spawning `agentType:'ptp:ptp-apply'` at each slice's `model` (effort injected as a prompt directive) then `agentType:'ptp:ptp-review'` at `opus`, one slice fully before the next, and returns `{ results, halted, total }`.
 3. **Run-convergence gate (the workflow's `halted`).** A slice whose apply does not reach `stageReached === 'completed'`, or whose review `terminalState !== 'BOTH_PHASES_DONE'`, halts the **whole run** — the workflow stops the loop. This is the run phase's own gate, identical to `/ptp:full-run`; it is independent of the plan-convergence gate.
 
 **No scope-confirmation stop.** Because the captured slice ids are passed as an explicit id list, the run phase skips the one-time no-arg scope confirmation that `ptp-full-run` performs only on discovery. This is what makes the handoff seamless — there is no second user invocation between planning and running.
