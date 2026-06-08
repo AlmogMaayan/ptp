@@ -28,7 +28,7 @@ The command is a thin wrapper that performs four steps, then hands off to the wo
    ```
    Workflow({ name: 'ptp-full-run', args: { stories } })
    ```
-   where `stories = [{ id, model, effort }, …]` in apply order. (Use the named form — the plugin ships `workflows/ptp-full-run.js` whose `meta.name` is `ptp-full-run`. There is no project-relative `scriptPath` under a global plugin install.) The workflow loops the stories in order, spawning `agentType:'ptp-apply'` at the story's `model` (effort injected as a prompt directive) then `agentType:'ptp-review'` at `opus`, and returns `{ results, halted, total }`.
+   where `stories = [{ id, model, effort }, …]` in apply order. (Use the named form — the plugin ships `workflows/ptp-full-run.js` whose `meta.name` is `ptp-full-run`. There is no project-relative `scriptPath` under a global plugin install.) The workflow loops the stories in order, spawning `agentType:'ptp:ptp-apply'` at the story's `model` (effort injected as a prompt directive) then `agentType:'ptp:ptp-review'` at `opus`, and returns `{ results, halted, total }`.
 
 ## Change discovery and ordering
 

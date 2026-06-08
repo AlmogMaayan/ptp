@@ -1,7 +1,7 @@
 {
   "name": "ptp",
   "description": "PtP — PRD to PR, peer-reviewed: an autonomous, dual-reviewed change pipeline for Claude Code, composing Superpowers, OpenSpec, and Codex.",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "author": {
     "name": "Maayan Almog"
   },

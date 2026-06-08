@@ -63,7 +63,7 @@ for (let i = 0; i < stories.length; i++) {
   ].join('\n\n')
 
   const apply = await agent(applyPrompt, {
-    agentType: 'ptp-apply',
+    agentType: 'ptp:ptp-apply',
     model: mdl,
     phase: 'Apply',
     label: `apply:${s.id}`,
@@ -84,7 +84,7 @@ for (let i = 0; i < stories.length; i++) {
   ].join('\n\n')
 
   const review = await agent(reviewPrompt, {
-    agentType: 'ptp-review',
+    agentType: 'ptp:ptp-review',
     model: 'opus',
     phase: 'Review',
     label: `review:${s.id}`,
