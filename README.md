@@ -47,9 +47,15 @@ PtP invokes Superpowers skills (brainstorming, writing-plans, code-review). Inst
 
 Without it, PtP falls back to inline structured work and says so.
 
-### 3. Codex CLI *(required for the dual-reviewer flows)*
+### 3. Codex CLI *(optional — second reviewer; configurable)*
 
-The `codex-*`, `*-full`, and `full` commands delegate to the external Codex CLI (`codex exec`) as the independent second reviewer. Ensure `codex` is on your PATH (`codex --version`). Commands that need it **stop** if it's missing rather than silently falling back to a single reviewer.
+The `codex-*`, `*-full`, and `full` commands can delegate to the external Codex CLI (`codex exec`) as an independent second reviewer. Install it and put `codex` on your PATH (`codex --version`) to enable the dual-reviewer flows.
+
+Whether Codex is used is controlled by the **`codex.mode`** setting (see [Configuration](#configuration) below):
+
+- **`auto`** *(default)* — use Codex when it's on PATH; if it's missing, the `*-full` / `full` orchestrators **degrade to the Superpowers reviewer only** and say so. No hard failure.
+- **`required`** — the original strict behavior: the dual-reviewer commands **stop** if `codex` is missing rather than falling back to a single reviewer.
+- **`off`** — never use Codex; the orchestrators run Superpowers-only. (Explicitly invoking a `/ptp:codex-*` command still runs Codex — see [Configuration](#configuration).)
 
 ---
 
@@ -82,6 +88,48 @@ to pick up the latest plugin version.
 
 ---
 
+## Configuration
+
+PtP reads an optional JSON config file from two locations and merges them, **project overriding
+global key-by-key**:
+
+| Layer | Path |
+|-------|------|
+| Global | `~/.claude/ptp/config.json` |
+| Project | `<repo>/.claude/ptp/config.json` *(overrides global)* |
+
+Both files are optional. A missing file, missing key, or unknown value falls back to the
+default — PtP never fails to start over a config typo.
+
+```json
+{
+  "codex": {
+    "mode": "auto"
+  }
+}
+```
+
+### `codex.mode`
+
+Controls whether the external Codex CLI is used as the second reviewer.
+
+| Mode | Dual-reviewer orchestrators<br>(`/ptp:review-full`, `/ptp:review-plan-full`, `/ptp:full-run`, `/ptp:full`) | When `codex` is **not** on PATH |
+|------|------|------|
+| `auto` *(default)* | Use Codex if available | Skip the Codex phase, run Superpowers-only, and report the skip |
+| `required` | Use Codex | **Stop** — install Codex or change the mode |
+| `off` | Skip the Codex phase, run Superpowers-only | Skip (already disabled) |
+
+**Explicit `/ptp:codex-*` commands are an opt-in that overrides the mode.** Running
+`/ptp:codex-review`, `/ptp:codex-review-loop`, `/ptp:codex-review-plan[-loop]`, or
+`/ptp:codex-review-uncommitted` always attempts Codex — even when `mode` is `off` — because
+invoking them *is* an explicit request for the Codex reviewer. They still require `codex` on
+PATH and stop if it's genuinely missing.
+
+A skipped Codex phase is **never silent**: the orchestrator's end-of-run summary states
+`Codex phase skipped (mode=…)` so a single-reviewer run is always visible.
+
+---
+
 ## Change ids and selectors
 
 Every change born through the ptp flow carries a structured id:
@@ -109,7 +157,7 @@ This is what lets `/ptp:full-run epic:0021` apply-and-review an entire epic's wo
 
 ## The autonomous `full` family (the headline)
 
-These three commands turn a description into reviewed code with minimal hand-holding. All require the Codex CLI.
+These three commands turn a description into reviewed code with minimal hand-holding. All can use the Codex CLI as the second reviewer — governed by `codex.mode` (default `auto`; see [Configuration](#configuration)).
 
 **`/ptp:full "<request-or-big-change-id>"`** — the whole pipeline in one call. Runs the plan phase (decompose into slices + dual plan-review each slice), and **only if every slice's plan converges**, continues without stopping into the run phase (apply + dual code-review each story). Never archives. This is the union of the two commands below.
 
@@ -148,7 +196,7 @@ brainstorm → plan → apply → review → archive
 
 **`/ptp:review-plan-loop <selector>`** — loops Superpowers artifact review + inline fixes until zero open findings or the iteration cap.
 
-**`/ptp:review-plan-full <selector>`** — **dual-reviewer** artifact loop: Superpowers loop to convergence, then Codex loop to convergence. Both must sign off on the plan. Requires Codex.
+**`/ptp:review-plan-full <selector>`** — **dual-reviewer** artifact loop: Superpowers loop to convergence, then Codex loop to convergence. Both must sign off on the plan. Uses Codex per `codex.mode` (default `auto`; with `auto`/`off` and no Codex it runs the Superpowers loop only and reports the skip).
 
 **`/ptp:effort <change-id>`** — recommends the Claude model + effort level for `/ptp:apply` without re-running the full plan.
 
@@ -162,11 +210,11 @@ brainstorm → plan → apply → review → archive
 
 **`/ptp:review-loop <selector>`** — loops `/ptp:review` + inline fixes automatically until zero open findings at all severities or the iteration cap (5). Replaces the manual review → fix → review cycle.
 
-**`/ptp:review-full <selector>`** — **dual-reviewer** code loop: Superpowers loop to convergence, then Codex loop to convergence. Both must sign off before archive. Requires Codex.
+**`/ptp:review-full <selector>`** — **dual-reviewer** code loop: Superpowers loop to convergence, then Codex loop to convergence. Both must sign off before archive. Uses Codex per `codex.mode` (default `auto`; with `auto`/`off` and no Codex it runs the Superpowers loop only and reports the skip).
 
 **`/ptp:review-fix [selector]`** *(explicit fix step)* — confirms the findings of the *latest review in the conversation* (rejecting false positives via `receiving-code-review`), fixes the confirmed ones inline, runs tests/lint/validate. Never applies, plans, archives, or auto-commits.
 
-**Codex single-pass variants** (independent second opinion; require Codex):
+**Codex single-pass variants** (independent second opinion; an explicit opt-in that runs Codex even when `codex.mode` is `off` — needs `codex` on PATH):
 - **`/ptp:codex-review <selector>`** — Codex code review of an implemented change.
 - **`/ptp:codex-review-loop <selector>`** — Codex code review + fixes, looped to convergence.
 - **`/ptp:codex-review-uncommitted [selector]`** — Codex review of uncommitted working-tree changes only (staged + unstaged + untracked); useful mid-implementation.
@@ -211,7 +259,7 @@ The `openspec-*` skills (`openspec-explore`, `openspec-propose`, `openspec-apply
 ## Quick-reference card
 
 ```
-Hand it the whole thing (autonomous, dual-reviewed; Codex required)
+Hand it the whole thing (autonomous, dual-reviewed; Codex optional — codex.mode, default auto)
   → /ptp:full "<request>"             # decompose → plan → dual plan-review
                                       #   → apply → dual code-review, per story
   → /ptp:full-plan "<request>"        # planning half only (read-only)
@@ -234,7 +282,7 @@ Single-reviewer / manual variants
   → /ptp:review-plan <sel> | /ptp:review-plan-loop <sel>
   → /ptp:review-fix [sel]
 
-Codex second opinion (Codex CLI required)
+Codex second opinion (explicit opt-in; needs codex on PATH)
   → /ptp:codex-review[-loop] <sel>
   → /ptp:codex-review-plan[-loop] <sel>
   → /ptp:codex-review-uncommitted [sel]
