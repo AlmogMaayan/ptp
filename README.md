@@ -128,6 +128,39 @@ PATH and stop if it's genuinely missing.
 A skipped Codex phase is **never silent**: the orchestrator's end-of-run summary states
 `Codex phase skipped (mode=…)` so a single-reviewer run is always visible.
 
+### `deploy`
+
+Controls the terminal **`/ptp:deploy`** ship pipeline (commit → PR → merge → run the
+project's deploy CI/CD → return to `master`). All keys are optional and fall back to the
+defaults below.
+
+```json
+{
+  "deploy": {
+    "mergeMethod": "squash",
+    "maxFixRounds": 3,
+    "workflow": null,
+    "inputs": {}
+  }
+}
+```
+
+| Key | Default | Meaning |
+|-----|---------|---------|
+| `mergeMethod` | `"squash"` | `gh pr merge` strategy (`squash` / `merge` / `rebase`). |
+| `maxFixRounds` | `3` | Cap on each autonomous fix loop — the PR-stage loop (conflicts/failing checks) and the deploy-stage loop (failed deploy run) are bounded independently. On exhaustion the command STOPs and reports. |
+| `workflow` | `null` | Explicit deploy workflow file (e.g. `"deploy.yml"`). When `null`, ptp auto-detects a `deploy`/`release`/`publish` workflow under `.github/workflows`. |
+| `inputs` | `{}` | `workflow_dispatch` inputs passed when dispatching the deploy workflow, e.g. `{ "confirm": "deploy" }` for a workflow that requires a typed confirmation. |
+
+There is no approval setting. GitHub blocks a PR author from approving their own PR, so
+`/ptp:deploy` never tries to — it merges straight through whenever the repo doesn't *require*
+an approving review, and **stops at the PR** (handing off to **`/ptp:deploy-pr-approved`**)
+only when branch protection requires an approval it can't satisfy itself. The approval gate is
+detected from the PR, not configured.
+
+Like `codex.mode`, a missing file, missing key, or unknown value falls back to the default —
+ptp never fails to start over a config typo.
+
 ---
 
 ## Change ids and selectors
@@ -234,6 +267,21 @@ brainstorm → plan → apply → review → archive
 ### Return to master
 
 **`/ptp:master`** — return to a clean, up-to-date `master`. Switches to `master` and fast-forward-pulls (`git pull --ff-only`), but **only when the working tree is clean** (no staged, unstaged, or untracked changes). On a dirty tree, it makes no git changes and reports the `git status --porcelain --untracked-files=all` output with a recommendation to commit or stash first. Use this after a change is merged and archived to get back to a clean master before starting the next change. This command is **exempt from `ptp-branch-guard`** (it intentionally lands on master, not leaves it).
+
+### Shipping — `/ptp:deploy`
+
+**`/ptp:deploy`** — the terminal "ship it" step. From the current feature branch: commit →
+push → open a PR → squash-merge to `master` → delete the branch → run the project's deploy
+CI/CD action → autonomously fix conflicts/CI/deploy failures within a bounded retry budget
+(`deploy.maxFixRounds`, default 3) → return to a clean `master` via `/ptp:master`. The one ptp
+command that deliberately commits, pushes, and merges. It **never self-approves** (GitHub forbids
+approving your own PR) and merges straight through unless branch protection *requires* an
+approving review. Refuses to run on `master`/`main`. Requires the `gh` CLI authenticated. Tuned by the
+`deploy` config block.
+
+**`/ptp:deploy-pr-approved`** — finishes a `/ptp:deploy` that stopped because the repo *required*
+an approval it couldn't provide itself. After a *different* collaborator approves the PR, this
+merges, deploys, and returns to `master`.
 
 ---
 

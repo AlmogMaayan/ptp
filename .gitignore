@@ -16,3 +16,9 @@ desktop.ini
 *.swp
 *.tmp
 *.log
+
+# ptp / local tooling
+/.claude/
+/.codex/
+/docs/
+/openspec/
