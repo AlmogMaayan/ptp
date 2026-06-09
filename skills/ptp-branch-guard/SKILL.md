@@ -21,6 +21,19 @@ Every ptp step that **creates or updates files** — planning artifacts, source 
 
 **Deliberate land-on-master exception — `/ptp:master`:** this command does **not** run the guard, but for a distinct reason: it authors no ptp/OpenSpec artifact (a `git switch` / fast-forward pull may update tracked files to match `master`, but the command creates nothing of its own) and its entire purpose is to land on `master` — running the guard would cut a `ptp/<...>` branch and directly defeat it. This is **not** a read-only command (it changes git state and a pull may update the working tree), so it is listed here separately rather than in the read-only list above, to keep each category's stated rationale accurate.
 
+**Deliberate ship-from-a-feature-branch exception — `/ptp:deploy` and
+`/ptp:deploy-pr-approved`:** these commands do **not** run the guard either, but for the
+*opposite* reason to `/ptp:master`. They are **not** read-only (they commit, push, and merge —
+the one documented exception to ptp's never-auto-commit rule), and they do not cut a branch for
+their own work. Instead they operate on the **already-cut feature branch** and *require* one:
+they refuse to run on `master`/`main` (there is nothing to deploy from the base branch). Running
+the guard would be pointless (HEAD is already a feature branch → no-op) or harmful (on the base
+branch it would cut a throwaway branch rather than STOP as deploy intends). Their internal
+deploy-fix sub-flow *does* cut `ptp/deploy-fix-*` branches and merges them through the PR
+mini-flow, so a fix is never committed to the base branch directly. Like `/ptp:master`, these
+are listed here separately rather than in the read-only list, to keep each category's rationale
+accurate.
+
 ## The guard (first write-affecting action, before writing any file)
 
 The guard is the **first action that affects the working tree** — but it is *not* literally the first thing a command does. Any **cheap, read-only precondition or required user confirmation that would abort the whole command** runs **before** the guard: a missing `codex` CLI, a missing `openspec/changes/<id>/` folder, "no review present in the conversation", the no-arg scope-confirmation STOP, and the like. Evaluate those first; run the guard only once they pass. Cutting a branch (and spinning up the prep workflow) ahead of a guaranteed abort just leaves a throwaway branch behind.

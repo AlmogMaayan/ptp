@@ -53,6 +53,17 @@ For any non-trivial change, route through these commands in order:
 
 `/ptp:master` is an auxiliary utility command — a "return to clean master" convenience. Use it after a change is merged/archived and you want to switch back to `master` and pull the latest. It runs only when the working tree is clean (empty `git status --porcelain --untracked-files=all`), uses `--ff-only` so it can never create a merge commit, and is **exempt from `ptp-branch-guard`** (its purpose is to land on master, not leave it).
 
+`/ptp:deploy` is the terminal **"ship it"** step — the one ptp command that deliberately
+commits, pushes, and merges. After a change is applied and reviewed (and typically archived),
+run it from the feature branch to commit → push → open a PR → squash-merge to `master` → delete
+the branch → run the project's deploy CI/CD action → fix conflicts/CI/deploy failures within a
+bounded retry budget → return to a clean `master` (via `/ptp:master`). It **never self-approves**
+(GitHub forbids approving your own PR) and merges straight through whenever the repo doesn't
+*require* an approving review; if branch protection requires one it stops at the open PR, and
+`/ptp:deploy-pr-approved` finishes the merge+deploy after a *different* collaborator approves. It
+refuses to run on `master`/`main` (the inverse of `/ptp:master`) and is a documented special case in
+`ptp-branch-guard`. See the README Configuration section for the `deploy` block.
+
 ### Codex-powered review alternatives (external second opinion)
 
 These commands delegate review to the external **Codex CLI** (`codex exec -s read-only "<prompt>"`) instead of the Superpowers code-review skill. Use them when you want an independent reviewer (a different model/agent) as a second opinion. The single-shot variants (`codex-review`, `codex-review-plan`, `codex-review-uncommitted`) only review and display findings — **they NEVER fix anything.** Codex runs read-only and never edits code or artifacts; applying any fix is always a separate, explicit user action — `/ptp:review-fix`, which independently confirms each Codex finding before touching anything.
@@ -136,7 +147,7 @@ If OpenSpec's own prompts conflict with Superpowers reasoning:
 - **Never** ask the user clarifying questions during `/ptp:plan` execution. Make reasonable assumptions and document them in the design doc / proposal so the user can correct course at review time.
 - **Never** invoke or trigger `/ptp:apply` automatically — not after `/ptp:plan` completes, not after `/ptp:review` findings, not in response to "fix the findings" or any other implicit prompt. `/ptp:apply` runs **only** when the user explicitly types `/ptp:apply <change-id>`. When review findings need fixing, apply the fixes inline (edit the code directly) without invoking the apply command — or, when the user explicitly types `/ptp:review-fix`, let that command confirm and fix them (it also never calls `/ptp:apply`).
 - **Never** trigger `/ptp:review-fix` automatically. Like the review and apply commands, it runs **only** on explicit user invocation; a review command finishing, or the user saying "fix the findings" to a review command, does not invoke it. The review commands report and stop; fixing is always a separate, deliberate `/ptp:review-fix` (or inline edit).
-- **Never** write ptp files (planning artifacts, code, inline review fixes, or archive moves) onto `master`. Every write-capable step runs the `ptp-branch-guard` preamble first; on `master` it cuts a feature branch via the `ptp-branch-prep` workflow before writing. Already on a feature branch → no-op (proceed on it). Read-only review/status commands are exempt. The full rule lives in the `ptp-branch-guard` skill.
+- **Never** write ptp files (planning artifacts, code, inline review fixes, or archive moves) onto `master`. Every write-capable step runs the `ptp-branch-guard` preamble first; on `master` it cuts a feature branch via the `ptp-branch-prep` workflow before writing. Already on a feature branch → no-op (proceed on it). Read-only review/status commands are exempt. The full rule lives in the `ptp-branch-guard` skill. The sole command that *does* commit/push/merge — `/ptp:deploy` — is the documented exception: it ships an already-cut feature branch and still never commits directly to `master` (its deploy-fixes go through `ptp/deploy-fix-*` PR mini-flows).
 
 ## When the user just asks for something directly
 
