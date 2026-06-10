@@ -1,6 +1,6 @@
 ---
 name: ptp-deploy
-description: Use this skill when the user wants to ship / deploy / release the current feature branch — commit all changes, push, open a PR, merge to master, delete the merged branch, run the project's deploy (CI/CD) action, autonomously fix conflicts/CI/deploy failures within a bounded retry budget, and finally return to a clean master. The one ptp step that deliberately commits, pushes, and merges. Never self-approves a PR (GitHub forbids it); stops for a human approval only when branch protection requires one. Drives /ptp:deploy and /ptp:deploy-pr-approved.
+description: Use this skill when the user wants to ship / deploy / release the current feature branch — commit all changes, push, open a PR, merge to master, delete the merged branch, run the project's deploy (CI/CD) action, autonomously fix conflicts/CI/deploy failures within a bounded retry budget, and finally return to a clean master. The one ptp step that deliberately commits, pushes, and merges. Never self-approves a PR (GitHub forbids it); stops for a human approval only when branch protection requires one. Drives /ptp:deploy, /ptp:deploy-pr-approved, and the merge-only variant /ptp:merge-to-master (which skips the deploy and deploy-fix phases and lands directly on master after a successful merge).
 ---
 
 # ptp-deploy — the terminal "ship it" pipeline
@@ -14,11 +14,30 @@ otherwise-absolute "never auto-commit / never auto-push" invariant, the same way
 is the documented exception to `ptp-branch-guard`. Where the rest of ptp stops short of git
 history, this skill owns it end to end and then returns to a clean base branch.
 
-Two commands share this skill, differing only in **start phase**:
+Three commands share this skill, differing in **start phase** and **mode** (two independent dials):
 
-- `/ptp:deploy` → start phase **`commit`** (the full pipeline).
-- `/ptp:deploy-pr-approved` → start phase **`merge`** (assumes the branch is pushed, a PR
-  exists, and — for the required-approval case — a human approval is now present).
+- `/ptp:deploy` → start phase **`commit`**, mode **`deploy`** (the full pipeline).
+- `/ptp:deploy-pr-approved` → start phase **`merge`**, mode **`deploy`** (assumes the branch is
+  pushed, a PR exists, and — for the required-approval case — a human approval is now present).
+- `/ptp:merge-to-master` → start phase **`commit`**, mode **`merge-only`** (skips deploy phases).
+
+## Mode dial
+
+The skill has **two independent dials**:
+
+```
+start phase ∈ { commit, merge }      # WHERE the pipeline begins
+mode        ∈ { deploy, merge-only } # WHETHER deploy + deploy-fix run
+```
+
+- **`mode == deploy`** (default): all phases run — `commit → pr → fix → merge → deploy →
+  deploy-fix → land`. This drives `/ptp:deploy` and `/ptp:deploy-pr-approved` and is
+  byte-for-byte unchanged by the addition of `merge-only`.
+- **`mode == merge-only`**: after a successful **merge** (step 6), the skill goes **straight to
+  `land`** (step 9), skipping `deploy` (step 7) and `deploy-fix` (step 8). This drives
+  `/ptp:merge-to-master`. The two dials are orthogonal: everything up to and including merge —
+  preconditions, commit/push, PR create/reuse, the bounded PR-stage fix loop, and the detected
+  approval gate — is identical to `deploy` mode.
 
 ## The approval reality (read this — there is no approval config knob)
 
@@ -27,10 +46,11 @@ admin toggle, or API override. Approval therefore matters **only as a merge gate
 when branch protection **requires** an approving review:
 
 - **No required approval (solo repos / no protection):** the merge proceeds with no approval.
-  This skill runs straight to production.
+  This skill runs straight to production (or, in `merge-only` mode, straight to `land`).
 - **A required approval that isn't met:** the merge is blocked until a *different* identity
   approves. This skill **cannot** satisfy that itself (it authored the PR), so it **stops at
-  the PR** and hands off to `/ptp:deploy-pr-approved`.
+  the PR** and hands off — in `deploy` mode to `/ptp:deploy-pr-approved`, in `merge-only` mode
+  to re-running `/ptp:merge-to-master` after a collaborator approves.
 
 Consequences, enforced below: **never run `gh pr review --approve`** (it fails as the author
 and is pointless), and **never `--admin`-bypass a required approval** (that gate is a
@@ -73,8 +93,10 @@ nothing:
    is missing or not logged in → STOP with install/`gh auth login` guidance.
 2. **Inside a git repository** — `git rev-parse --is-inside-work-tree`. If not → STOP.
 3. **HEAD is a feature branch, not the base branch** — `git rev-parse --abbrev-ref HEAD`. If
-   it is `master`/`main` → STOP: "nothing to deploy — you are on the base branch. Run
-   `/ptp:deploy` from the feature branch that holds the change." (See *Branch safety* above.)
+   it is `master`/`main` → STOP. In `deploy` mode: "nothing to deploy — you are on the base
+   branch. Run `/ptp:deploy` from the feature branch that holds the change." In `merge-only`
+   mode: "nothing to merge — you are on the base branch. Run `/ptp:merge-to-master` from the
+   feature branch that holds the change." (See *Branch safety* above.)
 
 The `/ptp:deploy-pr-approved` entry adds one more precondition before its `merge` start phase:
 an open PR exists for the branch (`gh pr view --json url,state,reviewDecision`) and either its
@@ -129,15 +151,20 @@ reviewDecision,mergeStateStatus`:
 - `reviewDecision` is `REVIEW_REQUIRED` or `CHANGES_REQUESTED` → branch protection requires an
   approving review that isn't met. **STOP**: print the PR URL and instruct: "This repo requires
   an approving review. Have a *different* collaborator approve the PR (you cannot approve your
-  own), then run `/ptp:deploy-pr-approved`." **Never** run `gh pr review --approve`; **never**
-  `--admin`-bypass.
+  own), then" — in `deploy` mode — "run `/ptp:deploy-pr-approved`."; in `merge-only` mode —
+  "re-run `/ptp:merge-to-master` (idempotent: commit skipped on a clean tree, the PR is reused,
+  the gate now passes)." **Never** run `gh pr review --approve`; **never** `--admin`-bypass.
 - `reviewDecision` is `APPROVED`, or empty/null (no review required) → proceed to merge.
 
 **Step 6 — merge.** `gh pr merge <pr> --<mergeMethod> --delete-branch`. This squash-merges (per
 `mergeMethod`) to the base branch and deletes the merged remote branch. If the merge fails
-because an approval is required (a gate not caught at step 5), STOP and hand off to
-`/ptp:deploy-pr-approved` exactly as in step 5 — do not retry with `--admin`. Other merge
-failures → report.
+because an approval is required (a gate not caught at step 5), STOP and hand off exactly as in
+step 5 — `deploy` mode to `/ptp:deploy-pr-approved`, `merge-only` mode to re-running
+`/ptp:merge-to-master` — do not retry with `--admin`. Other merge failures → report.
+
+> **Mode gate (after step 6):** If `mode == merge-only`, skip phases `deploy` (step 7) and
+> `deploy-fix` (step 8) and go **directly to phase `land`** (step 9). This gate is only
+> consulted here; default `deploy` mode falls through to phase `deploy` as before.
 
 ### Phase `deploy`
 
@@ -166,23 +193,31 @@ Loop up to `maxFixRounds`. On exhaustion, **STOP** and report the failing deploy
 
 **Step 9 — return to clean master.** Invoke the **`ptp-master`** skill (its clean-tree gate →
 `git switch <base>` → `git pull --ff-only`). Report the final state: PR merged (URL), branch
-deleted, deploy run conclusion, and the now-current clean base branch.
+deleted, the deploy run conclusion (in `deploy` mode; in `merge-only` mode report the deploy as
+"skipped by design"), and the now-current clean base branch.
 
 ## Start-phase routing
 
-| Command | Enters at | Skips |
-|---------|-----------|-------|
-| `/ptp:deploy` | Phase `commit` (step 1) | nothing |
-| `/ptp:deploy-pr-approved` | Phase `merge` (step 5) | commit/push/create — but re-verifies the PR exists, the branch is pushed, and any required approval is now present, then re-runs the PR-stage fix loop (step 4) if checks regressed before merging |
+| Command | Start phase | Mode | Skips |
+|---------|-------------|------|-------|
+| `/ptp:deploy` | `commit` (step 1) | `deploy` | nothing |
+| `/ptp:deploy-pr-approved` | `merge` (step 5) | `deploy` | commit/push/create — but re-verifies the PR exists, the branch is pushed, and any required approval is now present, then re-runs the PR-stage fix loop (step 4) if checks regressed before merging |
+| `/ptp:merge-to-master` | `commit` (step 1) | `merge-only` | phases `deploy` (step 7) and `deploy-fix` (step 8) — skipped by design, not by graceful degradation |
 
 `/ptp:deploy-pr-approved` is only needed when `/ptp:deploy` stopped at step 5 because the repo
 **required** an approving review. For repos with no required approval, `/ptp:deploy` already
 ran straight through to production.
 
+`/ptp:merge-to-master` is the merge-only variant: it runs the full `commit → pr → fix → merge →
+land` pipeline but **never** runs the deploy action, even on a repo that has a detectable deploy
+workflow. This is distinct from `/ptp:deploy`'s graceful-degradation skip (which applies when no
+workflow is found).
+
 ## Terminal report
 
 Always end with a clear status: each phase's outcome, the PR URL + merge result, the deploy run
-id + conclusion, how many fix rounds each loop used (and whether a cap was hit), and the final
+id + conclusion (in `merge-only` mode the deploy is skipped by design — report it as such with
+no run id), how many fix rounds each loop used (and whether a cap was hit), and the final
 branch. On any STOP, state exactly what blocked and the single next action.
 
 ## Hard rules
@@ -193,7 +228,8 @@ branch. On any STOP, state exactly what blocked and the single next action.
   base branch it STOPs (the inverse of `/ptp:master`).
 - **Never self-approve.** Never run `gh pr review --approve` — GitHub forbids approving your own
   PR and the author always is the author. A required, unmet approval STOPs the command and hands
-  off to `/ptp:deploy-pr-approved`.
+  off to `/ptp:deploy-pr-approved` (in `deploy` mode) or to re-running `/ptp:merge-to-master`
+  (in `merge-only` mode).
 - **Never `--admin`-bypass a required approval.** A required approving review is a deliberate
   human checkpoint, not something to force past.
 - **Never commit a fix directly to the base branch.** Deploy-failure fixes go through a
@@ -201,6 +237,9 @@ branch. On any STOP, state exactly what blocked and the single next action.
 - **Both fix loops are bounded** by `maxFixRounds` (default 3) and independently capped. On
   exhaustion, STOP and report — never loop unbounded, never merge over red checks.
 - **Squash by default** (`mergeMethod`), and always `--delete-branch` on a successful merge.
+- **In `merge-only` mode, the deploy action is skipped by design** — not because no workflow was
+  found (graceful degradation), but because the caller explicitly requested the merge-only
+  pipeline. This applies even when a deploy workflow is present and detectable.
 - **Deploy degrades gracefully**: no detectable deploy workflow → report and skip, do not error.
 - **Config typos never crash** — every `deploy` key falls back to its default.
 - **End by invoking `ptp-master`** to land on a clean base branch; do not hand-roll the switch.
