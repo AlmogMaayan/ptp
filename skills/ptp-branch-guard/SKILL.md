@@ -21,18 +21,19 @@ Every ptp step that **creates or updates files** — planning artifacts, source 
 
 **Deliberate land-on-master exception — `/ptp:master`:** this command does **not** run the guard, but for a distinct reason: it authors no ptp/OpenSpec artifact (a `git switch` / fast-forward pull may update tracked files to match `master`, but the command creates nothing of its own) and its entire purpose is to land on `master` — running the guard would cut a `ptp/<...>` branch and directly defeat it. This is **not** a read-only command (it changes git state and a pull may update the working tree), so it is listed here separately rather than in the read-only list above, to keep each category's stated rationale accurate.
 
-**Deliberate ship-from-a-feature-branch exception — `/ptp:deploy` and
-`/ptp:deploy-pr-approved`:** these commands do **not** run the guard either, but for the
+**Deliberate ship-from-a-feature-branch exception — `/ptp:deploy`, `/ptp:deploy-pr-approved`,
+and `/ptp:merge-to-master`:** these commands do **not** run the guard either, but for the
 *opposite* reason to `/ptp:master`. They are **not** read-only (they commit, push, and merge —
 the one documented exception to ptp's never-auto-commit rule), and they do not cut a branch for
 their own work. Instead they operate on the **already-cut feature branch** and *require* one:
-they refuse to run on `master`/`main` (there is nothing to deploy from the base branch). Running
+they refuse to run on `master`/`main` (there is nothing to ship from the base branch). Running
 the guard would be pointless (HEAD is already a feature branch → no-op) or harmful (on the base
-branch it would cut a throwaway branch rather than STOP as deploy intends). Their internal
-deploy-fix sub-flow *does* cut `ptp/deploy-fix-*` branches and merges them through the PR
-mini-flow, so a fix is never committed to the base branch directly. Like `/ptp:master`, these
-are listed here separately rather than in the read-only list, to keep each category's rationale
-accurate.
+branch it would cut a throwaway branch rather than STOP as these commands intend). `/ptp:deploy`
+and `/ptp:deploy-pr-approved`'s internal deploy-fix sub-flow *does* cut `ptp/deploy-fix-*`
+branches and merges them through the PR mini-flow, so a fix is never committed to the base
+branch directly; `/ptp:merge-to-master` has no deploy phase and therefore cuts no deploy-fix
+branches. Like `/ptp:master`, these are listed here separately rather than in the read-only
+list, to keep each category's rationale accurate.
 
 ## The guard (first write-affecting action, before writing any file)
 

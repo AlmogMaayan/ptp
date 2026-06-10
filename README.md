@@ -283,6 +283,13 @@ approving review. Refuses to run on `master`/`main`. Requires the `gh` CLI authe
 an approval it couldn't provide itself. After a *different* collaborator approves the PR, this
 merges, deploys, and returns to `master`.
 
+**`/ptp:merge-to-master`** — the same pipeline as `/ptp:deploy` but **skips the deploy CI/CD
+action** by design: commit → push → open a PR → squash-merge to `master` → delete the branch →
+return to a clean, up-to-date `master` via `/ptp:master`. Use this for repos with no deploy
+workflow, or when you want to merge without triggering a deploy. Refuses to run on
+`master`/`main`. Never self-approves. Requires `gh` authenticated. On an approval-required
+stop, have a collaborator approve and re-run `/ptp:merge-to-master` (idempotent).
+
 ---
 
 ## Skills
@@ -341,6 +348,9 @@ Diagnose before deciding
 Where am I / what model
   → /ptp:status [change-id]
   → /ptp:effort <change-id>
+
+Merge to master without deploying
+  → /ptp:merge-to-master              # commit → PR → squash-merge → land on master (no deploy)
 
 Return to master (clean tree required)
   → /ptp:master                       # switch to master + git pull --ff-only
