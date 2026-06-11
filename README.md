@@ -8,14 +8,14 @@ PtP turns a one-line feature or bug description into **fully implemented, dual-r
 - **OpenSpec** records the decision as durable artifacts and controls execution order.
 - **Codex** acts as an independent second reviewer alongside Claude, so nothing ships on a single AI's say-so.
 
-You can use PtP one step at a time (`brainstorm → plan → apply → review → archive`), or hand it the whole thing at once with the **`full` family** — `/ptp:full` plans, decomposes, implements, and runs **both Claude *and* Codex** review loops to convergence, story by story, in a single invocation.
+You can use PtP one step at a time (`brainstorm → plan → apply → review → archive`), or hand it the whole thing at once with the **`full` family** — `/ptp:full` plans, decomposes, implements, and runs **both Claude *and* Codex** review loops to convergence, story by story, in a single invocation (the Codex loop runs per `codex.mode` — under the default `auto` it is used when available and skipped, non-silently, when `codex` is absent).
 
 ---
 
 ## What makes PtP different
 
 - **Autonomous end-to-end.** `/ptp:full` takes a request from description to reviewed code: decompose → plan → per-slice dual plan-review → apply → per-story dual code-review — stopping only when a gate genuinely can't be met.
-- **Two independent reviewers, not one.** Every review-to-convergence flow runs the Superpowers loop *and* the Codex CLI loop. Both must sign off before a change is archive-ready.
+- **Two independent reviewers, not one.** Every review-to-convergence flow runs the Superpowers loop *and* (per `codex.mode`) the Codex CLI loop. Both must sign off before a change is archive-ready — unless `codex.mode` skips the Codex phase (`auto` with `codex` absent, or `off`), in which case the converged Superpowers loop alone is a successful single-reviewer run and the skip is reported (never silent).
 - **Review *loops*, not single passes.** The `-loop` and `-full` commands alternate review → confirm → fix automatically until zero open findings (or an iteration cap), instead of you manually re-running review/fix.
 - **Workflow-backed runs.** `/ptp:full-run` launches a deterministic workflow (the plugin's `workflows/`, resolved by name) that runs `apply → review-full` per story sequentially, each apply agent at the model recommended by that story's `effort.md`.
 - **Branch-safe by construction.** Every write-capable command runs a branch guard first: if HEAD is `master`, it stashes, pulls, and cuts a fresh `ptp/<…>` feature branch before writing a single file.
@@ -127,6 +127,25 @@ PATH and stop if it's genuinely missing.
 
 A skipped Codex phase is **never silent**: the orchestrator's end-of-run summary states
 `Codex phase skipped (mode=…)` so a single-reviewer run is always visible.
+
+### `/ptp:config` — guided config editor
+
+**`/ptp:config`** is the interactive front door for editing these config files. Instead of
+hand-editing JSON, it walks you through:
+
+1. **Target** — choose *User / global* (`~/.claude/ptp/config.json`) or *Project*
+   (`<repo>/.claude/ptp/config.json`).
+2. **Parameter** — currently only `codex.mode` ("Use Codex for review"); the menu grows as the
+   registry grows.
+3. **Value** — select from the valid enum values with one-line descriptions.
+
+The command then performs a **safe merge-write**: it sets only the targeted key (`codex.mode`),
+preserves every other existing key (including the `deploy` block), creates the parent directory
+and file if absent, and refuses to overwrite a malformed or wrong-shape JSON file. It echoes the
+absolute path written and the new value. It **never commits, pushes, or stages** the change.
+
+These are the same `~/.claude/ptp/config.json` and `<repo>/.claude/ptp/config.json` files
+described in the Configuration section above.
 
 ### `deploy`
 

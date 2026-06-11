@@ -1,5 +1,5 @@
 ---
-description: Apply-then-review-full every change in a single sequential Claude Code workflow — each story's apply agent runs at the model from its effort.md; collapses the former full-run-effort (requires codex CLI on PATH)
+description: Apply-then-review-full every change in a single sequential Claude Code workflow — each story's apply agent runs at the model from its effort.md; collapses the former full-run-effort (uses Codex per codex.mode — only required hard-requires the codex CLI)
 argument-hint: "[change-selector or id …] (epic:XXXX, id list, or omit to run all active changes)"
 ---
 
@@ -26,7 +26,7 @@ Run the **`ptp-branch-guard`** preamble **once up front**, before launching the 
 
 Check before launching the workflow:
 
-1. The `codex` CLI must be on PATH (the per-story `review-full` review agents require it). Run `codex --version` to check. If missing, **STOP** and tell the user to install it — do **not** launch the workflow.
+1. **Resolve `codex.mode` per the `ptp-codex-mode` skill** and apply its decision contract (the per-story `review-full` review agents are the Codex consumers). Under **`required`**, run `codex --version`; if missing, **STOP** and tell the user to install it or change the mode — do **not** launch the workflow. Under **`auto`** or **`off`**, **launch** the workflow: each story's `ptp-review` agent runs `review-full`, which applies the per-story Codex skip itself (Superpowers-only, non-silent) and reports a mode-skipped review as gate-success, so the run does not halt. The full resolution + decision rule lives in the `ptp-codex-mode` skill — do not restate it here.
 2. Each resolved `openspec/changes/<id>/` directory must exist.
 
 ## What this command does
@@ -47,7 +47,7 @@ The command is a thin wrapper that does all the file I/O up front (impossible in
 
 - **Never archive** any story. Archiving is always an explicit `/ptp:archive <id>` user action.
 - **Never auto-commit** any edits made by the apply or review agents.
-- **Codex is required** (the per-story review agents need it). Fail fast if `codex --version` is missing — STOP without launching.
+- **Codex per `codex.mode`** (see the `ptp-codex-mode` skill) — resolve the mode once up front; only `required` hard-requires Codex (STOP without launching if `codex --version` fails). Under `auto`/`off`, launch: each story's `review-full` applies its own non-silent Codex skip and reports a mode-skipped review as gate-success.
 - **Never invoke `/ptp:plan` or `/ptp:plan-multiple`.** This command orchestrates apply and review only; planning is out of scope.
-- **The review convergence gate halts the whole run.** A story whose review is not `BOTH_PHASES_DONE` sets the workflow's `halted` and stops the loop — do not continue to the next story.
+- **The review convergence gate halts the whole run.** A story whose review is not gate-success sets the workflow's `halted` and stops the loop — do not continue to the next story. A review that converged its Superpowers phase and skipped Codex by `codex.mode` (the mode-skip terminal state) is **gate-success**, not a halt — the `ptp-review` agent reports it as `BOTH_PHASES_DONE` (per `ptp-codex-mode`) so the workflow continues to the next story.
 - There is **no** effort-gate rule and **no** model/effort-switch suggestion: each workflow agent carries its own model, so there is nothing to gate or suggest switching.

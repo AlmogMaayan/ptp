@@ -1,9 +1,9 @@
 ---
-description: Full dual-reviewer artifact-review loop — runs Superpowers artifact loop then Codex artifact loop in sequence; Phase 2 starts only if Phase 1 converges (reviews proposal/design/tasks/spec-deltas, not code; requires codex CLI on PATH)
+description: Full dual-reviewer artifact-review loop — runs Superpowers artifact loop then Codex artifact loop in sequence; Phase 2 starts only if Phase 1 converges (reviews proposal/design/tasks/spec-deltas, not code; Codex per codex.mode — only required hard-requires the codex CLI; auto-missing/off runs Superpowers-only)
 argument-hint: "<change-selector> — id, epic:XXXX, story:NN, or epic:XXXX story:NN"
 ---
 
-You are running **`/ptp:review-plan-full`** — a two-phase artifact-review loop that first runs the Superpowers artifact-quality loop to convergence, then runs the Codex artifact-quality loop to convergence, in a single invocation. Both reviewers must sign off on the planning artifacts before the change proceeds to implementation.
+You are running **`/ptp:review-plan-full`** — a two-phase artifact-review loop that first runs the Superpowers artifact-quality loop to convergence, then (when `codex.mode` permits) runs the Codex artifact-quality loop to convergence, in a single invocation. Both reviewers must sign off on the planning artifacts before the change proceeds to implementation — except when `codex.mode` skips the Codex phase (`auto` with `codex` absent, or `off`), in which case a converged Superpowers phase alone is a successful single-reviewer run (the skip is reported, never silent).
 
 This is **not** a code-review loop. It reviews the *planning artifacts* (`proposal.md`, `design.md`, `tasks.md`, and spec deltas), not source code. Use `/ptp:review-full` or `/ptp:codex-review-loop` to review implemented code.
 
@@ -21,7 +21,7 @@ Both phases apply inline artifact fixes, so before Phase 1 run the **`ptp-branch
 
 Check both before Phase 1 begins:
 
-1. The `codex` CLI must be on PATH. Run `codex --version` to check. If missing, **STOP** and tell the user to install it — do **not** fall back to Superpowers-only and do **not** start Phase 1.
+1. **Resolve `codex.mode` per the `ptp-codex-mode` skill** and apply its decision contract — do not hard-require Codex here. Phase 1 (the Superpowers artifact loop) always runs regardless of mode. Only `required` + `codex` missing **STOPs** (with the install-or-change-mode message); under `auto` + `codex` missing or `off`, Phase 2 is skipped and the run proceeds Superpowers-only (see Phase 2 below). The full resolution + decision rule lives in the `ptp-codex-mode` skill — do not restate it here.
 2. `openspec/changes/<change-id>/` must exist. If it does not, **STOP** and redirect the user to run `/ptp:plan` first.
 
 ## What this command does
@@ -40,7 +40,9 @@ The skill drives the full loop. For each iteration's review pass it runs the `re
 
 ### Phase 2 — Codex artifact-review loop
 
-If and only if Phase 1 terminates with `DONE`, invoke the `ptp-review-loop` skill with:
+**Mode gate (per `ptp-codex-mode`).** Before starting Phase 2, apply the decision contract from the `ptp-codex-mode` skill to the mode resolved in Preconditions. If the decision is to **skip** Codex (`off`, or `auto` with `codex` not on PATH), do **not** start Phase 2: terminate in the mode-skip terminal state **`PHASE 1 DONE — CODEX SKIPPED (mode=…)`** (a green-class, success terminal state) and add the `Codex phase skipped (mode=…)` line to the combined summary. (`required` + `codex` missing already STOPped in Preconditions.)
+
+If and only if Phase 1 terminates with `DONE` **and** the decision permits Codex, invoke the `ptp-review-loop` skill with:
 
 - `kind = artifact`
 - `reviewer = codex`
@@ -55,10 +57,11 @@ The skill drives the full loop. For each iteration's review pass it runs the `co
 After both phases complete, report:
 
 1. Phase 1 summary (per-iteration table, total fixes, rejected/carry-over set, terminal state).
-2. Phase 2 summary (same).
-3. Overall verdict: BOTH PHASES DONE (both converged) or PHASE 2 ITERATION CAP REACHED (Phase 1 converged, Phase 2 did not).
+2. Phase 2 summary (same) — or, if Codex was mode-skipped, the `Codex phase skipped (mode=…)` line in place of a Phase 2 table.
+3. Overall verdict: BOTH PHASES DONE (both converged), PHASE 1 DONE — CODEX SKIPPED (mode=…) (Phase 1 converged, Codex intentionally skipped by `codex.mode` — a success state), or PHASE 2 ITERATION CAP REACHED (Phase 1 converged, Phase 2 did not).
 4. Next command:
    - If BOTH PHASES DONE → `/ptp:apply $ARGUMENTS` (or `/ptp:review-full $ARGUMENTS` if implementation is already complete).
+   - If PHASE 1 DONE — CODEX SKIPPED → `/ptp:apply $ARGUMENTS` (Superpowers signed off on the artifacts; Codex was skipped by mode — a successful single-reviewer run, not a halt). To add the Codex artifact reviewer, set `codex.mode` via `/ptp:config` (and install `codex`) then run `/ptp:codex-review-plan-loop $ARGUMENTS`.
    - If PHASE 2 ITERATION CAP REACHED → resolve remaining Codex artifact findings (e.g., `/ptp:review-fix`), then re-run `/ptp:review-plan-full $ARGUMENTS` or run `/ptp:codex-review-plan-loop $ARGUMENTS` directly.
 
 ## Hard rules

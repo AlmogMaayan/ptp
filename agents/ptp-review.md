@@ -10,9 +10,13 @@ structured data — return only the requested JSON object.
 
 ## Preconditions
 
-- `codex --version` must succeed (Phase 2 needs it). If missing, return
-  `terminalState: "PHASE1_CAP"` with `notes` explaining codex is absent. (The caller already
-  checked this; this is a backstop.)
+- **Resolve `codex.mode` per the `ptp-codex-mode` skill** and apply its decision contract to Phase 2.
+  Phase 1 (Superpowers) always runs. If the decision is to **skip** Codex (`off`, or `auto` with
+  `codex` not on PATH), run Phase 1 only and, on Phase 1 convergence, return
+  `terminalState: "BOTH_PHASES_DONE"` (the mode-skip is gate-success — `ptp-full-run`'s gate must not
+  halt on it) with a `notes` line `Codex phase skipped (mode=…)`. Only under `required` + `codex`
+  missing return `terminalState: "PHASE1_CAP"` with `notes` explaining codex is absent. (The caller
+  already resolved the mode; this honors the same decision.)
 - `openspec/changes/<change-id>/` must exist.
 
 ## Phase 1 — Superpowers code-review loop (cap 5)
@@ -34,9 +38,11 @@ Iterate review → confirm → fix until zero confirmed findings or 5 iterations
 - **Terminate:** zero confirmed findings → Phase 1 DONE. Hit iteration 6 → `PHASE1_CAP`: STOP,
   do NOT start Phase 2.
 
-## Phase 2 — Codex code-review loop (cap 5) — only if Phase 1 is DONE
+## Phase 2 — Codex code-review loop (cap 5) — only if Phase 1 is DONE and the mode decision permits Codex
 
-Fresh loop state (Phase 1 rejections do NOT carry over). Each iteration:
+Skip this phase entirely if the `codex.mode` decision was to skip Codex (see Preconditions) — return
+`BOTH_PHASES_DONE` with the `Codex phase skipped (mode=…)` note. Otherwise, fresh loop state (Phase 1
+rejections do NOT carry over). Each iteration:
 - Read the contract yourself; capture the merge-base diff; run
   `npx -y openspec validate <change-id> --strict` and relevant tests yourself; build ONE
   self-contained closed-book prompt with all of that inlined; pipe it to

@@ -1,5 +1,5 @@
 ---
-description: Plan-and-run an oversized change end to end in one invocation — full-plan (decompose + per-slice plan-review) then, on full plan convergence, continue without stopping into full-run (apply + code-review per slice). Read-then-write; never archives (requires codex CLI on PATH)
+description: Plan-and-run an oversized change end to end in one invocation — full-plan (decompose + per-slice plan-review) then, on full plan convergence, continue without stopping into full-run (apply + code-review per slice). Read-then-write; never archives (uses Codex per codex.mode — only required hard-requires the codex CLI)
 argument-hint: "<big-change-id-or-request>"
 ---
 
@@ -19,14 +19,14 @@ Run the **`ptp-branch-guard`** preamble **once up front**, before either phase w
 
 Check before doing any work:
 
-1. The `codex` CLI must be on PATH — **both** phases need it (plan-review's Codex artifact loop and code-review's Codex code loop). Run `codex --version`. If missing, **STOP** and tell the user to install it — do **no** work in either phase, and no Superpowers-only fallback. One check covers the whole command.
+1. **Resolve `codex.mode` per the `ptp-codex-mode` skill** (one resolution covers the whole command). Apply its decision contract: under **`required`** the `codex` CLI must be on PATH — run `codex --version`, and if missing **STOP** up front with the install-or-change-mode message, doing no work in either phase. Under **`auto`** or **`off`** the command **proceeds**: each phase's `review-plan-full` / `review-full` then applies the per-phase Codex skip itself (Superpowers-only, non-silent), and a mode-skipped phase is treated as convergence by the gates. The full resolution + decision rule lives in the `ptp-codex-mode` skill — do not restate it here.
 
 ## What this command does
 
 Drive the `ptp-full` skill, which orchestrates two phases with two gates and the glue between them:
 
 1. **Plan phase (the `/ptp:full-plan` flow).** Invoke `ptp:plan-multiple` with `$ARGUMENTS`, capture the ordered slice ids (`XXXX_NN_<desc>`, epic-then-story order; single-change fallback → one id), then invoke `ptp:review-plan-full` for each slice in order to its terminal state.
-2. **Plan-convergence gate.** A slice's `review-plan-full` ends in one of three states: `BOTH PHASES DONE` (green), `ITERATION CAP REACHED` (Phase-1 cap), or `PHASE 2 ITERATION CAP REACHED` (Phase-2 cap). If a slice ends in **anything other than `BOTH PHASES DONE`**, **STOP after that slice** — do not plan-review later slices and **do not enter the run phase**. Applying code from a plan that did not fully converge is exactly what this prevents.
+2. **Plan-convergence gate.** A slice's `review-plan-full` ends in one of these states: `BOTH PHASES DONE` (green), `PHASE 1 DONE — CODEX SKIPPED (mode=…)` (green — Codex intentionally skipped by `codex.mode`; per `ptp-codex-mode` this is gate-success), `ITERATION CAP REACHED` (Phase-1 cap), or `PHASE 2 ITERATION CAP REACHED` (Phase-2 cap). Treat **both** green states (`BOTH PHASES DONE` and `PHASE 1 DONE — CODEX SKIPPED`) as converged and proceed. If a slice ends in **any non-green state**, **STOP after that slice** — do not plan-review later slices and **do not enter the run phase**. Applying code from a plan that did not fully converge is exactly what this prevents.
 3. **Run phase (the `ptp-full-run` flow), only on full plan convergence.** Read each captured slice's `effort.md` (line 1 = `{model}.{effort}`; missing/unparseable → default `opus.high`, noted), build `stories = [{ id, model, effort }, …]` in plan order, and launch:
    ```
    Workflow({ name: 'ptp-full-run', args: { stories } })
@@ -40,8 +40,8 @@ Drive the `ptp-full` skill, which orchestrates two phases with two gates and the
 
 ## Hard rules
 
-- **Codex is required** — check `codex --version` once up front; STOP with no work if missing. No fallback.
-- **The plan-convergence gate blocks the run phase** — enter the run phase only if every slice reached `BOTH PHASES DONE`; never apply code from a plan that ended in `ITERATION CAP REACHED` or `PHASE 2 ITERATION CAP REACHED`.
+- **Codex per `codex.mode`** (see the `ptp-codex-mode` skill) — resolve the mode once up front; only `required` hard-requires Codex (STOP with no work if `codex --version` fails). Under `auto`/`off` the command proceeds and each phase applies its own non-silent Codex skip.
+- **The plan-convergence gate blocks the run phase** — enter the run phase only if every slice reached a green state (`BOTH PHASES DONE` or `PHASE 1 DONE — CODEX SKIPPED`); never apply code from a plan that ended in `ITERATION CAP REACHED` or `PHASE 2 ITERATION CAP REACHED`.
 - **Never apply code in the plan phase**; code is applied only in the run phase, only after full plan convergence.
 - **Never archive** any slice — archiving is always an explicit `/ptp:archive <id>` user action.
 - **Never auto-commit** any edits made during planning, plan review, apply, or code review.
