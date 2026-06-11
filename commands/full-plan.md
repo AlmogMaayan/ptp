@@ -1,5 +1,5 @@
 ---
-description: Orchestrate plan-multiple then per-slice review-plan-full across every slice of an oversized change — read-only planning, never applies code or archives (requires codex CLI on PATH)
+description: Orchestrate plan-multiple then per-slice review-plan-full across every slice of an oversized change — read-only planning, never applies code or archives (Codex per codex.mode — only required hard-requires the codex CLI; auto-missing/off runs Superpowers-only)
 argument-hint: "<big-change-id-or-request>"
 ---
 
@@ -21,7 +21,7 @@ Run the **`ptp-branch-guard`** preamble **once up front**, before delegating to 
 
 Check before doing any work:
 
-1. The `codex` CLI must be on PATH (the per-slice `review-plan-full` stage requires it). Run `codex --version` to check. If missing, **STOP** and tell the user to install it — do **not** fall back to a Superpowers-only plan review, and do **not** invoke `ptp:plan-multiple`.
+1. **Resolve `codex.mode` per the `ptp-codex-mode` skill** and apply its decision contract (the per-slice `review-plan-full` stage is the Codex consumer). Under **`required`**, run `codex --version`; if missing, **STOP** with the install-or-change-mode message and do **not** invoke `ptp:plan-multiple`. Under **`auto`** or **`off`**, **proceed**: each slice's `review-plan-full` applies the per-slice Codex skip itself (Superpowers-only, non-silent) and reports a mode-skipped review as a green terminal state. The full resolution + decision rule lives in the `ptp-codex-mode` skill — do not restate it here.
 
 ## What this command does
 
@@ -29,11 +29,11 @@ Check before doing any work:
    - **Single-change fallback.** If `plan-multiple` determines the work is one coherent unit, it falls back to a single `/ptp:plan` and reports exactly one change id (`XXXX_01_<desc>`). That is fine — the slice set is one id and step 2 runs `review-plan-full` once.
 
 2. **Plan-review each slice, in order.** For each slice id in the captured order, invoke the `ptp:review-plan-full` command. It runs the two-phase Superpowers→Codex artifact-review loop to its terminal state for that slice's `proposal.md` / `design.md` / `tasks.md` / spec deltas.
-   - **Convergence gate (symmetric).** If a slice's `review-plan-full` terminates with `PHASE 2 ITERATION CAP REACHED`, **STOP** after that slice. Report which slice did not converge and do **not** start the plan review of any later slice.
+   - **Convergence gate (symmetric).** Both `BOTH PHASES DONE` and `PHASE 1 DONE — CODEX SKIPPED (mode=…)` (Codex intentionally skipped by `codex.mode`; per `ptp-codex-mode` this is gate-success) are green and converged. If a slice's `review-plan-full` terminates with `PHASE 2 ITERATION CAP REACHED` (or `ITERATION CAP REACHED`), **STOP** after that slice. Report which slice did not converge and do **not** start the plan review of any later slice.
 
 3. **Report.** After the last slice (or at a convergence STOP), report:
    - The slices created, in order, each with its one-line scope.
-   - Per-slice plan-review terminal state (`BOTH PHASES DONE` / `PHASE 2 ITERATION CAP REACHED`).
+   - Per-slice plan-review terminal state (`BOTH PHASES DONE` / `PHASE 1 DONE — CODEX SKIPPED (mode=…)` / `PHASE 2 ITERATION CAP REACHED` / `ITERATION CAP REACHED`); never collapse a mode-skipped slice into a plain both-phases label, so the skip stays visible.
    - The exact next command: `/ptp:full-run` (which applies each slice at the model from its `effort.md` automatically — the apply runs in a workflow agent that carries that model).
 
 ## Model/effort posture
@@ -46,5 +46,5 @@ Check before doing any work:
 - Do **not** archive any change. Archiving is always an explicit `/ptp:archive <id>` user action.
 - Do **not** auto-commit any edits made during planning or plan review.
 - Do **not** start a later slice's plan review if an earlier slice did not converge (`PHASE 2 ITERATION CAP REACHED`).
-- Fail fast without `codex` — check `codex --version` before any work and STOP if missing; no Superpowers-only fallback.
+- **Codex per `codex.mode`** (see the `ptp-codex-mode` skill) — resolve the mode before any work; only `required` hard-requires Codex (STOP without work if `codex --version` fails). Under `auto`/`off`, proceed and each slice's `review-plan-full` applies its own non-silent Codex skip.
 - Do **not** stop to switch models — `full-plan` has no effort gate; at most it reminds when the session is below `opus.high`.
