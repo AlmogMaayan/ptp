@@ -30,14 +30,19 @@ is documented in the `ptp-branch-guard` skill as the single source of truth.
 
 ## Steps
 
-1. **Invoke the `ptp-deploy` skill** via the Skill tool with **start phase `commit`** (the full
+1. **Invoke the `ptp-model-effort-check` skill** via the Skill tool. This checks whether the
+   session model is Sonnet and effort is medium before deploying. If they already match the
+   baseline, the skill is a no-op and execution proceeds immediately. If they differ, the user
+   is prompted to switch or continue — if they choose to switch, STOP and let them re-run after
+   switching.
+2. **Invoke the `ptp-deploy` skill** via the Skill tool with **start phase `commit`** (the full
    pipeline). The skill holds the entire methodology: config read, preconditions (`gh` auth, in
    a repo, not on the base branch), commit+push with an openspec-derived Conventional-Commit
    message, PR create/reuse, the bounded PR-stage fix loop, the detected approval gate (never
    self-approve), squash merge + delete branch, deploy-action detection/dispatch/watch, the
    bounded deploy-stage fix loop (via `ptp/deploy-fix-*` PR mini-flows), and the final
    `ptp-master` land. Do not duplicate the methodology here.
-2. **STOP** when the skill reports its terminal state. If the repo *required* an approving review
+3. **STOP** when the skill reports its terminal state. If the repo *required* an approving review
    that wasn't present, the skill stops after opening the PR — get a *different* collaborator to
    approve it (you cannot approve your own PR), then finish with `/ptp:deploy-pr-approved`.
 

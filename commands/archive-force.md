@@ -27,13 +27,19 @@ Force-archiving moves change folders and rewrites `openspec/specs/`, so before a
 
 ## Steps
 
-1. **Resolve the selector** to a list of change ids using the `ptp-change-selector` skill. If resolution fails (no match, ambiguous), stop and surface the error — do not guess.
+1. **Invoke the `ptp-model-effort-check` skill** via the Skill tool. This checks whether the
+   session model is Sonnet and effort is medium before force-archiving. If they already match
+   the baseline, the skill is a no-op and execution proceeds immediately. If they differ, the
+   user is prompted to switch or continue — if they choose to switch, STOP and let them re-run
+   after switching.
 
-2. **Delegate to the `ptp-archive-force` skill**, passing:
+2. **Resolve the selector** to a list of change ids using the `ptp-change-selector` skill. If resolution fails (no match, ambiguous), stop and surface the error — do not guess.
+
+3. **Delegate to the `ptp-archive-force` skill**, passing:
    - The resolved id list (story order)
    - `from_all` (true iff `$ARGUMENTS` was empty)
 
-3. **Surface the skill's per-change reports and end-of-run summary** to the user.
+4. **Surface the skill's per-change reports and end-of-run summary** to the user.
 
 ## Hard rules
 

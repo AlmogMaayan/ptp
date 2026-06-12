@@ -30,14 +30,19 @@ no `ptp/deploy-fix-*` branches are cut by this command.
 
 ## Steps
 
-1. **Invoke the `ptp-deploy` skill** via the Skill tool with **start phase `commit`** and
+1. **Invoke the `ptp-model-effort-check` skill** via the Skill tool. This checks whether the
+   session model is Sonnet and effort is medium before merging. If they already match the
+   baseline, the skill is a no-op and execution proceeds immediately. If they differ, the user
+   is prompted to switch or continue — if they choose to switch, STOP and let them re-run after
+   switching.
+2. **Invoke the `ptp-deploy` skill** via the Skill tool with **start phase `commit`** and
    **mode `merge-only`**. The skill holds the entire methodology: config read, preconditions
    (`gh` auth, in a repo, not on the base branch), commit+push with an openspec-derived
    Conventional-Commit message, PR create/reuse, the bounded PR-stage fix loop, the detected
    approval gate (never self-approve), squash merge + delete branch, and the final `ptp-master`
    land. The `deploy` and `deploy-fix` phases are skipped by the skill's mode gate — by design,
    not graceful degradation. Do not duplicate the methodology here.
-2. **STOP** when the skill reports its terminal state. If the repo *required* an approving review
+3. **STOP** when the skill reports its terminal state. If the repo *required* an approving review
    that wasn't present, the skill stops after opening the PR — have a *different* collaborator
    approve it (you cannot approve your own PR), then **re-run `/ptp:merge-to-master`**. Re-running
    is idempotent: the commit is skipped if the tree is clean, the existing PR is reused, the
