@@ -22,6 +22,22 @@ Codex runs under `codex exec -s read-only` with `approval: never`, shelling out 
 
 ## Steps
 
+This command is **read-only** — it runs **no** branch guard (it never writes). Its review work runs
+**at a deterministic model** via the **`ptp-run-at-model`** skill at `opus.high`. The outer session
+runs only the abort-guaranteeing preconditions first — the `codex --version` presence check (STOP if
+missing), the **single-change resolution** (STOP and ask if the selector resolves to more than one
+change, per *Inputs*), and the **non-empty working-tree gate** (`git status --porcelain`; STOP if it
+is empty — nothing to review) — so a guaranteed abort never spawns a subagent. It then invokes
+**`ptp-run-at-model`** with target `opus.high` to run the work below **after that outer gate has
+passed** (steps 2–5 plus the capture half of step 1; step 1's empty-tree STOP gate is the outer
+precondition above — the subagent only re-captures the changed/untracked file list for its own use,
+it does not re-decide whether to abort); that spawns **one**
+foreground `opus` subagent (high effort directive) which reviews the working tree **exactly once** and
+**never iterates** — capturing the diff/untracked contents, building the prompt, running `codex exec
+-s read-only` over stdin (the external `codex exec` remains a Bash subprocess governed by its own CLI
+config), and relaying the verdict — **fixing nothing**, and the subagent's outcome is relayed back per
+`ptp-run-at-model`'s *Result relay*.
+
 1. **Confirm there is something to review (you, via Bash):** `git status --porcelain`. Capture the list of changed + untracked files.
 2. **Capture the uncommitted diff and untracked contents (you, via Bash/Read):**
    - Tracked changes: `git diff HEAD` (and `git diff --staged` if you want staged-only called out).

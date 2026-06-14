@@ -23,20 +23,38 @@ Same as `/ptp:deploy`: this is **not** read-only and does **not** cut a branch v
 
 ## Steps
 
-1. **Invoke the `ptp-deploy` skill** via the Skill tool with **start phase `merge`**. The skill
-   re-verifies the preconditions (`gh` auth, in a repo, not on the base branch) **plus** that an
-   open PR exists for the branch and a required approval is now satisfied (`reviewDecision` is
-   `APPROVED`, or the merge is otherwise no longer blocked), then runs the bounded PR-stage fix
-   loop (in case checks regressed), squash-merges + deletes the branch, runs the deploy action
-   (detect/dispatch/watch), the bounded deploy-stage fix loop, and the final `ptp-master` land.
-   The full methodology lives in the skill — do not restate it here.
-2. **STOP** when the skill reports its terminal state.
+1. **Run the cheap, guaranteed-abort preconditions in the outer session, before spawning anything.**
+   A guaranteed abort must not spawn a subagent. Check: HEAD is not `master`/`main`
+   (`git rev-parse --abbrev-ref HEAD`) — else **STOP** (operate from the feature branch); and `gh` is
+   authenticated (`gh auth status`) — else **STOP** with `gh auth login` guidance. The deploy trio is
+   a documented branch-guard **exemption** (it never cuts a branch), so this outer step is the
+   abort-precondition only — no `ptp-branch-prep` workflow runs in the outer session.
+2. **Run the `ptp-deploy` work via `ptp-run-at-model` at `sonnet.medium`.** Invoke the
+   **`ptp-run-at-model`** skill with target `sonnet.medium` and work = "run the `ptp-deploy` skill,
+   start phase `merge`, mode `deploy`". The spawned `sonnet` subagent (medium effort directive)
+   re-verifies the preconditions (`gh` auth, in a repo, not on the base branch) **plus** that an open
+   PR exists for the branch and a required approval is now satisfied (`reviewDecision` is `APPROVED`,
+   or the merge is otherwise no longer blocked), then runs the bounded PR-stage fix loop (in case
+   checks regressed; resolved **inline** — no nested fix subagent), squash-merges + deletes the
+   branch, runs the deploy action (detect/dispatch/watch), the bounded deploy-stage fix loop (also
+   inline), and the final `ptp-master` land. The full methodology lives in the skill — do not restate
+   it here. The branch guard does **not** run (documented guard exemption; `ptp-run-at-model` defers
+   that decision to `ptp-branch-guard`).
+3. **Relay** the subagent's terminal state verbatim in meaning, then **STOP** — never report a
+   refusal or a needs-human-action state as success:
+   - `completed` → print the ship summary.
+   - `refused` → print the gate/precondition reason — **not** success.
+   - `needs-human-action` → the required approval is *still* missing; surface the reason + the PR URL
+     + the follow-up: get a *different* collaborator to approve the PR, then re-run
+     `/ptp:deploy-pr-approved`. This is **not** a success and **not** a plain refusal.
 
 ## Hard rules
 
 - Use only after `/ptp:deploy` stopped at an open PR because an approval was *required*, and a
   *different* collaborator has now approved it. If the required approval is still missing, the
-  skill STOPs and asks you to get it approved first.
+  command surfaces a `needs-human-action` state (reason + PR URL + the follow-up "get a *different*
+  collaborator to approve, then re-run `/ptp:deploy-pr-approved`") — not a success or a plain refusal.
+- **Runs at a deterministic `sonnet.medium`** via `ptp-run-at-model` (one foreground subagent).
 - Refuses to run on `master`/`main`; operates on the current feature branch.
 - **Squash merge** (per `mergeMethod`) and **delete the merged branch**.
 - **Never self-approves** and **never `--admin`-bypasses** — it relies on the approval a human

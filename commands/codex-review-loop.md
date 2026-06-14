@@ -22,7 +22,18 @@ This loop applies inline code fixes, so before any fix run the **`ptp-branch-gua
 
 ## What this command does
 
-Invoke the `ptp-review-loop` skill with:
+The codex-review-loop work runs **at a deterministic model** via the **`ptp-run-at-model`** skill at
+`opus.high`. The outer session runs only the abort-guaranteeing preconditions first — the
+`ptp-branch-guard` preamble (above), the `codex --version` presence check (STOP if missing), the
+change-folder existence check, and selector disambiguation that must STOP and ask the user — so a
+guaranteed abort never spawns a subagent. It then invokes
+**`ptp-run-at-model`** with target `opus.high` and the work below; that spawns one foreground `opus`
+subagent (high effort directive) which runs the loop (the Claude-side closed-book prompt
+construction, confirmation, and relay; the external `codex exec` remains a Bash subprocess governed
+by its own CLI config), and its terminal state (DONE or ITERATION CAP REACHED) is relayed back per
+`ptp-run-at-model`'s *Result relay* — never downgraded to success.
+
+The subagent invokes the `ptp-review-loop` skill with:
 
 - `kind = code`
 - `reviewer = codex`

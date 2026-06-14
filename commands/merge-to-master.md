@@ -30,23 +30,35 @@ no `ptp/deploy-fix-*` branches are cut by this command.
 
 ## Steps
 
-1. **Invoke the `ptp-model-effort-check` skill** via the Skill tool. This checks whether the
-   session model is Sonnet and effort is medium before merging. If they already match the
-   baseline, the skill is a no-op and execution proceeds immediately. If they differ, the user
-   is prompted to switch or continue — if they choose to switch, STOP and let them re-run after
-   switching.
-2. **Invoke the `ptp-deploy` skill** via the Skill tool with **start phase `commit`** and
-   **mode `merge-only`**. The skill holds the entire methodology: config read, preconditions
-   (`gh` auth, in a repo, not on the base branch), commit+push with an openspec-derived
-   Conventional-Commit message, PR create/reuse, the bounded PR-stage fix loop, the detected
-   approval gate (never self-approve), squash merge + delete branch, and the final `ptp-master`
-   land. The `deploy` and `deploy-fix` phases are skipped by the skill's mode gate — by design,
-   not graceful degradation. Do not duplicate the methodology here.
-3. **STOP** when the skill reports its terminal state. If the repo *required* an approving review
-   that wasn't present, the skill stops after opening the PR — have a *different* collaborator
-   approve it (you cannot approve your own PR), then **re-run `/ptp:merge-to-master`**. Re-running
-   is idempotent: the commit is skipped if the tree is clean, the existing PR is reused, the
-   approval gate is re-evaluated, and merge → land proceed.
+1. **Run the cheap, guaranteed-abort preconditions in the outer session, before spawning anything.**
+   A guaranteed abort must not spawn a subagent. Check: HEAD is not `master`/`main`
+   (`git rev-parse --abbrev-ref HEAD`) — else **STOP** (nothing to merge from the base branch; run
+   from the feature branch); and `gh` is authenticated (`gh auth status`) — else **STOP** with
+   install/`gh auth login` guidance. The deploy trio is a documented branch-guard **exemption** (it
+   never cuts a branch), so this outer step is the abort-precondition only — no `ptp-branch-prep`
+   workflow runs in the outer session.
+2. **Run the `ptp-deploy` work via `ptp-run-at-model` at `sonnet.medium`.** Invoke the
+   **`ptp-run-at-model`** skill with target `sonnet.medium` and work = "run the `ptp-deploy` skill,
+   start phase `commit`, mode `merge-only`". The spawned `sonnet` subagent (medium effort directive)
+   runs the merge-only pipeline. The `ptp-deploy` skill holds the entire methodology: config read,
+   preconditions (re-run as defense in depth), commit+push with an openspec-derived Conventional-Commit
+   message, PR create/reuse, the bounded PR-stage fix loop (resolved **inline** inside the subagent —
+   no nested fix subagent), the detected approval gate (never self-approve), squash merge + delete
+   branch, and the final `ptp-master` land. The `deploy` and `deploy-fix` phases are skipped by the
+   skill's mode gate — by design, not graceful degradation. Do not duplicate the methodology here. The
+   branch guard does **not** run (documented guard exemption; `ptp-run-at-model` defers that decision
+   to `ptp-branch-guard`).
+3. **Relay** the subagent's terminal state verbatim in meaning, then **STOP** — never report a
+   refusal or a needs-human-action state as success:
+   - `completed` → print the merge summary (PR merged, branch deleted, clean base branch; deploy
+     skipped by design).
+   - `refused` → print the gate/precondition reason (e.g. PR-stage fix budget exhausted) — **not**
+     success.
+   - `needs-human-action` → the repo *required* an approving review that wasn't present; surface the
+     reason + the PR URL + the follow-up "re-run `/ptp:merge-to-master`". Have a *different*
+     collaborator approve it (you cannot approve your own PR), then re-run `/ptp:merge-to-master`.
+     Re-running is idempotent: the commit is skipped if the tree is clean, the existing PR is reused,
+     the approval gate is re-evaluated, and merge → land proceed.
 
 ## Hard rules
 
@@ -54,8 +66,11 @@ no `ptp/deploy-fix-*` branches are cut by this command.
 - Commits, pushes, and merges by design — the one ptp exception to the never-auto-commit rule.
 - **Squash merge** (per `mergeMethod`) and **delete the merged branch**.
 - **Never self-approves** (`gh pr review --approve` is impossible for the author) and **never
-  `--admin`-bypasses** a required approval. A required, unmet approval stops the command at the
-  PR; re-run after a collaborator approves.
+  `--admin`-bypasses** a required approval. A required, unmet approval surfaces as a
+  `needs-human-action` state (reason + PR URL + the follow-up "re-run `/ptp:merge-to-master`"), never
+  a success or a plain refusal; re-run after a collaborator approves.
+- **Runs at a deterministic `sonnet.medium`** via `ptp-run-at-model` (one foreground subagent),
+  rather than the old soft model/effort prompt — the baseline is enforced, not merely suggested.
 - **Does not run a deploy action** — skipped by design, not by graceful degradation. This applies
   even when the repo has a detectable deploy workflow.
 - The PR-stage fix loop is bounded by `maxFixRounds` (default 3); on exhaustion, STOP and report —

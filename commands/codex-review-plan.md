@@ -28,6 +28,21 @@ So **the caller (you) does all the file reading and validation**, and hands Code
 
 ## Steps
 
+This command is **read-only** — it runs **no** branch guard (it never writes). Its artifact-audit
+work runs **at a deterministic model** via the **`ptp-run-at-model`** skill at `opus.high`. The outer
+session runs only the abort-guaranteeing preconditions first — the `codex --version` presence check
+(STOP if missing), per resolved change the change-folder existence check, and selector disambiguation
+that must STOP and ask the user — while the empty-argument audit-all-active default is preserved (see
+*Inputs* and step 1). It then invokes **`ptp-run-at-model`** with target `opus.high` to run the work
+below **over the already-resolved scope** (steps 2–7 plus the artifact-gathering half of step 1; step
+1's scope resolution and its STOP-and-ask disambiguation are the outer precondition above, so the
+subagent does not re-decide scope); that spawns one foreground `opus` subagent (high effort directive)
+which does the Claude-side work — gathering artifacts, building the closed-book prompt, running `codex exec -s
+read-only` over stdin (the external `codex exec` remains a Bash subprocess governed by its own CLI
+config), and relaying + classifying the verdict — **editing nothing**, and the subagent's outcome is
+relayed back per `ptp-run-at-model`'s *Result relay*. (For a multi-change or empty-argument audit-all
+selector, the one subagent handles the whole per-change pass.)
+
 1. **Resolve scope and gather artifacts (you, via Bash — not Codex).**
    - If `$ARGUMENTS` names a change, audit just it. If empty, run `npx -y openspec list` and audit **every** active change (repeat steps 2–4 per change; do not stop at the first).
    - For each change, read every artifact in `openspec/changes/<change-id>/`: `proposal.md`, `design.md` (if present), `tasks.md`, `specs/**/spec.md` (if present), `brainstorm.md` (if present), `TLDR.md` (if present).

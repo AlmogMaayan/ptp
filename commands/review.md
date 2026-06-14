@@ -13,6 +13,17 @@ Resolve `$ARGUMENTS` as a change selector per the `ptp-change-selector` skill; i
 
 ## Steps
 
+This command is **read-only** — it runs **no** branch guard (it never writes). Its review work runs
+**at a deterministic model** via the **`ptp-run-at-model`** skill at `opus.high`. The outer session
+runs only the abort-guaranteeing preconditions first — per resolved change, the change-folder
+existence check (`openspec/changes/<change-id>/`; if absent, STOP and redirect to `/ptp:plan`) and
+selector disambiguation that must STOP and ask the user — so a guaranteed abort never spawns a
+subagent. It then invokes **`ptp-run-at-model`** with target `opus.high` and the work below (steps
+1–6); that spawns one foreground `opus` subagent (high effort directive) which performs the read-only
+review and classification, **fixing nothing**, and the subagent's outcome is relayed back per
+`ptp-run-at-model`'s *Result relay*. (For a multi-change selector, the one subagent handles the whole
+per-change pass, reporting per change.)
+
 1. **Load the contract** from `openspec/changes/<change-id>/`:
    - `proposal.md` — intent
    - `design.md` — decisions
