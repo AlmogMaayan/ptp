@@ -15,9 +15,18 @@ Unlike every other write-capable ptp command, `/ptp:master` does **not** run the
 
 ## Steps
 
-1. **Invoke the `ptp-master` skill** via the Skill tool. The skill holds the full methodology: clean-tree gate (`git status --porcelain --untracked-files=all`), switch (`git switch master`), fast-forward pull (`git pull --ff-only`), and report. Do not duplicate the methodology here.
-2. **If the switch succeeded**, invoke the **`ptp-model-effort-check` skill** via the Skill tool. This checks whether the session model is Sonnet and effort is medium — the recommended baseline for new work started from master. If the settings already match, the skill is a no-op. If they differ, the user is prompted to switch or continue.
-3. **STOP.** The model/effort check (or its no-op) is the last action. Do not proceed into any other ptp step.
+1. **Run the `ptp-master` work via `ptp-run-at-model` at `sonnet.medium`.** Invoke the
+   **`ptp-run-at-model`** skill with target `sonnet.medium` and the work being the **`ptp-master`**
+   skill, which holds the full methodology: clean-tree gate (`git status --porcelain
+   --untracked-files=all`), switch (`git switch master`), fast-forward pull (`git pull --ff-only`),
+   and report. Do not duplicate the methodology here. `ptp-run-at-model` spawns one foreground
+   `sonnet` subagent (medium effort directive) that runs the `ptp-master` work; its git operations
+   persist in the shared repo. The branch guard does **not** run (this command is the deliberate
+   land-on-master exception — see *Branch safety — not applicable* above; `ptp-run-at-model` defers
+   that run/skip decision to `ptp-branch-guard`).
+2. **Relay** the subagent's result verbatim in meaning — the switch/pull report on success, or the
+   dirty-tree refusal — never reporting a refusal as success.
+3. **STOP.** The relay is the last action. Do not proceed into any other ptp step.
 
 ## Hard rules
 

@@ -31,10 +31,35 @@ Run the **`ptp-branch-guard`** preamble **once up front**, before delegating to 
 
 ## Steps
 
-1. **Gather input — do not delete anything yet.**
+The decomposition + per-slice planning work (steps 2–6) **runs at a deterministic model** via the
+**`ptp-run-at-model`** skill at `opus.high` — decomposition is the highest-judgment ptp planning step
+and must not depend on the session model. Everything that needs the outer session — the branch guard
+(already run above), the epic allocation, and step 1's gather-and-gate (which contains the
+**guaranteed-abort "implementation already started" STOP**) — runs **first, in the outer session**;
+then a single foreground `opus.high` subagent performs steps 2–6 and reports.
+
+1. **Gather input — do not delete anything yet** (outer session). This whole step stays outer because it carries a **guaranteed abort** (a guaranteed abort must never spawn a subagent):
    - If `openspec/changes/<id>/` already exists (a monolithic plan was created from `/ptp:plan` or `/ptp:brainstorm`), read its artifacts first (`brainstorm.md`, `proposal.md`, `design.md`, `tasks.md`, spec deltas). That existing thinking is your richest decomposition input — fold it in, don't discard it.
-   - **Check whether implementation has already started** on that monolithic change: any checked task (`- [x]`) in its `tasks.md`, or a non-empty `git diff` touching the surface area its `proposal.md`/spec deltas describe. If so, **STOP** — do not decompose or delete. Report that the change is partially applied and that deleting it would orphan the implemented code from its spec; let the user decide how to proceed (e.g. finish/revert it first, or split only the not-yet-built remainder by hand). Deleting an in-progress change is never automatic.
+   - **Check whether implementation has already started** on that monolithic change: any checked task (`- [x]`) in its `tasks.md`, or a non-empty `git diff` touching the surface area its `proposal.md`/spec deltas describe. If so, **STOP** — do not decompose or delete, **and do not spawn the subagent**. Report that the change is partially applied and that deleting it would orphan the implemented code from its spec; let the user decide how to proceed (e.g. finish/revert it first, or split only the not-yet-built remainder by hand). Deleting an in-progress change is never automatic.
    - Run `npx -y openspec list` and `npx -y openspec list --specs` to see existing changes/capabilities and avoid id collisions.
+
+**Run steps 2–6 via `ptp-run-at-model` at `opus.high`.** Only after the branch guard, epic
+allocation, and step 1's gather-and-gate (including the "implementation already started" STOP) have
+all passed in the outer session, invoke the **`ptp-run-at-model`** skill with target `opus.high` and
+the work being **steps 2–6 below**; it spawns one foreground `opus` subagent (high effort directive)
+that performs those steps and returns its terminal result (relayed per `ptp-run-at-model`'s *Result
+relay* — never reporting a refusal or partial-apply STOP as success). Two notes the subagent prompt
+MUST carry:
+
+- The subagent's own `ptp-branch-guard` check is a **no-op** (HEAD is already on the feature branch
+  from the outer guard, and every delegated `/ptp:plan` re-runs the guard as a no-op), so the subagent
+  must **NOT** attempt to launch the `ptp-branch-prep` Workflow.
+- The per-slice `ptp:plan` delegation in step 5 is an **inline Skill invocation in the subagent's own
+  context — NOT an Agent/Workflow spawn** — exactly like the subagent invoking
+  `superpowers:brainstorming` inline. A Skill invocation creates no new sub-context, so it is **not** a
+  second nesting level; the subagent runs the entire per-slice loop (N × `ptp:plan`) inline and must
+  **keep it inline**. Do **not** "fix" it by converting any per-slice plan into a nested Agent/Workflow
+  spawn — the single `ptp-run-at-model` subagent is the only spawn in the whole flow.
 
 2. **Decompose (autonomous brainstorm).** Invoke **`superpowers:brainstorming`** via the Skill tool in **autonomous mode** (no clarifying questions — document assumptions instead, exactly as `/ptp:plan` does), focused on a single question: *what is the smallest set of coherent, independently-shippable changes that together cover this request?* Produce an ordered list where each slice has:
    - a sub-change id `XXXX_NN_<kebab-description>` — a single epic allocated via `ptp-change-selector` (§4, epic allocation), then two-digit zero-padded story, then kebab description (e.g. `0001_01_landing-page-list-bulk-export`, `0001_02_landing-page-bulk-import`, `0001_03_landing-page-server-side-import`). The story number is the recommended apply order. All slices share the same epic.

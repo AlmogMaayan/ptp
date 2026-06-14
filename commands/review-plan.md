@@ -20,6 +20,19 @@ Resolve `$ARGUMENTS` as a change selector per the `ptp-change-selector` skill; i
 
 ## Steps
 
+This command is **read-only** — it runs **no** branch guard (it never writes). Its artifact-audit
+work runs **at a deterministic model** via the **`ptp-run-at-model`** skill at `opus.high`. The outer
+session runs only the abort-guaranteeing preconditions first — selector disambiguation that must STOP
+and ask the user, and (per resolved change) change-folder existence — while the empty-argument
+review-all-active default is preserved (see *Inputs* and step 1). It then invokes
+**`ptp-run-at-model`** with target `opus.high` to run the review work below **over the
+already-resolved scope** (the audit work of steps 2–6; step 1's scope resolution and its STOP-and-ask
+disambiguation are the outer precondition above, so the subagent does not re-decide scope); that
+spawns one foreground `opus` subagent (high effort directive) which runs the inline rubric, per-change
+verdict, and summary table, **editing nothing**, and the subagent's outcome is relayed back per
+`ptp-run-at-model`'s *Result relay*. (For a multi-change or empty-argument review-all selector, the
+one subagent handles the whole per-change pass.)
+
 1. **Resolve scope:**
    - If `$ARGUMENTS` names a change, review just that change.
    - If `$ARGUMENTS` is empty, run `npx -y openspec list` and review **every** active change. Do not stop at the first failure — review all of them.

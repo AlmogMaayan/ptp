@@ -3,19 +3,36 @@ description: Implement an OpenSpec change sequentially from tasks.md with Superp
 argument-hint: "<change-selector> — id, epic:XXXX, story:NN, or epic:XXXX story:NN"
 ---
 
-You are running **step 3** of the ptp flow. The OpenSpec change has been planned and validated. Your job is to **execute the tasks sequentially**, verifying each one before checking it off.
+You are running **step 3** of the ptp flow. The OpenSpec change has been planned and validated. Your job is to **execute the tasks sequentially**, verifying each one before checking it off. The per-task implementation work runs in a **subagent** at the model and effort from the change's own `effort.md` — so apply quality is no longer incidental to the session's model.
 
 ## Inputs
 
 Change id: $ARGUMENTS
 
-Resolve `$ARGUMENTS` as a change selector per the `ptp-change-selector` skill; if it resolves to more than one change (e.g. `epic:XXXX`), apply each story sequentially in ascending story order, running all steps below for each story before starting the next.
+## Outer-session preconditions (run once, before any subagent spawns)
 
-## Branch safety (first step)
+These two steps are **abort-guaranteeing preconditions** that MUST run in the outer session. A subagent cannot launch the `ptp-branch-prep` Workflow, so branch cutting must happen here. A guaranteed abort must never spawn a subagent.
 
-Before creating or updating **any** file, run the **`ptp-branch-guard`** preamble: check `git rev-parse --abbrev-ref HEAD`; if it is `master`, derive a feature-branch name from the resolved change id (→ `ptp/<change-id>`) and launch the minimal `ptp-branch-prep` workflow (stash → checkout master → pull → cut the branch) **before** writing anything; if you are already on a feature branch it is a **no-op** — proceed as-is. The full rule (branch naming, the workflow contract, the hard rules) lives in the **`ptp-branch-guard`** skill — do not restate it here.
+1. **Resolve the selector.** Invoke the **`ptp-change-selector`** skill on `$ARGUMENTS` → an ordered list of change ids (ascending by `(epic, story)`). Any selector that STOPs — no such change, ambiguous bare `story:NN`, or empty with no command default — aborts here, in the outer session, **before spawning anything**.
 
-## Steps
+2. **Branch safety.** Run the **`ptp-branch-guard`** preamble once, in the outer session: check `git rev-parse --abbrev-ref HEAD`; if it is `master`, derive a feature-branch name from the resolved change id (→ `ptp/<change-id>` for a single change, `ptp/epic-XXXX` for an epic selector) and launch the minimal `ptp-branch-prep` workflow (stash → checkout master → pull → cut the branch) **before** spawning anything; if already on a feature branch it is a **no-op** — proceed as-is. The full rule (branch naming, the workflow contract, the hard rules) lives in the **`ptp-branch-guard`** skill — do not restate it here.
+
+## Per change — invoke `ptp-run-at-model` (sequentially, ascending story order)
+
+For **each resolved change** in order (one change fully applied before starting the next), invoke the **`ptp-run-at-model`** skill with:
+
+- **target** = "read from `effort.md`" for this change id — `ptp-run-at-model` reads line 1 of `openspec/changes/<id>/effort.md`, parses `{model}.{effort}` (missing or unparseable → `opus.high`, **noted**), and spawns one foreground subagent at the resolved model with the effort directive; and
+- **work** = "run the `/ptp:apply` per-task implementation protocol for this single change" (see *Subagent responsibilities* below).
+
+`ptp-run-at-model` owns the spawn-and-relay mechanism — reference that skill for the contract (effort directive mapping, relay states, branch-guard ordering). Do not restate its mechanism here.
+
+The **subagent's own `ptp-branch-guard` check is a no-op**: HEAD is already on the feature branch when the subagent runs, so the subagent **must not** attempt to launch `ptp-branch-prep`.
+
+**Relay** the subagent's terminal result per `ptp-run-at-model`: a refusal or `needs-human-action` state is surfaced verbatim and does **not** silently proceed to the next change.
+
+## Subagent responsibilities (the apply per-task implementation protocol)
+
+The subagent runs the following steps for the single change assigned to it:
 
 1. **Read the change artifacts** under `openspec/changes/<change-id>/`:
    - `proposal.md` — what and why
@@ -34,10 +51,15 @@ Before creating or updating **any** file, run the **`ptp-branch-guard`** preambl
    - All tasks checked.
    - Project test/lint/type suites pass.
    - `npx -y openspec validate <change-id> --strict` still passes.
-5. **STOP.** Do **not** archive. Report status and tell the user the next command is `/ptp:review <change-id>`.
+5. **Return** the terminal result. Do **not** archive. Do **not** commit (apply defers commit to deploy — this is reinforced here, matching `ptp-full-run`'s instruction to its apply agent). Report status.
+
+## Closing report
+
+After all changes have been processed, the outer session reports per change: the change id, the model used (from its `effort.md`), and the outcome (completed / refused). Tell the user the next command is **`/ptp:review <change-id>`**.
 
 ## Hard rules
 
 - Do **not** invent new tasks not in `tasks.md`. If a needed task is missing, stop and update the plan.
 - Do **not** archive in this command. Archiving happens only after review and only on explicit confirmation.
 - Do **not** check off a task until its acceptance condition has actually been verified.
+- Do **not** commit (apply defers commit to deploy — the subagent is instructed accordingly).

@@ -24,6 +24,19 @@ Codex runs under `codex exec -s read-only` with `approval: never`, shelling out 
 
 ## Steps
 
+This command is **read-only** — it runs **no** branch guard (it never writes). Its review work runs
+**at a deterministic model** via the **`ptp-run-at-model`** skill at `opus.high`. The outer session
+runs only the abort-guaranteeing preconditions first — the `codex --version` presence check (STOP if
+missing), per resolved change the change-folder existence check, and selector disambiguation that must
+STOP and ask the user — so a guaranteed abort never spawns a subagent. It then invokes
+**`ptp-run-at-model`** with target `opus.high` and the work below (steps 1–7); that spawns one
+foreground `opus` subagent (high effort directive) which does the Claude-side work — capturing the
+diff/contract, building the closed-book prompt, running `codex exec -s read-only` over stdin (the
+external `codex exec` remains a Bash subprocess governed by its own CLI config), and relaying +
+classifying the findings — **fixing nothing**, and the subagent's outcome is relayed back per
+`ptp-run-at-model`'s *Result relay*. (For a multi-change selector, the one subagent handles the whole
+per-change pass.)
+
 1. **Read the contract yourself (you, via Read):** `openspec/changes/<change-id>/` — `proposal.md`, `design.md`, `tasks.md`, and `specs/**/spec.md`. You will inline these so Codex grades against them without reading.
 2. **Capture the diff scope (you, via Bash):** prefer the merge-base diff against main — `git merge-base HEAD master` then `git diff <base>...HEAD`. Fall back to the files the tasks touched if not on a feature branch. Capture the full diff text.
 3. **Run validation/tests yourself and capture results (you, via Bash):** e.g. `npx -y openspec validate <change-id> --strict` and any cheap, relevant typecheck/lint/test commands the change implies. These results are **authoritative** and will be inlined; Codex must not re-run them.

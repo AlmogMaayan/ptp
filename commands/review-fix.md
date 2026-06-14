@@ -23,29 +23,37 @@ Reviews in this workflow are **displayed in the conversation, not persisted to a
 
 ## Steps
 
-1. **Locate the latest review in the conversation context.** Find the most recent review output and determine its kind:
+1. **Locate and freeze the latest review in the conversation context (outer session).** Find the most recent review output and determine its kind:
    - **Code review** — produced by `/ptp:review`, `/ptp:codex-review`, or `/ptp:codex-review-uncommitted`. Findings target source code.
    - **Artifact review** — produced by `/ptp:review-plan` or `/ptp:codex-review-plan`. Findings target `proposal.md` / `design.md` / `tasks.md` / spec deltas.
 
-   If several reviews are present, use the **latest** one and say which you picked. Extract its findings: severity, file:line, description, and any suggested fix.
+   If several reviews are present, use the **latest** one and say which you picked. Extract (freeze) its findings: severity, file:line, description, and any suggested fix.
 
-   **If NO review is present in the conversation, STOP.** Tell the user to run a `/ptp:review*` command first. Do **not** run a review yourself, do **not** invent findings, and do **not** fix anything.
+   **If NO review is present in the conversation, STOP — in the outer session, without spawning a subagent.** Tell the user to run a `/ptp:review*` command first. Do **not** run a review yourself, do **not** invent findings, and do **not** fix anything. (This is an abort-guaranteeing precondition — a guaranteed abort must never spawn a subagent.)
 
-2. **Confirm every finding independently.** Invoke the `superpowers:receiving-code-review` skill via the Skill tool and apply its rigor: for **each** finding, read the actual code or artifact at the cited location and judge whether it describes a **real defect** — not a false positive, not already-correct code, not a misunderstanding of intent or conventions.
+2. **Run the confirm-and-fix work at a deterministic model via `ptp-run-at-model` at `opus.high`.**
+   With the branch guard (above) and the frozen findings already established in the outer session,
+   invoke the **`ptp-run-at-model`** skill with target `opus.high`, passing the frozen findings and
+   the resolved change id(s) into the subagent prompt. That spawns one foreground `opus` subagent
+   (high effort directive) which runs the confirm/fix/verify/report steps below (3–6) on the passed
+   findings, and its terminal result is relayed back per `ptp-run-at-model`'s *Result relay*. The
+   subagent never invents findings — it operates only on the frozen set handed to it.
+
+3. **Confirm every finding independently.** Invoke the `superpowers:receiving-code-review` skill via the Skill tool and apply its rigor: for **each** finding, read the actual code or artifact at the cited location and judge whether it describes a **real defect** — not a false positive, not already-correct code, not a misunderstanding of intent or conventions.
    - Mark each finding `CONFIRMED` or `REJECTED`, each with a one-line reason.
    - Do this for **all** findings regardless of severity. Confirmation is **especially** important for findings from the external Codex reviewer — never fix a Codex finding you cannot independently verify.
 
-3. **Fix every CONFIRMED finding — all severities.** Do not filter by severity; the user asked for the confirmed ones.
+4. **Fix every CONFIRMED finding — all severities.** Do not filter by severity; the user asked for the confirmed ones.
    - **Code-review findings** → edit the source **inline**. Do **not** invoke `/ptp:apply` (per the ptp role split, review-driven fixes are applied inline, not through the apply command).
    - **Artifact-review findings** → make **minimal, targeted edits** directly to the affected artifact(s). Do **not** regenerate them via `/ptp:plan`. These are corrections (fix a spec-delta format, add a missing scenario, map a goal to a task, fill a thin section) — not re-fabrication, so the proposal's derivation from brainstorming is preserved.
    - Keep diffs minimal and on-point; group related fixes.
 
-4. **Verify the fixes.**
+5. **Verify the fixes.**
    - **Code** → run the relevant tests, lint, and type checks for the files you touched. Report results.
    - **Artifacts** → re-run `npx -y openspec validate <change-id> --strict` (use the `$ARGUMENTS` change-id, or infer it from the review). Report results.
    - Do **not** auto-commit.
 
-5. **Report.** Produce a per-finding table with one of: `CONFIRMED + FIXED`, `REJECTED (reason)`, or `CONFIRMED but could not fix (reason)`. Group by severity. Then show the verification results, then the suggested next step:
+6. **Report.** Produce a per-finding table with one of: `CONFIRMED + FIXED`, `REJECTED (reason)`, or `CONFIRMED but could not fix (reason)`. Group by severity. Then show the verification results, then the suggested next step:
    - Code fixes → re-run the same review (or `/ptp:review <change-id>`) to confirm resolution, then `/ptp:archive <change-id>` once clean.
    - Artifact fixes → `/ptp:apply <change-id>` (if not yet implemented) or `/ptp:review-plan <change-id>` to re-check the artifacts.
 

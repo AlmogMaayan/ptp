@@ -254,9 +254,11 @@ brainstorm → plan → apply → review → archive
 
 ### Step 3 — Apply
 
-**`/ptp:apply <selector>`** — implements tasks sequentially from `tasks.md` with Superpowers TDD discipline. Re-validates first, checks off each task only after verifying it, and stops on any plan/spec mismatch rather than drifting.
+**`/ptp:apply <selector>`** — implements tasks sequentially from `tasks.md` with Superpowers TDD discipline. Re-validates first, checks off each task only after verifying it, and stops on any plan/spec mismatch rather than drifting. Runs the implementation work at the model + effort from the change's `effort.md` (per change for a multi-change selector), via `ptp-run-at-model`.
 
 ### Step 4 — Review
+
+> The whole review family (the five read-only reviewers, the four `-loop` commands, the two `-full` orchestrators, and `/ptp:review-fix`) runs its work at **`opus.high`** via `ptp-run-at-model` — each command spawns one foreground `opus` subagent so review quality no longer depends on the session's model. Outer abort-preconditions (and, for the write-capable commands, the `ptp-branch-guard` preamble) still run in the outer session before the spawn; the five read-only reviewers run no branch guard.
 
 **`/ptp:review <selector>`** — Superpowers code review of the implementation diff against proposal/design/spec deltas/tasks. Findings classified Critical / High / Medium / Low.
 
@@ -321,6 +323,7 @@ Skills are invoked by Claude automatically (via the `Skill` tool) when the flow 
 | `ptp-change-selector` | Single source of truth for the change-id format, the `epic:`/`story:` selector grammar, resolution, and epic allocation. |
 | `ptp-branch-guard` | The "are we on a feature branch, not `master`?" preamble every write-capable command runs first. |
 | `ptp-branch-prep` | Minimal git prep invoked by the guard when HEAD is `master`: stash → checkout master → pull → cut a fresh feature branch. Never commits or pushes. |
+| `ptp-run-at-model` | Single source of truth for running a command's work at a deterministic model+effort: spawns one foreground subagent at a caller-named target model (effort injected as a prompt directive), runs the work there, and relays the subagent's terminal result. |
 | `ptp-full` | Orchestrates `/ptp:full` — the plan phase, the plan-convergence gate, and the seam into the run phase. |
 | `ptp-full-run` | The workflow-backed sequential `apply → review-full` per-story engine behind `/ptp:full-run`. |
 | `ptp-review-loop` | Shared review→confirm→fix loop protocol (kind ∈ {code, artifact}, reviewer ∈ {superpowers, codex}) behind every `-loop` command, with rejection carry-over and manual/test-only filtering. |

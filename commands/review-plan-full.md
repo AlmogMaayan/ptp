@@ -26,6 +26,20 @@ Check both before Phase 1 begins:
 
 ## What this command does
 
+This entire two-phase orchestration runs **at a deterministic model** via the **`ptp-run-at-model`**
+skill at `opus.high`. The outer session runs only the abort-guaranteeing preconditions first — the
+`ptp-branch-guard` preamble (above), the `codex.mode` resolution per `ptp-codex-mode` (including the
+`required` + `codex` missing STOP), and the change-folder existence check — so a guaranteed abort
+never spawns a subagent. It then invokes **`ptp-run-at-model`** with target `opus.high`, passing the
+already-resolved `codex.mode` decision, and the **whole** orchestrator below (Phase 1, the
+Phase-1-gates-Phase-2 gate, Phase 2 per the resolved mode, and the combined summary) runs inside that
+**single** foreground `opus` subagent (high effort directive). Do **not** split the phases across
+multiple subagents and do **not** add a nesting guard — every inner step is inline skill work or an
+external `codex exec` Bash subprocess, neither of which spawns an Agent or a Workflow. The subagent's
+terminal state (including the mode-skip success state `PHASE 1 DONE — CODEX SKIPPED (mode=…)`) is
+relayed back per `ptp-run-at-model`'s *Result relay* — never downgraded to or away from its true
+meaning.
+
 ### Phase 1 — Superpowers artifact-review loop
 
 Invoke the `ptp-review-loop` skill with:

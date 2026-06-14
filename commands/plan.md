@@ -35,7 +35,23 @@ Before proceeding, look for a brainstorming doc in these locations (in order):
 
 ## Steps
 
-1. **Pick the change id.** **If a fully-formed `XXXX_NN_` id is provided** (the `/ptp:plan-multiple` → `/ptp:plan` delegation path), preserve it verbatim and do NOT allocate a new epic — do not "normalize" it. **Otherwise** — whether no id was provided or only a partial id/description was — allocate a single-story epic `XXXX_01_<desc>` via the `ptp-change-selector` skill (§4, epic allocation), where `<desc>` is ≤ 5 kebab-case words derived from the provided text or the request. **Never produce a legacy/plain id (`NN_…` or bare kebab) going forward** — a non-full provided id is treated as a `<desc>` source, not preserved as-is. Do NOT pause to confirm — pick a reasonable description and proceed.
+Steps **2–6 run at a deterministic model** via the **`ptp-run-at-model`** skill at `opus.high` — the
+planning work is high-judgment and must not depend on the session model. Everything that needs the
+outer session (the branch guard, already run above, and step 1's change-id allocation) runs **first,
+in the outer session**; then a single foreground `opus.high` subagent performs steps 2–6 and reports.
+
+1. **Pick the change id** (outer session). **If a fully-formed `XXXX_NN_` id is provided** (the `/ptp:plan-multiple` → `/ptp:plan` delegation path), preserve it verbatim and do NOT allocate a new epic — do not "normalize" it. **Otherwise** — whether no id was provided or only a partial id/description was — allocate a single-story epic `XXXX_01_<desc>` via the `ptp-change-selector` skill (§4, epic allocation), where `<desc>` is ≤ 5 kebab-case words derived from the provided text or the request. **Never produce a legacy/plain id (`NN_…` or bare kebab) going forward** — a non-full provided id is treated as a `<desc>` source, not preserved as-is. Do NOT pause to confirm — pick a reasonable description and proceed. This stays in the outer session: it is cheap, and the branch guard above may already have read it to name the feature branch. `/ptp:plan` has **no guaranteed-abort precondition** (a missing brainstorm doc auto-runs inline, it does not STOP — see *Preconditions*), so nothing else needs to stay outer.
+
+**Run steps 2–6 via `ptp-run-at-model` at `opus.high`.** After the branch guard and step-1 id
+allocation, invoke the **`ptp-run-at-model`** skill with target `opus.high` and the work being
+**steps 2–6 below**; it spawns one foreground `opus` subagent (high effort directive) that performs
+those steps and returns its terminal result (relayed per `ptp-run-at-model`'s *Result relay* — a
+validation failure that forces a direction change surfaces as a refusal, never as success). The
+subagent's own `ptp-branch-guard` check is a **no-op** (HEAD is already on the feature branch from the
+outer guard), so it must **NOT** attempt to launch the `ptp-branch-prep` Workflow. `/ptp:plan` spawns
+nothing of its own — it only invokes Skills (`superpowers:brainstorming`, `superpowers:writing-plans`,
+`ptp:effort`) inline in the subagent's own context — so it wraps cleanly with no second nesting level.
+
 2. **Run the Superpowers skills in this order** — both MUST be invoked via the Skill tool:
    - **(a) `superpowers:brainstorming`** — required first if the design doc was missing or shallow. Produces the rationale, alternatives, and design depth that feeds `proposal.md`. Skip only when an existing design doc already covers Context / Goals / Non-goals / Alternatives considered / Design / Risks / Success criteria with substance.
 
