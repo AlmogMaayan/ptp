@@ -86,6 +86,20 @@ skill appears in the available-skills list. A quick `/ptp:status` is a good smok
 `/plugin marketplace update ptp` refreshes the marketplace; reinstall or restart the session
 to pick up the latest plugin version.
 
+**`/ptp:version`** — read-only. Reports the installed ptp version, the latest available version,
+and an up-to-date / update-available verdict, so you can see at a glance whether a newer ptp is out
+before refreshing. Takes no arguments and mutates nothing (it may refresh the CLI's marketplace
+cache to read the latest version, but never touches the repo or the installed plugin). If a version
+can't be resolved (e.g. offline), it reports a clear partial result rather than a false "up to date".
+
+**`/ptp:update`** — update the installed ptp plugin to the latest version. Delegates
+installed-vs-latest resolution to the shared `ptp-version` skill (same as `/ptp:version`), then
+runs `claude plugin update ptp@ptp` to apply the update. On an up-to-date verdict it skips the
+mutation and reports a no-op. Always surfaces that **a Claude Code restart is required** to apply
+the update — on every path where the `claude` CLI was reachable (update applied, already up to
+date, partial resolution, and update failure). Takes no arguments. Writes no repository file and
+performs no git operation (branch-guard-exempt, like `/ptp:status`).
+
 ---
 
 ## Configuration
@@ -366,6 +380,10 @@ Codex second opinion (explicit opt-in; needs codex on PATH)
 
 Diagnose before deciding
   → /ptp:analyze "<subject>"          # read-only investigation → analysis doc
+
+Plugin version and update
+  → /ptp:version                        # read-only: installed vs. latest verdict
+  → /ptp:update                         # update ptp@ptp + restart caveat
 
 Where am I / what model
   → /ptp:status [change-id]
