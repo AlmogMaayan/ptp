@@ -51,11 +51,10 @@ Write **exactly one file** when investigation is complete:
 2. Judge whether any active change's scope overlaps the subject. If so, use that change's folder as the target — no new epic is allocated.
 3. If no active change is relevant (or relevance is ambiguous), allocate a fresh epic via `ptp-change-selector` §4 and create a minimal `XXXX_01_<subject-slug>/` folder under `openspec/changes/`. **Safe default: when relevance is ambiguous, always allocate a fresh single-story change — never silently file the doc under an unrelated change.**
 
-**Target path:** `openspec/changes/<change-id>/YYYY-MM-DD-<subject>-analysis.md`
+**Target path:** `openspec/changes/<change-id>/analysis.md`
 - `<change-id>` is the resolved or newly allocated change folder name (from the step above).
-- Compute the date at runtime (`date` via Bash or read it from the current-date context).
-- Kebab-slug the subject: lowercase, spaces and special characters → hyphens, strip leading "fix-the-" or "fix-" prefixes so a fix-phrased subject ("fix the stale-status bug") becomes `stale-status-bug-analysis.md`.
-- **Filename collision:** if a file of the same name already exists in the target change folder, append a numeric suffix before `.md` — e.g. `…-analysis-2.md`, `…-analysis-3.md`. Never overwrite a prior analysis.
+- The filename is always `analysis.md` — do not date- or subject-stamp it. (The date and subject still appear inside the doc, in the header and `## Subject` section.)
+- **Filename collision:** if `analysis.md` already exists in the target change folder, append a numeric suffix before `.md` — e.g. `analysis-2.md`, `analysis-3.md`. Never overwrite a prior analysis.
 - Create the change folder when allocating a fresh one; only the analysis doc is written into it.
 
 **Schema — every section is required:**
