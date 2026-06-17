@@ -3,7 +3,7 @@ description: Read-only investigation — analyze a bug, observation, problem, or
 argument-hint: "<bug / observation / problem / question to investigate>"
 ---
 
-You are running **`/ptp:analyze`** — a read-only diagnostic command. Use it to root-cause a bug, explain an observed behavior, or understand a subsystem *before* deciding whether a change is even warranted. The output is a structured analysis document at `openspec/changes/<change-id>/YYYY-MM-DD-<subject>-analysis.md`.
+You are running **`/ptp:analyze`** — a read-only diagnostic command. Use it to root-cause a bug, explain an observed behavior, or understand a subsystem *before* deciding whether a change is even warranted. The output is a structured analysis document at `openspec/changes/<change-id>/analysis.md`.
 
 > **Contrast with other commands:**
 > - `/ptp:brainstorm-only "<topic>"` — design exploration for a *prospective change* (what to build and how); not a diagnosis.
