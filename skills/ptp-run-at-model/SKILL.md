@@ -36,6 +36,7 @@ hardcodes no per-command target.
 | (per command) | `plan`, `plan-multiple` | 0005_03 |
 | (per command) | the review family | 0005_04 |
 | read line 1 of `effort.md` | `apply` | 0005_05 |
+| `opus.high` | `brainstorm`, `brainstorm-only` | 0007_01 |
 
 **Read-only commands skip the branch-guard step but still wrap** — they have no working-tree writes,
 so step 2 of the contract is a no-op for them, but they still run their work in the target-model
