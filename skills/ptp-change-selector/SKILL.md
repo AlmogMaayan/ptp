@@ -88,7 +88,7 @@ Ordering key is `(epic, story)` ascending everywhere. When a resolved set mixes 
 
 ## 4. Epic allocation (producers only)
 
-Producers (`/ptp:plan-multiple`, `/ptp:plan`, `/ptp:brainstorm`) allocate a fresh epic when creating a new change. The algorithm:
+Producers (`/ptp:plan-multiple`, `/ptp:plan`, `/ptp:brainstorm`, `/ptp:analyze`) allocate a fresh epic when creating a new change. The algorithm:
 
 ```
 1. candidates = folder names under openspec/changes/   (excluding "archive")
@@ -106,6 +106,7 @@ This scans **both** active and archived folders so no active or archived epic nu
 - `/ptp:plan-multiple` — calls this once, then assigns `epic_str_01`, `epic_str_02`, … to slices in dependency order.
 - `/ptp:plan` — calls this once and assigns `epic_str_01_<desc>` for a standalone change. **Exception:** when `/ptp:plan` is invoked with a fully-formed `XXXX_NN_` id (the `/ptp:plan-multiple` → `/ptp:plan` delegation path), it preserves that id verbatim and does NOT allocate a new epic.
 - `/ptp:brainstorm` — calls this once and assigns `epic_str_01_<desc>` so the later `/ptp:plan` keeps the same id.
+- `/ptp:analyze` — allocates `epic_str_01_<subject-slug>` only to house an analysis doc (no proposal, design, tasks, or spec delta), and only when no relevant active change exists to receive the analysis doc.
 
 ## 5. Command roles
 
@@ -113,9 +114,11 @@ All ptp commands that take a change argument fall into one of two roles. Referen
 
 ### Role A — Producers (allocate + name)
 
-Commands: `/ptp:plan-multiple`, `/ptp:plan`, `/ptp:brainstorm`
+Commands: `/ptp:plan-multiple`, `/ptp:plan`, `/ptp:brainstorm`, `/ptp:analyze`
 
 These **allocate** a fresh epic and **name** the change folder. They do not consume selectors — they produce ids. Each references this skill for the allocation algorithm and the id format contract.
+
+**Limited producer — `/ptp:analyze`**: allocates `XXXX_01_<subject-slug>` only to house an analysis doc; it never produces proposal/design/tasks/spec-delta. It allocates only when no relevant active change exists to receive the analysis doc.
 
 ### Role B — Set-capable consumers (resolve + iterate)
 

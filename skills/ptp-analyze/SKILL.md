@@ -1,13 +1,13 @@
 ---
 name: ptp-analyze
-description: Use this skill when the user wants to analyze, diagnose, or root-cause an issue — trigger phrases include "analyze", "diagnose", "root cause", "understand why", "why is X happening", "how does X work", "what is causing", "investigate". Writes a durable analysis doc to openspec/analysis/ and never produces a change. Do NOT use for design exploration (that is /ptp:brainstorm-only) or for producing a change proposal (that is /ptp:plan).
+description: Use this skill when the user wants to analyze, diagnose, or root-cause an issue — trigger phrases include "analyze", "diagnose", "root cause", "understand why", "why is X happening", "how does X work", "what is causing", "investigate". Writes a durable analysis doc into the appropriate openspec/changes/<change-id>/ folder (allocating a minimal change folder via ptp-change-selector §4 when no relevant active change exists). Never produces a change proposal and never writes proposal/design/tasks/spec-delta files. Do NOT use for design exploration (that is /ptp:brainstorm-only) or for producing a change proposal (that is /ptp:plan).
 ---
 
 # ptp-analyze — read-only investigation, durable analysis doc
 
 ## Purpose
 
-This skill conducts a **read-only investigation** of a bug, observed behavior, problem, or question and writes a structured, evidence-backed analysis document to `openspec/analysis/`. It is **not a change-producer**: it never writes proposal/design/tasks/spec-delta files, never allocates an epic, and never applies a fix. When a fix is warranted it recommends the appropriate next ptp step and stops.
+This skill conducts a **read-only investigation** of a bug, observed behavior, problem, or question and writes a structured, evidence-backed analysis document into the appropriate `openspec/changes/<change-id>/` folder. It is a **limited producer** (in the `ptp-change-selector` §5 Role A sense): it never produces a change *proposal* — it never writes proposal/design/tasks/spec-delta files and never applies a fix — but it may allocate a minimal change folder (via `ptp-change-selector` §4) only to house the analysis doc when no relevant active change exists. When a fix is warranted it recommends the appropriate next ptp step and stops.
 
 Contrast with `/ptp:brainstorm-only` (design exploration of a prospective change) — this skill diagnoses an *existing* phenomenon, not an *envisioned* feature. If diagnosis reveals that a change is warranted, the next step is `/ptp:plan` (or `/ptp:brainstorm` if you want to think through options first).
 
@@ -46,11 +46,17 @@ Never edit, create, or delete any source file during this phase.
 
 Write **exactly one file** when investigation is complete:
 
-**Target path:** `openspec/analysis/YYYY-MM-DD-<subject>-analysis.md`
+**Resolve or allocate the change folder (run this BEFORE computing the target path):**
+1. List folder names under `openspec/changes/` excluding `archive`.
+2. Judge whether any active change's scope overlaps the subject. If so, use that change's folder as the target — no new epic is allocated.
+3. If no active change is relevant (or relevance is ambiguous), allocate a fresh epic via `ptp-change-selector` §4 and create a minimal `XXXX_01_<subject-slug>/` folder under `openspec/changes/`. **Safe default: when relevance is ambiguous, always allocate a fresh single-story change — never silently file the doc under an unrelated change.**
+
+**Target path:** `openspec/changes/<change-id>/YYYY-MM-DD-<subject>-analysis.md`
+- `<change-id>` is the resolved or newly allocated change folder name (from the step above).
 - Compute the date at runtime (`date` via Bash or read it from the current-date context).
 - Kebab-slug the subject: lowercase, spaces and special characters → hyphens, strip leading "fix-the-" or "fix-" prefixes so a fix-phrased subject ("fix the stale-status bug") becomes `stale-status-bug-analysis.md`.
-- **Filename collision:** if the target file already exists, append a numeric suffix before `.md` — e.g. `…-analysis-2.md`, `…-analysis-3.md`. Never overwrite a prior analysis.
-- Create `openspec/analysis/` if it does not exist.
+- **Filename collision:** if a file of the same name already exists in the target change folder, append a numeric suffix before `.md` — e.g. `…-analysis-2.md`, `…-analysis-3.md`. Never overwrite a prior analysis.
+- Create the change folder when allocating a fresh one; only the analysis doc is written into it.
 
 **Schema — every section is required:**
 
@@ -102,9 +108,9 @@ After writing the file, surface its absolute path to the user.
 ## Hard rules
 
 - **Read-only on source.** Never create, edit, or delete any source file during investigation.
-- **No `openspec/changes/` artifacts.** Never create a proposal, design doc, tasks file, spec delta, or change folder — not even an empty one.
-- **No epic allocation.** Never call `openspec` to allocate an epic id.
-- **No `openspec validate`.** Running validate implies a change exists; this skill produces no change.
+- **Only the analysis doc under `openspec/changes/`.** The only artifact this skill may write under a change folder is the analysis doc. Never create a proposal, design doc, tasks file, or spec delta under `openspec/changes/`.
+- **Epic allocation only via `ptp-change-selector` §4, and only when needed.** Allocate a fresh change folder only through `ptp-change-selector` §4, and only when no relevant active change exists. Never allocate an epic for any other purpose.
+- **No `openspec validate`.** A doc-only change folder is not a validatable change — it contains no proposal, design, or tasks. Do not run `openspec validate` after writing the analysis doc.
 - **No fix.** When a fix is warranted, name it and recommend the next ptp step. Do not apply it.
 - **Write exactly one file.** The analysis doc. No other file is created or modified by this skill.
 - **STOP after writing.** Do not continue into planning, brainstorming, or implementation.

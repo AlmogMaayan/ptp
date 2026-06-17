@@ -1,9 +1,9 @@
 ---
-description: Read-only investigation — analyze a bug, observation, problem, or question and write a structured, evidence-backed analysis doc to openspec/analysis/. Never produces a change, never modifies source.
+description: Read-only investigation — analyze a bug, observation, problem, or question and write a structured, evidence-backed analysis doc into the appropriate openspec/changes/<change-id>/ folder. Never produces a change proposal, never modifies source.
 argument-hint: "<bug / observation / problem / question to investigate>"
 ---
 
-You are running **`/ptp:analyze`** — a read-only diagnostic command. Use it to root-cause a bug, explain an observed behavior, or understand a subsystem *before* deciding whether a change is even warranted. The output is a structured analysis document at `openspec/analysis/YYYY-MM-DD-<subject>-analysis.md`.
+You are running **`/ptp:analyze`** — a read-only diagnostic command. Use it to root-cause a bug, explain an observed behavior, or understand a subsystem *before* deciding whether a change is even warranted. The output is a structured analysis document at `openspec/changes/<change-id>/YYYY-MM-DD-<subject>-analysis.md`.
 
 > **Contrast with other commands:**
 > - `/ptp:brainstorm-only "<topic>"` — design exploration for a *prospective change* (what to build and how); not a diagnosis.
@@ -26,7 +26,7 @@ Before creating or updating **any** file, run the **`ptp-branch-guard`** preambl
 ## Hard rules
 
 - Do **not** write any code or modify any source file.
-- Do **not** create any file under `openspec/changes/` — no proposal, design, tasks, or spec delta.
-- Do **not** allocate an epic.
+- Under `openspec/changes/`, write **only** the analysis doc — no proposal, design, tasks, or spec delta.
+- Allocate an epic **only** via `ptp-change-selector` §4, and **only** when no relevant active change exists.
 - Do **not** apply a fix, even if the subject is phrased as a fix request ("fix the X bug").
 - **Recommend** the appropriate next ptp step (e.g. `/ptp:plan`) rather than performing it.

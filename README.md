@@ -230,7 +230,7 @@ brainstorm → plan → apply → review → archive
 
 ### Step 0 — Analyze (optional, diagnostic)
 
-**`/ptp:analyze "<bug / observation / problem / question>"`** — read-only investigation. Root-causes a bug, explains an observed behavior, or investigates a subsystem *before* deciding whether a change is even warranted. Writes a structured analysis doc to `openspec/analysis/YYYY-MM-DD-<subject>-analysis.md` with evidence-cited findings, confidence level, and a recommended next step. Never produces a change proposal, never modifies source, never allocates an epic. Use this when you want to understand first and decide later. Contrast with `/ptp:brainstorm-only`, which explores *prospective* design options.
+**`/ptp:analyze "<bug / observation / problem / question>"`** — read-only investigation. Root-causes a bug, explains an observed behavior, or investigates a subsystem *before* deciding whether a change is even warranted. Writes a structured analysis doc into the appropriate `openspec/changes/<change-id>/YYYY-MM-DD-<subject>-analysis.md` (allocating a minimal change folder via `ptp-change-selector` §4 only when no relevant active change exists) with evidence-cited findings, confidence level, and a recommended next step. Never produces a change proposal, never modifies source. Use this when you want to understand first and decide later. Contrast with `/ptp:brainstorm-only`, which explores *prospective* design options.
 
 ### Step 1 — Brainstorm (optional, interactive)
 

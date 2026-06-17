@@ -49,7 +49,7 @@ For any non-trivial change, route through these commands in order:
 
 `/ptp:status [change-id]` is a read-only command that tells the user where they are in the flow and what to run next.
 
-`/ptp:analyze "<subject>"` is an auxiliary, epic-less, diagnostic command. Use it to root-cause a bug, explain an observed behavior, or investigate a subsystem *before* deciding whether a change is warranted. It writes a structured analysis doc to `openspec/analysis/` and never produces a change proposal or modifies source. Contrast with `/ptp:brainstorm-only`, which explores *prospective* design options — `/ptp:analyze` diagnoses an *existing* phenomenon.
+`/ptp:analyze "<subject>"` is an auxiliary, diagnostic command. Use it to root-cause a bug, explain an observed behavior, or investigate a subsystem *before* deciding whether a change is warranted. It writes a structured analysis doc into the appropriate `openspec/changes/<change-id>/` folder (allocating a minimal change folder via `ptp-change-selector` §4 only when no relevant active change exists) and never produces a change proposal or modifies source. Contrast with `/ptp:brainstorm-only`, which explores *prospective* design options — `/ptp:analyze` diagnoses an *existing* phenomenon.
 
 `/ptp:master` is an auxiliary utility command — a "return to clean master" convenience. Use it after a change is merged/archived and you want to switch back to `master` and pull the latest. It runs only when the working tree is clean (empty `git status --porcelain --untracked-files=all`), uses `--ff-only` so it can never create a merge commit, and is **exempt from `ptp-branch-guard`** (its purpose is to land on master, not leave it).
 
