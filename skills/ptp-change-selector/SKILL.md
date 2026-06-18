@@ -39,6 +39,7 @@ A command argument string is classified in this order (first match wins):
 
 | Priority | Form | Example | Resolves to |
 |----------|------|---------|-------------|
+| 0 | `epic:all` | `epic:all` | All active changes across every epic, `(epic, story)` ascending, legacy ids appended after |
 | 1 | `epic:XXXX` | `epic:0008` | All active changes in epic `0008`, ascending by story |
 | 1a | `epic:XXXX story:NN` | `epic:0008 story:02` | The single change `0008_02_*` |
 | 2 | `story:NN` | `story:01` | The one active change with that story — if unambiguous |
@@ -46,12 +47,13 @@ A command argument string is classified in this order (first match wins):
 | 4 | empty | (none) | Command's own existing default |
 
 Classification rules:
+- Equals `epic:all` exactly (case-sensitive) → all-active selector. (`epic:ALL`, `epic:all `, `epic:allfoo` are NOT the all-selector.)
 - Starts with `epic:` → epic selector; parse for optional ` story:NN` suffix.
 - Starts with `story:` (without `epic:`) → bare story selector.
 - Otherwise → bare id (exact folder-name match).
 - Empty → defer to the command's existing default.
 
-`epic:` and `story:` are **reserved prefixes** — bare ids may not start with them.
+`epic:` and `story:` are **reserved prefixes** — bare ids may not start with them. `all` is reserved within the `epic:` namespace so that `epic:all` is unambiguous as the all-active selector; this reservation is scoped to the `epic:` namespace only and does not change the bare-id form — a legacy folder literally named `all` remains resolvable by exact bare-id match.
 
 ## 3. Resolution algorithm (deterministic, stateless)
 
@@ -63,6 +65,10 @@ inputs: selector string
    - if matches ^\d{4}_\d{2}_[a-z0-9]+(-[a-z0-9]+)*$ → epic-prefixed: (epic, story, desc)
    - else → legacy: (epic=None, story=None, id=name)
 3. switch on selector:
+   - epic:all:
+       STOP "no active changes" if list is empty
+       return (epic-prefixed ids sorted ascending by (epic, story)) + (legacy/unprefixed ids in listed order)
+       [identical set and ordering to the empty-selector "all active changes" default]
    - bare id:
        return [name] if a folder equals it
        else STOP "no change <id>"
@@ -122,7 +128,9 @@ These **allocate** a fresh epic and **name** the change folder. They do not cons
 
 ### Role B — Set-capable consumers (resolve + iterate)
 
-Commands: `review`, `review-loop`, `review-full`, `codex-review`, `codex-review-loop`, `codex-review-plan`, `codex-review-plan-loop`, `review-plan`, `review-plan-loop`, `review-plan-full`, `review-fix`, `apply`, `effort`, `archive`, `archive-force`, `status`, `full-run`
+Commands: `review`, `review-loop`, `review-full`, `codex-review`, `codex-review-loop`, `codex-review-plan`, `codex-review-plan-loop`, `review-plan`, `review-plan-loop`, `review-plan-full`, `review-fix`, `apply`, `effort`, `archive`, `archive-force`, `archive-and-deploy`, `status`, `full-run`
+
+`epic:all` is immediately available to every consumer in this list the moment it lands — no per-command change is required. Any set-capable consumer that receives `epic:all` resolves it through §3 and operates on all active changes.
 
 These **resolve** the selector via the algorithm in §3 and, if it resolves to more than one change, **iterate** their existing per-change behavior in story order, reporting per change. When the selector resolves to exactly one change, the command behaves identically to its prior single-id behavior.
 

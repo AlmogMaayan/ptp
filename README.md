@@ -211,6 +211,7 @@ Commands that take a change argument accept a **selector** instead of a bare id 
 
 | Selector | Resolves to |
 |----------|-------------|
+| `epic:all` | all active changes across every epic, `(epic, story)` ascending (legacy ids appended after) |
 | `epic:0021` | all active stories in epic `0021`, in story order |
 | `epic:0021 story:01` | the single change `0021_01_*` |
 | `story:01` | the one active change with story `01` (if unambiguous) |
@@ -325,6 +326,8 @@ workflow, or when you want to merge without triggering a deploy. Refuses to run 
 `master`/`main`. Never self-approves. Requires `gh` authenticated. On an approval-required
 stop, have a collaborator approve and re-run `/ptp:merge-to-master` (idempotent).
 
+**`/ptp:archive-and-deploy`** — archive each resolved change through the existing archive gates in story order, then — only if every archive succeeded — run the deploy pipeline once on the current feature branch. Accepts a selector (including `epic:all`). Refuses to run on `master`/`main` and does not cut a branch. Never self-approves a PR.
+
 ---
 
 ## Skills
@@ -392,6 +395,9 @@ Where am I / what model
 Merge to master without deploying
   → /ptp:merge-to-master              # commit → PR → squash-merge → land on master (no deploy)
 
+Archive all then deploy (one command)
+  → /ptp:archive-and-deploy <sel>     # archive in story order → deploy once (only if all pass)
+
 Return to master (clean tree required)
   → /ptp:master                       # switch to master + git pull --ff-only
 
@@ -399,7 +405,7 @@ Force-archive (escape hatch — reports bypassed gates)
   → /ptp:archive-force <selector>
 
 Selectors (anywhere a <sel> / change-id is taken)
-  epic:0021 | epic:0021 story:01 | story:01 | <bare-id> | (omit = all active)
+  epic:all | epic:0021 | epic:0021 story:01 | story:01 | <bare-id> | (omit = all active)
 
 Experimental (no Superpowers layer)
   → /opsx:explore [topic] | /opsx:propose [name]
