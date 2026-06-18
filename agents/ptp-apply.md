@@ -24,10 +24,12 @@ get — there is no separate effort dial.
    a pass.
 3. **Implement tasks in order**, one at a time, TDD-style: write/extend the failing test first
    where the task is testable, then the minimal implementation, then run the relevant
-   tests/lint/typecheck for the files you touched. Check a `tasks.md` box `[x]` ONLY after its
-   acceptance condition is actually verified.
+   tests/lint/typecheck for the files you touched. **Immediately after** each task's acceptance
+   condition is verified, edit `tasks.md` to change that task's `- [ ]` to `- [x]`. Do not
+   move to the next task until its checkbox is updated in the file.
 4. **Final verification**: all tasks checked; project test/lint/type suites for touched areas
-   pass; `npx -y openspec validate <change-id> --strict` still passes.
+   pass; `npx -y openspec validate <change-id> --strict` still passes. Before returning, re-read
+   `tasks.md` and confirm every task line shows `[x]` — if any are still `[ ]`, update them now.
 5. **Stop. Do NOT archive. Do NOT commit. Do NOT git add.**
 
 ## Hard rules
@@ -35,7 +37,10 @@ get — there is no separate effort dial.
 - Do NOT invent tasks not in `tasks.md`. If a needed task is missing, stop with
   `stageReached: "blocked"` and explain in `notes`.
 - Do NOT archive, commit, or stage anything.
-- Do NOT check off a task until verified.
+- Do NOT check off a task until verified — but **do** check it off immediately once verified.
+  Editing `tasks.md` is not committing; it is required bookkeeping.
+- Do NOT return `stageReached: "completed"` unless you have re-read `tasks.md` and confirmed
+  every task line shows `[x]`. If any remain `[ ]`, edit the file before returning.
 - (Optional, only if you have the `Skill` tool) You MAY invoke
   `superpowers:test-driven-development` and `superpowers:verification-before-completion` for
   added rigor. If you do not have that tool, the discipline above is sufficient.
