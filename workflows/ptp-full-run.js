@@ -59,7 +59,8 @@ for (let i = 0; i < stories.length; i++) {
     `Implement the OpenSpec change \`${s.id}\` end-to-end, following the apply protocol in your system prompt.`,
     `Change folder: openspec/changes/${s.id}/`,
     `Work at **${eff}** effort: ${effortDirective(eff)}`,
-    `Do NOT archive. Do NOT commit. Stop when all tasks are checked and verification passes, and return the JSON object.`,
+    `After verifying each task, immediately edit tasks.md to mark it [x] — do this per task as you go, not in a batch at the end. Before returning, re-read tasks.md and confirm every task is [x].`,
+    `Do NOT archive. Do NOT commit. Do NOT git add. Return the JSON object when all tasks are [x] and final verification passes.`,
   ].join('\n\n')
 
   const apply = await agent(applyPrompt, {
