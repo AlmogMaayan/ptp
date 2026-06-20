@@ -1,6 +1,6 @@
 ---
 name: ptp-review-loop
-description: Shared loop protocol for /ptp:review-loop, /ptp:codex-review-loop, /ptp:review-plan-loop, and /ptp:codex-review-plan-loop. Takes kind∈{code,artifact} and reviewer∈{superpowers,codex} and iterates review→confirm→fix until zero open findings or iteration cap (5). Handles rejection carry-over so rejected findings do not cause infinite loops, and filters manual-check/tests-required suggestions from the convergence count.
+description: Shared loop protocol for /ptp:review-loop, /ptp:codex-review-loop, /ptp:review-plan-loop, and /ptp:codex-review-plan-loop. Takes kind∈{code,artifact} and reviewer∈{superpowers,codex} and iterates review→confirm→fix until zero open findings or the configured iteration cap (default 5) is reached. Handles rejection carry-over so rejected findings do not cause infinite loops, and filters manual-check/tests-required suggestions from the convergence count.
 ---
 
 # ptp-review-loop — shared loop protocol
@@ -30,6 +30,32 @@ The calling command is responsible for precondition checks before invoking this 
 - `kind=code` → caller must verify `openspec/changes/<change-id>/` exists; redirect to `/ptp:plan` if missing.
 - `kind=artifact` → caller must verify `openspec/changes/<change-id>/` exists; redirect to `/ptp:plan` if missing.
 
+## Resolution
+
+Resolve `MAX_ITERATIONS` from layered ptp config **once, at the start of a loop run**, then hold it
+fixed for the duration. No mid-loop re-read.
+
+```
+maxIterations = 5                                   # default
+for path in [ ~/.claude/ptp/config.json,            # global first
+              <repo>/.claude/ptp/config.json ]:      # then project (overrides)
+    if file exists and parses as JSON
+       and obj.review?.maxIterations is a positive integer (>= 1):
+        maxIterations = obj.review.maxIterations
+# any missing file / missing key / parse error / invalid value → leave the prior value
+# (ultimately 5 if nothing valid is found) — never throw, never STOP
+```
+
+**Reader posture: never crash, never STOP over a config typo.** A missing file, a missing key,
+unparseable JSON, or an invalid value all resolve to `5` (or to whatever the prior layer validly
+set). Each layer is evaluated independently: a layer whose file is missing, is unparseable, lacks the
+key, or carries an invalid value (a non-integer such as `5.5`, a JSON string such as `"5"`, `0`, a
+negative number, a boolean such as `true`, or any wrong type) is ignored, leaving the prior valid
+layer in force. The resolved cap falls back to the default `5` only when no layer supplies a valid
+value. A valid value is a positive integer (`>= 1`); no upper bound is enforced.
+
+The resolved `maxIterations` becomes `MAX_ITERATIONS` — the constant it is today for that run.
+
 ## In-conversation state
 
 All state lives in the current conversation context. **This state is NEVER persisted to disk.** No files are written to track iteration count, rejected findings, or summaries.
@@ -37,7 +63,7 @@ All state lives in the current conversation context. **This state is NEVER persi
 | Variable | Initial value | Type |
 |----------|--------------|------|
 | `iteration` | 0 | integer |
-| `MAX_ITERATIONS` | 5 | constant (not configurable in v1) |
+| `MAX_ITERATIONS` | resolved from `review.maxIterations` (layered config) at loop start; default 5; held fixed for the run | integer |
 | `rejected_findings` | `[]` | list of stable finding keys (see below) |
 | `per_iteration_summary` | `[]` | list of per-iteration result objects |
 
@@ -157,11 +183,11 @@ Report:
 
 ### ITERATION CAP REACHED
 
-Reached when step (a) increments `iteration` past `MAX_ITERATIONS` (5).
+Reached when step (a) increments `iteration` past `MAX_ITERATIONS` (the resolved cap).
 
 Report:
 
-1. **Open findings** — every finding from the last completed review (iteration 5) that is still CONFIRMED and unfixed.
+1. **Open findings** — every finding from the last completed review that is still CONFIRMED and unfixed.
 2. **Rejected / carry-over set** — same as DONE.
 3. **Per-iteration summary table**.
 4. Explicit statement: "Do not archive. Do not run `/ptp:apply`. Inspect the open findings manually and decide next steps."
@@ -173,6 +199,6 @@ Report:
 - **Never auto-commit** any edits made during the loop.
 - **Never fix an unconfirmed finding.** If step (e) marks a finding `REJECTED`, leave the code/artifact alone.
 - **Never persist loop state to disk.** `iteration`, `rejected_findings`, and `per_iteration_summary` live only in conversation context.
-- **Iteration cap is fixed at 5.** There is no `--max-iterations` flag in v1. If the cap is hit, report and stop — do not silently increment past it.
+- **Iteration cap is resolved from `review.maxIterations` (layered config, default 5).** There is no `--max-iterations` CLI flag. If the cap is hit, report and stop — do not silently increment past it.
 - **Codex variants** (`reviewer=codex`) must run `codex exec -s read-only` with the full prompt piped over stdin (`-`). Never pass `--full-auto`, `--sandbox workspace-write`, or `--dangerously-bypass-approvals-and-sandbox`.
 - **The caller runs `openspec validate` and all file reads for Codex** — Codex executes no `npx`, no network, no install commands. The closed-book / inlined-diff protocol from `codex-review.md` / `codex-review-plan.md` applies.

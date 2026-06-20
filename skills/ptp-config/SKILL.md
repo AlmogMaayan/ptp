@@ -29,22 +29,27 @@ parameters = [
     key:      "codex.mode",
     label:    "Use Codex for review",
     jsonPath: ["codex", "mode"],
+    kind:     "enum",
     values: [
       { value: "auto",     desc: "Use Codex when on PATH; degrade to Superpowers-only if missing (default)" },
       { value: "required", desc: "Require Codex; dual-reviewer commands STOP if it is missing" },
       { value: "off",      desc: "Skip Codex; run Superpowers-only" }
     ],
     default: "auto"
+  },
+  {
+    key:      "review.maxIterations",
+    label:    "Max review-loop iterations",
+    jsonPath: ["review", "maxIterations"],
+    kind:     "integer",
+    default:  5
   }
 ]
 ```
 
-**Single-parameter rule:** `AskUserQuestion` requires ≥ 2 options. While the registry has exactly
-one entry, **step 2 (parameter selection) is skipped entirely** — the skill announces the parameter
-and proceeds directly to step 3. When a second parameter is added to the registry, the parameter
-menu appears automatically with no further change. This is the one non-obvious wiring detail; it
-is intentional and documented here so future maintainers understand why the menu is absent for the
-current one-parameter case.
+**Parameter menu:** The registry currently holds two entries. Step 2 builds an `AskUserQuestion`
+menu from each entry's `label` value and presents it to the user. The flow is data-driven: adding
+a new entry to the registry automatically adds it to the menu with no further edits to this flow.
 
 ---
 
@@ -74,15 +79,14 @@ and writer pointed at one schema.
 
 ### Step 2 — Parameter selection
 
-**Registry has exactly one entry → skip the menu.** Announce to the user:
+Build an `AskUserQuestion` menu from the registry entries' `label` values:
 
-> Setting parameter: **codex.mode** ("Use Codex for review")
+1. **Use Codex for review** (`codex.mode`)
+2. **Max review-loop iterations** (`review.maxIterations`)
 
-Then proceed immediately to step 3. (When the registry holds ≥ 2 entries, this skip no longer
-applies: build an `AskUserQuestion` menu from the registry entries' `label` values, then use the
-selected entry's `jsonPath`, `values`, and `default` for the remaining steps. This is data-driven
-off the registry — adding a parameter requires only a new registry entry, no other edits to this
-flow.)
+Use the selected entry's `jsonPath`, `kind`, `values` (for enum entries), and `default` for the
+remaining steps. This is data-driven off the registry — adding a parameter requires only a new
+registry entry, no other edits to this flow.
 
 ### Step 3 — Read and show current value
 
@@ -101,38 +105,78 @@ flow.)
    - If the parsed root is **not a JSON object** (e.g. `[]`, a string, a number, or `null`):
      **STOP and report** — the file's root value is not an object; the command cannot safely merge
      into it without destroying data. File unchanged. End the command here.
-   - If `codex` exists in the root object but its value is **not a JSON object** (e.g.
-     `{"codex":"auto"}` or `{"codex":null}`): **STOP and report** — `codex` exists but is not an
-     object; merging into it would clobber data. File unchanged. End the command here.
-   - Absent parents (`codex` not present in the root) are fine — they will be created as empty
-     objects on write. This is not clobbering.
+   - If the selected parameter's **parent key** exists in the root object but its value is **not a
+     JSON object**, **STOP and report** — the parent exists but is not an object; merging into it
+     would clobber data. File unchanged. End the command here. Specifically:
+     - For `codex.mode`: if `codex` exists but is not an object (e.g. `{"codex":"auto"}` or
+       `{"codex":null}`), STOP.
+     - For `review.maxIterations`: if `review` exists but is not an object (e.g. `{"review":"x"}`
+       or `{"review":null}`), STOP.
+   - Absent parents (`codex` or `review` not present in the root) are fine — they will be created
+     as empty objects on write. This is not clobbering.
 
-4. Show the **current value** of `codex.mode`:
-   - If `codex.mode` is set in the file, display: `Current value: "<value>"`
-   - If it is absent, display: `Current value: unset (default: "auto")`
+4. Show the **current value** of the selected parameter:
+   - If the parameter's value is set in the file (at its `jsonPath`), display:
+     `Current value: <value>`
+   - If it is absent, display: `Current value: unset (default: <entry.default>)`
+   - For example, for `codex.mode`: `Current value: unset (default: "auto")`; for
+     `review.maxIterations`: `Current value: unset (default: 5)`
 
 ### Step 4 — Value selection
 
-Use `AskUserQuestion` to offer the three valid enum values for `codex.mode`:
+Branch on the selected parameter's `kind`:
+
+#### kind = `enum` (e.g. `codex.mode`)
+
+Use `AskUserQuestion` to offer the parameter's `values`. For `codex.mode`, the three valid values
+are:
 
 1. **`auto`** — Use Codex when on PATH; degrade to Superpowers-only if missing (default)
 2. **`required`** — Require Codex; dual-reviewer commands STOP if it is missing
 3. **`off`** — Skip Codex; run Superpowers-only
 
-These are the only options. **Never write a value that is not in this list.** The value written
-to the file is exactly the selected string (verbatim, lowercase).
+These are the only options. **Never write a value that is not in the entry's `values` list.** The
+value written to the file is exactly the selected string (verbatim, lowercase).
+
+#### kind = `integer` (e.g. `review.maxIterations`)
+
+Prompt the user for an integer value (show the entry's `default` as the suggested value, e.g.
+`default: 5`). Then validate the input:
+
+- **Accept:** a plain positive integer (`>= 1`). The value is written as a JSON **number**, not
+  a string.
+- **Reject and re-prompt** on any of the following — do NOT write an invalid value:
+  - Non-numeric input (e.g. `abc`)
+  - Non-integer numeric input (e.g. `5.5`)
+  - String-typed input that looks like a number (e.g. `"5"`)
+  - Zero (`0`)
+  - Any negative integer (e.g. `-1`)
+
+When rejecting, report why the value is invalid (e.g. "must be a positive integer >= 1") and ask
+again. Only proceed to step 5 once a valid positive integer is in hand.
+
+**Relationship to the slice-01 resolver:** the validity rule used here (`>= 1`, positive integer)
+is the SAME rule the slice-01 `ptp-review-loop` resolver uses to decide whether a stored
+`review.maxIterations` value is honored. The two surfaces are complementary by design: this editor
+is **STRICT** — it rejects invalid input and re-prompts, so an invalid value is never written to
+the file — while the resolver is **FORGIVING** — it ignores a layer whose value is invalid and
+continues resolution (defaulting to `5` only when no layer supplies a valid value), never throwing
+or stopping over a config typo. Do not align one to the other: softening the editor to accept-and-
+default would silently write a useless value; hardening the resolver to STOP would break its
+forgiving contract.
 
 ### Step 5 — Safe merge-write
 
 With the resolved path, the base JSON object (from step 3), and the chosen value (from step 4):
 
-1. **Idempotency check:** if the current value of `codex.mode` in the base JSON already equals the
-   chosen value, **report a no-op** ("already set to `<value>` — no change made") and end the
-   command. (It is safe to re-write byte-identical content, but prefer reporting the no-op.)
+1. **Idempotency check:** if the current value of the selected parameter in the base JSON already
+   equals the chosen value, **report a no-op** ("already set to `<value>` — no change made") and
+   end the command. (It is safe to re-write byte-identical content, but prefer reporting the no-op.)
 
-2. **Set the target path:** in the base JSON object, navigate `jsonPath = ["codex", "mode"]`:
-   - If `codex` is absent from the root, create it as an empty object `{}`.
-   - Set `codex.mode` to the chosen value.
+2. **Set the target path:** in the base JSON object, navigate the selected entry's `jsonPath`:
+   - If the parent key is absent from the root, create it as an empty object `{}`.
+     For `codex.mode`: create `codex` as `{}`; for `review.maxIterations`: create `review` as `{}`.
+   - Set the targeted key to the chosen value.
    - Leave **every other key** (e.g. `deploy`, any unknown keys) and every other nested value
      **untouched**.
 
@@ -152,11 +196,14 @@ With the resolved path, the base JSON object (from step 3), and the chosen value
 After writing, report:
 
 - The **absolute path** of the file written.
-- The **new value** of `codex.mode` that was written.
+- The **selected parameter key** and the **new value** that was written.
 
-Example:
+Examples:
 > Written: `/home/alice/.claude/ptp/config.json`
 > codex.mode = `auto`
+
+> Written: `/home/alice/.claude/ptp/config.json`
+> review.maxIterations = `8`
 
 ---
 
@@ -164,12 +211,16 @@ Example:
 
 | Situation | Behavior |
 |-----------|----------|
-| Target file missing | Create dir + file with just the chosen `codex.mode` value. |
+| Target file missing | Create dir + file with just the chosen parameter value. |
 | Target file empty / whitespace | Treat as `{}`, populate normally. |
 | Target file valid JSON with other keys | Merge; preserve all other keys. |
 | Target file present but invalid JSON | STOP, report parse failure, do **not** overwrite. |
 | Root parses to non-object (`[]`, string, number, `null`) | STOP, report, do **not** overwrite. |
 | `codex` present but not an object (`"codex":"auto"`, `"codex":null`) | STOP, report, do **not** overwrite. |
+| `review` present but not an object (`"review":"x"`, `"review":null`) | STOP, report, do **not** overwrite. |
+| `review` absent | Created as `{}` on write; not clobbering. |
+| Integer input not a positive integer (`0`, `-1`, `5.5`, `"5"`, `abc`) | Reject, re-prompt; do NOT write. |
+| Integer equals current stored value | Report no-op; do not write. |
 | Not in a git repo (project target) | Fall back to `<cwd>/.claude/ptp/config.json`; note the fallback in output. |
 | Chosen value equals current stored value | Report no-op; do not write. |
 
@@ -182,10 +233,15 @@ Example:
   `git rev-parse --show-toplevel` used in step 1 to resolve the project config path.
 - **Never overwrite a file with malformed JSON.** If the file exists and does not parse (and is
   not empty/whitespace), STOP and report.
-- **Never overwrite a file with wrong-shape JSON** (non-object root, or a non-object `codex`
-  value). STOP and report.
-- **Never write an out-of-enum value.** Only `auto`, `required`, or `off` may be written for
-  `codex.mode`. The value comes from the step 4 menu — never from free-form user input.
+- **Never overwrite a file with wrong-shape JSON** (non-object root, or a non-object parent value
+  for the selected key — e.g. a non-object `codex` value or a non-object `review` value). STOP
+  and report.
+- **Never write an out-of-enum value for `codex.mode`.** Only `auto`, `required`, or `off` may be
+  written for `codex.mode`. The value comes from the step 4 enum menu — never from free-form user
+  input.
+- **Never write an invalid integer for `review.maxIterations`.** Only a positive integer (`>= 1`)
+  may be written. Any non-positive, non-integer, non-numeric, or string-typed input is rejected
+  and re-prompted — never written.
 - **Never touch keys other than the selected parameter's `jsonPath`.** All other keys (including
   `deploy` and any unknown keys) are preserved as data in the serialized output.
 - This is an **ordinary interactive command** — `AskUserQuestion` is used deliberately and is

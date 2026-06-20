@@ -89,6 +89,6 @@ After both phases complete, report:
 - Do **not** review source code in this command. If findings about source code appear, note them as out-of-scope and do not fix them here. Use `/ptp:review-full` for code.
 - Do **not** regenerate artifacts via `/ptp:plan`. All artifact fixes are minimal targeted hand-edits only — correct a thin section, add a missing scenario, fill a spec-delta gap.
 - Per-iteration verification is `npx -y openspec validate <change-id> --strict`. A failing run is reported in the iteration summary but does NOT abort the loop.
-- Iteration cap per phase is **5** and is not configurable. Each phase has its own independent cap.
+- Iteration cap per phase is configurable via `review.maxIterations` in ptp config; default 5. Each phase has its own independent cap.
 - Run Codex under `codex exec -s read-only` with the prompt piped over **stdin** (`-`). Never pass `--full-auto`, `--sandbox workspace-write`, or `--dangerously-bypass-approvals-and-sandbox`.
 - You (the caller) assemble the closed-book prompt each Codex iteration — read all artifacts yourself (via Read), run `openspec validate` yourself (via Bash), collect cited source excerpts yourself (via Read/Grep), and inline everything into one prompt. Codex runs **no** commands — no `npx`, no network, no installs.

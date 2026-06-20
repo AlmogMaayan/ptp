@@ -85,6 +85,6 @@ After both phases complete, report:
 - Do **not** fix any finding that was not independently CONFIRMED during the confirmation step. Rejected findings stay in the code; their stable keys are carried over within each phase to prevent re-confirmation in subsequent iterations of that phase.
 - Do **not** count findings whose only suggested remediation is a manual check or a missing test against convergence in either phase.
 - Do **not** edit spec deltas or planning artifacts (`proposal.md`, `design.md`, `tasks.md`) in this command — this is a code-review loop. Use `/ptp:review-plan-full` for artifact fixes.
-- Iteration cap per phase is **5** and is not configurable. Each phase has its own independent cap.
+- Iteration cap per phase is configurable via `review.maxIterations` in ptp config; default 5. Each phase has its own independent cap.
 - Run Codex under `codex exec -s read-only` with the prompt piped over **stdin** (`-`). Never pass `--full-auto`, `--sandbox workspace-write`, or `--dangerously-bypass-approvals-and-sandbox`.
 - You (the caller) assemble the closed-book prompt each Codex iteration — capture the merge-base diff (via Bash), run `openspec validate` yourself (via Bash), read all relevant source files yourself (via Read), and inline everything into one self-contained prompt. Codex runs no commands — no `npx`, no network, no installs.
