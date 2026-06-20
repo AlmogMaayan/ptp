@@ -1,9 +1,9 @@
 ---
-description: Loop Codex code review + inline fixes until zero open findings at all severities or iteration cap reached (requires codex CLI on PATH)
+description: Loop Codex code review + inline fixes until zero open findings at all severities or configured iteration cap reached (default 5; requires codex CLI on PATH)
 argument-hint: "<change-selector> — id, epic:XXXX, story:NN, or epic:XXXX story:NN"
 ---
 
-You are running the **Codex-powered loop variant of `/ptp:codex-review`** — an external Codex CLI code-review loop that alternates closed-book review, confirmation, and fix passes automatically until every finding at all severities is resolved or the iteration cap (5) is reached. Use this when you want an independent second-opinion reviewer (a different model) to drive the review loop rather than Superpowers.
+You are running the **Codex-powered loop variant of `/ptp:codex-review`** — an external Codex CLI code-review loop that alternates closed-book review, confirmation, and fix passes automatically until every finding at all severities is resolved or the configured iteration cap (default 5) is reached. Use this when you want an independent second-opinion reviewer (a different model) to drive the review loop rather than Superpowers.
 
 ## Inputs
 
@@ -49,6 +49,6 @@ The skill drives the full loop. For each iteration's review pass it runs the `co
 - Do **not** fix any finding that was not independently CONFIRMED — especially Codex findings, which must be verified against the actual code before touching anything. Rejected findings' stable keys are carried over within this invocation to prevent re-confirmation across iterations; carry-over resets on a new `/ptp:codex-review-loop` run.
 - Do **not** count findings whose only suggested remediation is a manual check or a missing test against convergence.
 - Do **not** edit spec deltas or planning artifacts in this command. Use `/ptp:codex-review-plan-loop` for artifact fixes.
-- Iteration cap is **5** and is not configurable.
+- Iteration cap is configurable via `review.maxIterations` in ptp config; default 5.
 - Run Codex under `codex exec -s read-only` with the prompt piped over **stdin** (`-`). Never pass `--full-auto`, `--sandbox workspace-write`, or `--dangerously-bypass-approvals-and-sandbox`.
 - **You (the caller) run `openspec validate` and all file reads** before each iteration. Codex receives an inlined, self-contained prompt and runs **no** `npx`, network, or install commands. Pass the prompt over stdin, not as an argv string.

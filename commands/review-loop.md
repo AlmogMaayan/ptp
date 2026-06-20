@@ -3,7 +3,7 @@ description: Loop Superpowers code review + inline fixes until zero open finding
 argument-hint: "<change-selector> — id, epic:XXXX, story:NN, or epic:XXXX story:NN"
 ---
 
-You are running the **loop variant of `/ptp:review`** — a Superpowers code-review loop that alternates review, confirmation, and fix passes automatically until every finding at all severities (Critical, High, Medium, Low) is resolved or the iteration cap (5) is reached. This replaces the manual alternation of `/ptp:review` → `/ptp:review-fix` → `/ptp:review` → … that a non-trivial change otherwise requires.
+You are running the **loop variant of `/ptp:review`** — a Superpowers code-review loop that alternates review, confirmation, and fix passes automatically until every finding at all severities (Critical, High, Medium, Low) is resolved or the configured iteration cap (default 5) is reached. This replaces the manual alternation of `/ptp:review` → `/ptp:review-fix` → `/ptp:review` → … that a non-trivial change otherwise requires.
 
 ## Inputs
 
@@ -45,4 +45,4 @@ The skill drives the full loop: per-iteration Superpowers code review, manual/te
 - Do **not** fix any finding that was not independently CONFIRMED during the confirmation step. Rejected findings stay in the code; their stable keys are carried over to prevent re-confirmation in subsequent iterations within this invocation. Carry-over is scoped to this run only — starting a new `/ptp:review-loop` resets the rejected list.
 - Do **not** count findings whose only suggested remediation is a manual check or a missing test against convergence.
 - Do **not** edit spec deltas or planning artifacts (`proposal.md`, `design.md`, `tasks.md`) in this command — this is a code-review loop, not an artifact-review loop. Use `/ptp:review-plan-loop` for artifact fixes.
-- Iteration cap is **5** and is not configurable.
+- Iteration cap is configurable via `review.maxIterations` in ptp config; default 5.
