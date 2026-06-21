@@ -255,6 +255,8 @@ brainstorm → plan → apply → review → archive
 
 **`/ptp:review-brainstorm [change-selector]`** *(optional, read-only)* — brainstorm-quality gate one step earlier than `/ptp:review-plan`, between brainstorm and plan. Audits a change's `brainstorm.md` (options + tradeoffs, recommendation with rationale, assumptions, scope, spec-interaction, usable handoff) and reports PASS / WARN / FAIL. Read-only, runs no branch guard, runs **no** `openspec validate` (a brainstorm precedes any proposal/spec), edits nothing, and triggers no other command. Advisory; does not block `/ptp:plan`. Omit the selector to review all active changes' brainstorms.
 
+**`/ptp:review-brainstorm-full [change-selector]`** *(optional, read-only)* — **dual-reviewer** (Superpowers + Codex per `codex.mode`) variant of `/ptp:review-brainstorm`. Audits a change's `brainstorm.md` with two independent reviewers and reports per-reviewer PASS / WARN / FAIL plus a combined verdict (`BOTH REVIEWERS PASS` / `PHASE 1 DONE — CODEX SKIPPED (mode=…)` / `REVIEW FINDINGS — REVISE BRAINSTORM`). Unlike the write-capable `-full` orchestrators it is **report-only** — runs each reviewer once, no inline fix loop, no iteration cap. Runs **no** `openspec validate`, never edits the brainstorm, runs no branch guard, and is advisory. Uses Codex per `codex.mode` (default `auto`; with `auto`/`off` and no Codex it runs Superpowers-only and reports the skip). Omit the selector to review all active changes' brainstorms.
+
 ### Step 2 — Plan (autonomous)
 
 **`/ptp:plan [change-id]`** — end-to-end autonomous planning. Consumes a brainstorm doc if present, else brainstorms inline (no clarifying questions — assumptions are documented). Produces `proposal.md`, `design.md`, `tasks.md`, `TLDR.md`, an `effort.md` model/effort recommendation, and `specs/<capability>/spec.md` deltas when behavior changes. Runs `openspec validate <id> --strict`.
@@ -275,7 +277,7 @@ brainstorm → plan → apply → review → archive
 
 ### Step 4 — Review
 
-> The whole review family (the six read-only reviewers, the four `-loop` commands, the two `-full` orchestrators, and `/ptp:review-fix`) runs its work at **`opus.high`** via `ptp-run-at-model` — each command spawns one foreground `opus` subagent so review quality no longer depends on the session's model. Outer abort-preconditions (and, for the write-capable commands, the `ptp-branch-guard` preamble) still run in the outer session before the spawn; the six read-only reviewers run no branch guard.
+> The whole review family (the read-only reviewers, the four `-loop` commands, the three `-full` orchestrators, and `/ptp:review-fix`) runs its work at **`opus.high`** via `ptp-run-at-model` — each command spawns one foreground `opus` subagent so review quality no longer depends on the session's model. Of the three `-full` orchestrators, two write — `/ptp:review-full` (code) and `/ptp:review-plan-full` (artifacts) are inline-fixing convergence loops — while `/ptp:review-brainstorm-full` is **read-only** (it audits the brainstorm and reports, never fixes). Outer abort-preconditions (and, for the write-capable commands, the `ptp-branch-guard` preamble) still run in the outer session before the spawn; the read-only reviewers (including `/ptp:review-brainstorm-full`) run no branch guard.
 
 **`/ptp:review <selector>`** — Superpowers code review of the implementation diff against proposal/design/spec deltas/tasks. Findings classified Critical / High / Medium / Low.
 
@@ -346,6 +348,7 @@ Skills are invoked by Claude automatically (via the `Skill` tool) when the flow 
 | `ptp-full` | Orchestrates `/ptp:full` — the plan phase, the plan-convergence gate, and the seam into the run phase. |
 | `ptp-full-run` | The workflow-backed sequential `apply → review-full` per-story engine behind `/ptp:full-run`. |
 | `ptp-review-brainstorm` | The brainstorm-review rubric/protocol the thin `/ptp:review-brainstorm` command delegates to: locate the brainstorm (change-scoped preferred, deterministic general fallback), the rubric, Critical/High/Medium/Low classification, the PASS/WARN/FAIL verdict, the report + next-step — read-only, no `openspec validate`. |
+| `ptp-review-brainstorm-full` | The dual-reviewer **report-only** brainstorm-review contract the thin `/ptp:review-brainstorm-full` command delegates to: composes the `ptp-review-brainstorm` rubric for Phase 1 (Superpowers), gates Phase 2 on a located brainstorm, runs a Phase 2 Codex closed-book read-only pass (mode-gated per `ptp-codex-mode`), and emits the combined verdict — no inline fixing, no iteration cap, no `openspec validate`, never edits the brainstorm. |
 | `ptp-review-loop` | Shared review→confirm→fix loop protocol (kind ∈ {code, artifact}, reviewer ∈ {superpowers, codex}) behind every `-loop` command, with rejection carry-over and manual/test-only filtering. |
 | `ptp-archive-force` | The gate-bypassing archive engine behind `/ptp:archive-force` (still syncs delta specs). |
 
@@ -366,6 +369,7 @@ Drive it step by step
   → /ptp:analyze "<subject>"          # optional: diagnose first, no change produced
   → /ptp:brainstorm "<request>"       # optional: think first, interactive
   → /ptp:review-brainstorm <sel>      # optional: read-only brainstorm-quality gate (PASS/WARN/FAIL)
+  → /ptp:review-brainstorm-full <sel> # optional: dual-reviewer read-only brainstorm audit
   → /ptp:plan [change-id]             # autonomous: design + spec artifacts
   → /ptp:review-plan-full <sel>       # optional: dual-reviewer plan audit
   → /ptp:apply <selector>             # implement tasks one by one
