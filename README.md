@@ -253,6 +253,8 @@ brainstorm → plan → apply → review → archive
 
 **`/ptp:brainstorm-only "<topic>"`** — same brainstorm, *change-agnostic* — for exploring a direction before you know the concrete change. Writes to `openspec/brainstorms/YYYY-MM-DD-<topic>-brainstorm.md`; `/ptp:plan` picks it up later.
 
+**`/ptp:review-brainstorm [change-selector]`** *(optional, read-only)* — brainstorm-quality gate one step earlier than `/ptp:review-plan`, between brainstorm and plan. Audits a change's `brainstorm.md` (options + tradeoffs, recommendation with rationale, assumptions, scope, spec-interaction, usable handoff) and reports PASS / WARN / FAIL. Read-only, runs no branch guard, runs **no** `openspec validate` (a brainstorm precedes any proposal/spec), edits nothing, and triggers no other command. Advisory; does not block `/ptp:plan`. Omit the selector to review all active changes' brainstorms.
+
 ### Step 2 — Plan (autonomous)
 
 **`/ptp:plan [change-id]`** — end-to-end autonomous planning. Consumes a brainstorm doc if present, else brainstorms inline (no clarifying questions — assumptions are documented). Produces `proposal.md`, `design.md`, `tasks.md`, `TLDR.md`, an `effort.md` model/effort recommendation, and `specs/<capability>/spec.md` deltas when behavior changes. Runs `openspec validate <id> --strict`.
@@ -273,7 +275,7 @@ brainstorm → plan → apply → review → archive
 
 ### Step 4 — Review
 
-> The whole review family (the five read-only reviewers, the four `-loop` commands, the two `-full` orchestrators, and `/ptp:review-fix`) runs its work at **`opus.high`** via `ptp-run-at-model` — each command spawns one foreground `opus` subagent so review quality no longer depends on the session's model. Outer abort-preconditions (and, for the write-capable commands, the `ptp-branch-guard` preamble) still run in the outer session before the spawn; the five read-only reviewers run no branch guard.
+> The whole review family (the six read-only reviewers, the four `-loop` commands, the two `-full` orchestrators, and `/ptp:review-fix`) runs its work at **`opus.high`** via `ptp-run-at-model` — each command spawns one foreground `opus` subagent so review quality no longer depends on the session's model. Outer abort-preconditions (and, for the write-capable commands, the `ptp-branch-guard` preamble) still run in the outer session before the spawn; the six read-only reviewers run no branch guard.
 
 **`/ptp:review <selector>`** — Superpowers code review of the implementation diff against proposal/design/spec deltas/tasks. Findings classified Critical / High / Medium / Low.
 
@@ -343,6 +345,7 @@ Skills are invoked by Claude automatically (via the `Skill` tool) when the flow 
 | `ptp-run-at-model` | Single source of truth for running a command's work at a deterministic model+effort: spawns one foreground subagent at a caller-named target model (effort injected as a prompt directive), runs the work there, and relays the subagent's terminal result. |
 | `ptp-full` | Orchestrates `/ptp:full` — the plan phase, the plan-convergence gate, and the seam into the run phase. |
 | `ptp-full-run` | The workflow-backed sequential `apply → review-full` per-story engine behind `/ptp:full-run`. |
+| `ptp-review-brainstorm` | The brainstorm-review rubric/protocol the thin `/ptp:review-brainstorm` command delegates to: locate the brainstorm (change-scoped preferred, deterministic general fallback), the rubric, Critical/High/Medium/Low classification, the PASS/WARN/FAIL verdict, the report + next-step — read-only, no `openspec validate`. |
 | `ptp-review-loop` | Shared review→confirm→fix loop protocol (kind ∈ {code, artifact}, reviewer ∈ {superpowers, codex}) behind every `-loop` command, with rejection carry-over and manual/test-only filtering. |
 | `ptp-archive-force` | The gate-bypassing archive engine behind `/ptp:archive-force` (still syncs delta specs). |
 
@@ -362,6 +365,7 @@ Hand it the whole thing (autonomous, dual-reviewed; Codex optional — codex.mod
 Drive it step by step
   → /ptp:analyze "<subject>"          # optional: diagnose first, no change produced
   → /ptp:brainstorm "<request>"       # optional: think first, interactive
+  → /ptp:review-brainstorm <sel>      # optional: read-only brainstorm-quality gate (PASS/WARN/FAIL)
   → /ptp:plan [change-id]             # autonomous: design + spec artifacts
   → /ptp:review-plan-full <sel>       # optional: dual-reviewer plan audit
   → /ptp:apply <selector>             # implement tasks one by one
