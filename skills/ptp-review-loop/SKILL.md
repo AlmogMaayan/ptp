@@ -1,6 +1,6 @@
 ---
 name: ptp-review-loop
-description: Shared loop protocol for /ptp:review-loop, /ptp:codex-review-loop, /ptp:review-plan-loop, and /ptp:codex-review-plan-loop. Takes kind∈{code,artifact} and reviewer∈{superpowers,codex} and iterates review→confirm→fix until zero open findings or the configured iteration cap (default 5) is reached. Handles rejection carry-over so rejected findings do not cause infinite loops, and filters manual-check/tests-required suggestions from the convergence count.
+description: Shared loop protocol for /ptp:review-loop, /ptp:codex-review-loop, /ptp:review-plan-loop, /ptp:codex-review-plan-loop, and the /ptp:review-brainstorm-full brainstorm loop. Takes kind∈{code,artifact,brainstorm} and reviewer∈{superpowers,codex} and iterates review→confirm→fix until zero open findings or the configured iteration cap (default 5) is reached. Handles rejection carry-over so rejected findings do not cause infinite loops, and filters manual-check/tests-required suggestions from the convergence count.
 ---
 
 # ptp-review-loop — shared loop protocol
@@ -10,17 +10,22 @@ description: Shared loop protocol for /ptp:review-loop, /ptp:codex-review-loop, 
 This skill encodes the iteration semantics shared by the four `/ptp:*-loop` commands. Each command supplies two parameters; this skill drives the loop.
 
 ```
-/ptp:review-loop            → kind=code,     reviewer=superpowers
-/ptp:codex-review-loop      → kind=code,     reviewer=codex
-/ptp:review-plan-loop       → kind=artifact, reviewer=superpowers
-/ptp:codex-review-plan-loop → kind=artifact, reviewer=codex
+/ptp:review-loop            → kind=code,       reviewer=superpowers
+/ptp:codex-review-loop      → kind=code,       reviewer=codex
+/ptp:review-plan-loop       → kind=artifact,   reviewer=superpowers
+/ptp:codex-review-plan-loop → kind=artifact,   reviewer=codex
 ```
+
+The `/ptp:review-brainstorm-full` skill (`ptp-review-brainstorm-full`) also drives this loop with
+`kind=brainstorm` in two phases (Phase 1 `reviewer=superpowers`, Phase 2 `reviewer=codex`), so the
+`-full` suffix means a dual-reviewer inline-fix loop at every pipeline stage (brainstorm, artifact,
+code).
 
 ## Inputs
 
 | Input | Values | Source |
 |-------|--------|--------|
-| `kind` | `code` \| `artifact` | Supplied by the calling command |
+| `kind` | `code` \| `artifact` \| `brainstorm` | Supplied by the calling command |
 | `reviewer` | `superpowers` \| `codex` | Supplied by the calling command |
 | `change-id` | string | A single resolved change id passed through from the calling command. The caller resolves any selector (e.g. `epic:XXXX`) via `ptp-change-selector` and iterates this skill once per resolved change — this skill receives and processes exactly one change per invocation. |
 
@@ -29,6 +34,7 @@ The calling command is responsible for precondition checks before invoking this 
 - `reviewer=codex` → caller must verify `codex --version` is on PATH; refuse if missing.
 - `kind=code` → caller must verify `openspec/changes/<change-id>/` exists; redirect to `/ptp:plan` if missing.
 - `kind=artifact` → caller must verify `openspec/changes/<change-id>/` exists; redirect to `/ptp:plan` if missing.
+- `kind=brainstorm` → caller must verify `openspec/changes/<change-id>/` exists; redirect to `/ptp:plan` if missing. The existence of `brainstorm.md` itself is **NOT** an abort precondition — a missing brainstorm is a Phase-1 Critical finding handled inside the review pass (step b), mirroring `ptp-review-brainstorm`.
 
 ## Resolution
 
@@ -83,6 +89,8 @@ Dispatch to the correct reviewer based on `(kind, reviewer)`:
 - `codex` / `code` — run the `codex-review.md` protocol inline: read the contract yourself (you, via Read), capture the merge-base diff (you, via Bash), run `npx -y openspec validate <change-id> --strict` and any relevant tests yourself (you, via Bash), build a single closed-book prompt with all of this inlined, and pipe it to `codex exec -s read-only` over stdin. Do NOT pass `--full-auto`, `--sandbox workspace-write`, or `--dangerously-bypass-approvals-and-sandbox`. Codex runs NO `npx` / network / install commands.
 - `superpowers` / `artifact` — run the `review-plan.md` rubric inline: check existence & validation, `proposal.md` completeness, cross-artifact consistency, spec-delta format, `tasks.md` quality, reasoning depth, and `TLDR.md` sanity.
 - `codex` / `artifact` — run the `codex-review-plan.md` closed-book protocol inline: read all artifacts yourself (you, via Read), run `npx -y openspec validate <change-id> --strict` yourself (you, via Bash), collect cited source excerpts (you, via Read/Grep), build a single self-contained prompt, and pipe to `codex exec -s read-only` over stdin. Codex runs NO commands.
+- `superpowers` / `brainstorm` — run the `ptp-review-brainstorm` rubric inline over the located `brainstorm.md` (existence & non-placeholder; ≥2 real options with the four tradeoff axes plus spec-interaction; recommendation with rationale; assumptions; scope/blast-radius; spec interaction; usable handoff to `/ptp:plan`). A missing `brainstorm.md` is recorded as a Critical "no brainstorm to review" finding inside this pass (the loop cannot fix it). Do NOT re-author the rubric here — it lives in `ptp-review-brainstorm`.
+- `codex` / `brainstorm` — run the `codex-review-plan.md` closed-book protocol inline, **retargeted to `brainstorm.md`** and with **NO** `openspec validate` (a brainstorm precedes any proposal/spec, so there is nothing to validate): read `brainstorm.md` and any cited context yourself (you, via Read), build a single self-contained prompt carrying the brainstorm rubric as the audit instructions plus the full brainstorm text and any cited source excerpts, and pipe it to `codex exec -s read-only` over stdin. Codex runs NO commands (no `npx`, no `openspec validate`, no network, no installs). As with the Superpowers variant, a missing `brainstorm.md` is recorded as a Critical "no brainstorm to review" finding inside this pass (the loop cannot fix it) — do not attempt to build a Codex prompt over an absent file.
 
 Collect the full list of findings (severity, location, description, suggested fix) from the review output.
 
@@ -121,6 +129,7 @@ Edit inline for every CONFIRMED finding:
 
 - `kind=code` → edit source files directly. **Never** invoke `/ptp:apply`. **Never** commit.
 - `kind=artifact` → make minimal targeted edits to the affected artifact(s). **Never** regenerate artifacts via `/ptp:plan`. Corrections only (fix a wrong section, add a missing scenario, fill a thin block) — not re-fabrication.
+- `kind=brainstorm` → make minimal targeted edits to `brainstorm.md`. **Never** regenerate the brainstorm via `/ptp:brainstorm`. Corrections only (add a missing option, expand a thin tradeoff, document a missing assumption) — not re-fabrication. A missing `brainstorm.md` Critical finding has nothing to edit and stays unfixed (the iteration cap is the backstop).
 
 ### (h) Verify
 
@@ -128,6 +137,7 @@ Run a cheap, fast verification appropriate to `kind`:
 
 - `kind=code` → tests, lint, and typecheck for the files touched this iteration.
 - `kind=artifact` → `npx -y openspec validate <change-id> --strict`.
+- `kind=brainstorm` → **N/A** — run **NO** `openspec validate` (a brainstorm precedes any proposal/spec, so there is nothing to validate). Record `verify = N/A (brainstorm precedes any spec)` in `per_iteration_summary`.
 
 A failing verification is **reported in `per_iteration_summary`** but does NOT abort the loop — the next review iteration will pick up regressions. The iteration cap is the backstop.
 
@@ -166,6 +176,8 @@ key = {
 
 Artifact keys do not use line numbers because section headings renumber after edits.
 
+**For `kind=brainstorm`:** reuse the `kind=artifact` key with `artifact_filename = "brainstorm.md"` (plus the nearest enclosing `section_heading` and the truncated `summary`). Like artifact keys, it uses no line numbers so findings deduplicate across iterations as section headings renumber. The missing-`brainstorm.md` Critical finding has no enclosing heading, so it uses the sentinel `section_heading = "<missing file>"` — `artifact_filename` + this sentinel + its constant `summary` stay stable across iterations, so the unfixable finding deduplicates correctly until the iteration-cap backstop.
+
 ## Terminal states
 
 ### DONE
@@ -180,6 +192,7 @@ Report:
 4. **Next command**:
    - `kind=code`     → `/ptp:archive <change-id>` (or `/ptp:status` first).
    - `kind=artifact` → `/ptp:apply <change-id>` if not yet implemented; `/ptp:review-plan <change-id>` for a post-apply artifact check. (Recommend these to the user — do not invoke them.)
+   - `kind=brainstorm` → `/ptp:plan <change-id>` (the brainstorm is sound; proceed to author the OpenSpec artifacts). (Recommend it to the user — do not invoke it.)
 
 ### ITERATION CAP REACHED
 
@@ -201,4 +214,4 @@ Report:
 - **Never persist loop state to disk.** `iteration`, `rejected_findings`, and `per_iteration_summary` live only in conversation context.
 - **Iteration cap is resolved from `review.maxIterations` (layered config, default 5).** There is no `--max-iterations` CLI flag. If the cap is hit, report and stop — do not silently increment past it.
 - **Codex variants** (`reviewer=codex`) must run `codex exec -s read-only` with the full prompt piped over stdin (`-`). Never pass `--full-auto`, `--sandbox workspace-write`, or `--dangerously-bypass-approvals-and-sandbox`.
-- **The caller runs `openspec validate` and all file reads for Codex** — Codex executes no `npx`, no network, no install commands. The closed-book / inlined-diff protocol from `codex-review.md` / `codex-review-plan.md` applies.
+- **The caller runs `openspec validate` (for `kind=code` / `kind=artifact` only — never for `kind=brainstorm`, which precedes any proposal/spec) and all file reads for Codex** — Codex executes no `npx`, no network, no install commands. The closed-book / inlined-diff protocol from `codex-review.md` / `codex-review-plan.md` applies.
