@@ -41,6 +41,8 @@ The subagent invokes the `ptp-review-loop` skill with:
 
 The skill drives the full loop. For each iteration's review pass it runs the `codex-review.md` protocol inline: you (the caller) read the contract, capture the merge-base diff, run `npx -y openspec validate <change-id> --strict` and relevant tests, build a single closed-book prompt with all of this inlined, and pipe it to `codex exec -s read-only` over stdin. Findings are confirmed via `superpowers:receiving-code-review` before any fix is applied.
 
+**Review-convergence marker:** this is a `kind = code` loop, so it writes **NO** review-column marker (there is no code-review column in `/ptp:status`).
+
 ## Hard rules
 
 - Do **not** invoke `/ptp:apply`. Code fixes are applied inline.

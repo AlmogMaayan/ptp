@@ -146,6 +146,37 @@ not a halt. The `Codex phase skipped (mode=…)` line is always reported (never 
 
 ---
 
+## Review-convergence marker (single combined write)
+
+This orchestrator drives **both** phase loops with **`deferMarker = true`** (per `ptp-review-loop`'s
+**## Review-convergence marker** section), so **no phase writes the marker itself** — each phase instead
+returns its terminal outcome (`terminalState`, `reviewer`, `iterations`) to this orchestrator. After the
+run resolves (after Phase 2, or after Phase 1 if Phase 2 is gated off), the orchestrator performs
+**exactly ONE** combined `reviews/brainstorm.json` write per the combined-outcome rule:
+
+- `reviewers` = the **union of phases that actually ran** — `["superpowers"]` if Phase 1 capped (Phase 2
+  never ran) or Codex was mode-skipped, `["superpowers","codex"]` if both phases ran.
+- `terminalState` = that of the **last phase that ran** (`converged` if the last phase that ran reached
+  `DONE`, else `cap-reached`).
+- `iterations` = the **last phase's** iteration count.
+
+The combined write uses the **same atomic write-temp-then-rename protocol** as `ptp-review-loop`
+(serialize to a uniquely named temp file in `reviews/`, then replace `reviews/brainstorm.json` via a
+replace-if-exists rename only after the complete write succeeds; on any failure clean up the temp file
+and leave the live marker untouched — see design.md §1), so a failed overwrite cannot truncate or
+corrupt the prior marker.
+
+Because there is **never a provisional per-phase marker on disk** (every phase defers), there is no
+window within a single run in which the marker under-reports the reviewer set. Failure semantics (per
+design.md §4): on a **first** review (no prior marker) a failed single write leaves **no** marker — and
+status falls back to the inferred value — **never** a fabricated single-reviewer marker; on a
+**re-review** a failed overwrite leaves the **prior run's real marker** in place (the accepted staleness
+case — there is no freshness/expiry mechanism per the non-goals). A marker-write failure is reported but
+does not change the terminal state the run reached. (See design.md §1, §3–§4.)
+
+`kind = brainstorm` always feeds `reviews/brainstorm.json`; there is no `code` exemption here because
+this orchestrator only ever drives the brainstorm kind.
+
 ## Hard rules
 
 - **Edits `brainstorm.md` inline.** Each phase resolves confirmed findings by minimal targeted edits to

@@ -39,6 +39,8 @@ The subagent invokes the `ptp-review-loop` skill with:
 
 The skill drives the full loop. For each iteration's review pass it runs the `review-plan.md` rubric inline: existence & validation, `proposal.md` completeness, cross-artifact consistency, spec-delta format, `tasks.md` quality, reasoning depth, and `TLDR.md` sanity. After confirmation, confirmed findings are fixed via minimal targeted edits and `npx -y openspec validate <change-id> --strict` is run as per-iteration verification.
 
+**Review-convergence marker:** this is a `kind = artifact` loop, so on its terminal state it stamps `reviews/plan.json` (`terminalState` converged / cap-reached, `reviewers: ["superpowers"]`), surfaced by `/ptp:status`'s plan-review column.
+
 ## Hard rules
 
 - Do **not** invoke `/ptp:apply`. This loop fixes artifacts, not source code; it is not a substitute for the implementation step.

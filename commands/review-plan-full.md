@@ -78,6 +78,16 @@ After both phases complete, report:
    - If PHASE 1 DONE — CODEX SKIPPED → `/ptp:apply $ARGUMENTS` (Superpowers signed off on the artifacts; Codex was skipped by mode — a successful single-reviewer run, not a halt). To add the Codex artifact reviewer, set `codex.mode` via `/ptp:config` (and install `codex`) then run `/ptp:codex-review-plan-loop $ARGUMENTS`.
    - If PHASE 2 ITERATION CAP REACHED → resolve remaining Codex artifact findings (e.g., `/ptp:review-fix`), then re-run `/ptp:review-plan-full $ARGUMENTS` or run `/ptp:codex-review-plan-loop $ARGUMENTS` directly.
 
+### Review-convergence marker (single combined write)
+
+This orchestrator drives **both** phase loops with **`deferMarker = true`** (per `ptp-review-loop`'s **## Review-convergence marker** section), so **no phase writes the marker itself** — each phase returns its terminal outcome (`terminalState`, `reviewer`, `iterations`) to this orchestrator. After the run resolves (after Phase 2, or after Phase 1 if Phase 2 is gated off), the orchestrator performs **exactly ONE** combined `reviews/plan.json` write per the combined-outcome rule:
+
+- `reviewers` = the **union of phases that actually ran** — `["superpowers"]` if Phase 1 capped (Phase 2 never ran) or Codex was mode-skipped, `["superpowers","codex"]` if both phases ran.
+- `terminalState` = that of the **last phase that ran** (`converged` if the last phase that ran reached `DONE`, else `cap-reached`).
+- `iterations` = the **last phase's** iteration count.
+
+The combined write uses the **same atomic write-temp-then-rename protocol** as `ptp-review-loop` (Task 2.2 / design.md §1): serialize to a uniquely named temp file in `reviews/`, then replace `reviews/plan.json` via a replace-if-exists rename only after the complete write succeeds; on any failure clean up the temp file and leave the live marker untouched — so a failed overwrite cannot truncate or corrupt the prior marker. Because every phase defers, there is **never a provisional per-phase marker** on disk: on a **first** review a failed single write leaves **no** marker (status falls back) — never a fabricated single-reviewer marker; on a **re-review** a failed overwrite leaves the **prior run's real marker** (the accepted staleness case; no freshness/expiry mechanism). A marker-write failure is reported but does not change the terminal state. The `/ptp:status` plan-review column reads this `reviews/plan.json`.
+
 ## Hard rules
 
 - Do **not** start Phase 2 if Phase 1 did not terminate with `DONE`.

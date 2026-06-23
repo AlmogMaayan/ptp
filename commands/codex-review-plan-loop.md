@@ -43,6 +43,8 @@ The subagent invokes the `ptp-review-loop` skill with:
 
 The skill drives the full loop. For each iteration's review pass it runs the `codex-review-plan.md` closed-book protocol inline: you (the caller) read all artifacts, run `npx -y openspec validate <change-id> --strict`, collect cited source excerpts, build a single self-contained prompt with all of this inlined, and pipe it to `codex exec -s read-only` over stdin. Findings are confirmed via `superpowers:receiving-code-review` before any artifact is touched.
 
+**Review-convergence marker:** this is a `kind = artifact` loop, so on its terminal state it stamps `reviews/plan.json` (`terminalState` converged / cap-reached, `reviewers: ["codex"]`), surfaced by `/ptp:status`'s plan-review column.
+
 ## Hard rules
 
 - Do **not** invoke `/ptp:apply`. This loop fixes artifacts, not source code.
