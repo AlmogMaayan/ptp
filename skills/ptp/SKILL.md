@@ -103,7 +103,7 @@ Each step produces a durable artifact the next step reads. **Downstream steps re
 | `/ptp:review-fix` *(optional)* | confirmed findings fixed in place (code inline / artifacts hand-edited); rejected findings reported; tests/lint/validate run | re-review, then `/ptp:archive` |
 | `/ptp:review-loop` *(optional)* | zero-or-cap residual findings (no new persistent files — state is in-conversation only); same result as manually alternating `/ptp:review` + `/ptp:review-fix` until clean | `/ptp:archive` |
 | `/ptp:codex-review-loop` *(optional)* | same as `/ptp:review-loop` but reviewer is Codex | `/ptp:archive` |
-| `/ptp:review-plan-loop` *(optional)* | zero-or-cap residual artifact findings (no new persistent files); same result as manually alternating `/ptp:review-plan` + `/ptp:review-fix` until clean | `/ptp:apply` |
+| `/ptp:review-plan-loop` *(optional)* | zero-or-cap residual artifact findings (loop control state is in-conversation only; on its terminal state it stamps the durable `reviews/plan.json` review-convergence marker read by `/ptp:status`); same result as manually alternating `/ptp:review-plan` + `/ptp:review-fix` until clean | `/ptp:apply` |
 | `/ptp:codex-review-plan-loop` *(optional)* | same as `/ptp:review-plan-loop` but reviewer is Codex | `/ptp:apply` |
 | `/ptp:review-full` *(optional)* | Phase 1 (Superpowers) + Phase 2 (Codex) combined code-review summary; zero-or-cap residual findings per phase | `/ptp:archive` |
 | `/ptp:review-plan-full` *(optional)* | Phase 1 (Superpowers) + Phase 2 (Codex) combined artifact-review summary; zero-or-cap residual findings per phase | `/ptp:apply` |

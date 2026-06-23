@@ -37,6 +37,8 @@ The subagent invokes the `ptp-review-loop` skill with:
 
 The skill drives the full loop: per-iteration Superpowers code review, manual/test-only finding filter, rejection carry-over check, confirmation via `superpowers:receiving-code-review`, inline fix pass on confirmed findings, test/lint/typecheck verification, and termination at DONE or ITERATION CAP REACHED.
 
+**Review-convergence marker:** this is a `kind = code` loop, so it writes **NO** review-column marker (there is no code-review column in `/ptp:status`).
+
 ## Hard rules
 
 - Do **not** invoke `/ptp:apply`. Code fixes are applied inline; the loop is never a substitute for the apply step.

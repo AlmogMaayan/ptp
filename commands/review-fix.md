@@ -26,6 +26,7 @@ Reviews in this workflow are **displayed in the conversation, not persisted to a
 1. **Locate and freeze the latest review in the conversation context (outer session).** Find the most recent review output and determine its kind:
    - **Code review** — produced by `/ptp:review`, `/ptp:codex-review`, or `/ptp:codex-review-uncommitted`. Findings target source code.
    - **Artifact review** — produced by `/ptp:review-plan` or `/ptp:codex-review-plan`. Findings target `proposal.md` / `design.md` / `tasks.md` / spec deltas.
+   - **Brainstorm review** — produced by `/ptp:review-brainstorm` (or the Superpowers/Codex brainstorm review phases). Findings target `brainstorm.md`. Confirmed brainstorm findings are fixed by minimal targeted edits to `brainstorm.md` (never regenerated via `/ptp:brainstorm`), and there is no `openspec validate` step for a brainstorm (a brainstorm precedes any proposal/spec) — the post-fix verification is simply that every CONFIRMED brainstorm finding was resolved.
 
    If several reviews are present, use the **latest** one and say which you picked. Extract (freeze) its findings: severity, file:line, description, and any suggested fix.
 
@@ -46,16 +47,27 @@ Reviews in this workflow are **displayed in the conversation, not persisted to a
 4. **Fix every CONFIRMED finding — all severities.** Do not filter by severity; the user asked for the confirmed ones.
    - **Code-review findings** → edit the source **inline**. Do **not** invoke `/ptp:apply` (per the ptp role split, review-driven fixes are applied inline, not through the apply command).
    - **Artifact-review findings** → make **minimal, targeted edits** directly to the affected artifact(s). Do **not** regenerate them via `/ptp:plan`. These are corrections (fix a spec-delta format, add a missing scenario, map a goal to a task, fill a thin section) — not re-fabrication, so the proposal's derivation from brainstorming is preserved.
+   - **Brainstorm-review findings** → make **minimal, targeted edits** directly to `brainstorm.md` (add a missing option, expand a thin tradeoff, document a missing assumption). Do **not** regenerate it via `/ptp:brainstorm`.
    - Keep diffs minimal and on-point; group related fixes.
 
 5. **Verify the fixes.**
    - **Code** → run the relevant tests, lint, and type checks for the files you touched. Report results.
    - **Artifacts** → re-run `npx -y openspec validate <change-id> --strict` (use the `$ARGUMENTS` change-id, or infer it from the review). Report results.
+   - **Brainstorm** → there is no `openspec validate` for a brainstorm (it precedes any proposal/spec); the verification is simply that every CONFIRMED brainstorm finding was resolved by the edits above. Report the result.
    - Do **not** auto-commit.
 
 6. **Report.** Produce a per-finding table with one of: `CONFIRMED + FIXED`, `REJECTED (reason)`, or `CONFIRMED but could not fix (reason)`. Group by severity. Then show the verification results, then the suggested next step:
    - Code fixes → re-run the same review (or `/ptp:review <change-id>`) to confirm resolution, then `/ptp:archive <change-id>` once clean.
    - Artifact fixes → `/ptp:apply <change-id>` (if not yet implemented) or `/ptp:review-plan <change-id>` to re-check the artifacts.
+
+7. **Stamp the review-convergence marker (artifact / brainstorm fixes only).** `/ptp:review-fix` does NOT drive `ptp-review-loop` (no loop, no iteration cap), but on completion it stamps the **same** per-kind marker the loops write, reusing the shared schema / location / **atomic write-temp-then-rename** protocol from `ptp-review-loop`'s **## Review-convergence marker** section (and design.md §4a). Mapping the single confirm→fix→verify pass to marker fields:
+   - **`kind`** — from the **frozen review's** kind: a frozen **artifact** review → `reviews/plan.json`; a frozen **brainstorm** review → `reviews/brainstorm.json`; a frozen **code** review → **NO marker** (there is no code-review column), exactly as a `kind = code` loop writes none.
+   - **`reviewers`** — the frozen review's reviewer(s): `["superpowers"]` for a Superpowers review, `["codex"]` for a Codex review. `/ptp:review-fix` runs no second reviewer, so it **never** synthesizes a combined set.
+   - **`terminalState`** — `"converged"` **only** when the post-fix verification is **fully clean** (every CONFIRMED finding fixed AND `npx -y openspec validate <id> --strict` / the re-check passes), **including the all-`REJECTED` no-op** outcome (nothing to fix, artifact clean as-reviewed). `"cap-reached"` in **every** non-clean post-fix outcome — whether CONFIRMED findings remain unfixed (`CONFIRMED but could not fix`) OR all findings were applied but the post-fix verification is still not clean (e.g. a fix introduced a validation error).
+   - **`iterations`** — `1` (the single pass; there is no loop count).
+   - **`timestamp`** — now (UTC ISO-8601).
+
+   Write via the atomic write-temp-then-rename protocol; a write failure is **reported, not fatal** (the fix pass already happened), and on a re-review a failed overwrite leaves the prior marker intact.
 
 ## Hard rules
 
@@ -64,4 +76,5 @@ Reviews in this workflow are **displayed in the conversation, not persisted to a
 - **Never invoke `/ptp:apply`.** Code fixes are applied inline by editing the source directly.
 - **Never regenerate artifacts via `/ptp:plan`.** Artifact fixes are targeted hand-edits only.
 - **Never archive** and **never auto-commit.** Report status and let the user take the next step.
-- If the latest review's findings are all `REJECTED`, fix nothing, report why, and stop — that is a valid outcome.
+- If the latest review's findings are all `REJECTED`, fix nothing, report why, and stop — that is a valid outcome. For an **artifact** or **brainstorm** review this all-`REJECTED` no-op still stamps a `converged` marker (the artifact is clean as-reviewed); a **code** review stamps no marker.
+- **Marker write:** on completion, stamp the per-kind review-convergence marker for the frozen review's kind/reviewer (artifact → `reviews/plan.json`, brainstorm → `reviews/brainstorm.json`, **code → none**) per Step 7 / design.md §4a, using the shared atomic write-temp-then-rename protocol. `/ptp:review-fix` runs no loop and hits no iteration cap; `iterations` is always `1`, and a write failure is reported but not fatal.

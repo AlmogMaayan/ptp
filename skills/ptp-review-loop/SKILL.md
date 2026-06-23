@@ -1,6 +1,6 @@
 ---
 name: ptp-review-loop
-description: Shared loop protocol for /ptp:review-loop, /ptp:codex-review-loop, /ptp:review-plan-loop, /ptp:codex-review-plan-loop, and the /ptp:review-brainstorm-full brainstorm loop. Takes kind∈{code,artifact,brainstorm} and reviewer∈{superpowers,codex} and iterates review→confirm→fix until zero open findings or the configured iteration cap (default 5) is reached. Handles rejection carry-over so rejected findings do not cause infinite loops, and filters manual-check/tests-required suggestions from the convergence count.
+description: Shared loop protocol for /ptp:review-loop, /ptp:codex-review-loop, /ptp:review-plan-loop, /ptp:codex-review-plan-loop, and the /ptp:review-brainstorm-full brainstorm loop. Takes kind∈{code,artifact,brainstorm} and reviewer∈{superpowers,codex} and iterates review→confirm→fix until zero open findings or the configured iteration cap (default 5) is reached. Handles rejection carry-over so rejected findings do not cause infinite loops, and filters manual-check/tests-required suggestions from the convergence count. At its terminal states the loop also writes a small durable per-kind review-convergence marker under openspec/changes/<id>/reviews/ (for kind∈{brainstorm, artifact}; kind=code writes none), unless invoked with deferMarker=true by a -full orchestrator.
 ---
 
 # ptp-review-loop — shared loop protocol
@@ -72,6 +72,82 @@ All state lives in the current conversation context. **This state is NEVER persi
 | `MAX_ITERATIONS` | resolved from `review.maxIterations` (layered config) at loop start; default 5; held fixed for the run | integer |
 | `rejected_findings` | `[]` | list of stable finding keys (see below) |
 | `per_iteration_summary` | `[]` | list of per-iteration result objects |
+
+## Review-convergence marker
+
+At each of its two terminal states the loop writes a small **durable** per-kind review-convergence
+marker — the only durable on-disk side effect beyond the artifact edits the loop already makes. This is
+distinct from the in-conversation loop control state above, which is NEVER persisted.
+
+**Which kinds write a marker.** `kind ∈ {brainstorm, artifact}` write a marker; **`kind = code` writes
+NONE** (the `/ptp:status` table has no code-review column to feed).
+
+**Marker JSON schema** (the exact shape written to `reviews/<kind>.json`):
+
+```json
+{
+  "kind": "brainstorm | plan",
+  "terminalState": "converged | cap-reached",
+  "reviewers": ["superpowers", "codex"],
+  "iterations": 2,
+  "timestamp": "2026-06-23T12:34:56Z"
+}
+```
+
+| Field | Type | Value |
+|-------|------|-------|
+| `kind` | string | `"brainstorm"` or `"plan"` — the `/ptp:status` column this marker feeds. Derived from the loop `kind`: `brainstorm`→`"brainstorm"`, `artifact`→`"plan"`. |
+| `terminalState` | string | `"converged"` (loop reached `DONE`) or `"cap-reached"` (loop reached `ITERATION CAP REACHED`). |
+| `reviewers` | string[] | The reviewer(s) that actually ran: `["superpowers"]`, `["codex"]`, or `["superpowers","codex"]` (both). A single `ptp-review-loop` invocation runs one reviewer, so a standalone `-loop` run writes a single-element array; the combined set is assembled by the `-full` orchestrator. |
+| `iterations` | integer | The iteration count of the last phase that ran (≥ 1). |
+| `timestamp` | string | ISO-8601 UTC instant the marker was written. |
+
+**Per-kind file naming** (one file per `/ptp:status` review column):
+
+- loop `kind = brainstorm` → `reviews/brainstorm.json` (status "brainstorm review" column)
+- loop `kind = artifact`   → `reviews/plan.json`       (status "plan review" column)
+- loop `kind = code`       → **no marker is written**
+
+**Location.** `openspec/changes/<change-id>/reviews/` — a subfolder **sibling to `specs/`**, created on
+demand (mkdir-if-absent). It is NOT an OpenSpec artifact folder, so `openspec validate --strict` ignores
+it and `openspec archive` carries it along.
+
+**Last-write-wins overwrite.** Each terminal state overwrites the same per-kind file with the full
+current marker object. A re-review replaces the previous marker. There is no append, no history, no
+separate expiry/removal mechanism.
+
+**Atomic write-temp-then-rename protocol (every marker writer).** The marker MUST be written atomically:
+
+1. Serialize the full marker object to a **uniquely named temporary file in the SAME `reviews/`
+   directory** (e.g. `reviews/<kind>.json.<pid-or-rand>.tmp`).
+2. **Only after the complete write succeeds**, replace `reviews/<kind>.json` with the temp file via a
+   **replace-if-exists** rename — the destination already existing MUST NOT cause the rename to fail
+   (on Windows this is `MoveFileEx(MOVEFILE_REPLACE_EXISTING)` / `ReplaceFile`; on POSIX a plain
+   `rename(2)` over the destination).
+3. **On any write or replace failure**, clean up the temp file and leave the live `reviews/<kind>.json`
+   **untouched**.
+
+This is what makes the guarantee "if a re-review's write fails, the prior marker remains intact" hold: a
+partial or failed write never truncates or corrupts the existing marker, because the live file is
+replaced in a single step or not at all. **Every** marker writer uses this protocol — the standalone
+`-loop` run, the `-full` orchestrator's single combined write, and `/ptp:review-fix` — since the
+orchestrator and review-fix write the marker independently of the shared loop's write path.
+
+**`deferMarker` (loop input only).** A loop run may be invoked with a `deferMarker` signal:
+
+- `deferMarker = false` (the **default**, used by a standalone `-loop` run) → the loop writes its
+  single-reviewer marker directly at its terminal state.
+- `deferMarker = true` (passed by a `-full` orchestrator) → the loop does **all** its normal work and
+  produces its normal terminal report but **does NOT write the marker itself**. It instead returns its
+  terminal outcome (`terminalState`, `reviewer`, `iterations`) to the orchestrator, which performs
+  **exactly one** combined marker write after the whole `-full` run resolves (see
+  `ptp-review-brainstorm-full` / `review-plan-full`). This guarantees a `-full` run produces exactly one
+  authoritative marker write with **no** provisional per-phase marker that could survive a later failed
+  write.
+
+`deferMarker` is a **loop input only**. `/ptp:review-fix` does **not** invoke `ptp-review-loop` at all
+(it runs a single confirm→fix→verify pass), so it neither receives nor honors `deferMarker`; it writes
+its marker independently per design §4a (and reuses the same schema/location/atomic protocol above).
 
 ## Per-iteration steps
 
@@ -194,6 +270,16 @@ Report:
    - `kind=artifact` → `/ptp:apply <change-id>` if not yet implemented; `/ptp:review-plan <change-id>` for a post-apply artifact check. (Recommend these to the user — do not invoke them.)
    - `kind=brainstorm` → `/ptp:plan <change-id>` (the brainstorm is sound; proceed to author the OpenSpec artifacts). (Recommend it to the user — do not invoke it.)
 
+**Marker write (after the report above).** For `kind ∈ {brainstorm, artifact}`, write the per-kind
+marker (`brainstorm`→`reviews/brainstorm.json`, `artifact`→`reviews/plan.json`) per the
+**## Review-convergence marker** section, with `terminalState: "converged"`, `reviewers` = the
+reviewer(s) that ran this loop run, `iterations` = the final `iteration` value, and `timestamp` = now
+(UTC ISO-8601). Use the atomic write-temp-then-rename protocol. **Skip the write entirely for
+`kind = code`.** **Skip the write when invoked with `deferMarker = true`** (a `-full` phase) — instead
+return the terminal outcome (`terminalState = converged`, `reviewer`, `iterations`) to the orchestrator,
+which performs the single combined write. A marker-write failure is reported but does NOT change the
+terminal state (the review already happened).
+
 ### ITERATION CAP REACHED
 
 Reached when step (a) increments `iteration` past `MAX_ITERATIONS` (the resolved cap).
@@ -205,13 +291,24 @@ Report:
 3. **Per-iteration summary table**.
 4. Explicit statement: "Do not archive. Do not run `/ptp:apply`. Inspect the open findings manually and decide next steps."
 
+**Marker write (after the report above).** For `kind ∈ {brainstorm, artifact}`, write the per-kind
+marker (`brainstorm`→`reviews/brainstorm.json`, `artifact`→`reviews/plan.json`) per the
+**## Review-convergence marker** section, with `terminalState: "cap-reached"` and the same `kind` /
+`reviewers` (the reviewer that ran) / `iterations` (the cap value) / `timestamp` (now, UTC ISO-8601)
+fields. Use the atomic write-temp-then-rename protocol. **Skip the write entirely for `kind = code`.**
+**Skip the write when invoked with `deferMarker = true`** (a `-full` phase) — instead return the
+terminal outcome (`terminalState = cap-reached`, `reviewer`, `iterations`) to the orchestrator, which
+performs the single combined write. A marker-write failure is reported but does NOT change the terminal
+state.
+
 ## Hard rules
 
 - **Never archive** the change, no matter the outcome.
 - **Never invoke `/ptp:apply`** — not in the fix pass, not in the terminal report.
 - **Never auto-commit** any edits made during the loop.
 - **Never fix an unconfirmed finding.** If step (e) marks a finding `REJECTED`, leave the code/artifact alone.
-- **Never persist loop state to disk.** `iteration`, `rejected_findings`, and `per_iteration_summary` live only in conversation context.
+- **Never persist loop control state to disk.** `iteration`, `rejected_findings`, and `per_iteration_summary` live only in conversation context. This rule does NOT forbid the durable terminal review-convergence marker below — that marker is a deliberate exception and is the loop's only on-disk side effect beyond the artifact edits it already makes.
+- **Write the per-kind review-convergence marker on terminal states for `kind ∈ {brainstorm, artifact}` only** (`brainstorm`→`reviews/brainstorm.json`, `artifact`→`reviews/plan.json`), per the **## Review-convergence marker** section. **Never** write a marker for `kind = code`, and **never** write a marker when invoked with `deferMarker = true` (the `-full` orchestrator performs the single combined write). The marker is written via the atomic write-temp-then-rename protocol; a marker-write failure is reported but does not change the terminal state.
 - **Iteration cap is resolved from `review.maxIterations` (layered config, default 5).** There is no `--max-iterations` CLI flag. If the cap is hit, report and stop — do not silently increment past it.
 - **Codex variants** (`reviewer=codex`) must run `codex exec -s read-only` with the full prompt piped over stdin (`-`). Never pass `--full-auto`, `--sandbox workspace-write`, or `--dangerously-bypass-approvals-and-sandbox`.
 - **The caller runs `openspec validate` (for `kind=code` / `kind=artifact` only — never for `kind=brainstorm`, which precedes any proposal/spec) and all file reads for Codex** — Codex executes no `npx`, no network, no install commands. The closed-book / inlined-diff protocol from `codex-review.md` / `codex-review-plan.md` applies.

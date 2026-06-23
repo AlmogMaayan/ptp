@@ -79,6 +79,10 @@ gate, the combined terminal state, the report shape, and the deliberate no-`open
 divergence all live in the **`ptp-review-brainstorm-full`** skill (the `commands/config.md` →
 `skills/ptp-config` split). Do not restate the skill's methodology here.
 
+On completion the run stamps the combined `reviews/brainstorm.json` review-convergence marker once (per
+the `ptp-review-brainstorm-full` skill's single-combined-write protocol), surfaced by `/ptp:status`'s
+brainstorm-review column.
+
 ## Hard rules
 
 - Do **not** start Phase 2 unless Phase 1 terminated with `DONE`. A Phase 1 `ITERATION CAP REACHED`
