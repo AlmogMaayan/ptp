@@ -75,7 +75,14 @@ MUST carry:
    - If the work genuinely factors into **≥ 2** independently-shippable slices → continue to step 4.
    - If it is really one unit → **fall back**: invoke the **`ptp:plan`** skill via the Skill tool with the original id/request as args, report that no split was needed, and stop. Do not create artificial slices.
 
-4. **Delete the monolithic plan if one exists.** If step 1 found an existing `openspec/changes/<id>/` **and confirmed no implementation had started**, delete that folder now — its content has been folded into the decomposition, and leaving a half-planned giant change beside the slices is confusing. If no such folder existed, skip this step. Never delete before its thinking has been captured in step 2, and never delete a change whose implementation has already started (step 1 already stopped you in that case).
+4. **Preserve the brainstorm, then delete the monolithic plan if one exists.**
+   If step 1 found an existing `openspec/changes/<id>/` **and confirmed no implementation had started**:
+   - **a. Preserve first** — if `openspec/changes/<id>/brainstorm.md` exists:
+     - Create `openspec/brainstorm/` if it does not yet exist.
+     - **Move** `brainstorm.md` to `openspec/brainstorm/<id>-brainstorm.md`.
+   - **b. Then delete** the `openspec/changes/<id>/` folder — its content has been folded into the decomposition, and leaving a half-planned giant change beside the slices is confusing.
+
+   If no such folder existed, skip this step. Never delete before its thinking has been captured in step 2, and never delete a change whose implementation has already started (step 1 already stopped you in that case).
 
 5. **Plan each slice — in dependency order.** For each sub-change, invoke the **`ptp:plan`** skill via the Skill tool, passing the slice's id **and its scope paragraph + dependency notes** as the request (so each `/ptp:plan`'s own autonomous brainstorming stays scoped to that slice, not the whole feature).
 
@@ -95,7 +102,7 @@ MUST carry:
 ## Hard rules
 
 - Do **not** force a split. If the change is one coherent unit, fall back to a single `/ptp:plan` (step 3).
-- Do **not** delete the monolithic `openspec/changes/<id>/` folder until its thinking has been folded into the decomposition (step 2 before step 4).
+- Do **not** delete the monolithic `openspec/changes/<id>/` folder until its thinking has been folded into the decomposition (step 2 before step 4), and only after its `brainstorm.md` (if any) has been moved to `openspec/brainstorm/<id>-brainstorm.md` — brainstorm history is preserved, while the rest of the folder (proposal/design/tasks/spec deltas, already folded into the slices) is discarded.
 - Do **not** decompose or delete a monolithic change whose implementation has already started (checked tasks or matching code changes). STOP and hand the decision to the user (step 1).
 - Each slice **must** be independently shippable and may depend **only on lower-numbered slices** — no cycles, no forward dependencies.
 - Do **not** write any slice's `proposal.md` content yourself from the raw request — it must come from that slice's `/ptp:plan` brainstorming, exactly like a normal single change.
