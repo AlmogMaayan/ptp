@@ -27,7 +27,7 @@ Drive the `ptp-full` skill, which orchestrates two phases with two gates and the
 
 1. **Plan phase (the `/ptp:full-plan` flow).** Invoke `ptp:plan-multiple` with `$ARGUMENTS`, capture the ordered slice ids (`XXXX_NN_<desc>`, epic-then-story order; single-change fallback → one id), then invoke `ptp:review-plan-full` for each slice in order to its terminal state.
 2. **Plan-convergence gate.** A slice's `review-plan-full` ends in one of these states: `BOTH PHASES DONE` (green), `PHASE 1 DONE — CODEX SKIPPED (mode=…)` (green — Codex intentionally skipped by `codex.mode`; per `ptp-codex-mode` this is gate-success), `ITERATION CAP REACHED` (Phase-1 cap), or `PHASE 2 ITERATION CAP REACHED` (Phase-2 cap). Treat **both** green states (`BOTH PHASES DONE` and `PHASE 1 DONE — CODEX SKIPPED`) as converged and proceed. If a slice ends in **any non-green state**, **STOP after that slice** — do not plan-review later slices and **do not enter the run phase**. Applying code from a plan that did not fully converge is exactly what this prevents.
-3. **Run phase (the `ptp-full-run` flow), only on full plan convergence.** Read each captured slice's `effort.md` (line 1 = `{model}.{effort}`; missing/unparseable → default `opus.high`, noted), build `stories = [{ id, model, effort }, …]` in plan order, and launch:
+3. **Run phase (the `ptp-full-run` flow), only on full plan convergence.** Read each captured slice's `effort.md` (line 1 = `{model}.{effort}`; missing/unparseable → default `opus.high`, noted), build `stories = [{ id, model, effort }, …]` in plan order, run the **`ptp-workflow-cache-heal` step** (see that skill for the canonical Bash command) via the Bash tool, and launch:
    ```
    Workflow({ name: 'ptp-full-run', args: { stories } })
    ```

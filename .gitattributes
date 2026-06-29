@@ -1,0 +1,6 @@
+# Force LF for executable workflow scripts so Windows core.autocrlf=true cannot
+# inject CRLF, which breaks Claude Code's named-workflow script validator.
+workflows/*.js text eol=lf
+
+# Default: normalize text in the repo to LF in the index.
+* text=auto eol=lf

@@ -36,7 +36,8 @@ The command is a thin wrapper that does all the file I/O up front (impossible in
 1. **Resolve** `$ARGUMENTS` → an ordered list of story ids (selector / explicit ids / empty), per the skill's *Change discovery and ordering*. For the **empty (no-arg)** case, perform the one-time scope-confirmation **STOP** — print the full resolved ordered id list and wait for the user to re-invoke before any apply.
 2. **Read each story's effort.** For each id, `Read` `openspec/changes/<id>/effort.md` and parse line 1 as `{model}.{effort}`. If the file is missing or line 1 is not a parseable `{model}.{effort}`, default to `opus.high` and **note the defaulting** (never crash, never stop on it). This yields `{ id, model, effort }` per story.
 3. **Build** `stories = [{ id, model, effort }, …]` in apply order.
-4. **Launch the workflow:**
+4. **Run the `ptp-workflow-cache-heal` step** (see that skill for the canonical Bash command) via the
+   Bash tool, then **launch the workflow:**
    ```
    Workflow({ name: 'ptp-full-run', args: { stories } })
    ```

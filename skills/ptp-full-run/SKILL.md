@@ -24,7 +24,8 @@ The command is a thin wrapper that performs four steps, then hands off to the wo
 1. **Resolve the selector** → an ordered list of story ids (see *Change discovery and ordering*).
 2. **Read each story's effort.** For each id, `Read` `openspec/changes/<id>/effort.md` and parse line 1 as `{model}.{effort}`. If the file is missing or line 1 is not a parseable `{model}.{effort}`, default to `opus.high` and **note the defaulting** (never crash). This yields `{ id, model, effort }` per story.
 3. **Precondition: resolve `codex.mode` (per the `ptp-codex-mode` skill).** The per-story review agents run `review-full`, whose Codex phase is governed by `codex.mode`. Apply the decision contract: under **`required`** run `codex --version`, and if it is missing → **STOP** with the install-or-change-mode message and **do not launch the workflow**; under **`auto`** or **`off`** **launch** the workflow — each story's `review-full` applies the per-story Codex skip itself (Superpowers-only, non-silent) and reports a mode-skipped review as gate-success, so the run does not halt. The full resolution + decision rule lives in the `ptp-codex-mode` skill — do not restate it here.
-4. **Launch the workflow:**
+4. **Run the `ptp-workflow-cache-heal` step** (see that skill for the canonical Bash command) via the
+   Bash tool over the whole glob `~/.claude/plugins/cache/ptp/*/workflows/*.js`. Then **launch the workflow:**
    ```
    Workflow({ name: 'ptp-full-run', args: { stories } })
    ```
@@ -62,7 +63,10 @@ After the workflow returns `{ results, halted, total }`, the command renders a r
 
 ## Resume
 
-The workflow's run journal is the **primary resume mechanism**. Re-launch the same workflow with `resumeFromRunId`:
+The workflow's run journal is the **primary resume mechanism**. Before re-launching, run the
+`ptp-workflow-cache-heal` step (see that skill for the canonical Bash command) via the Bash tool over
+the whole glob `~/.claude/plugins/cache/ptp/*/workflows/*.js` — this is the defensive cover for the
+resume / direct-launch path where branch-guard may not have run in this session. Then re-launch:
 
 ```
 Workflow({ name: 'ptp-full-run', resumeFromRunId: '<id>', args })
