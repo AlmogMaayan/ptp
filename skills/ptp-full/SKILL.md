@@ -46,7 +46,8 @@ Phase A is read-only: it never applies code and never archives. It always writes
 Enter Phase B **only if every** captured slice reached a green plan-convergence state in Phase A (`BOTH PHASES DONE` **or** `PHASE 1 DONE — CODEX SKIPPED (mode=…)` — both are gate-success per `ptp-codex-mode`). Then run the `ptp-full-run` skill's flow with the captured slice ids treated as an **explicit, ordered id list** (the plan order *is* the apply/dependency order):
 
 1. **Read each slice's effort.** For each captured id, `Read` `openspec/changes/<id>/effort.md` and parse line 1 as `{model}.{effort}`. Missing or unparseable → default to `opus.high` and **note the defaulting** (never crash, never stop on it). This yields `{ id, model, effort }` per slice.
-2. **Launch the run workflow** with the slices in plan order:
+2. **Run the `ptp-workflow-cache-heal` step** (see that skill for the canonical Bash command) via the
+   Bash tool, then **launch the run workflow** with the slices in plan order:
    ```
    Workflow({ name: 'ptp-full-run', args: { stories } })
    ```

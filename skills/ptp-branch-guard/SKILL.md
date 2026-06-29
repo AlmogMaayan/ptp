@@ -39,6 +39,12 @@ list, to keep each category's rationale accurate.
 
 The guard is the **first action that affects the working tree** — but it is *not* literally the first thing a command does. Any **cheap, read-only precondition or required user confirmation that would abort the whole command** runs **before** the guard: a missing `codex` CLI, a missing `openspec/changes/<id>/` folder, "no review present in the conversation", the no-arg scope-confirmation STOP, and the like. Evaluate those first; run the guard only once they pass. Cutting a branch (and spinning up the prep workflow) ahead of a guaranteed abort just leaves a throwaway branch behind.
 
+0. **CRLF self-heal (unconditional, first action — before the branch check).** Run the
+   `ptp-workflow-cache-heal` step (see that skill for the canonical Bash command) via the Bash tool over
+   the whole glob `~/.claude/plugins/cache/ptp/*/workflows/*.js`. This runs **unconditionally**,
+   regardless of whether HEAD is `master` or a feature branch — the CRLF defect is independent of branch
+   state, and healing here ensures every cached workflow script is LF-only before any `Workflow({ name })`
+   call. The step is idempotent and a silent no-op when the cache is already LF or absent.
 1. **Check the current branch:** `git rev-parse --abbrev-ref HEAD` (via Bash).
 2. **If it is anything other than `master`** — already on a feature branch, or a detached HEAD mid-operation — **proceed as-is.** Do **not** stash, switch, or cut a new branch. The guard is a **no-op**. (This is the confirmed posture: respect the branch the user is already on; never re-cut or re-base it.)
 3. **If it is `master`:** do not write onto master. Derive a branch name from context (see below), then launch the minimal git-prep workflow and **wait for it to return** before any file write:
@@ -73,7 +79,7 @@ The git dance is offloaded to a one-agent **haiku** workflow so the plumbing sta
 
 `full`, `full-plan`, and `full-run` run the guard **once up front**, before delegating. The per-step commands and workflow agents they fan out to (`plan`, `apply`, the `ptp-apply` / `ptp-review` workflow agents, …) re-run the guard as a **no-op**, because by then HEAD is already on the feature branch. The guard is idempotent, so this redundancy is harmless and correct.
 
-**Workflow agents must reach only the no-op path — they must never launch `ptp-branch-prep` themselves.** A ptp step running *inside* a workflow (e.g. the `ptp-apply` / `ptp-review` agents under `ptp-full-run`) cannot launch another workflow: nesting is one level only and `Workflow()` inside a workflow throws. The up-front orchestrator guard is what guarantees HEAD is already on the feature branch by the time those agents run, so their guard check sees a non-`master` branch and proceeds without ever calling the prep workflow. If you ever add a write-capable agent inside a workflow, ensure the orchestrator cuts the branch first — never rely on the inner agent to cut it.
+**Workflow agents must reach only the no-op path — they must never launch `ptp-branch-prep` themselves.** A ptp step running *inside* a workflow (e.g. the `ptp-apply` / `ptp-review` agents under `ptp-full-run`) cannot launch another workflow: nesting is one level only and `Workflow()` inside a workflow throws. The up-front orchestrator guard is what guarantees HEAD is already on the feature branch by the time those agents run, so their guard check sees a non-`master` branch and proceeds without ever calling the prep workflow. If you ever add a write-capable agent inside a workflow, ensure the orchestrator cuts the branch first — never rely on the inner agent to cut it. A workflow agent reaching the no-op branch path **still runs the idempotent Bash heal** (step 0 above) but launches no workflow — the heal is plain Bash in the outer agent context, not a `Workflow()` call, so it does not violate the no-nesting rule.
 
 ## Hard rules
 
