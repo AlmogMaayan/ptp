@@ -49,7 +49,7 @@ The guard is the **first action that affects the working tree** — but it is *n
 2. **If it is anything other than `master`** — already on a feature branch, or a detached HEAD mid-operation — **proceed as-is.** Do **not** stash, switch, or cut a new branch. The guard is a **no-op**. (This is the confirmed posture: respect the branch the user is already on; never re-cut or re-base it.)
 3. **If it is `master`:** do not write onto master. Derive a branch name from context (see below), then launch the minimal git-prep workflow and **wait for it to return** before any file write:
    ```
-   Workflow({ name: 'ptp-branch-prep', args: { branch, description } })
+   Workflow({ name: 'ptp:ptp-branch-prep', args: { branch, description } })
    ```
    - `branch` — the derived feature-branch name (required).
    - `description` — a short human description of the change (optional; used only for the agent's context).

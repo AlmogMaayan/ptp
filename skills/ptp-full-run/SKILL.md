@@ -7,7 +7,7 @@ description: Workflow-backed sequential apply→review-full orchestration for /p
 
 ## Purpose
 
-This skill is the orchestration contract behind the single `/ptp:full-run` command. The command is a thin wrapper that resolves a change selector, reads each story's `effort.md`, and launches the `ptp-full-run` workflow; the actual per-story `apply → review-full` loop lives in the workflow script `workflows/ptp-full-run.js` (launched by the named form `Workflow({ name: 'ptp-full-run' })`), which runs each story to completion before the next and halts the whole run if a story fails to converge. The former `effort_gate` / two-command (`full-run` vs `full-run-effort`) split is **gone**: a workflow apply agent carries its own model (read from the story's `effort.md` and passed in `args.stories`), so there is no interactive single-dial model/effort thrash to gate against — nothing to stop and suggest a `/model`+`/effort` switch for.
+This skill is the orchestration contract behind the single `/ptp:full-run` command. The command is a thin wrapper that resolves a change selector, reads each story's `effort.md`, and launches the `ptp-full-run` workflow; the actual per-story `apply → review-full` loop lives in the workflow script `workflows/ptp-full-run.js` (launched by the named form `Workflow({ name: 'ptp:ptp-full-run' })`), which runs each story to completion before the next and halts the whole run if a story fails to converge. The former `effort_gate` / two-command (`full-run` vs `full-run-effort`) split is **gone**: a workflow apply agent carries its own model (read from the story's `effort.md` and passed in `args.stories`), so there is no interactive single-dial model/effort thrash to gate against — nothing to stop and suggest a `/model`+`/effort` switch for.
 
 ## Inputs
 
@@ -27,7 +27,7 @@ The command is a thin wrapper that performs four steps, then hands off to the wo
 4. **Run the `ptp-workflow-cache-heal` step** (see that skill for the canonical Bash command) via the
    Bash tool over the whole glob `~/.claude/plugins/cache/ptp/*/workflows/*.js`. Then **launch the workflow:**
    ```
-   Workflow({ name: 'ptp-full-run', args: { stories } })
+   Workflow({ name: 'ptp:ptp-full-run', args: { stories } })
    ```
    where `stories = [{ id, model, effort }, …]` in apply order. (Use the named form — the plugin ships `workflows/ptp-full-run.js` whose `meta.name` is `ptp-full-run`. There is no project-relative `scriptPath` under a global plugin install.) The workflow loops the stories in order, spawning `agentType:'ptp:ptp-apply'` at the story's `model` (effort injected as a prompt directive) then `agentType:'ptp:ptp-review'` at `opus`, and returns `{ results, halted, total }`.
 
@@ -69,7 +69,7 @@ the whole glob `~/.claude/plugins/cache/ptp/*/workflows/*.js` — this is the de
 resume / direct-launch path where branch-guard may not have run in this session. Then re-launch:
 
 ```
-Workflow({ name: 'ptp-full-run', resumeFromRunId: '<id>', args })
+Workflow({ name: 'ptp:ptp-full-run', resumeFromRunId: '<id>', args })
 ```
 
 The three-bucket terminal report is the **context-loss recovery contract** for when the run journal is unavailable (new session, journal lost). Context-loss hint:

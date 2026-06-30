@@ -47,7 +47,22 @@ PtP invokes Superpowers skills (brainstorming, writing-plans, code-review). Inst
 
 Without it, PtP falls back to inline structured work and says so.
 
-### 3. Codex CLI *(optional — second reviewer; configurable)*
+### 3. prd-taskmaster *(optional — PRD authoring; degrades gracefully)*
+
+`/ptp:prd` can delegate to the `prd-taskmaster` plugin to author graded, structured PRDs. Install
+the plugin in Claude Code:
+
+```
+/plugin marketplace add anombyte93/prd-taskmaster
+/plugin install prd
+```
+
+The plugin installs as plugin name **`prd`** (marketplace entry `atlas-prd-taskmaster`). The
+`npm install -g task-master-ai` CLI tool is truly optional — prd-taskmaster has a native mode and a
+`script.py` CLI fallback. Without the plugin, `/ptp:prd` falls back to authoring a structured PRD
+inline and says so — it never fails to start over a missing optional plugin.
+
+### 4. Codex CLI *(optional — second reviewer; configurable)*
 
 The `codex-*`, `*-full`, and `full` commands can delegate to the external Codex CLI (`codex exec`) as an independent second reviewer. Install it and put `codex` on your PATH (`codex --version`) to enable the dual-reviewer flows.
 
@@ -243,6 +258,24 @@ brainstorm → plan → apply → review → archive
     1            2       3        4        5
 ```
 
+### Step 0 — PRD (optional, upstream)
+
+**`/ptp:prd [<changeid | epic:XXXX | story:XX> …]`** — author an epic-scoped Product Requirements
+Document at `openspec/prds/<epic>-<slug>.md` before brainstorming or planning. Resolves the
+selector to a set of epics (one PRD per epic) and runs the authoring work at `opus.high` via the
+`ptp-prd` skill. When the `prd-taskmaster` plugin is present the PRD is authored via `prd:generate`
+and relocated into `openspec/prds/`; when the plugin is absent a structured PRD is authored inline
+and said so (graceful auto-degrade). Non-interactive. Omit the selector to run for all active
+epics. Recommends `/ptp:plan` as the next step.
+
+**`/ptp:prd-full <epic-selector>`** — seam-free union of `/ptp:prd` and `/ptp:review-prd-full` in one
+uninterrupted flow. Authors the epic PRD, then — without a manual re-invocation — continues into the
+dual-reviewer (Superpowers + Codex) inline-fix PRD-review loop. A prd-gate between phases prevents the
+review from starting if the PRD was not written. On a green terminal state (`BOTH PHASES DONE` or
+`PHASE 1 DONE — CODEX SKIPPED (mode=…)`) recommends `/ptp:plan <change-id>`. Uses Codex per `codex.mode`;
+`required` with missing `codex` STOPs before any work. The PRD-stage analog of `/ptp:brainstorm-full`;
+delegates to the `ptp-prd-full` skill.
+
 ### Step 0 — Analyze (optional, diagnostic)
 
 **`/ptp:analyze "<bug / observation / problem / question>"`** — read-only investigation. Root-causes a bug, explains an observed behavior, or investigates a subsystem *before* deciding whether a change is even warranted. Writes a structured analysis doc into the appropriate `openspec/changes/<change-id>/analysis.md` (allocating a minimal change folder via `ptp-change-selector` §4 only when no relevant active change exists) with evidence-cited findings, confidence level, and a recommended next step. Never produces a change proposal, never modifies source. Use this when you want to understand first and decide later. Contrast with `/ptp:brainstorm-only`, which explores *prospective* design options.
@@ -296,6 +329,12 @@ brainstorm → plan → apply → review → archive
 - **`/ptp:codex-review-plan <selector>`** — Codex review of the *artifacts* (not code).
 - **`/ptp:codex-review-plan-loop <selector>`** — Codex artifact review + fixes, looped to convergence.
 
+**PRD-review variants** (epic-scoped — audit an epic's PRD `openspec/prds/<epic>-<slug>.md` *before* `/ptp:plan`, one stage earlier than the brainstorm/plan reviewers; each runs **no** `openspec validate` because a PRD precedes any proposal/spec, and a missing PRD is a Critical "no PRD to review" finding, not an abort):
+- **`/ptp:review-prd [epic-selector]`** *(optional, read-only)* — single-pass Superpowers PRD-quality gate (schema completeness, testable acceptance criteria, requirements→goals tracing, scope/non-goal consistency). Reports PASS / WARN / FAIL. Read-only, runs no branch guard, edits nothing, advisory. Omit the selector to review all active epics' PRDs. Delegates to the `ptp-review-prd` skill.
+- **`/ptp:codex-review-prd <epic-selector>`** — Codex single-pass closed-book PRD audit; read-only, never fixes, STOPs if `codex` is absent.
+- **`/ptp:codex-review-prd-loop <epic-selector>`** — Codex PRD review + inline fixes, looped to convergence (drives `ptp-review-loop` with `kind=prd`, `reviewer=codex`, once per epic; runs the branch guard; stamps the epic-scoped marker `openspec/prds/reviews/<epic>-<slug>.json`).
+- **`/ptp:review-prd-full [epic-selector]`** — **dual-reviewer** inline-fix PRD loop: Superpowers `kind=prd` loop to convergence, then (per `codex.mode`) the Codex `kind=prd` loop to convergence, **editing the PRD inline**. Phase 2 starts only if Phase 1 converges. Runs **no** `openspec validate`, runs the branch guard, and writes exactly **one** combined epic-scoped marker `openspec/prds/reviews/<epic>-<slug>.json` per epic (both phases defer the per-phase write). Uses Codex per `codex.mode` (default `auto`; with `auto`/`off` and no Codex it runs Superpowers-only and reports the green `PHASE 1 DONE — CODEX SKIPPED (mode=…)`); `required` with missing `codex` STOPs before any work. Omit the selector to review all active epics' PRDs. Delegates to the `ptp-review-prd-full` skill.
+
 ### Step 5 — Archive
 
 **`/ptp:archive <selector>`** — enforces the archive gates (all tasks checked, no unresolved Critical/High findings, validation passes), then runs `openspec archive` to move the change to `openspec/changes/archive/` and sync delta specs into `openspec/specs/`.
@@ -343,6 +382,7 @@ Skills are invoked by Claude automatically (via the `Skill` tool) when the flow 
 | Skill | Role |
 |-------|------|
 | `ptp` | Meta-skill. Routes a non-trivial change to brainstorming/planning/review (Superpowers) and durable artifacts (OpenSpec). Decides the role split. |
+| `ptp-prd` | PRD-authoring protocol behind `/ptp:prd`. Owns selector-to-epic projection (additive layer on top of `ptp-change-selector`), `ptp-run-at-model` at `opus.high`, Phase-0 prd-taskmaster backend detection, epic-context pre-load, `prd:generate` invocation and output relocation to `openspec/prds/`, and the inline auto-degrade fallback. |
 | `ptp-change-selector` | Single source of truth for the change-id format, the `epic:`/`story:` selector grammar, resolution, and epic allocation. |
 | `ptp-branch-guard` | The "are we on a feature branch, not `master`?" preamble every write-capable command runs first. |
 | `ptp-branch-prep` | Minimal git prep invoked by the guard when HEAD is `master`: stash → checkout master → pull → cut a fresh feature branch. Never commits or pushes. |
@@ -352,7 +392,10 @@ Skills are invoked by Claude automatically (via the `Skill` tool) when the flow 
 | `ptp-review-brainstorm` | The brainstorm-review rubric/protocol the thin `/ptp:review-brainstorm` command delegates to: locate the brainstorm (change-scoped preferred, deterministic general fallback), the rubric, Critical/High/Medium/Low classification, the PASS/WARN/FAIL verdict, the report + next-step — read-only, no `openspec validate`. |
 | `ptp-review-brainstorm-full` | The dual-reviewer **report-only** brainstorm-review contract the thin `/ptp:review-brainstorm-full` command delegates to: composes the `ptp-review-brainstorm` rubric for Phase 1 (Superpowers), gates Phase 2 on a located brainstorm, runs a Phase 2 Codex closed-book read-only pass (mode-gated per `ptp-codex-mode`), and emits the combined verdict — no inline fixing, no iteration cap, no `openspec validate`, never edits the brainstorm. |
 | `ptp-brainstorm-full` | Two-phase brainstorm → dual-reviewer-review orchestration behind `/ptp:brainstorm-full`. Receives the already-allocated id, resolved `codex.mode`, and branch-guard from the command's outer session. Phase A: `ptp-run-at-model` at `opus.high` runs brainstorm steps 2–7 (producing `brainstorm.md`; step 8 STOP suppressed). Brainstorm-gate: missing `brainstorm.md` → STOP. Phase B: `ptp-run-at-model` at `opus.high` runs `ptp-review-brainstorm-full` with pre-resolved `codex.mode`. Relays all four terminal states accurately. |
-| `ptp-review-loop` | Shared review→confirm→fix loop protocol (kind ∈ {code, artifact}, reviewer ∈ {superpowers, codex}) behind every `-loop` command, with rejection carry-over and manual/test-only filtering. |
+| `ptp-review-prd` | The PRD-review rubric/protocol the thin `/ptp:review-prd` command delegates to: locate the epic PRD via the `ptp-prd` selector→epic projection + `<slug>`-from-lowest-story rule, the rubric (schema completeness, testable acceptance criteria, requirements→goals tracing, scope/non-goal consistency), Critical/High/Medium/Low classification, the PASS/WARN/FAIL verdict, the report + next-step — read-only, epic-scoped, no `openspec validate`. |
+| `ptp-review-prd-full` | The dual-reviewer **inline-fix** PRD-review contract the thin `/ptp:review-prd-full` command delegates to: Phase 1 Superpowers `kind=prd` loop (driving `ptp-review-loop`, `deferMarker=true`), the convergence-based Phase-1-gates-Phase-2 gate, Phase 2 Codex `kind=prd` loop (mode-gated per `ptp-codex-mode`, `deferMarker=true`), a single combined epic-scoped marker write to `openspec/prds/reviews/<epic>-<slug>.json`, and the combined terminal state — edits the PRD inline, no `openspec validate`, never archives/commits/regenerates the PRD. |
+| `ptp-prd-full` | Two-phase PRD author → dual-reviewer-review orchestration behind `/ptp:prd-full`. Receives the resolved epic, original selector, and resolved `codex.mode` from the command's outer session. Phase A: `ptp-run-at-model` at `opus.high` runs `ptp-prd` (writing the PRD; the `/ptp:prd` STOP suppressed). prd-gate: missing `openspec/prds/<epic>-<slug>.md` → STOP. Phase B: `ptp-run-at-model` at `opus.high` runs `ptp-review-prd-full` with pre-resolved `codex.mode`. Relays all five terminal states accurately; epic-scoped, no `openspec validate`, never archives/commits/re-resolves the epic. |
+| `ptp-review-loop` | Shared review→confirm→fix loop protocol (kind ∈ {code, artifact, brainstorm, prd}, reviewer ∈ {superpowers, codex}) behind every `-loop` command, with rejection carry-over and manual/test-only filtering. The `prd` kind is epic-scoped (target `openspec/prds/<epic>-<slug>.md`, no `openspec validate`, epic-scoped marker `openspec/prds/reviews/<epic>-<slug>.json`). |
 | `ptp-archive-force` | The gate-bypassing archive engine behind `/ptp:archive-force` (still syncs delta specs). |
 
 The `openspec-*` skills (`openspec-explore`, `openspec-propose`, `openspec-apply-change`, `openspec-archive-change`) back the experimental `opsx:` commands.
@@ -369,6 +412,10 @@ Hand it the whole thing (autonomous, dual-reviewed; Codex optional — codex.mod
   → /ptp:full-run [selector | id …]   # execution half only (apply + review-full)
 
 Drive it step by step
+  → /ptp:prd [<sel>]                  # optional: epic-scoped PRD before brainstorm/plan (auto-degrade)
+  → /ptp:review-prd [<sel>]           # optional: read-only PRD-quality gate (PASS/WARN/FAIL, no validate)
+  → /ptp:review-prd-full [<sel>]      # optional: dual-reviewer inline-fix PRD loop (no validate)
+  → /ptp:prd-full <sel>               # optional: PRD author + dual-reviewer review in one flow
   → /ptp:analyze "<subject>"          # optional: diagnose first, no change produced
   → /ptp:brainstorm "<request>"       # optional: think first, interactive
   → /ptp:review-brainstorm <sel>      # optional: read-only brainstorm-quality gate (PASS/WARN/FAIL)
@@ -430,6 +477,9 @@ Experimental (no Superpowers layer)
 
 | Version | Changes |
 |---------|---------|
+| **0.1.31** | Add the PRD-stage orchestrators — `/ptp:review-prd-full` command + `ptp-review-prd-full` skill (dual-reviewer inline-fix PRD loop: Superpowers then Codex per `codex.mode`, Phase 2 gated on Phase 1 convergence, one combined epic-scoped marker, no `openspec validate`) and `/ptp:prd-full` command + `ptp-prd-full` skill (seam-free PRD author → prd-gate → dual-reviewer review in one flow). |
+| **0.1.30** | Add the PRD-review family — `/ptp:review-prd` command + `ptp-review-prd` skill (read-only single-pass Superpowers PRD-quality gate), `/ptp:codex-review-prd` (closed-book Codex PRD audit), and `/ptp:codex-review-prd-loop` (Codex PRD inline-fix loop). Extend `ptp-review-loop` with a first-class epic-scoped `kind=prd` (no `openspec validate`, epic-scoped marker `openspec/prds/reviews/<epic>-<slug>.json`). |
+| **0.1.29** | Add `/ptp:prd` command + `ptp-prd` skill — epic-scoped PRD authoring via prd-taskmaster `prd:generate` with graceful auto-degrade (inline fallback when plugin absent), selector-to-epic projection, `openspec/prds/` output folder, and `opus.high` subagent per epic. |
 | **0.1.26** | Add `/ptp:brainstorm-full` command + `ptp-brainstorm-full` skill — seam-free union of `/ptp:brainstorm` and `/ptp:review-brainstorm-full` in one uninterrupted flow (brainstorm → brainstorm-gate → dual-reviewer inline-fix review loop). |
 | **0.1.25** | Add `/ptp:review-brainstorm-full` command + `ptp-review-brainstorm-full` skill — inline-fix dual-reviewer convergence loop (Superpowers + Codex) for brainstorm artifacts; all four `-loop`/`-full` commands now drive the `ptp-review-loop` shared protocol with `kind=brainstorm`. |
 | **0.1.24** | Convert `/ptp:review-brainstorm-full` to inline-fix convergence loop (replaces read-only dual-reviewer). |
