@@ -1,6 +1,6 @@
 ---
 name: ptp-prd-full
-description: Use this skill when orchestrating the two-phase author-then-review PRD flow behind /ptp:prd-full. Owns Phase A authoring (ptp-run-at-model at opus.high → ptp-prd over the resolved epic; the /ptp:prd terminal STOP suppressed), the prd-gate (missing openspec/prds/<epic>-<slug>.md → STOP), and Phase B review (ptp-run-at-model at opus.high → ptp-review-prd-full skill with pre-resolved codex.mode). Epic-scoped; never re-resolves the epic, never re-runs the branch guard, never re-resolves codex.mode, never archives, never commits, runs no openspec validate.
+description: Use this skill when orchestrating the two-phase author-then-review PRD flow behind /ptp:prd-full. Owns Phase A authoring (ptp-run-at-model at opus.high → ptp-prd over the resolved epic; the /ptp:prd terminal STOP suppressed), the prd-gate (missing openspec/changes/<id>/prd.md → STOP), and Phase B review (ptp-run-at-model at opus.high → ptp-review-prd-full skill with pre-resolved codex.mode). Epic-scoped; never re-resolves the epic, never re-runs the branch guard, never re-resolves codex.mode, never archives, never commits, runs no openspec validate.
 ---
 
 # ptp-prd-full — PRD author-then-review two-phase orchestration
@@ -9,11 +9,11 @@ description: Use this skill when orchestrating the two-phase author-then-review 
 
 This skill is the orchestration contract behind the single `/ptp:prd-full` command. It is the union of
 `/ptp:prd` and `/ptp:review-prd-full`: it runs the PRD-authoring phase (producing
-`openspec/prds/<epic>-<slug>.md`) and — without a user re-invocation in between — continues into the
-dual-reviewer (Superpowers + Codex) inline-fix PRD-review loop. The seam between the two commands is
-exactly why this skill exists: the epic resolved by the authoring phase is passed *explicitly* into the
-review phase, so the review phase skips any scope-confirmation stop. "Run the PRD author and continue
-without stopping to review-prd-full."
+`openspec/changes/<id>/prd.md`, where `<id>` is the epic's lowest-numbered story) and — without a user
+re-invocation in between — continues into the dual-reviewer (Superpowers + Codex) inline-fix PRD-review
+loop. The seam between the two commands is exactly why this skill exists: the epic resolved by the
+authoring phase is passed *explicitly* into the review phase, so the review phase skips any
+scope-confirmation stop. "Run the PRD author and continue without stopping to review-prd-full."
 
 It is the PRD-stage analog of `ptp-brainstorm-full`. The `/ptp:prd-full` command is the thin front door;
 this skill holds the substance. The command has already resolved `codex.mode`, resolved the epic
@@ -51,27 +51,27 @@ session. The skill does NOT re-resolve any of them. The outer session guarantees
 ## Phase A — author
 
 Invoke **`ptp-run-at-model`** at `opus.high` with the work being "run the **`ptp-prd`** skill over the
-resolved epic." That writes `openspec/prds/<epic>-<slug>.md` (the `<slug>` from the epic's
-lowest-numbered story across active + archived changes, per `ptp-prd`'s naming rule). The subagent runs
-the full `ptp-prd` protocol (Phase-0 prd-taskmaster backend detection, epic-context pre-load,
-`prd:generate` invocation and output relocation to `openspec/prds/`, and the inline auto-degrade
-fallback).
+resolved epic." That writes `openspec/changes/<id>/prd.md` (where `<id>` is the epic's lowest-numbered
+story across active + archived changes, per `ptp-prd`'s naming rule). The subagent runs the full
+`ptp-prd` protocol (Phase-0 prd-taskmaster backend detection, epic-context pre-load, `prd:generate`
+invocation and output relocation into the change folder, and the inline auto-degrade fallback).
 
 **The `/ptp:prd` terminal STOP / `/ptp:plan` next-step recommendation is suppressed** — the PRD subagent
 writes the PRD and returns its terminal result to the outer session; the outer session continues to the
 prd-gate. The subagent prompt MUST carry: the resolved epic (so the subagent does not re-project the
 selector); the branch guard is a **no-op** (HEAD is already on the feature branch from the outer guard);
 the subagent MUST NOT attempt to launch the `ptp-branch-prep` workflow; the `ptp-prd` work invokes
-`prd:generate` (or the inline fallback) as inline work — no nesting concern.
+`prd:generate` (or the inline fallback) as inline work — no nesting concern; the PRD is written to
+`openspec/changes/<id>/prd.md` (not to any `openspec/prds/` folder).
 
-Relay the Phase A result: the absolute path of the written PRD (or the failure description if the
-subagent did not write it).
+Relay the Phase A result: the absolute path of the written PRD at `openspec/changes/<id>/prd.md` (or
+the failure description if the subagent did not write it).
 
 ---
 
 ## prd-gate
 
-After Phase A returns, read `openspec/prds/<epic>-<slug>.md`:
+After Phase A returns, read `openspec/changes/<id>/prd.md`:
 
 - **Present** → proceed to Phase B.
 - **Missing** → **STOP**. Do NOT invoke `ptp-run-at-model` for Phase B.
@@ -84,13 +84,13 @@ After Phase A returns, read `openspec/prds/<epic>-<slug>.md`:
 
 **Only if the prd-gate passed**, invoke **`ptp-run-at-model`** at `opus.high` with the work being "run
 the `ptp-review-prd-full` skill over the resolved epic with the pre-resolved `codex.mode`." Pass the
-already-resolved `codex.mode` decision and the resolved epic + PRD path so the review subagent does not
-re-resolve them.
+already-resolved `codex.mode` decision and the resolved epic + PRD path (`openspec/changes/<id>/prd.md`)
+so the review subagent does not re-resolve them.
 
 The subagent prompt MUST carry:
 - The branch guard is a **no-op** (HEAD is already on the feature branch).
-- The epic and PRD path are pre-resolved (the PRD was just written by Phase A) — do NOT re-project the
-  selector.
+- The epic and PRD path (`openspec/changes/<id>/prd.md`) are pre-resolved (the PRD was just written by
+  Phase A) — do NOT re-project the selector.
 - `codex.mode` is pre-resolved: `<decision>`. Apply it directly; do NOT re-resolve via `ptp-codex-mode`.
 
 The subagent runs the full `ptp-review-prd-full` skill: Phase 1 Superpowers `kind = prd` loop →
@@ -112,7 +112,7 @@ Report at whichever terminal point is reached (`<change-id>` = the epic's lowest
 | `PHASE 1 DONE — CODEX SKIPPED (mode=…)` | Phase A wrote the PRD; Phase 1 converged; Codex skipped per `codex.mode` | `/ptp:plan <change-id>` |
 | `ITERATION CAP REACHED` | Phase A wrote the PRD; Phase 1 hit the iteration cap before converging; Phase 2 not started | Fix remaining Phase 1 findings (re-run `/ptp:prd <epic>` to revise) → re-run `/ptp:review-prd-full <epic>` |
 | `PHASE 2 ITERATION CAP REACHED` | Phase A wrote the PRD; Phase 1 converged; Phase 2 hit the cap | Fix remaining Phase 2 findings → re-run `/ptp:review-prd-full <epic>` |
-| prd-gate STOP | Phase A completed but the PRD is absent | Debug Phase A → run `/ptp:prd <epic>`, then re-run `/ptp:review-prd-full <epic>` |
+| prd-gate STOP | Phase A completed but `openspec/changes/<id>/prd.md` is absent | Debug Phase A → run `/ptp:prd <epic>`, then re-run `/ptp:review-prd-full <epic>` |
 
 Report format:
 1. Phase A result — absolute path of the PRD written (or gate-stop reason if missing).

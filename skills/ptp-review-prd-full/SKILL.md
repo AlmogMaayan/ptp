@@ -1,6 +1,6 @@
 ---
 name: ptp-review-prd-full
-description: Use this skill when running the dual-reviewer inline-fix PRD-review loop behind /ptp:review-prd-full — the Superpowers + Codex variant of /ptp:review-prd. Owns the dual-reviewer PRD-review contract as an inline-fix convergence loop over the epic PRD openspec/prds/<epic>-<slug>.md: Phase 1 Superpowers PRD loop (driving ptp-review-loop kind=prd), a convergence-based Phase-1-gates-Phase-2 gate, Phase 2 Codex closed-book read-only PRD loop (mode-gated per ptp-codex-mode, no openspec validate), a single combined epic-scoped marker write, and a combined terminal state. Edits the PRD inline to resolve confirmed findings until each phase converges or the iteration cap is reached; never archives, never commits, never regenerates the PRD via /ptp:prd, runs no openspec validate.
+description: Use this skill when running the dual-reviewer inline-fix PRD-review loop behind /ptp:review-prd-full — the Superpowers + Codex variant of /ptp:review-prd. Owns the dual-reviewer PRD-review contract as an inline-fix convergence loop over the epic PRD openspec/changes/<id>/prd.md: Phase 1 Superpowers PRD loop (driving ptp-review-loop kind=prd), a convergence-based Phase-1-gates-Phase-2 gate, Phase 2 Codex closed-book read-only PRD loop (mode-gated per ptp-codex-mode, no openspec validate), a single combined change-folder marker write, and a combined terminal state. Edits the PRD inline to resolve confirmed findings until each phase converges or the iteration cap is reached; never archives, never commits, never regenerates the PRD via /ptp:prd, runs no openspec validate.
 ---
 
 # ptp-review-prd-full — the dual-reviewer inline-fix PRD-review methodology
@@ -14,20 +14,19 @@ command is a front door; this skill holds the substance.
 
 It is the **dual-reviewer variant of `/ptp:review-prd`**, exactly as `/ptp:review-plan-full` is to
 `/ptp:review-plan` and `/ptp:review-brainstorm-full` is to `/ptp:review-brainstorm`. It reviews an
-epic's **PRD** (`openspec/prds/<epic>-<slug>.md`, authored by `/ptp:prd`) with two independent
-reviewers — a Superpowers loop then a Codex loop — **editing the PRD inline** to resolve confirmed
-findings until each phase converges to zero confirmed findings or the configured iteration cap is
-reached, before any proposal/spec/brainstorm artifacts for the epic plan exist, so a thin or
-placeholder PRD is caught *and fixed* (now from two angles) *before* it silently yields a thin epic
-plan.
+epic's **PRD** (`openspec/changes/<id>/prd.md`, authored by `/ptp:prd`, where `<id>` is the epic's
+lowest-numbered story) with two independent reviewers — a Superpowers loop then a Codex loop —
+**editing the PRD inline** to resolve confirmed findings until each phase converges to zero confirmed
+findings or the configured iteration cap is reached, before any proposal/spec/brainstorm artifacts for
+the epic plan exist, so a thin or placeholder PRD is caught *and fixed* (now from two angles) *before*
+it silently yields a thin epic plan.
 
 This mirrors the `review-brainstorm-full.md → ptp-review-brainstorm-full →
 ptp-review-loop(kind=brainstorm)` chain exactly — its shape is `review-prd-full.md →
 ptp-review-prd-full → ptp-review-loop(kind=prd)`. PRDs share the brainstorm's one divergence from the
-artifact `-full`: **no** `openspec validate` (a PRD precedes any proposal/spec). The structural
-difference from the brainstorm `-full` is that PRDs are **epic-scoped** (one per epic), so the marker
-is the epic-scoped `openspec/prds/reviews/<epic>-<slug>.json` and a multi-epic selector iterates per
-epic.
+artifact `-full`: **no** `openspec validate` (a PRD precedes any proposal/spec). Like the brainstorm
+`-full`, the PRD review marker is written into the change folder (`openspec/changes/<id>/reviews/prd.json`)
+rather than an epic-scoped standalone location.
 
 The whole two-phase orchestration is wrapped via `ptp-run-at-model` at `opus.high` (driven by the
 command); this skill is its substance.
@@ -38,7 +37,7 @@ command); this skill is its substance.
 
 | Input | Values | Source |
 |-------|--------|--------|
-| resolved epic + PRD path | the epic and `openspec/prds/<epic>-<slug>.md` (the `<slug>` from the epic's lowest-numbered story across active + archived changes, per `ptp-prd`) | Resolved by the command's outer session via the `ptp-prd` selector→epic projection; passed in. |
+| resolved epic + PRD path | the epic and `openspec/changes/<id>/prd.md` (where `<id>` is the epic's lowest-numbered story across active + archived changes, per `ptp-prd`) | Resolved by the command's outer session via the `ptp-prd` selector→epic projection; passed in. |
 | `codex.mode` decision | already-resolved mode decision from `ptp-codex-mode` | Resolved once in the outer session; threaded through to Phase 2 so this skill does not re-resolve it. |
 
 The skill does **not** re-run the branch guard, re-resolve `codex.mode`, or re-resolve the epic — the
@@ -54,8 +53,8 @@ Invoke the **`ptp-review-loop`** skill with:
 
 - `kind = prd`
 - `reviewer = superpowers`
-- the resolved **epic** and the **PRD file path** `openspec/prds/<epic>-<slug>.md` (the epic-scoped
-  input variant, in place of a change folder)
+- the resolved **epic** and the **PRD file path** `openspec/changes/<id>/prd.md` (the change-folder
+  PRD path, in place of a change folder's `brainstorm.md` or artifact)
 - `deferMarker = true`
 
 The loop drives the full iteration: review→confirm→fix-PRD→verify(N/A) until it terminates `DONE` (zero
@@ -83,7 +82,7 @@ Phase 2 starts **only if Phase 1 terminates `DONE`** — the convergence-based g
   revise a thin PRD, or author it first in the missing-PRD case) and then re-run
   `/ptp:review-prd-full <epic>`.
 
-**Missing-PRD case.** A `openspec/prds/<epic>-<slug>.md` that does not exist surfaces inside Phase 1 as
+**Missing-PRD case.** A `openspec/changes/<id>/prd.md` that does not exist surfaces inside Phase 1 as
 the Critical "no PRD to review" finding. The loop **cannot fix it** — there is nothing to edit and
 nothing to validate — so convergence to zero confirmed findings is impossible and Phase 1 terminates at
 the **iteration-cap backstop** (`ITERATION CAP REACHED`), **not** an infinite loop. In that case the
@@ -109,7 +108,7 @@ skill with:
 
 - `kind = prd`
 - `reviewer = codex`
-- the resolved **epic** and the **PRD file path** `openspec/prds/<epic>-<slug>.md`
+- the resolved **epic** and the **PRD file path** `openspec/changes/<id>/prd.md`
 - `deferMarker = true`
 
 Phase 2 starts with **fresh loop state**: Phase 1's `rejected_findings` do **not** carry over — Codex is
@@ -170,10 +169,9 @@ This orchestrator drives **both** phase loops with **`deferMarker = true`** (per
 **## Review-convergence marker** section), so **no phase writes the marker itself** — each phase instead
 returns its terminal outcome (`terminalState`, `reviewer`, `iterations`) to this orchestrator. After the
 run resolves (after Phase 2, or after Phase 1 if Phase 2 is gated off), the orchestrator performs
-**exactly ONE** combined marker write per epic to the **epic-scoped**
-`openspec/prds/reviews/<epic>-<slug>.json` (the slice-1 PRD-marker path; the `reviews/` subfolder created
-on demand under `openspec/prds/`, basename parallel to the PRD file `openspec/prds/<epic>-<slug>.md`),
-per the combined-outcome rule:
+**exactly ONE** combined marker write per epic to
+`openspec/changes/<id>/reviews/prd.json` (the `reviews/` subfolder created on demand, sibling to
+`reviews/brainstorm.json` and `reviews/plan.json`), per the combined-outcome rule:
 
 - `kind: "prd"`.
 - `reviewers` = the **union of phases that actually ran** — `["superpowers"]` if Phase 1 capped (Phase 2
@@ -183,8 +181,8 @@ per the combined-outcome rule:
 - `iterations` = the **last phase's** iteration count.
 
 The combined write uses the **same atomic write-temp-then-rename protocol** as `ptp-review-loop`
-(serialize to a uniquely named temp file in `openspec/prds/reviews/`, then replace
-`openspec/prds/reviews/<epic>-<slug>.json` via a replace-if-exists rename only after the complete write
+(serialize to a uniquely named temp file in `openspec/changes/<id>/reviews/`, then replace
+`openspec/changes/<id>/reviews/prd.json` via a replace-if-exists rename only after the complete write
 succeeds; on any failure clean up the temp file and leave the live marker untouched), so a failed
 overwrite cannot truncate or corrupt the prior marker.
 
@@ -202,7 +200,7 @@ For a **multi-epic selector**, iterate Phase 1 → gate → Phase 2 → combined
 ## Hard rules
 
 - **Edits the PRD inline.** Each phase resolves confirmed findings by minimal targeted edits to
-  `openspec/prds/<epic>-<slug>.md` (corrections only — fill a missing schema section, sharpen a vague
+  `openspec/changes/<id>/prd.md` (corrections only — fill a missing schema section, sharpen a vague
   acceptance criterion, add a measurable goal).
 - **Never regenerate the PRD via `/ptp:prd`.** Targeted hand-edits only — not re-fabrication. A
   missing-PRD Critical has nothing to edit and the iteration cap is the backstop.
@@ -218,8 +216,8 @@ For a **multi-epic selector**, iterate Phase 1 → gate → Phase 2 → combined
   own independent cap.
 - **Don't re-author the rubric.** The PRD-quality rubric stays in `ptp-review-prd`; only the disposition
   of findings (inline fix vs. report) changes here.
-- **Both phases defer the marker; exactly one combined epic-scoped write.** No phase writes its own
-  marker; the orchestrator writes one combined `openspec/prds/reviews/<epic>-<slug>.json` per epic.
+- **Both phases defer the marker; exactly one combined write per epic.** No phase writes its own
+  marker; the orchestrator writes one combined `openspec/changes/<id>/reviews/prd.json` per epic.
 - **Does not redo outer-session work.** Do not re-run the branch guard, re-resolve `codex.mode`, or
   re-resolve the epic — use the values the outer session passed in.
 - **Codex only read-only over stdin.** Run Codex only under `codex exec -s read-only` with the prompt

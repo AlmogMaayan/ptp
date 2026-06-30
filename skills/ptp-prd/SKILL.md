@@ -1,6 +1,6 @@
 ---
 name: ptp-prd
-description: Use this skill when orchestrating the PRD-authoring flow behind /ptp:prd. Owns selector-to-epic projection (additive layer on top of ptp-change-selector), ptp-run-at-model at opus.high (one foreground subagent per epic in sequence), Phase-0 prd-taskmaster backend detection, epic-context pre-load, prd:generate invocation and output relocation to openspec/prds/, and the inline auto-degrade fallback when the plugin is absent or fails. Never emits proposal/design/tasks/spec deltas/code. Non-interactive. Recommends /ptp:plan next.
+description: Use this skill when orchestrating the PRD-authoring flow behind /ptp:prd. Owns selector-to-epic projection (additive layer on top of ptp-change-selector), ptp-run-at-model at opus.high (one foreground subagent per epic in sequence), Phase-0 prd-taskmaster backend detection, epic-context pre-load, prd:generate invocation and output relocation to openspec/changes/<id>/, and the inline auto-degrade fallback when the plugin is absent or fails. Never emits proposal/design/tasks/spec deltas/code. Non-interactive. Recommends /ptp:plan next.
 ---
 
 # ptp-prd — PRD-authoring protocol
@@ -10,16 +10,17 @@ description: Use this skill when orchestrating the PRD-authoring flow behind /pt
 This skill is the single source of truth for the `/ptp:prd` command's protocol. It is a thin
 orchestrator that wraps the external `prd-taskmaster` plugin's `prd:generate` skill with graceful
 auto-degrade, projecting selector inputs onto a set of epics and producing one epic-scoped PRD per
-epic in `openspec/prds/`. When prd-taskmaster is available, the skill detects its backend (Phase 0),
-pre-loads the epic's existing OpenSpec context as the discovery summary (replacing the interactive
-`prd:discover` flow), invokes `prd:generate` non-interactively, and relocates its output to
-`openspec/prds/<epic>-<slug>.md`. When the plugin or backend is absent — or generation produces no
-fresh output — the skill authors a structured PRD inline and says so explicitly, mirroring the
-Superpowers graceful-degrade contract. The `/ptp:prd` command is the thin front door; this skill
-holds the substance.
+epic co-located in the change folder. When prd-taskmaster is available, the skill detects its backend
+(Phase 0), pre-loads the epic's existing OpenSpec context as the discovery summary (replacing the
+interactive `prd:discover` flow), invokes `prd:generate` non-interactively, and relocates its output
+to `openspec/changes/<id>/prd.md` (where `<id>` is the epic's lowest-numbered story). When the plugin
+or backend is absent — or generation produces no fresh output — the skill authors a structured PRD
+inline and says so explicitly, mirroring the Superpowers graceful-degrade contract. The `/ptp:prd`
+command is the thin front door; this skill holds the substance.
 
-The `openspec/prds/` folder is created at runtime on first use (like the `openspec/brainstorms/`
-precedent — a runtime-created, untracked path, not a tracked empty directory, with no `.gitkeep`).
+No standalone `openspec/prds/` folder is created — the PRD is written directly into the existing
+change folder (`openspec/changes/<id>/`), co-located with `brainstorm.md`, `proposal.md`, and the
+other ptp artifacts for that change.
 
 ---
 
@@ -145,18 +146,21 @@ prior-run file for fresh output:
 2. **After** `prd:generate` completes: check for a freshly created, **non-empty**
    `.taskmaster/docs/prd.md`.
    - If present and non-empty: **move** (relocate, not copy) it to
-     `openspec/prds/<epic>-<slug>.md`. Create the `openspec/prds/` directory if it does not exist.
+     `openspec/changes/<id>/prd.md`. No `openspec/prds/` directory is created; the change folder
+     already exists.
    - If absent or empty: report the failure and proceed to the **inline fallback**. First delete the
      empty fresh `.taskmaster/docs/prd.md` if the current invocation created one — so no stale
      staging file lingers (the spec's end-state allows only a renamed pre-existing backup to
      remain). The renamed pre-existing backup, if any, remains on disk undisturbed.
 
-**Output naming:** `<slug>` derives selector-independently from the `<desc>` of the epic's
-**lowest-numbered story** — determined across **both active and archived** changes in the epic, so
-the slug stays stable even after the first story is archived (e.g. story `0019_01_prd-command-and-skill`
-→ slug `prd-command-and-skill`). This is the single naming rule — the same epic always produces the
-same filename, regardless of which selector targeted it. Re-running for the same epic overwrites that
-epic's PRD deterministically (idempotent).
+**Output naming:** `<id>` is the epic's **lowest-numbered story** — determined across **both active
+and archived** changes in the epic (scanning `openspec/changes/<id>/` and
+`openspec/changes/archive/<date>-<id>/`, stripping any archive date prefix), so the anchor stays
+stable even after the first story is archived. The output filename is the constant `prd.md` under
+the resolved change folder — the change folder disambiguates the epic, so no slug is encoded in the
+filename. This is the single naming rule — the same epic always produces the same path, regardless
+of which selector targeted it. Re-running for the same epic overwrites that epic's PRD
+deterministically (idempotent).
 
 ---
 
@@ -182,7 +186,7 @@ The inline PRD MUST carry the **minimum PRD schema**:
 9. **Risks** — known unknowns and mitigations
 10. **Open questions** — decisions still to be made
 
-Write the inline PRD directly to `openspec/prds/<epic>-<slug>.md` (same path as the relocation
+Write the inline PRD directly to `openspec/changes/<id>/prd.md` (same path as the relocation
 target) and **state explicitly** in the report that the inline authoring path was taken (say why —
 plugin absent, interface drift, or generation failure).
 
@@ -202,5 +206,6 @@ plugin.
 - **Never hard-fail over the missing optional plugin**: always produce a PRD (inline if needed) or
   report nothing-to-do on an empty selection.
 - **Recommend `/ptp:plan`** as the next step after writing the PRD.
-- **Output directory**: `openspec/prds/` is created at runtime on first use (not a tracked
-  empty directory; no `.gitkeep`).
+- **Output location**: the PRD is written to `openspec/changes/<id>/prd.md` (the change folder for
+  the epic's lowest-numbered story). No standalone `openspec/prds/` folder is created; the change
+  folder already exists, and the `reviews/` subfolder is created on demand as needed.

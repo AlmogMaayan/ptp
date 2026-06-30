@@ -1,5 +1,5 @@
 ---
-description: Review an epic's PRD (openspec/prds/<epic>-<slug>.md) using the external Codex CLI (codex exec) — read-only, single-pass, closed-book, no openspec validate
+description: Review an epic's PRD (openspec/changes/<id>/prd.md) using the external Codex CLI (codex exec) — read-only, single-pass, closed-book, no openspec validate
 argument-hint: "<epic-selector> — id, epic:XXXX, story:NN, or epic:XXXX story:NN (omit to audit all active epics' PRDs)"
 ---
 
@@ -21,7 +21,7 @@ cannot project to an epic is reported unsupported and skipped (per `ptp-prd`).
 
 - The `codex` CLI must be on PATH (`codex --version`). If missing, STOP and tell the user to install it
   — do **not** silently fall back to a different reviewer.
-- For each targeted epic, resolve the PRD at `openspec/prds/<epic>-<slug>.md` (the `<slug>` from the
+- For each targeted epic, resolve the PRD at `openspec/changes/<id>/prd.md` (where `<id>` is the
   epic's lowest-numbered story across active + archived changes, per `ptp-prd`). A **missing PRD file
   is NOT an abort**: surface it to Codex as a Critical "no PRD to review" finding in the prompt (in
   place of the PRD text), mirroring the single-pass `/ptp:review-prd` gate.
@@ -65,7 +65,7 @@ multi-epic or empty-argument audit-all selector, the one subagent handles the wh
 1. **Resolve scope and read the PRD (you, via Read/Bash — not Codex).**
    - If `$ARGUMENTS` names an epic, audit just it. If empty, audit **every** active epic's PRD (repeat
      steps 2–4 per epic; do not stop at the first).
-   - For each epic, resolve `openspec/prds/<epic>-<slug>.md` and read it. If the file is absent, note
+   - For each epic, resolve `openspec/changes/<id>/prd.md` and read it. If the file is absent, note
      "NO PRD — Critical: no PRD to review" in place of the PRD text (do **not** abort).
 
 2. **Collect any cited context (you, via Read/Grep — optional).**
@@ -74,7 +74,7 @@ multi-epic or empty-argument audit-all selector, the one subagent handles the wh
 
 3. **Build ONE closed-book prompt** containing, in order:
    - The audit instructions (below).
-   - The full text of the PRD under a clear `=== <epic>-<slug>.md ===` delimiter (or the missing-PRD
+   - The full text of the PRD under a clear `=== prd.md (<epic> epic) ===` delimiter (or the missing-PRD
      note from step 1).
    - Any cited excerpts from step 2, under `--- SOURCE <path> (around line N) ---` delimiters.
    - A hard instruction block: *"Do NOT run any commands. Review only the text provided above. There is

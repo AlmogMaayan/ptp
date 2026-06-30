@@ -1,6 +1,6 @@
 ---
 name: ptp-review-loop
-description: Shared loop protocol for /ptp:review-loop, /ptp:codex-review-loop, /ptp:review-plan-loop, /ptp:codex-review-plan-loop, the /ptp:review-brainstorm-full brainstorm loop, and /ptp:codex-review-prd-loop. Takes kind∈{code,artifact,brainstorm,prd} and reviewer∈{superpowers,codex} and iterates review→confirm→fix until zero open findings or the configured iteration cap (default 5) is reached. Handles rejection carry-over so rejected findings do not cause infinite loops, and filters manual-check/tests-required suggestions from the convergence count. At its terminal states the loop also writes a small durable per-kind review-convergence marker (for kind∈{brainstorm, artifact} under openspec/changes/<id>/reviews/, for kind=prd the epic-scoped openspec/prds/reviews/<epic>-<slug>.json; kind=code writes none), unless invoked with deferMarker=true by a -full orchestrator.
+description: Shared loop protocol for /ptp:review-loop, /ptp:codex-review-loop, /ptp:review-plan-loop, /ptp:codex-review-plan-loop, the /ptp:review-brainstorm-full brainstorm loop, and /ptp:codex-review-prd-loop. Takes kind∈{code,artifact,brainstorm,prd} and reviewer∈{superpowers,codex} and iterates review→confirm→fix until zero open findings or the configured iteration cap (default 5) is reached. Handles rejection carry-over so rejected findings do not cause infinite loops, and filters manual-check/tests-required suggestions from the convergence count. At its terminal states the loop also writes a small durable per-kind review-convergence marker (for kind∈{brainstorm, artifact, prd} under openspec/changes/<id>/reviews/; kind=code writes none), unless invoked with deferMarker=true by a -full orchestrator.
 ---
 
 # ptp-review-loop — shared loop protocol
@@ -20,8 +20,9 @@ This skill encodes the iteration semantics shared by the five `/ptp:*-loop` comm
 The `/ptp:review-brainstorm-full` skill (`ptp-review-brainstorm-full`) also drives this loop with
 `kind=brainstorm` in two phases (Phase 1 `reviewer=superpowers`, Phase 2 `reviewer=codex`), so the
 `-full` suffix means a dual-reviewer inline-fix loop at every pipeline stage (brainstorm, artifact,
-code). The `prd` kind is **epic-scoped**: the caller resolves the selector to epics and drives this loop
-**once per epic** over `openspec/prds/<epic>-<slug>.md` (see the epic-scoped input variant below).
+code). The `prd` kind is anchored to the epic's **lowest-numbered story change folder**: the caller resolves
+the selector to epics and drives this loop **once per epic** over
+`openspec/changes/<id>/prd.md` (see the change-folder input variant below).
 
 ## Inputs
 
@@ -30,7 +31,7 @@ code). The `prd` kind is **epic-scoped**: the caller resolves the selector to ep
 | `kind` | `code` \| `artifact` \| `brainstorm` \| `prd` | Supplied by the calling command |
 | `reviewer` | `superpowers` \| `codex` | Supplied by the calling command |
 | `change-id` | string | A single resolved change id passed through from the calling command (for `kind ∈ {code, artifact, brainstorm}`). The caller resolves any selector (e.g. `epic:XXXX`) via `ptp-change-selector` and iterates this skill once per resolved change — this skill receives and processes exactly one change per invocation. |
-| **epic-scoped input variant** (`kind = prd` only) | `epic` + PRD file path | For `kind = prd` the caller passes a resolved **epic** and the **PRD file path** `openspec/prds/<epic>-<slug>.md` (the `<slug>` deriving from the epic's lowest-numbered story per `ptp-prd`, scanning active + archived changes) **in place of** a change folder. The caller resolves any epic selector via the `ptp-prd` projection and iterates this skill once per resolved epic — this skill receives and processes exactly one epic's PRD per invocation. The `<change-id>` used in the `DONE` next-command recommendation is the epic's lowest-numbered story id. |
+| **change-folder input variant** (`kind = prd` only) | `epic` + PRD file path | For `kind = prd` the caller passes a resolved **epic** and the **PRD file path** `openspec/changes/<id>/prd.md` (where `<id>` is the epic's lowest-numbered story, resolved by scanning active + archived changes per `ptp-prd`) **in place of** a brainstorm/artifact change folder. The caller resolves any epic selector via the `ptp-prd` projection and iterates this skill once per resolved epic — this skill receives and processes exactly one epic's PRD per invocation. The `<change-id>` used in the `DONE` next-command recommendation is the epic's lowest-numbered story id. |
 
 The calling command is responsible for precondition checks before invoking this skill:
 
@@ -38,7 +39,7 @@ The calling command is responsible for precondition checks before invoking this 
 - `kind=code` → caller must verify `openspec/changes/<change-id>/` exists; redirect to `/ptp:plan` if missing.
 - `kind=artifact` → caller must verify `openspec/changes/<change-id>/` exists; redirect to `/ptp:plan` if missing.
 - `kind=brainstorm` → caller must verify `openspec/changes/<change-id>/` exists; redirect to `/ptp:plan` if missing. The existence of `brainstorm.md` itself is **NOT** an abort precondition — a missing brainstorm is a Phase-1 Critical finding handled inside the review pass (step b), mirroring `ptp-review-brainstorm`.
-- `kind=prd` → caller resolves the **epic** and the **PRD file path** `openspec/prds/<epic>-<slug>.md` (via the `ptp-prd` selector→epic projection and `<slug>`-from-lowest-story rule) and passes them in place of a change folder. The existence of the **PRD file** is **NOT** an abort precondition — a missing PRD is a Critical "no PRD to review" finding handled inside the review pass (step b), mirroring `kind=brainstorm`.
+- `kind=prd` → caller resolves the **epic** and the **PRD file path** `openspec/changes/<id>/prd.md` (via the `ptp-prd` selector→epic projection and lowest-story-`<id>` rule, scanning active + archived changes) and passes them in place of a change folder. The existence of the **PRD file** is **NOT** an abort precondition — a missing PRD is a Critical "no PRD to review" finding handled inside the review pass (step b), mirroring `kind=brainstorm`.
 
 ## Resolution
 
@@ -110,18 +111,16 @@ writes NONE** (the `/ptp:status` table has no code-review column to feed).
 
 - loop `kind = brainstorm` → `reviews/brainstorm.json` (status "brainstorm review" column)
 - loop `kind = artifact`   → `reviews/plan.json`       (status "plan review" column)
-- loop `kind = prd`        → `openspec/prds/reviews/<epic>-<slug>.json` (epic-scoped — see **Location**)
+- loop `kind = prd`        → `reviews/prd.json`        (sibling of `reviews/brainstorm.json` and `reviews/plan.json`)
 - loop `kind = code`       → **no marker is written**
 
-**Location.** For `kind ∈ {brainstorm, artifact}` the marker lives under
+**Location.** For `kind ∈ {brainstorm, artifact, prd}` the marker lives under
 `openspec/changes/<change-id>/reviews/` — a subfolder **sibling to `specs/`**, created on demand
-(mkdir-if-absent). It is NOT an OpenSpec artifact folder, so `openspec validate --strict` ignores it and
-`openspec archive` carries it along. For `kind = prd` — which is **epic-scoped**, not change-scoped — the
-marker lives instead at **`openspec/prds/reviews/<epic>-<slug>.json`** (the `reviews/` subfolder created
-on demand under `openspec/prds/`, basename parallel to the PRD file
-`openspec/prds/<epic>-<slug>.md`); it lives outside any change folder and is unaffected by archiving an
-individual change. The same atomic write-temp-then-rename protocol and `deferMarker` contract below apply
-to every kind.
+(mkdir-if-absent). For `kind = prd`, `<change-id>` is the epic's lowest-numbered story id (resolved by
+the active-or-archived scan, matching the PRD file at `openspec/changes/<id>/prd.md`). The marker is NOT
+an OpenSpec artifact folder entry, so `openspec validate --strict` ignores it and `openspec archive`
+carries it along with the change. The same atomic write-temp-then-rename protocol and `deferMarker`
+contract below apply to every kind.
 
 **Last-write-wins overwrite.** Each terminal state overwrites the same per-kind file with the full
 current marker object. A re-review replaces the previous marker. There is no append, no history, no
@@ -178,8 +177,8 @@ Dispatch to the correct reviewer based on `(kind, reviewer)`:
 - `codex` / `artifact` — run the `codex-review-plan.md` closed-book protocol inline: read all artifacts yourself (you, via Read), run `npx -y openspec validate <change-id> --strict` yourself (you, via Bash), collect cited source excerpts (you, via Read/Grep), build a single self-contained prompt, and pipe to `codex exec -s read-only` over stdin. Codex runs NO commands.
 - `superpowers` / `brainstorm` — run the `ptp-review-brainstorm` rubric inline over the located `brainstorm.md` (existence & non-placeholder; ≥2 real options with the four tradeoff axes plus spec-interaction; recommendation with rationale; assumptions; scope/blast-radius; spec interaction; usable handoff to `/ptp:plan`). A missing `brainstorm.md` is recorded as a Critical "no brainstorm to review" finding inside this pass (the loop cannot fix it). Do NOT re-author the rubric here — it lives in `ptp-review-brainstorm`.
 - `codex` / `brainstorm` — run the `codex-review-plan.md` closed-book protocol inline, **retargeted to `brainstorm.md`** and with **NO** `openspec validate` (a brainstorm precedes any proposal/spec, so there is nothing to validate): read `brainstorm.md` and any cited context yourself (you, via Read), build a single self-contained prompt carrying the brainstorm rubric as the audit instructions plus the full brainstorm text and any cited source excerpts, and pipe it to `codex exec -s read-only` over stdin. Codex runs NO commands (no `npx`, no `openspec validate`, no network, no installs). As with the Superpowers variant, a missing `brainstorm.md` is recorded as a Critical "no brainstorm to review" finding inside this pass (the loop cannot fix it) — do not attempt to build a Codex prompt over an absent file.
-- `superpowers` / `prd` — run the `ptp-review-prd` rubric inline over the resolved PRD file `openspec/prds/<epic>-<slug>.md` (PRD existence & non-placeholder; all schema sections present; requirements split functional/non-functional and trace to goals; testable acceptance criteria; scope/non-goal consistency; measurable goals; real Dependencies/Risks/Open questions). A missing PRD file is recorded as a Critical "no PRD to review" finding inside this pass (the loop cannot fix it). Do NOT re-author the rubric here — it lives in `ptp-review-prd`. (Used by slice 2's `/ptp:review-prd-full` orchestrator; documented now so the kind is complete.)
-- `codex` / `prd` — run the `codex-review-plan.md` closed-book protocol inline, **retargeted to the PRD file `openspec/prds/<epic>-<slug>.md`** and with **NO** `openspec validate` (a PRD precedes any proposal/spec, so there is nothing to validate): read the PRD file and any cited context yourself (you, via Read), build a single self-contained prompt carrying the PRD rubric as the audit instructions plus the full PRD text and any cited source excerpts, and pipe it to `codex exec -s read-only` over stdin. Codex runs NO commands (no `npx`, no `openspec validate`, no network, no installs). As with the Superpowers variant, a missing PRD file is recorded as a Critical "no PRD to review" finding inside this pass (the loop cannot fix it) — surface the missing-PRD note in the prompt in place of the PRD text rather than building a Codex prompt over an absent file.
+- `superpowers` / `prd` — run the `ptp-review-prd` rubric inline over the resolved PRD file `openspec/changes/<id>/prd.md` (PRD existence & non-placeholder; all schema sections present; requirements split functional/non-functional and trace to goals; testable acceptance criteria; scope/non-goal consistency; measurable goals; real Dependencies/Risks/Open questions). A missing PRD file is recorded as a Critical "no PRD to review" finding inside this pass (the loop cannot fix it). Do NOT re-author the rubric here — it lives in `ptp-review-prd`. (Used by slice 2's `/ptp:review-prd-full` orchestrator; documented now so the kind is complete.)
+- `codex` / `prd` — run the `codex-review-plan.md` closed-book protocol inline, **retargeted to the PRD file `openspec/changes/<id>/prd.md`** and with **NO** `openspec validate` (a PRD precedes any proposal/spec, so there is nothing to validate): read the PRD file and any cited context yourself (you, via Read), build a single self-contained prompt carrying the PRD rubric as the audit instructions plus the full PRD text and any cited source excerpts, and pipe it to `codex exec -s read-only` over stdin. Codex runs NO commands (no `npx`, no `openspec validate`, no network, no installs). As with the Superpowers variant, a missing PRD file is recorded as a Critical "no PRD to review" finding inside this pass (the loop cannot fix it) — surface the missing-PRD note in the prompt in place of the PRD text rather than building a Codex prompt over an absent file.
 
 Collect the full list of findings (severity, location, description, suggested fix) from the review output.
 
@@ -219,7 +218,7 @@ Edit inline for every CONFIRMED finding:
 - `kind=code` → edit source files directly. **Never** invoke `/ptp:apply`. **Never** commit.
 - `kind=artifact` → make minimal targeted edits to the affected artifact(s). **Never** regenerate artifacts via `/ptp:plan`. Corrections only (fix a wrong section, add a missing scenario, fill a thin block) — not re-fabrication.
 - `kind=brainstorm` → make minimal targeted edits to `brainstorm.md`. **Never** regenerate the brainstorm via `/ptp:brainstorm`. Corrections only (add a missing option, expand a thin tradeoff, document a missing assumption) — not re-fabrication. A missing `brainstorm.md` Critical finding has nothing to edit and stays unfixed (the iteration cap is the backstop).
-- `kind=prd` → make minimal targeted edits to the PRD file `openspec/prds/<epic>-<slug>.md`. **Never** regenerate the PRD via `/ptp:prd`. Corrections only (fill a missing schema section, sharpen a vague acceptance criterion, add a measurable goal) — not re-fabrication. A missing-PRD Critical finding has nothing to edit and stays unfixed (the iteration cap is the backstop).
+- `kind=prd` → make minimal targeted edits to the PRD file `openspec/changes/<id>/prd.md`. **Never** regenerate the PRD via `/ptp:prd`. Corrections only (fill a missing schema section, sharpen a vague acceptance criterion, add a measurable goal) — not re-fabrication. A missing-PRD Critical finding has nothing to edit and stays unfixed (the iteration cap is the backstop).
 
 ### (h) Verify
 
@@ -269,7 +268,7 @@ Artifact keys do not use line numbers because section headings renumber after ed
 
 **For `kind=brainstorm`:** reuse the `kind=artifact` key with `artifact_filename = "brainstorm.md"` (plus the nearest enclosing `section_heading` and the truncated `summary`). Like artifact keys, it uses no line numbers so findings deduplicate across iterations as section headings renumber. The missing-`brainstorm.md` Critical finding has no enclosing heading, so it uses the sentinel `section_heading = "<missing file>"` — `artifact_filename` + this sentinel + its constant `summary` stay stable across iterations, so the unfixable finding deduplicates correctly until the iteration-cap backstop.
 
-**For `kind=prd`:** reuse the `kind=artifact` key with `artifact_filename = <epic>-<slug>.md` (the PRD basename; plus the nearest enclosing `section_heading` and the truncated `summary`). Like artifact keys, it uses no line numbers so findings deduplicate across iterations as section headings renumber. The missing-PRD Critical finding has no enclosing heading, so it uses the sentinel `section_heading = "<missing file>"` — `artifact_filename` + this sentinel + its constant `summary` stay stable across iterations, so the unfixable finding deduplicates correctly until the iteration-cap backstop.
+**For `kind=prd`:** reuse the `kind=artifact` key with `artifact_filename = "prd.md"` (the constant PRD basename; plus the nearest enclosing `section_heading` and the truncated `summary`). Like artifact keys, it uses no line numbers so findings deduplicate across iterations as section headings renumber. The missing-PRD Critical finding has no enclosing heading, so it uses the sentinel `section_heading = "<missing file>"` — `artifact_filename` + this sentinel + its constant `summary` stay stable across iterations, so the unfixable finding deduplicates correctly until the iteration-cap backstop.
 
 ## Terminal states
 
@@ -290,7 +289,7 @@ Report:
 
 **Marker write (after the report above).** For `kind ∈ {brainstorm, artifact, prd}`, write the per-kind
 marker (`brainstorm`→`reviews/brainstorm.json`, `artifact`→`reviews/plan.json`,
-`prd`→`openspec/prds/reviews/<epic>-<slug>.json`) per the **## Review-convergence marker** section, with
+`prd`→`openspec/changes/<id>/reviews/prd.json`) per the **## Review-convergence marker** section, with
 `terminalState: "converged"`, `reviewers` = the reviewer(s) that ran this loop run, `iterations` = the
 final `iteration` value, and `timestamp` = now (UTC ISO-8601). Use the atomic write-temp-then-rename
 protocol. **Skip the write entirely for `kind = code`.** **Skip the write when invoked with
@@ -312,7 +311,7 @@ Report:
 
 **Marker write (after the report above).** For `kind ∈ {brainstorm, artifact, prd}`, write the per-kind
 marker (`brainstorm`→`reviews/brainstorm.json`, `artifact`→`reviews/plan.json`,
-`prd`→`openspec/prds/reviews/<epic>-<slug>.json`) per the **## Review-convergence marker** section, with
+`prd`→`openspec/changes/<id>/reviews/prd.json`) per the **## Review-convergence marker** section, with
 `terminalState: "cap-reached"` and the same `kind` / `reviewers` (the reviewer that ran) / `iterations`
 (the cap value) / `timestamp` (now, UTC ISO-8601) fields. Use the atomic write-temp-then-rename protocol.
 **Skip the write entirely for `kind = code`.** **Skip the write when invoked with `deferMarker = true`**
@@ -327,7 +326,7 @@ reported but does NOT change the terminal state.
 - **Never auto-commit** any edits made during the loop.
 - **Never fix an unconfirmed finding.** If step (e) marks a finding `REJECTED`, leave the code/artifact alone.
 - **Never persist loop control state to disk.** `iteration`, `rejected_findings`, and `per_iteration_summary` live only in conversation context. This rule does NOT forbid the durable terminal review-convergence marker below — that marker is a deliberate exception and is the loop's only on-disk side effect beyond the artifact edits it already makes.
-- **Write the per-kind review-convergence marker on terminal states for `kind ∈ {brainstorm, artifact, prd}` only** (`brainstorm`→`reviews/brainstorm.json`, `artifact`→`reviews/plan.json`, `prd`→the epic-scoped `openspec/prds/reviews/<epic>-<slug>.json`), per the **## Review-convergence marker** section. **Never** write a marker for `kind = code`, and **never** write a marker when invoked with `deferMarker = true` (the `-full` orchestrator performs the single combined write). The marker is written via the atomic write-temp-then-rename protocol; a marker-write failure is reported but does not change the terminal state.
+- **Write the per-kind review-convergence marker on terminal states for `kind ∈ {brainstorm, artifact, prd}` only** (`brainstorm`→`reviews/brainstorm.json`, `artifact`→`reviews/plan.json`, `prd`→`openspec/changes/<id>/reviews/prd.json`), per the **## Review-convergence marker** section. **Never** write a marker for `kind = code`, and **never** write a marker when invoked with `deferMarker = true` (the `-full` orchestrator performs the single combined write). The marker is written via the atomic write-temp-then-rename protocol; a marker-write failure is reported but does not change the terminal state.
 - **Iteration cap is resolved from `review.maxIterations` (layered config, default 5).** There is no `--max-iterations` CLI flag. If the cap is hit, report and stop — do not silently increment past it.
 - **Codex variants** (`reviewer=codex`) must run `codex exec -s read-only` with the full prompt piped over stdin (`-`). Never pass `--full-auto`, `--sandbox workspace-write`, or `--dangerously-bypass-approvals-and-sandbox`.
 - **The caller runs `openspec validate` (for `kind=code` / `kind=artifact` only — never for `kind=brainstorm` or `kind=prd`, which each precede any proposal/spec) and all file reads for Codex** — Codex executes no `npx`, no network, no install commands. The closed-book / inlined-diff protocol from `codex-review.md` / `codex-review-plan.md` applies.

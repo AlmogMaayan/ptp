@@ -1,9 +1,9 @@
 ---
-description: Author an epic-scoped Product Requirements Document into openspec/prds/ — delegates selector resolution, epic projection, and PRD authoring to the ptp-prd skill
+description: Author an epic-scoped Product Requirements Document co-located in the change folder (openspec/changes/<id>/prd.md) — delegates selector resolution, epic projection, and PRD authoring to the ptp-prd skill
 argument-hint: "<changeid> | epic:XXXX | story:XX (one or more; omit = all active epics)"
 ---
 
-You are running **`/ptp:prd`** — the PRD-authoring entry point. Your job is to produce an epic-scoped Product Requirements Document at `openspec/prds/<epic>-<slug>.md` for each targeted epic, then STOP.
+You are running **`/ptp:prd`** — the PRD-authoring entry point. Your job is to produce an epic-scoped Product Requirements Document at `openspec/changes/<id>/prd.md` (where `<id>` is the epic's lowest-numbered story) for each targeted epic, then STOP.
 
 > **This command writes a file**, so it runs the branch guard before doing anything else. It does **not** emit `proposal.md`, `design.md`, `tasks.md`, spec deltas, or code — only a PRD. The recommended next step after a PRD is **`/ptp:plan <change-id>`**.
 
@@ -18,12 +18,12 @@ Selectors: $ARGUMENTS (one or more of: a bare change id, `epic:XXXX`, `story:NN`
 ## Steps
 
 1. **Invoke the `ptp-prd` skill** via the Skill tool, passing the selectors from `$ARGUMENTS`. The skill owns the full protocol: selector-to-epic projection (additive layer on top of `ptp-change-selector`), `ptp-run-at-model` at `opus.high` (one foreground subagent per epic in sequence), Phase-0 prd-taskmaster backend detection, epic-context pre-load, `prd:generate` invocation and output relocation, and the inline auto-degrade fallback. Do not duplicate the protocol here.
-2. **STOP.** The skill writes `openspec/prds/<epic>-<slug>.md` for each targeted epic and recommends `/ptp:plan` as the next step. Do not proceed into brainstorming, planning, or implementation.
+2. **STOP.** The skill writes `openspec/changes/<id>/prd.md` for each targeted epic (where `<id>` is the epic's lowest-numbered story) and recommends `/ptp:plan` as the next step. Do not proceed into brainstorming, planning, or implementation.
 
 ## Hard rules
 
 - Do **not** write `proposal.md`, `design.md`, `tasks.md`, spec deltas, or source code.
 - Do **not** call `AskUserQuestion` — this command is non-interactive.
 - Do **not** invoke `prd:go`, `prd:atlas`, or `prd:discover` — those are interactive entry points; the `ptp-prd` skill invokes `prd:generate` only.
-- The only durable artifacts authored here are the PRDs at `openspec/prds/<epic>-<slug>.md` (one per targeted epic). Aside from those, only ordinary branch/directory setup and — at most — a renamed pre-existing `.taskmaster/docs/prd.md` backup may remain on disk (the skill never writes `proposal.md`, `design.md`, `tasks.md`, spec deltas, or code).
+- The only durable artifacts authored here are the PRDs at `openspec/changes/<id>/prd.md` (one per targeted epic). Aside from those, only ordinary branch/directory setup and — at most — a renamed pre-existing `.taskmaster/docs/prd.md` backup may remain on disk (the skill never writes `proposal.md`, `design.md`, `tasks.md`, spec deltas, or code).
 - Recommend **`/ptp:plan <change-id>`** as the next step after the PRD is written.

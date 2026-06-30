@@ -1,6 +1,6 @@
 ---
 name: ptp-review-prd
-description: Use this skill when reviewing an epic's PRD quality before /ptp:plan — the read-only PRD-quality gate that mirrors /ptp:review-brainstorm one stage earlier, over the epic-scoped openspec/prds/<epic>-<slug>.md. Owns the PRD-review methodology (locate the PRD via the ptp-prd selector→epic projection, the rubric, Critical/High/Medium/Low classification, the PASS/WARN/FAIL verdict, and the report + next-step recommendation) that the thin /ptp:review-prd command delegates to. Read-only: edits nothing, runs no git, runs no branch guard, runs no openspec validate, and triggers no other ptp command.
+description: Use this skill when reviewing an epic's PRD quality before /ptp:plan — the read-only PRD-quality gate that mirrors /ptp:review-brainstorm one stage earlier, over the change-folder openspec/changes/<id>/prd.md. Owns the PRD-review methodology (locate the PRD via the ptp-prd selector→epic projection + lowest-story resolution, the rubric, Critical/High/Medium/Low classification, the PASS/WARN/FAIL verdict, and the report + next-step recommendation) that the thin /ptp:review-prd command delegates to. Read-only: edits nothing, runs no git, runs no branch guard, runs no openspec validate, and triggers no other ptp command.
 ---
 
 # ptp-review-prd — the PRD-quality gate methodology
@@ -13,10 +13,11 @@ This skill owns the **PRD-review methodology** and is the **single source of tru
 substance.
 
 It is the **read-only PRD-quality gate** that audits an epic's **PRD**
-(`openspec/prds/<epic>-<slug>.md`, authored by `/ptp:prd`) before it feeds `/ptp:plan`, so a thin or
-placeholder PRD is caught *before* it silently yields a thin epic plan. It is the PRD-stage analogue of
-`/ptp:review-brainstorm` (which audits a change's `brainstorm.md`) one stage earlier than
-`/ptp:review-plan` (which audits the OpenSpec artifacts and runs `openspec validate`).
+(`openspec/changes/<id>/prd.md`, authored by `/ptp:prd`, where `<id>` is the epic's lowest-numbered
+story) before it feeds `/ptp:plan`, so a thin or placeholder PRD is caught *before* it silently yields
+a thin epic plan. It is the PRD-stage analogue of `/ptp:review-brainstorm` (which audits a change's
+`brainstorm.md`) one stage earlier than `/ptp:review-plan` (which audits the OpenSpec artifacts and
+runs `openspec validate`).
 
 This skill is **read-only**: it edits nothing, fixes nothing, runs no git, runs no `ptp-branch-guard`,
 runs **no** `openspec validate` (see below), and triggers no other ptp command. It reads the PRD (and
@@ -26,9 +27,9 @@ existing specs/changes for context) and reports.
 
 ## Locating the PRD
 
-PRDs are **epic-scoped** (one per epic), not change-scoped. Resolve the target PRD(s) by reusing
-`ptp-prd`'s selector→epic projection and `<slug>`-from-lowest-story rule — do **not** invent a new
-resolution heuristic:
+PRDs are **epic-scoped** (one per epic), anchored to the epic's lowest-numbered story change folder.
+Resolve the target PRD(s) by reusing `ptp-prd`'s selector→epic projection and lowest-story rule —
+do **not** invent a new resolution heuristic:
 
 1. **Selector → epic projection (additive layer, owned by `ptp-prd`).** Resolve `$ARGUMENTS` to a set
    of epics:
@@ -42,13 +43,13 @@ resolution heuristic:
      review** and **skipped** (per `ptp-prd`). If every supplied selector is a legacy id, report
      nothing-to-do and exit.
 
-2. **`<slug>` resolution.** For each epic, derive `<slug>` selector-independently from the `<desc>` of
-   the epic's **lowest-numbered story**, determined across **both active and archived** changes (scan
-   `openspec/changes/<id>/` and `openspec/changes/archive/<id>/`, stripping any archive date prefix), so
-   the slug stays stable even after the first story is archived. Target the PRD at
-   `openspec/prds/<epic>-<slug>.md`. This is the same single naming rule `ptp-prd` writes to.
+2. **`<id>` resolution.** For each epic, resolve `<id>` — the epic's **lowest-numbered story** —
+   across **both active and archived** changes (scan `openspec/changes/<id>/` and
+   `openspec/changes/archive/<date>-<id>/`, stripping any archive date prefix), so the anchor stays
+   stable even after the first story is archived. Target the PRD at
+   `openspec/changes/<id>/prd.md`. This is the same single naming rule `ptp-prd` writes to.
 
-3. **Missing PRD file.** A missing `openspec/prds/<epic>-<slug>.md` is **not** an abort — it is a
+3. **Missing PRD file.** A missing `openspec/changes/<id>/prd.md` is **not** an abort — it is a
    **Critical** "no PRD to review" finding inside the rubric (check 1), mirroring the missing
    `brainstorm.md` handling in `ptp-review-brainstorm`.
 

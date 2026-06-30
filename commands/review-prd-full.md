@@ -1,16 +1,16 @@
 ---
-description: Dual-reviewer inline-fix PRD-review loop — runs the Superpowers PRD loop then (per codex.mode) the Codex PRD loop, editing the epic PRD openspec/prds/<epic>-<slug>.md to resolve confirmed findings until each phase converges or the iteration cap is reached; Phase 2 starts only if Phase 1 converges; epic-scoped; runs no openspec validate (a PRD precedes any spec — the one divergence from /ptp:review-plan-full)
+description: Dual-reviewer inline-fix PRD-review loop — runs the Superpowers PRD loop then (per codex.mode) the Codex PRD loop, editing the epic PRD openspec/changes/<id>/prd.md to resolve confirmed findings until each phase converges or the iteration cap is reached; Phase 2 starts only if Phase 1 converges; epic-scoped; runs no openspec validate (a PRD precedes any spec — the one divergence from /ptp:review-plan-full)
 argument-hint: "[epic-selector] (optional — id, epic:XXXX, story:NN, or epic:XXXX story:NN; omit to review ALL active epics' PRDs)"
 ---
 
 You are running **`/ptp:review-prd-full`** — the **dual-reviewer** (Superpowers + Codex) variant of
 `/ptp:review-prd`, exactly as `/ptp:review-plan-full` is to `/ptp:review-plan` and
 `/ptp:review-brainstorm-full` is to `/ptp:review-brainstorm`. It audits an epic's **PRD**
-(`openspec/prds/<epic>-<slug>.md`), before any proposal/spec/brainstorm artifacts for the epic plan
-exist, with two independent reviewers run as **inline-fix convergence loops** — **editing the PRD** to
-resolve confirmed findings until each phase converges to zero confirmed findings or the configured
-iteration cap is reached — so a thin or placeholder PRD is caught *and fixed* from two angles *before*
-it silently yields a thin epic plan.
+(`openspec/changes/<id>/prd.md`, where `<id>` is the epic's lowest-numbered story), before any
+proposal/spec/brainstorm artifacts for the epic plan exist, with two independent reviewers run as
+**inline-fix convergence loops** — **editing the PRD** to resolve confirmed findings until each phase
+converges to zero confirmed findings or the configured iteration cap is reached — so a thin or placeholder
+PRD is caught *and fixed* from two angles *before* it silently yields a thin epic plan.
 
 This mirrors `/ptp:review-plan-full` (which loops over the plan artifacts) and
 `/ptp:review-brainstorm-full` (which loops over the brainstorm) — the `-full` suffix means a
@@ -82,7 +82,7 @@ gate, the combined terminal state, the report shape, the single-combined-marker-
 deliberate no-`openspec validate` divergence all live in the **`ptp-review-prd-full`** skill (the
 `commands/config.md` → `skills/ptp-config` split). Do not restate the skill's methodology here.
 
-On completion the run stamps the combined `openspec/prds/reviews/<epic>-<slug>.json` review-convergence
+On completion the run stamps the combined `openspec/changes/<id>/reviews/prd.json` review-convergence
 marker once per epic (per the `ptp-review-prd-full` skill's single-combined-write protocol).
 
 ## Hard rules
