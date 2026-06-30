@@ -1,12 +1,12 @@
 ---
-description: Read-only PRD-quality gate before /ptp:plan — audits an epic's PRD (openspec/prds/<epic>-<slug>.md) for PASS/WARN/FAIL before it feeds the epic plan; delegates to the ptp-review-prd skill, runs no branch guard, runs no openspec validate, edits nothing
+description: Read-only PRD-quality gate before /ptp:plan — audits an epic's PRD (openspec/changes/<id>/prd.md) for PASS/WARN/FAIL before it feeds the epic plan; delegates to the ptp-review-prd skill, runs no branch guard, runs no openspec validate, edits nothing
 argument-hint: "[epic-selector] (optional — id, epic:XXXX, story:NN, or epic:XXXX story:NN; omit to review ALL active epics' PRDs)"
 ---
 
 You are running the **PRD-quality gate** of the ptp flow — an optional read-only step that audits an
-epic's **PRD** (`openspec/prds/<epic>-<slug>.md`, authored by `/ptp:prd`), before any
-proposal/spec/brainstorm artifacts for the plan exist, so a thin or placeholder PRD is caught *before*
-it silently yields a thin epic plan.
+epic's **PRD** (`openspec/changes/<id>/prd.md`, where `<id>` is the epic's lowest-numbered story,
+authored by `/ptp:prd`), before any proposal/spec/brainstorm artifacts for the plan exist, so a thin or
+placeholder PRD is caught *before* it silently yields a thin epic plan.
 
 This is the PRD-stage analogue of `/ptp:review-brainstorm`. It is **not** `/ptp:review-plan`: that
 command audits the *artifacts* (`proposal.md` / `design.md` / `tasks.md` / spec deltas) after
