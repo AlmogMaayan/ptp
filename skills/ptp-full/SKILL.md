@@ -49,7 +49,7 @@ Enter Phase B **only if every** captured slice reached a green plan-convergence 
 2. **Run the `ptp-workflow-cache-heal` step** (see that skill for the canonical Bash command) via the
    Bash tool, then **launch the run workflow** with the slices in plan order:
    ```
-   Workflow({ name: 'ptp-full-run', args: { stories } })
+   Workflow({ name: 'ptp:ptp-full-run', args: { stories } })
    ```
    where `stories = [{ id, model, effort }, …]`. The workflow loops the slices in order, spawning `agentType:'ptp:ptp-apply'` at each slice's `model` (effort injected as a prompt directive) then `agentType:'ptp:ptp-review'` at `opus`, one slice fully before the next, and returns `{ results, halted, total }`.
 3. **Run-convergence gate (the workflow's `halted`).** A slice whose apply does not reach `stageReached === 'completed'`, or whose review `terminalState !== 'BOTH_PHASES_DONE'`, halts the **whole run** — the workflow stops the loop. This is the run phase's own gate, identical to `/ptp:full-run`; it is independent of the plan-convergence gate.
