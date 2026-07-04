@@ -260,13 +260,17 @@ brainstorm → plan → apply → review → archive
 
 ### Step 0 — PRD (optional, upstream)
 
-**`/ptp:prd [<changeid | epic:XXXX | story:XX> …]`** — author an epic-scoped Product Requirements
-Document at `openspec/changes/<id>/prd.md` (where `<id>` is the epic's lowest-numbered story)
-before brainstorming or planning. Resolves the selector to a set of epics (one PRD per epic) and
-runs the authoring work at `opus.high` via the `ptp-prd` skill. When the `prd-taskmaster` plugin is
-present the PRD is authored via `prd:generate` and relocated into the change folder; when the plugin
-is absent a structured PRD is authored inline and said so (graceful auto-degrade). Non-interactive.
-Omit the selector to run for all active epics. Recommends `/ptp:plan` as the next step.
+**`/ptp:prd [<changeid | epic:XXXX | story:XX | "<free-text description>"> …]`** — author an
+epic-scoped Product Requirements Document at `openspec/changes/<id>/prd.md` (where `<id>` is the
+epic's lowest-numbered story) before brainstorming or planning. `/ptp:prd` is a **limited/hybrid
+producer**: for a selector it resolves to a set of existing epics (one PRD per epic, consumer path);
+for a **free-text argument** (not a selector and matching no existing active folder) it **allocates a
+fresh epic** via `ptp-change-selector` §4, creates the change folder, and authors that epic's PRD into it —
+so a raw idea can start a fresh epic the way `/ptp:brainstorm` and `/ptp:plan` do. Runs the authoring
+work at `opus.high` via the `ptp-prd` skill. When the `prd-taskmaster` plugin is present the PRD is
+authored via `prd:generate` and relocated into the change folder; when the plugin is absent a
+structured PRD is authored inline and said so (graceful auto-degrade). Non-interactive. Omit the
+selector to run for all active epics. Recommends `/ptp:plan` as the next step.
 
 **`/ptp:prd-full <epic-selector>`** — seam-free union of `/ptp:prd` and `/ptp:review-prd-full` in one
 uninterrupted flow. Authors the epic PRD, then — without a manual re-invocation — continues into the
@@ -477,6 +481,7 @@ Experimental (no Superpowers layer)
 
 | Version | Changes |
 |---------|---------|
+| **0.1.33** | Promote `/ptp:prd` to a limited/hybrid producer: a free-text argument that doesn't parse as any known selector form and doesn't match an existing active change folder is now classified as a description, a fresh epic is allocated via `ptp-change-selector` §4 (the same algorithm `/ptp:brainstorm` uses), and the PRD is authored into the new `openspec/changes/<id>/prd.md` — instead of erroring out with a "no active epics" abort. `ptp-prd`, `ptp-change-selector` (§4/§5), `commands/prd.md`, and the `prd-authoring`/`change-selector` spec deltas updated accordingly. |
 | **0.1.32** | Relocate PRD artifacts into the change folder: `/ptp:prd` now writes `openspec/changes/<id>/prd.md` (where `<id>` is the epic's lowest-numbered story) instead of a standalone `openspec/prds/` folder; the `kind=prd` review-convergence marker moves to `openspec/changes/<id>/reviews/prd.json`; the `artifact_filename` stable-key becomes the constant `"prd.md"`. All PRD-family skills (`ptp-prd`, `ptp-review-prd`, `ptp-review-prd-full`, `ptp-prd-full`, `ptp-review-loop`), six commands (`prd`, `prd-full`, `review-prd`, `review-prd-full`, `codex-review-prd`, `codex-review-prd-loop`), and active delta specs (0019_01, 0021_01, 0021_02) updated to the new paths. |
 | **0.1.31** | Add the PRD-stage orchestrators — `/ptp:review-prd-full` command + `ptp-review-prd-full` skill (dual-reviewer inline-fix PRD loop: Superpowers then Codex per `codex.mode`, Phase 2 gated on Phase 1 convergence, one combined epic-scoped marker, no `openspec validate`) and `/ptp:prd-full` command + `ptp-prd-full` skill (seam-free PRD author → prd-gate → dual-reviewer review in one flow). |
 | **0.1.30** | Add the PRD-review family — `/ptp:review-prd` command + `ptp-review-prd` skill (read-only single-pass Superpowers PRD-quality gate), `/ptp:codex-review-prd` (closed-book Codex PRD audit), and `/ptp:codex-review-prd-loop` (Codex PRD inline-fix loop). Extend `ptp-review-loop` with a first-class epic-scoped `kind=prd` (no `openspec validate`, epic-scoped marker `openspec/prds/reviews/<epic>-<slug>.json`). |

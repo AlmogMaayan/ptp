@@ -18,9 +18,10 @@ or backend is absent — or generation produces no fresh output — the skill au
 inline and says so explicitly, mirroring the Superpowers graceful-degrade contract. The `/ptp:prd`
 command is the thin front door; this skill holds the substance.
 
-No standalone `openspec/prds/` folder is created — the PRD is written directly into the existing
-change folder (`openspec/changes/<id>/`), co-located with `brainstorm.md`, `proposal.md`, and the
-other ptp artifacts for that change.
+No standalone `openspec/prds/` folder is created — the PRD is written directly into the change
+folder (`openspec/changes/<id>/`), co-located with `brainstorm.md`, `proposal.md`, and the other ptp
+artifacts for that change. For the selector/consumer path that change folder already exists; for the
+free-text producer path the folder is freshly created by the free-text branch (see below).
 
 ---
 
@@ -28,7 +29,7 @@ other ptp artifacts for that change.
 
 | Input | Values | Source |
 |-------|--------|--------|
-| `selectors` | One or more of: bare change id, `epic:XXXX`, `story:NN`, `epic:XXXX story:NN`, multiple whitespace-separated; omit = all active epics | `$ARGUMENTS` from the command |
+| `selectors` | One or more of: bare change id, `epic:XXXX`, `story:NN`, `epic:XXXX story:NN`, multiple whitespace-separated; a free-text description (produces a fresh epic — see the free-text branch below); omit = all active epics | `$ARGUMENTS` from the command |
 
 The branch guard has already run in the outer session before this skill is invoked. This skill does
 **not** re-run the branch guard. It receives the selectors and performs the projection and authoring.
@@ -57,8 +58,42 @@ For example, `/ptp:prd epic:0019 story:02 epic:0020` parses as the compound `epi
 and skip it (PRDs are epic-scoped). If every supplied selector is a legacy id, report nothing-to-do
 and exit without writing.
 
-**Empty result:** if the selector resolves to no active epics, report nothing-to-do and exit without
-writing any file (no error).
+**Free-text branch (producer path):** when the argument is **free text**, treat the whole
+`$ARGUMENTS` string as a **description** and produce a fresh epic for it. The argument is free text
+iff **all** of: (a) `$ARGUMENTS` is non-empty, (b) it carries no `epic:` or `story:` reserved-prefix
+token, and (c) it does not exactly equal an existing active change folder name under
+`openspec/changes/`. In that case:
+
+1. Derive `<desc>` = ≤ 5 kebab-case words from `$ARGUMENTS` (the same rule §4 producers use).
+2. Allocate a fresh single-story epic `XXXX_01_<desc>` via the `ptp-change-selector` §4
+   epic-allocation algorithm (max of active + archived 4-digit epic prefixes, plus one, zero-padded
+   to four digits).
+3. **Create the change folder** `openspec/changes/XXXX_01_<desc>/` (it does **not** pre-exist).
+4. Author the PRD into `openspec/changes/XXXX_01_<desc>/prd.md`.
+
+This makes `/ptp:prd` a **producer** for the free-text case — consistent with how `/ptp:brainstorm`,
+`/ptp:plan`, and `/ptp:analyze` accept free text and allocate a fresh epic — while it remains a
+consumer/projector for every selector form.
+
+**Precedence (order the branches are evaluated).** Evaluate detection in this exact order so the
+consume path is never lost and free text reaches the producer branch instead of erroring:
+
+1. **Base §2 classification + folder-match first.** If the argument exactly equals an existing active
+   change folder name, it resolves to that folder (**folder-match wins** → consume/project path,
+   unchanged). A folder-matching bare id is never reinterpreted as free text.
+2. **Free-text branch next** — evaluated **before** the "Empty result" check below and, critically,
+   **before** base §3 resolution would STOP on an unmatched bare id. Only a non-free-text argument is
+   handed to §3 resolution, whose `"no change <id>"` STOP still applies to consumers. An argument
+   carrying an `epic:`/`story:` token is **not** free text — it falls through to the per-selector
+   handling above (including its own "no change / unsupported" outcomes).
+3. **§3 resolve / project**, then the empty-result exit, for everything that is neither a
+   folder-match nor free text.
+
+**Empty result:** if a **selector** resolves to no active epics, report nothing-to-do and exit
+without writing any file (no error). This fires only for genuine selector-with-no-match cases — e.g.
+`epic:9999`, an all-legacy-ids selection, or an omitted argument when there are no active changes. It
+**never** fires for a free-text argument: free text always targets exactly one freshly-allocated
+epic and therefore always produces a PRD, so it MUST NOT be swept into the nothing-to-do exit.
 
 **v1:** always one PRD per epic. A combined multi-epic PRD is out of scope for this skill — the
 non-interactive command exposes no selector form to name a unified initiative.
@@ -74,9 +109,21 @@ at target **`opus.high`**, one foreground subagent per epic, in sequence (one su
 invocation, no fan-out). The selector projection and the "empty result" check stay in the outer
 session (cheap, abort-capable). Only the per-epic authoring work runs in the subagent.
 
+For the **free-text case**, the outer session performs only **read-only classification** (it
+recognizes the argument is free text so it can skip the empty-result abort and derive the
+branch name); the actual **epic allocation (§4), folder creation (`mkdir`), and PRD authoring all
+happen inside the subagent** — allocation is a producer write concern and MUST NOT create any
+producer state before the branch is confirmed.
+
 The subagent prompt **must carry** the following instruction: *the subagent's own `ptp-branch-guard`
 check is a **no-op** (HEAD is already on the feature branch from the outer guard) — it MUST NOT
 launch `ptp-branch-prep`.*
+
+For the **free-text case**, the subagent prompt **must also carry** the raw `$ARGUMENTS` string and
+the outer session's free-text classification, because allocation, `<desc>` derivation, folder
+creation, and authoring all run inside the subagent — without the raw description it cannot derive
+`<desc>`, allocate `XXXX_01_<desc>`, or seed the discovery summary. The subagent re-confirms the
+free-text condition (a/b/c) from that raw argument before allocating.
 
 Reference the `ptp-run-at-model` skill for the spawn-and-relay mechanics rather than restating them
 here.
@@ -119,12 +166,23 @@ number):
 Skip missing files silently. Feed this aggregated context as the discovery summary to
 `prd:generate`.
 
+**Brand-new free-text epic — thin context is expected.** When the epic was just allocated by the
+free-text branch, it has no prior `brainstorm.md`/`proposal.md` and no archived stories, so this
+unconditional pre-load yields little or no aggregated context. In that case the free-text description
+(the raw `$ARGUMENTS` string) **MUST itself be included in the discovery summary** as the primary
+authoring seed, so the PRD is authored primarily from the free-text description rather than from an
+empty context. This thin context is **expected, not an error** — do not treat it as a failure or skip
+authoring.
+
 ---
 
 ## Invoke `prd:generate`
 
 When the backend resolves (Phase 0 succeeded), invoke the **`prd:generate`** skill via the Skill
-tool, passing the aggregated epic context as the discovery summary.
+tool, passing the aggregated epic context as the discovery summary. For the **free-text case** the
+aggregated context is thin/empty, so the discovery summary passed here **MUST include the free-text
+description** (the raw `$ARGUMENTS` string) as the primary authoring seed — otherwise the generator
+would receive effectively empty context for the brand-new epic.
 
 **MUST NOT invoke:**
 - `prd:go` — starts the interactive `AskUserQuestion` discovery flow
@@ -146,8 +204,10 @@ prior-run file for fresh output:
 2. **After** `prd:generate` completes: check for a freshly created, **non-empty**
    `.taskmaster/docs/prd.md`.
    - If present and non-empty: **move** (relocate, not copy) it to
-     `openspec/changes/<id>/prd.md`. No `openspec/prds/` directory is created; the change folder
-     already exists.
+     `openspec/changes/<id>/prd.md`. No `openspec/prds/` directory is created. For the **selector
+     case** the change folder pre-exists; for the **free-text case** the folder was just created by
+     the free-text branch (allocate + `mkdir openspec/changes/<id>/`) — so ensure the folder exists
+     (`mkdir -p`) before writing.
    - If absent or empty: report the failure and proceed to the **inline fallback**. First delete the
      empty fresh `.taskmaster/docs/prd.md` if the current invocation created one — so no stale
      staging file lingers (the spec's end-state allows only a renamed pre-existing backup to
@@ -167,7 +227,9 @@ deterministically (idempotent).
 ## Inline fallback
 
 Author a structured PRD inline — autonomously, using the **pre-loaded epic context** as the basis
-and documenting assumptions — when any of the following occur:
+(for the **free-text case**, where that context is thin/empty, the free-text description — the raw
+`$ARGUMENTS` string — is the primary basis) and documenting assumptions — when any of the following
+occur:
 
 - The prd-taskmaster plugin or its backend is absent (Phase 0 found neither backend).
 - The `prd:generate` skill entry point cannot be resolved (interface drift).
@@ -188,7 +250,9 @@ The inline PRD MUST carry the **minimum PRD schema**:
 
 Write the inline PRD directly to `openspec/changes/<id>/prd.md` (same path as the relocation
 target) and **state explicitly** in the report that the inline authoring path was taken (say why —
-plugin absent, interface drift, or generation failure).
+plugin absent, interface drift, or generation failure). As with the relocation path, the change
+folder pre-exists for the selector case but was created by the free-text branch for the free-text
+case — ensure `openspec/changes/<id>/` exists (`mkdir -p`) before writing.
 
 The inline fallback MUST NOT hard-fail: `/ptp:prd` never fails to start over a missing optional
 plugin.
@@ -203,9 +267,14 @@ plugin.
   or source code.
 - **One PRD per epic**: never merge multiple epics into a single combined PRD (deferred — no
   selector form names a unified multi-epic initiative in v1).
+- **Producer only for free text**: `/ptp:prd` allocates an epic (`XXXX_01_<desc>` via §4) **only**
+  for the free-text case (non-empty argument, no `epic:`/`story:` token, matching no existing active
+  change folder). For every selector form it consumes/projects onto existing epics and allocates nothing.
+  Folder-match always wins over free-text reinterpretation.
 - **Never hard-fail over the missing optional plugin**: always produce a PRD (inline if needed) or
   report nothing-to-do on an empty selection.
 - **Recommend `/ptp:plan`** as the next step after writing the PRD.
 - **Output location**: the PRD is written to `openspec/changes/<id>/prd.md` (the change folder for
   the epic's lowest-numbered story). No standalone `openspec/prds/` folder is created; the change
-  folder already exists, and the `reviews/` subfolder is created on demand as needed.
+  folder pre-exists for the selector case and is created (`mkdir`) by the free-text branch for the
+  free-text case, and the `reviews/` subfolder is created on demand as needed.
