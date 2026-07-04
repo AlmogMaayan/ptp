@@ -39,8 +39,8 @@ The outer session runs only the abort-guaranteeing preconditions before doing an
    going forward.**
 
 3. **Branch guard** — run the `ptp-branch-guard` preamble on the allocated change id: if HEAD is
-   `master`, derive `ptp/<change-id>` and launch the minimal `ptp-branch-prep` workflow (stash →
-   checkout master → pull → cut the branch) **before** any file write; if already on a feature branch
+   the base branch (`master`/`main`), derive `ptp/<change-id>` and launch the minimal `ptp-branch-prep` workflow (stash →
+   checkout the base branch → pull → cut the branch) **before** any file write; if already on a feature branch
    it is a **no-op** — proceed as-is. The full rule lives in the `ptp-branch-guard` skill — do not
    restate it here.
 

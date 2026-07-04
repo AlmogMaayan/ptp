@@ -1,11 +1,11 @@
 ---
-description: Apply-then-review-full every change in a single sequential Claude Code workflow — each story's apply agent runs at the model from its effort.md; collapses the former full-run-effort (uses Codex per codex.mode — only required hard-requires the codex CLI)
+description: Apply-then-review-full every change in a single sequential Claude Code workflow — each story's apply agent runs at the model from its effort.md (uses Codex per codex.mode — only required hard-requires the codex CLI)
 argument-hint: "[change-selector or id …] (epic:XXXX, id list, or omit to run all active changes)"
 ---
 
 `/ptp:full-run` applies and code-reviews every change in one invocation by launching the `ptp-full-run` workflow, which runs `apply → review-full` per story sequentially — one story fully before the next. Each story's apply agent runs at the model read from that story's `effort.md`; review always runs at `opus.high`. The per-story loop, change discovery/ordering, and resume/report all live in the shared `ptp-full-run` skill and its workflow script (`workflows/ptp-full-run.js`, launched by the named form `Workflow({ name: 'ptp:ptp-full-run' })`) — this command defers to them rather than restating their detail.
 
-This single command replaces the former `/ptp:full-run` / `/ptp:full-run-effort` pair. Because each workflow agent carries its own model (the apply agent at the story's `effort.md` model, the review agent at `opus`), there is no single-dial session model/effort thrash to gate against — so the old `effort_gate` and its stop-and-suggest-a-`/model`+`/effort`-switch behavior are gone.
+Because each workflow agent carries its own model (the apply agent at the story's `effort.md` model, the review agent at `opus`), there is no single-dial session model/effort thrash to gate against — the run needs no model/effort gate and never stops to suggest a `/model`+`/effort` switch.
 
 ## Inputs
 
@@ -20,7 +20,7 @@ Selector resolution per `ptp-change-selector`; ordering by epic then story per t
 
 ## Branch safety (first step)
 
-Run the **`ptp-branch-guard`** preamble **once up front**, before launching the workflow: check `git rev-parse --abbrev-ref HEAD`; if it is `master`, derive a feature-branch name from the resolved change ids (the epic / first story → `ptp/epic-XXXX`) and launch the minimal `ptp-branch-prep` workflow (stash → checkout master → pull → cut the branch) **before** the apply/review workflow runs; if you are already on a feature branch it is a **no-op** — proceed as-is. The `ptp-apply` / `ptp-review` workflow agents then operate on that branch. The full rule lives in the **`ptp-branch-guard`** skill — do not restate it here.
+Run the **`ptp-branch-guard`** preamble **once up front**, before launching the workflow: check `git rev-parse --abbrev-ref HEAD`; if it is the base branch (`master`/`main`), derive a feature-branch name from the resolved change ids (the epic / first story → `ptp/epic-XXXX`) and launch the minimal `ptp-branch-prep` workflow (stash → checkout the base branch → pull → cut the branch) **before** the apply/review workflow runs; if you are already on a feature branch it is a **no-op** — proceed as-is. The `ptp-apply` / `ptp-review` workflow agents then operate on that branch. The full rule lives in the **`ptp-branch-guard`** skill — do not restate it here.
 
 ## Preconditions
 

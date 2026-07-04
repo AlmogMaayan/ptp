@@ -1,6 +1,6 @@
 ---
 description: Translate the chosen Superpowers plan into OpenSpec proposal/design/tasks/spec-deltas, then validate
-argument-hint: "[change-id] (optional — kebab-case; will be derived from the request if omitted)"
+argument-hint: "[change-id] (optional — XXXX_NN_<kebab-description> per ptp-change-selector; derived from the request if omitted)"
 ---
 
 You are running **step 2** of the ptp flow. The chosen direction came from `/ptp:brainstorm`. Your job now is to:
@@ -16,7 +16,7 @@ Change id (if provided): $ARGUMENTS
 
 ## Branch safety (first step)
 
-Before creating or updating **any** file, run the **`ptp-branch-guard`** preamble: check `git rev-parse --abbrev-ref HEAD`; if it is `master`, derive a feature-branch name from the change id you allocate in step 1 (→ `ptp/<change-id>`) and launch the minimal `ptp-branch-prep` workflow (stash → checkout master → pull → cut the branch) **before** writing anything; if you are already on a feature branch it is a **no-op** — proceed as-is. The full rule (branch naming, the workflow contract, the hard rules) lives in the **`ptp-branch-guard`** skill — do not restate it here.
+Before creating or updating **any** file, run the **`ptp-branch-guard`** preamble: check `git rev-parse --abbrev-ref HEAD`; if it is the base branch (`master`/`main`), derive a feature-branch name from the change id you allocate in step 1 (→ `ptp/<change-id>`) and launch the minimal `ptp-branch-prep` workflow (stash → checkout the base branch → pull → cut the branch) **before** writing anything; if you are already on a feature branch it is a **no-op** — proceed as-is. The full rule (branch naming, the workflow contract, the hard rules) lives in the **`ptp-branch-guard`** skill — do not restate it here.
 
 ## Preconditions
 
@@ -128,7 +128,7 @@ When a change straddles two levels on either dial, round up to the safer (more c
 
 ## Hard rules
 
-- Do **not** call `/openspec:propose` to generate proposal/design text. Superpowers produced the thinking; you are just transcribing it into OpenSpec's file format.
+- Do **not** call `/opsx:propose` (nor the vendored `ptp:openspec-propose` skill) to generate proposal/design text. Superpowers produced the thinking; you are just transcribing it into OpenSpec's file format.
 - Do **not** edit any OpenSpec managed/regenerated instruction blocks.
 - Do **not** start implementing. That is `/ptp:apply`.
 - Do **not** write a `proposal.md` whose content was not first produced by `superpowers:brainstorming` (or pulled from an existing brainstorming design doc). If you skipped brainstorming, you are violating the spirit of ptp — go back and invoke it.

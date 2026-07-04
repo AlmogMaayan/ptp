@@ -1,6 +1,6 @@
 ---
 name: ptp-version
-description: Use this skill to resolve and compare ptp plugin versions — the installed version (from claude plugin list --json → id ptp@ptp → .version), the latest available version (via a claude plugin marketplace update ptp refresh + local marketplace.json read, with a GitHub raw fallback), and an up-to-date / update-available / installed-ahead verdict. The single source of truth for ptp version resolution, reused by /ptp:version (and, later, /ptp:update). Read-only with respect to the repo and the installed plugin; never uses the --available flag; never emits a false verdict.
+description: Use this skill to resolve and compare ptp plugin versions — the installed version (from claude plugin list --json → id ptp@ptp → .version), the latest available version (via a claude plugin marketplace update ptp refresh + local marketplace.json read, with a GitHub raw fallback), and an up-to-date / update-available / installed-ahead verdict. The single source of truth for ptp version resolution, reused by /ptp:version and /ptp:update. Read-only with respect to the repo and the installed plugin; never uses the --available flag; never emits a false verdict.
 ---
 
 # ptp-version — version resolution + comparison
@@ -9,10 +9,10 @@ description: Use this skill to resolve and compare ptp plugin versions — the i
 
 This skill owns ptp plugin **version resolution and comparison**. It is the **single source of
 truth** for three things — the **installed** version, the **latest** available version, and the
-**comparison verdict** between them — and is reused by every version-reporting ptp command. Today
-that is `/ptp:version` (a read-only viewer); slice 02's `/ptp:update` will delegate the *resolution*
-to this skill and then perform the mutation itself, so the resolution logic lives in exactly one
-place and is never re-derived.
+**comparison verdict** between them — and is reused by every version-reporting ptp command. Two
+commands reuse it: `/ptp:version` (a read-only viewer) and `/ptp:update` (which delegates the
+*resolution* to this skill and then performs the mutation itself), so the resolution logic lives in
+exactly one place and is never re-derived.
 
 This skill is **read-only with respect to the repository and the installed plugin**: it shells out
 to `claude` (read subcommands plus a cache-refreshing `marketplace update`, which mutates only the

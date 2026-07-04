@@ -9,11 +9,11 @@ You are running the **loop variant of `/ptp:review`** — a Superpowers code-rev
 
 Change id: $ARGUMENTS
 
-Resolve `$ARGUMENTS` as a change selector per the `ptp-change-selector` skill; if it resolves to more than one change, run the steps below for each, in story order, reporting per change.
+Resolve `$ARGUMENTS` as a change selector per the `ptp-change-selector` skill; if it resolves to more than one change, run the steps below for each, in story order, reporting per change. Pass the **resolved change id** — never the raw `$ARGUMENTS` selector — into `ptp-review-loop` (`ptp-change-selector` mandates the resolved id; the loop processes exactly one change per invocation).
 
 ## Branch safety (first step)
 
-This loop applies inline code fixes, so before any fix run the **`ptp-branch-guard`** preamble: check `git rev-parse --abbrev-ref HEAD`; if it is `master`, derive a feature-branch name from the resolved change id (→ `ptp/<change-id>`) and launch the minimal `ptp-branch-prep` workflow (stash → checkout master → pull → cut the branch) **before** writing anything; if you are already on a feature branch it is a **no-op** — proceed as-is. The full rule lives in the **`ptp-branch-guard`** skill — do not restate it here.
+This loop applies inline code fixes, so before any fix run the **`ptp-branch-guard`** preamble: check `git rev-parse --abbrev-ref HEAD`; if it is the base branch (`master`/`main`), derive a feature-branch name from the resolved change id (→ `ptp/<change-id>`) and launch the minimal `ptp-branch-prep` workflow (stash → checkout the base branch → pull → cut the branch) **before** writing anything; if you are already on a feature branch it is a **no-op** — proceed as-is. The full rule lives in the **`ptp-branch-guard`** skill — do not restate it here.
 
 ## Preconditions
 
@@ -33,7 +33,7 @@ The subagent invokes the `ptp-review-loop` skill with:
 
 - `kind = code`
 - `reviewer = superpowers`
-- `change-id = $ARGUMENTS`
+- `change-id = <the resolved change id>` (the single id being processed this pass — not the raw `$ARGUMENTS` selector)
 
 The skill drives the full loop: per-iteration Superpowers code review, manual/test-only finding filter, rejection carry-over check, confirmation via `superpowers:receiving-code-review`, inline fix pass on confirmed findings, test/lint/typecheck verification, and termination at DONE or ITERATION CAP REACHED.
 

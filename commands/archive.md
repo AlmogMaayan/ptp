@@ -1,6 +1,6 @@
 ---
 description: Archive a completed, reviewed OpenSpec change — syncs delta specs into main specs via the OpenSpec CLI
-argument-hint: "<change-selector> — id, epic:XXXX, story:NN, or epic:XXXX story:NN"
+argument-hint: "[change-selector] — id, epic:all, epic:XXXX, story:NN, or epic:XXXX story:NN; empty = all active changes (openspec list disambiguation)"
 ---
 
 You are running **step 5** (the final step) of the ptp flow. The change has been implemented and reviewed. Your job is to **enforce the ptp archive gates, then archive the change via the OpenSpec CLI** (which also syncs the delta specs into the main specs).
@@ -15,7 +15,7 @@ Resolve `$ARGUMENTS` as a change selector per the `ptp-change-selector` skill; i
 
 ## Branch safety (first step)
 
-Archiving moves the change folder and rewrites `openspec/specs/`, so before any move run the **`ptp-branch-guard`** preamble: check `git rev-parse --abbrev-ref HEAD`; if it is `master`, derive a feature-branch name from the resolved change id (→ `ptp/<change-id>`) and launch the minimal `ptp-branch-prep` workflow (stash → checkout master → pull → cut the branch) **before** writing anything; if you are already on a feature branch it is a **no-op** — proceed as-is. The full rule lives in the **`ptp-branch-guard`** skill — do not restate it here.
+Archiving moves the change folder and rewrites `openspec/specs/`, so before any move run the **`ptp-branch-guard`** preamble: check `git rev-parse --abbrev-ref HEAD`; if it is the base branch (`master`/`main`), derive a feature-branch name from the resolved change id (→ `ptp/<change-id>`) and launch the minimal `ptp-branch-prep` workflow (stash → checkout the base branch → pull → cut the branch) **before** writing anything; if you are already on a feature branch it is a **no-op** — proceed as-is. The full rule lives in the **`ptp-branch-guard`** skill — do not restate it here.
 
 ## Steps
 

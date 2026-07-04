@@ -35,10 +35,10 @@ order**:
    abort-precondition-before-branch rule — cutting one ahead of a guaranteed abort just leaves a
    throwaway branch).
 
-3. **Branch guard** — run the `ptp-branch-guard` preamble on the resolved epic: if HEAD is `master`,
+3. **Branch guard** — run the `ptp-branch-guard` preamble on the resolved epic: if HEAD is the base branch (`master`/`main`),
    derive a feature-branch name from the resolved epic (→ `ptp/<change-id>` using the epic's
    lowest-numbered story id, or a `ptp/<≤5-kebab-word summary>` for a multi-epic/omitted selector) and
-   launch the minimal `ptp-branch-prep` workflow (stash → checkout master → pull → cut the branch)
+   launch the minimal `ptp-branch-prep` workflow (stash → checkout the base branch → pull → cut the branch)
    **before** any file write; if already on a feature branch it is a **no-op** — proceed as-is. The full
    rule lives in the `ptp-branch-guard` skill — do not restate it here.
 

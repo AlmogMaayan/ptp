@@ -1,6 +1,6 @@
 ---
 name: ptp-review-brainstorm-full
-description: Use this skill when running the dual-reviewer inline-fix brainstorm loop behind /ptp:review-brainstorm-full — the Superpowers + Codex variant of /ptp:review-brainstorm. Owns the dual-reviewer brainstorm-review contract as an inline-fix convergence loop: Phase 1 Superpowers brainstorm loop (driving ptp-review-loop kind=brainstorm), a convergence-based Phase-1-gates-Phase-2 gate, Phase 2 Codex closed-book read-only brainstorm loop (mode-gated per ptp-codex-mode, no openspec validate), and a combined terminal state. Edits brainstorm.md inline to resolve confirmed findings until each phase converges or the iteration cap is reached; never archives, never commits, never regenerates the brainstorm via /ptp:brainstorm, runs no openspec validate.
+description: "Use this skill when running the dual-reviewer inline-fix brainstorm loop behind /ptp:review-brainstorm-full — the Superpowers + Codex variant of /ptp:review-brainstorm. Owns the dual-reviewer brainstorm-review contract as an inline-fix convergence loop: Phase 1 Superpowers brainstorm loop (driving ptp-review-loop kind=brainstorm), a convergence-based Phase-1-gates-Phase-2 gate, Phase 2 Codex closed-book read-only brainstorm loop (mode-gated per ptp-codex-mode, no openspec validate), and a combined terminal state. Edits brainstorm.md inline to resolve confirmed findings until each phase converges or the iteration cap is reached; never archives, never commits, never regenerates the brainstorm via /ptp:brainstorm, runs no openspec validate."
 ---
 
 # ptp-review-brainstorm-full — the dual-reviewer inline-fix brainstorm-review methodology
@@ -163,16 +163,15 @@ run resolves (after Phase 2, or after Phase 1 if Phase 2 is gated off), the orch
 The combined write uses the **same atomic write-temp-then-rename protocol** as `ptp-review-loop`
 (serialize to a uniquely named temp file in `reviews/`, then replace `reviews/brainstorm.json` via a
 replace-if-exists rename only after the complete write succeeds; on any failure clean up the temp file
-and leave the live marker untouched — see design.md §1), so a failed overwrite cannot truncate or
+and leave the live marker untouched), so a failed overwrite cannot truncate or
 corrupt the prior marker.
 
 Because there is **never a provisional per-phase marker on disk** (every phase defers), there is no
-window within a single run in which the marker under-reports the reviewer set. Failure semantics (per
-design.md §4): on a **first** review (no prior marker) a failed single write leaves **no** marker — and
+window within a single run in which the marker under-reports the reviewer set. Failure semantics: on a **first** review (no prior marker) a failed single write leaves **no** marker — and
 status falls back to the inferred value — **never** a fabricated single-reviewer marker; on a
 **re-review** a failed overwrite leaves the **prior run's real marker** in place (the accepted staleness
 case — there is no freshness/expiry mechanism per the non-goals). A marker-write failure is reported but
-does not change the terminal state the run reached. (See design.md §1, §3–§4.)
+does not change the terminal state the run reached.
 
 `kind = brainstorm` always feeds `reviews/brainstorm.json`; there is no `code` exemption here because
 this orchestrator only ever drives the brainstorm kind.

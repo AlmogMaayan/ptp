@@ -1,6 +1,6 @@
 ---
 description: Plan an oversized change as multiple smaller OpenSpec changes — decompose into independently-shippable slices, then run /ptp:plan for each
-argument-hint: "<change-id-or-request> (the big change to split; kebab-case id of an existing monolithic plan, or a short description)"
+argument-hint: "<change-id-or-request> (the big change to split; XXXX_NN_<kebab-description> id of an existing monolithic plan, or a short description)"
 ---
 
 You are running **step 2 of the ptp flow — the multi-change variant**. Use this instead of `/ptp:plan` when a single change is too big to plan and ship as one unit. Your job is to:
@@ -21,7 +21,7 @@ Epic allocation: allocate one fresh epic for all slices per the `ptp-change-sele
 
 ## Branch safety (first step)
 
-Run the **`ptp-branch-guard`** preamble **once up front**, before delegating to any sub-step that writes: check `git rev-parse --abbrev-ref HEAD`; if it is `master`, derive a feature-branch name from this request (or the fresh epic you allocate → `ptp/epic-XXXX`) and launch the minimal `ptp-branch-prep` workflow (stash → checkout master → pull → cut the branch) **before** any sub-step runs; if you are already on a feature branch it is a **no-op** — proceed as-is. Delegated `/ptp:plan` runs re-run the guard as a no-op once HEAD is on the branch. The full rule lives in the **`ptp-branch-guard`** skill — do not restate it here.
+Run the **`ptp-branch-guard`** preamble **once up front**, before delegating to any sub-step that writes: check `git rev-parse --abbrev-ref HEAD`; if it is the base branch (`master`/`main`), derive a feature-branch name from this request (or the fresh epic you allocate → `ptp/epic-XXXX`) and launch the minimal `ptp-branch-prep` workflow (stash → checkout the base branch → pull → cut the branch) **before** any sub-step runs; if you are already on a feature branch it is a **no-op** — proceed as-is. Delegated `/ptp:plan` runs re-run the guard as a no-op once HEAD is on the branch. The full rule lives in the **`ptp-branch-guard`** skill — do not restate it here.
 
 ## When to use this vs `/ptp:plan`
 
@@ -78,8 +78,8 @@ MUST carry:
 4. **Preserve the brainstorm, then delete the monolithic plan if one exists.**
    If step 1 found an existing `openspec/changes/<id>/` **and confirmed no implementation had started**:
    - **a. Preserve first** — if `openspec/changes/<id>/brainstorm.md` exists:
-     - Create `openspec/brainstorm/` if it does not yet exist.
-     - **Move** `brainstorm.md` to `openspec/brainstorm/<id>-brainstorm.md`.
+     - Create `openspec/brainstorms/` if it does not yet exist.
+     - **Move** `brainstorm.md` to `openspec/brainstorms/<id>-brainstorm.md`.
    - **b. Then delete** the `openspec/changes/<id>/` folder — its content has been folded into the decomposition, and leaving a half-planned giant change beside the slices is confusing.
 
    If no such folder existed, skip this step. Never delete before its thinking has been captured in step 2, and never delete a change whose implementation has already started (step 1 already stopped you in that case).
@@ -102,7 +102,7 @@ MUST carry:
 ## Hard rules
 
 - Do **not** force a split. If the change is one coherent unit, fall back to a single `/ptp:plan` (step 3).
-- Do **not** delete the monolithic `openspec/changes/<id>/` folder until its thinking has been folded into the decomposition (step 2 before step 4), and only after its `brainstorm.md` (if any) has been moved to `openspec/brainstorm/<id>-brainstorm.md` — brainstorm history is preserved, while the rest of the folder (proposal/design/tasks/spec deltas, already folded into the slices) is discarded.
+- Do **not** delete the monolithic `openspec/changes/<id>/` folder until its thinking has been folded into the decomposition (step 2 before step 4), and only after its `brainstorm.md` (if any) has been moved to `openspec/brainstorms/<id>-brainstorm.md` — brainstorm history is preserved, while the rest of the folder (proposal/design/tasks/spec deltas, already folded into the slices) is discarded.
 - Do **not** decompose or delete a monolithic change whose implementation has already started (checked tasks or matching code changes). STOP and hand the decision to the user (step 1).
 - Each slice **must** be independently shippable and may depend **only on lower-numbered slices** — no cycles, no forward dependencies.
 - Do **not** write any slice's `proposal.md` content yourself from the raw request — it must come from that slice's `/ptp:plan` brainstorming, exactly like a normal single change.

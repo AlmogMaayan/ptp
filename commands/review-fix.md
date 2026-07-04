@@ -1,6 +1,7 @@
 ---
 description: Confirm the findings of the latest ptp review (code or artifacts) and fix the confirmed ones inline — the explicit fix counterpart to the review commands
 argument-hint: "[change-selector] (optional — id, epic:XXXX, story:NN, or epic:XXXX story:NN; used to locate the contract for artifact re-validation)"
+disable-model-invocation: true
 ---
 
 You are running the **fix** step of the ptp flow — the explicit, user-invoked counterpart to the review commands. Every ptp review command (`/ptp:review`, `/ptp:codex-review`, `/ptp:codex-review-uncommitted`, `/ptp:review-plan`, `/ptp:codex-review-plan`) carries one hard rule: **review never fixes.** This command is the deliberate other half. It takes the findings a review already produced, independently **confirms** which ones are real, and **fixes the confirmed ones**.
@@ -15,7 +16,7 @@ Resolve `$ARGUMENTS` as a change selector per the `ptp-change-selector` skill. T
 
 ## Branch safety (first step)
 
-This command edits code/artifacts, so before any fix run the **`ptp-branch-guard`** preamble: check `git rev-parse --abbrev-ref HEAD`; if it is `master`, derive a feature-branch name from the change under review (→ `ptp/<change-id>`) and launch the minimal `ptp-branch-prep` workflow (stash → checkout master → pull → cut the branch) **before** writing anything; if you are already on a feature branch it is a **no-op** — proceed as-is. The full rule lives in the **`ptp-branch-guard`** skill — do not restate it here.
+This command edits code/artifacts, so before any fix run the **`ptp-branch-guard`** preamble: check `git rev-parse --abbrev-ref HEAD`; if it is the base branch (`master`/`main`), derive a feature-branch name from the change under review (→ `ptp/<change-id>`) and launch the minimal `ptp-branch-prep` workflow (stash → checkout the base branch → pull → cut the branch) **before** writing anything; if you are already on a feature branch it is a **no-op** — proceed as-is. The full rule lives in the **`ptp-branch-guard`** skill — do not restate it here.
 
 ## Where the findings come from
 
@@ -60,7 +61,7 @@ Reviews in this workflow are **displayed in the conversation, not persisted to a
    - Code fixes → re-run the same review (or `/ptp:review <change-id>`) to confirm resolution, then `/ptp:archive <change-id>` once clean.
    - Artifact fixes → `/ptp:apply <change-id>` (if not yet implemented) or `/ptp:review-plan <change-id>` to re-check the artifacts.
 
-7. **Stamp the review-convergence marker (artifact / brainstorm fixes only).** `/ptp:review-fix` does NOT drive `ptp-review-loop` (no loop, no iteration cap), but on completion it stamps the **same** per-kind marker the loops write, reusing the shared schema / location / **atomic write-temp-then-rename** protocol from `ptp-review-loop`'s **## Review-convergence marker** section (and design.md §4a). Mapping the single confirm→fix→verify pass to marker fields:
+7. **Stamp the review-convergence marker (artifact / brainstorm fixes only).** `/ptp:review-fix` does NOT drive `ptp-review-loop` (no loop, no iteration cap), but on completion it stamps the **same** per-kind marker the loops write, reusing the shared schema / location / **atomic write-temp-then-rename** protocol from `ptp-review-loop`'s **## Review-convergence marker** section. Mapping the single confirm→fix→verify pass to marker fields:
    - **`kind`** — from the **frozen review's** kind: a frozen **artifact** review → `reviews/plan.json`; a frozen **brainstorm** review → `reviews/brainstorm.json`; a frozen **code** review → **NO marker** (there is no code-review column), exactly as a `kind = code` loop writes none.
    - **`reviewers`** — the frozen review's reviewer(s): `["superpowers"]` for a Superpowers review, `["codex"]` for a Codex review. `/ptp:review-fix` runs no second reviewer, so it **never** synthesizes a combined set.
    - **`terminalState`** — `"converged"` **only** when the post-fix verification is **fully clean** (every CONFIRMED finding fixed AND `npx -y openspec validate <id> --strict` / the re-check passes), **including the all-`REJECTED` no-op** outcome (nothing to fix, artifact clean as-reviewed). `"cap-reached"` in **every** non-clean post-fix outcome — whether CONFIRMED findings remain unfixed (`CONFIRMED but could not fix`) OR all findings were applied but the post-fix verification is still not clean (e.g. a fix introduced a validation error).
@@ -77,4 +78,4 @@ Reviews in this workflow are **displayed in the conversation, not persisted to a
 - **Never regenerate artifacts via `/ptp:plan`.** Artifact fixes are targeted hand-edits only.
 - **Never archive** and **never auto-commit.** Report status and let the user take the next step.
 - If the latest review's findings are all `REJECTED`, fix nothing, report why, and stop — that is a valid outcome. For an **artifact** or **brainstorm** review this all-`REJECTED` no-op still stamps a `converged` marker (the artifact is clean as-reviewed); a **code** review stamps no marker.
-- **Marker write:** on completion, stamp the per-kind review-convergence marker for the frozen review's kind/reviewer (artifact → `reviews/plan.json`, brainstorm → `reviews/brainstorm.json`, **code → none**) per Step 7 / design.md §4a, using the shared atomic write-temp-then-rename protocol. `/ptp:review-fix` runs no loop and hits no iteration cap; `iterations` is always `1`, and a write failure is reported but not fatal.
+- **Marker write:** on completion, stamp the per-kind review-convergence marker for the frozen review's kind/reviewer (artifact → `reviews/plan.json`, brainstorm → `reviews/brainstorm.json`, **code → none**) per Step 7, using the shared atomic write-temp-then-rename protocol. `/ptp:review-fix` runs no loop and hits no iteration cap; `iterations` is always `1`, and a write failure is reported but not fatal.

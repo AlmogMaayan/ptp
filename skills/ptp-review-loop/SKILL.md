@@ -7,7 +7,7 @@ description: Shared loop protocol for /ptp:review-loop, /ptp:codex-review-loop, 
 
 ## Purpose
 
-This skill encodes the iteration semantics shared by the five `/ptp:*-loop` commands. Each command supplies two parameters; this skill drives the loop.
+This skill encodes the iteration semantics shared by the `/ptp:*-loop` commands **and** the `-full` review orchestrators that drive it (Phase 1/Phase 2 of `/ptp:review-brainstorm-full`, `/ptp:review-prd-full`, etc.). Each caller supplies `kind` + `reviewer`; this skill drives the loop. The `/ptp:*-loop` callers are enumerated below; the `-full` orchestrators additionally drive it, per the note under the table.
 
 ```
 /ptp:review-loop            → kind=code,       reviewer=superpowers
@@ -38,7 +38,7 @@ The calling command is responsible for precondition checks before invoking this 
 - `reviewer=codex` → caller must verify `codex --version` is on PATH; refuse if missing.
 - `kind=code` → caller must verify `openspec/changes/<change-id>/` exists; redirect to `/ptp:plan` if missing.
 - `kind=artifact` → caller must verify `openspec/changes/<change-id>/` exists; redirect to `/ptp:plan` if missing.
-- `kind=brainstorm` → caller must verify `openspec/changes/<change-id>/` exists; redirect to `/ptp:plan` if missing. The existence of `brainstorm.md` itself is **NOT** an abort precondition — a missing brainstorm is a Phase-1 Critical finding handled inside the review pass (step b), mirroring `ptp-review-brainstorm`.
+- `kind=brainstorm` → caller must verify `openspec/changes/<change-id>/` exists; redirect to `/ptp:brainstorm` if missing (the brainstorm stage creates the folder — it precedes `/ptp:plan`, so a `/ptp:plan` redirect here would skip the brainstorm). The existence of `brainstorm.md` itself is **NOT** an abort precondition — a missing brainstorm is a Phase-1 Critical finding handled inside the review pass (step b), mirroring `ptp-review-brainstorm`.
 - `kind=prd` → caller resolves the **epic** and the **PRD file path** `openspec/changes/<id>/prd.md` (via the `ptp-prd` selector→epic projection and lowest-story-`<id>` rule, scanning active + archived changes) and passes them in place of a change folder. The existence of the **PRD file** is **NOT** an abort precondition — a missing PRD is a Critical "no PRD to review" finding handled inside the review pass (step b), mirroring `kind=brainstorm`.
 
 ## Resolution
@@ -157,7 +157,7 @@ orchestrator and review-fix write the marker independently of the shared loop's 
 
 `deferMarker` is a **loop input only**. `/ptp:review-fix` does **not** invoke `ptp-review-loop` at all
 (it runs a single confirm→fix→verify pass), so it neither receives nor honors `deferMarker`; it writes
-its marker independently per design §4a (and reuses the same schema/location/atomic protocol above).
+its marker independently (reusing the same schema/location/atomic protocol described above).
 
 ## Per-iteration steps
 

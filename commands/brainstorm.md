@@ -13,7 +13,7 @@ Request: $ARGUMENTS (a short description, optionally followed by an explicit cha
 
 ## Branch safety (first step)
 
-Before creating or updating **any** file, run the **`ptp-branch-guard`** preamble: check `git rev-parse --abbrev-ref HEAD`; if it is `master`, derive a feature-branch name from the change id you allocate in step 1 (→ `ptp/<change-id>`) and launch the minimal `ptp-branch-prep` workflow (stash → checkout master → pull → cut the branch) **before** writing anything; if you are already on a feature branch it is a **no-op** — proceed as-is. The full rule (branch naming, the workflow contract, the hard rules) lives in the **`ptp-branch-guard`** skill — do not restate it here.
+Before creating or updating **any** file, run the **`ptp-branch-guard`** preamble: check `git rev-parse --abbrev-ref HEAD`; if it is the base branch (`master`/`main`), derive a feature-branch name from the change id you allocate in step 1 (→ `ptp/<change-id>`) and launch the minimal `ptp-branch-prep` workflow (stash → checkout the base branch → pull → cut the branch) **before** writing anything; if you are already on a feature branch it is a **no-op** — proceed as-is. The full rule (branch naming, the workflow contract, the hard rules) lives in the **`ptp-branch-guard`** skill — do not restate it here.
 
 ## Steps
 
@@ -58,7 +58,7 @@ as an inline Skill call — so there is no nesting concern.
 
 ## Hard rules
 
-- Do **not** call `/openspec:propose` or `/openspec:explore`. Superpowers owns this step.
+- Do **not** call `/opsx:propose` or `/opsx:explore` (nor the vendored `ptp:openspec-*` skills). Superpowers owns this step.
 - Do **not** create `proposal.md` / `design.md` / `tasks.md` / `specs/**` under `openspec/changes/<change-id>/` in this command. The **only** file you write into the change folder here is `brainstorm.md`.
 - Do **not** write the brainstorm to `openspec/brainstorms/` — that location is reserved for `/ptp:brainstorm-only` (change-agnostic exploration). A change-scoped brainstorm lives in its change folder.
 - Do **not** skip writing `openspec/changes/<change-id>/brainstorm.md` — `ptp:plan` reads it as its source-of-truth input. If the brainstorming skill stopped without writing it, write it explicitly yourself (you run autonomously in a non-interactive subagent — do **not** pause to ask the user for approval first).

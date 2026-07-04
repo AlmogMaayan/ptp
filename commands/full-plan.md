@@ -15,7 +15,7 @@ Interpret it both ways, exactly as `/ptp:plan-multiple` does: if `$ARGUMENTS` na
 
 ## Branch safety (first step)
 
-Run the **`ptp-branch-guard`** preamble **once up front**, before delegating to `plan-multiple`: check `git rev-parse --abbrev-ref HEAD`; if it is `master`, derive a feature-branch name from this request (or the fresh epic → `ptp/epic-XXXX`) and launch the minimal `ptp-branch-prep` workflow (stash → checkout master → pull → cut the branch) **before** any sub-step runs; if you are already on a feature branch it is a **no-op** — proceed as-is. Delegated sub-commands re-run the guard as a no-op once HEAD is on the branch. The full rule lives in the **`ptp-branch-guard`** skill — do not restate it here.
+Run the **`ptp-branch-guard`** preamble **once up front**, before delegating to `plan-multiple`: check `git rev-parse --abbrev-ref HEAD`; if it is the base branch (`master`/`main`), derive a feature-branch name from this request (or the fresh epic → `ptp/epic-XXXX`) and launch the minimal `ptp-branch-prep` workflow (stash → checkout the base branch → pull → cut the branch) **before** any sub-step runs; if you are already on a feature branch it is a **no-op** — proceed as-is. Delegated sub-commands re-run the guard as a no-op once HEAD is on the branch. The full rule lives in the **`ptp-branch-guard`** skill — do not restate it here.
 
 ## Preconditions
 

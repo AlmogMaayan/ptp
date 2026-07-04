@@ -1,6 +1,6 @@
 ---
 name: ptp-codex-mode
-description: Resolve codex.mode from layered ptp config and decide whether a dual-reviewer step runs its Codex phase. The single source of truth the dual-reviewer orchestrators (/ptp:review-full, /ptp:review-plan-full, /ptp:full, /ptp:full-run) reference instead of hard-requiring Codex — covers resolution (default auto), the three-mode decision contract, the /ptp:codex-* override, the non-silent-skip rule, and the mode-skip terminal state the convergence gates treat as success.
+description: Resolve codex.mode from layered ptp config and decide whether a dual-reviewer step runs its Codex phase. The single source of truth every dual-reviewer orchestrator (the code/plan/brainstorm/PRD -full reviews and the full/full-run/brainstorm-full/prd-full orchestrators) references instead of hard-requiring Codex — covers resolution (default auto), the three-mode decision contract, the /ptp:codex-* override, the non-silent-skip rule, and the mode-skip terminal state the convergence gates treat as success.
 ---
 
 # ptp-codex-mode — resolve `codex.mode` and gate the Codex phase
@@ -22,8 +22,11 @@ to the README §Configuration table (the *schema*). It changes no config and add
 
 **Mode-gated — they ask this skill whether to run their Codex phase:**
 
-`/ptp:review-full`, `/ptp:review-plan-full`, `/ptp:full`, `/ptp:full-run` (and the `ptp-full` /
-`ptp-full-run` skills behind the latter two).
+`/ptp:review-full`, `/ptp:review-plan-full`, `/ptp:review-brainstorm-full`, `/ptp:review-prd-full`,
+`/ptp:full`, `/ptp:full-run`, `/ptp:brainstorm-full`, `/ptp:prd-full` (and the skills behind them:
+`ptp-full`, `ptp-full-run`, `ptp-review-brainstorm-full`, `ptp-review-prd-full`, `ptp-brainstorm-full`,
+`ptp-prd-full` — the brainstorm/PRD `-full` orchestrators run a `-full` review as their Phase B, which
+consults this skill).
 
 **NOT gated — the explicit `/ptp:codex-*` commands** (see *Explicit-override rule* below): invoking
 them is itself the opt-in to Codex, so they bypass the mode gate entirely and are listed here only
@@ -69,7 +72,8 @@ Probe PATH with `codex --version`. In `off` mode, do **not** probe — the skip 
 ## Explicit-override rule
 
 The explicit `/ptp:codex-*` commands — `/ptp:codex-review`, `/ptp:codex-review-loop`,
-`/ptp:codex-review-plan`, `/ptp:codex-review-plan-loop`, `/ptp:codex-review-uncommitted` — are
+`/ptp:codex-review-plan`, `/ptp:codex-review-plan-loop`, `/ptp:codex-review-prd`,
+`/ptp:codex-review-prd-loop`, `/ptp:codex-review-uncommitted` — are
 **not** gated by `codex.mode`. Invoking one of them is itself an explicit request for the Codex
 reviewer, so the mode gate does not apply: they **always attempt Codex** and STOP only if `codex` is
 genuinely missing from PATH. `mode=off` does **not** make `/ptp:codex-review` skip Codex. Those
@@ -90,9 +94,10 @@ found.
 
 ## Mode-skip terminal state
 
-When a `*-full` review (`/ptp:review-full` or `/ptp:review-plan-full`) converges its Superpowers
-phase and the Codex phase is skipped by mode, it terminates in a distinct, **green-class** terminal
-state — separate from the both-phases label so a human can tell the two apart:
+When a `*-full` review (`/ptp:review-full`, `/ptp:review-plan-full`, `/ptp:review-brainstorm-full`, or
+`/ptp:review-prd-full`) converges its Superpowers phase and the Codex phase is skipped by mode, it
+terminates in a distinct, **green-class** terminal state — separate from the both-phases label so a
+human can tell the two apart:
 
 ```
 PHASE 1 DONE — CODEX SKIPPED (mode=…)

@@ -15,7 +15,7 @@ These two steps are **abort-guaranteeing preconditions** that MUST run in the ou
 
 1. **Resolve the selector.** Invoke the **`ptp-change-selector`** skill on `$ARGUMENTS` → an ordered list of change ids (ascending by `(epic, story)`). Any selector that STOPs — no such change, ambiguous bare `story:NN`, or empty with no command default — aborts here, in the outer session, **before spawning anything**.
 
-2. **Branch safety.** Run the **`ptp-branch-guard`** preamble once, in the outer session: check `git rev-parse --abbrev-ref HEAD`; if it is `master`, derive a feature-branch name from the resolved change id (→ `ptp/<change-id>` for a single change, `ptp/epic-XXXX` for an epic selector) and launch the minimal `ptp-branch-prep` workflow (stash → checkout master → pull → cut the branch) **before** spawning anything; if already on a feature branch it is a **no-op** — proceed as-is. The full rule (branch naming, the workflow contract, the hard rules) lives in the **`ptp-branch-guard`** skill — do not restate it here.
+2. **Branch safety.** Run the **`ptp-branch-guard`** preamble once, in the outer session: check `git rev-parse --abbrev-ref HEAD`; if it is the base branch (`master`/`main`), derive a feature-branch name from the resolved change id (→ `ptp/<change-id>` for a single change, `ptp/epic-XXXX` for an epic selector) and launch the minimal `ptp-branch-prep` workflow (stash → checkout the base branch → pull → cut the branch) **before** spawning anything; if already on a feature branch it is a **no-op** — proceed as-is. The full rule (branch naming, the workflow contract, the hard rules) lives in the **`ptp-branch-guard`** skill — do not restate it here.
 
 ## Per change — invoke `ptp-run-at-model` (sequentially, ascending story order)
 

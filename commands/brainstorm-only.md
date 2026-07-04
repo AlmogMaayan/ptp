@@ -13,7 +13,7 @@ Topic: $ARGUMENTS
 
 ## Branch safety (first step)
 
-Before creating or updating **any** file, run the **`ptp-branch-guard`** preamble: check `git rev-parse --abbrev-ref HEAD`; if it is `master`, derive a feature-branch name from a ≤5-kebab-word summary of the topic (→ `ptp/<summary>`) and launch the minimal `ptp-branch-prep` workflow (stash → checkout master → pull → cut the branch) **before** writing anything; if you are already on a feature branch it is a **no-op** — proceed as-is. The full rule (branch naming, the workflow contract, the hard rules) lives in the **`ptp-branch-guard`** skill — do not restate it here.
+Before creating or updating **any** file, run the **`ptp-branch-guard`** preamble: check `git rev-parse --abbrev-ref HEAD`; if it is the base branch (`master`/`main`), derive a feature-branch name from a ≤5-kebab-word summary of the topic (→ `ptp/<summary>`) and launch the minimal `ptp-branch-prep` workflow (stash → checkout the base branch → pull → cut the branch) **before** writing anything; if you are already on a feature branch it is a **no-op** — proceed as-is. The full rule (branch naming, the workflow contract, the hard rules) lives in the **`ptp-branch-guard`** skill — do not restate it here.
 
 ## Steps
 
@@ -53,7 +53,7 @@ launch the `ptp-branch-prep` Workflow. Its brainstorm work spawns nothing — it
 
 ## Hard rules
 
-- Do **not** call `/openspec:propose` or `/openspec:explore`. Superpowers owns this step.
+- Do **not** call `/opsx:propose` or `/opsx:explore` (nor the vendored `ptp:openspec-*` skills). Superpowers owns this step.
 - Do **not** create any `openspec/changes/<id>/*` files in this command — including `brainstorm.md`. This command is explicitly for the *not-yet-a-change* case; co-locating a brainstorm in a change folder is `/ptp:brainstorm`'s job.
 - Do **not** skip writing the `openspec/brainstorms/...-brainstorm.md` file. If the brainstorming skill stopped without writing it, write it explicitly yourself (you run autonomously in a non-interactive subagent — do **not** pause to ask the user for approval first).
 - Do **not** start coding.

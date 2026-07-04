@@ -29,9 +29,9 @@ than one change, run the loop below for each, in story order, reporting per chan
 ## Branch safety (first step)
 
 Both phases apply inline edits to `brainstorm.md`, so before Phase 1 run the **`ptp-branch-guard`**
-preamble: check `git rev-parse --abbrev-ref HEAD`; if it is `master`, derive a feature-branch name from
+preamble: check `git rev-parse --abbrev-ref HEAD`; if it is the base branch (`master`/`main`), derive a feature-branch name from
 the resolved change id (→ `ptp/<change-id>`) and launch the minimal `ptp-branch-prep` workflow (stash →
-checkout master → pull → cut the branch) **before** writing anything; if you are already on a feature
+checkout the base branch → pull → cut the branch) **before** writing anything; if you are already on a feature
 branch it is a **no-op** — proceed as-is. The full rule lives in the **`ptp-branch-guard`** skill — do
 not restate it here.
 
@@ -50,7 +50,8 @@ spawns a subagent:
    and the skip is reported (never silent). The full resolution + decision rule lives in the
    `ptp-codex-mode` skill — do not restate it here.
 3. **`openspec/changes/<change-id>/` must exist.** If it does not, **STOP** and redirect the user to run
-   `/ptp:plan` first (the loop requires the change folder).
+   `/ptp:brainstorm` first (the loop requires the change folder, which `/ptp:brainstorm` creates — it
+   precedes `/ptp:plan` in the stage order, so redirecting to `/ptp:plan` here would skip the brainstorm).
 
 The per-change **brainstorm-file existence** check is part of Phase 1's rubric (a missing brainstorm is
 a Critical finding the loop cannot fix, not an outer abort), so it runs **inside** the subagent — exactly

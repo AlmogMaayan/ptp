@@ -1,7 +1,7 @@
 export const meta = {
   name: 'ptp-branch-prep',
-  description: 'Minimal git prep for the ptp branch guard: stash any dirty changes, switch to master, pull, then cut (or switch to) a fresh feature branch — run at the cheapest model before a ptp write-step that would otherwise land on master. Never commits, never pushes.',
-  phases: [{ title: 'Branch prep', detail: 'haiku agent: stash → checkout master → pull → cut branch', model: 'haiku' }],
+  description: 'Minimal git prep for the ptp branch guard: stash any dirty changes, switch to the base branch (master or main), pull, then cut (or switch to) a fresh feature branch — run at the cheapest model before a ptp write-step that would otherwise land on the base branch. Never commits, never pushes.',
+  phases: [{ title: 'Branch prep', detail: 'haiku agent: stash → checkout base → pull → cut branch', model: 'haiku' }],
 }
 
 // args may arrive as an object or, in some runtimes, as the verbatim JSON string.
@@ -11,6 +11,11 @@ if (typeof args === 'string') {
 }
 const branch = (parsed && parsed.branch ? String(parsed.branch) : '').trim()
 const description = (parsed && parsed.description ? String(parsed.description) : '').trim()
+// The base branch HEAD is currently on — `master` or `main`. Defaults to `master` for back-compat
+// with callers that predate base-branch detection. Only these two names are accepted; anything else
+// falls back to `master` so a stray value can never checkout an unexpected branch.
+const baseRaw = (parsed && parsed.base ? String(parsed.base) : '').trim()
+const base = baseRaw === 'main' ? 'main' : 'master'
 
 if (!branch) {
   // The guard must always pass a branch name; refuse rather than guess one here.
@@ -32,11 +37,11 @@ const PREP_SCHEMA = {
 }
 
 const prompt = [
-  `You are doing a small, mechanical git preparation task. HEAD is currently on \`master\` and a ptp write-step must not write onto master. Run the steps below with the Bash tool, in order, then return the JSON object. Do not reason at length — this is plumbing.`,
+  `You are doing a small, mechanical git preparation task. HEAD is currently on \`${base}\` (the repo's base branch) and a ptp write-step must not write onto it. Run the steps below with the Bash tool, in order, then return the JSON object. Do not reason at length — this is plumbing.`,
   `Target feature branch: \`${branch}\`${description ? ` (for: ${description})` : ''}.`,
   ``,
   `1. Run \`git status --porcelain\`. If it prints ANY lines (dirty working tree, including untracked), run \`git stash push -u -m "ptp-branch-prep autostash"\` and set stashed=true. If it is empty, set stashed=false and skip stashing.`,
-  `2. Run \`git checkout master\`.`,
+  `2. Run \`git checkout ${base}\`.`,
   `3. Run \`git pull --ff-only\`. If it succeeds set baseUpdated=true. If it fails (no upstream, offline, or non-fast-forward), set baseUpdated=false, record the reason in notes, and CONTINUE — do not abort the prep.`,
   `4. Check \`git rev-parse --verify --quiet ${branch}\`. If that branch already exists, run \`git checkout ${branch}\` and set created=false. Otherwise run \`git checkout -b ${branch}\` and set created=true.`,
   `5. If you stashed in step 1, run \`git stash pop\` to bring the changes onto \`${branch}\`. If it pops cleanly set stashRestored=true; if it conflicts, set stashRestored=false, LEAVE the stash in place (do not drop it), and record in notes that the stash must be resolved manually.`,
