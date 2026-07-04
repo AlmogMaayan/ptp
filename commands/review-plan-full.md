@@ -15,7 +15,7 @@ Resolve `$ARGUMENTS` as a change selector per the `ptp-change-selector` skill; i
 
 ## Branch safety (first step)
 
-Both phases apply inline artifact fixes, so before Phase 1 run the **`ptp-branch-guard`** preamble: check `git rev-parse --abbrev-ref HEAD`; if it is `master`, derive a feature-branch name from the resolved change id (→ `ptp/<change-id>`) and launch the minimal `ptp-branch-prep` workflow (stash → checkout master → pull → cut the branch) **before** writing anything; if you are already on a feature branch it is a **no-op** — proceed as-is. The full rule lives in the **`ptp-branch-guard`** skill — do not restate it here.
+Both phases apply inline artifact fixes, so before Phase 1 run the **`ptp-branch-guard`** preamble: check `git rev-parse --abbrev-ref HEAD`; if it is the base branch (`master`/`main`), derive a feature-branch name from the resolved change id (→ `ptp/<change-id>`) and launch the minimal `ptp-branch-prep` workflow (stash → checkout the base branch → pull → cut the branch) **before** writing anything; if you are already on a feature branch it is a **no-op** — proceed as-is. The full rule lives in the **`ptp-branch-guard`** skill — do not restate it here.
 
 ## Preconditions
 
@@ -86,7 +86,7 @@ This orchestrator drives **both** phase loops with **`deferMarker = true`** (per
 - `terminalState` = that of the **last phase that ran** (`converged` if the last phase that ran reached `DONE`, else `cap-reached`).
 - `iterations` = the **last phase's** iteration count.
 
-The combined write uses the **same atomic write-temp-then-rename protocol** as `ptp-review-loop` (Task 2.2 / design.md §1): serialize to a uniquely named temp file in `reviews/`, then replace `reviews/plan.json` via a replace-if-exists rename only after the complete write succeeds; on any failure clean up the temp file and leave the live marker untouched — so a failed overwrite cannot truncate or corrupt the prior marker. Because every phase defers, there is **never a provisional per-phase marker** on disk: on a **first** review a failed single write leaves **no** marker (status falls back) — never a fabricated single-reviewer marker; on a **re-review** a failed overwrite leaves the **prior run's real marker** (the accepted staleness case; no freshness/expiry mechanism). A marker-write failure is reported but does not change the terminal state. The `/ptp:status` plan-review column reads this `reviews/plan.json`.
+The combined write uses the **same atomic write-temp-then-rename protocol** as `ptp-review-loop`: serialize to a uniquely named temp file in `reviews/`, then replace `reviews/plan.json` via a replace-if-exists rename only after the complete write succeeds; on any failure clean up the temp file and leave the live marker untouched — so a failed overwrite cannot truncate or corrupt the prior marker. Because every phase defers, there is **never a provisional per-phase marker** on disk: on a **first** review a failed single write leaves **no** marker (status falls back) — never a fabricated single-reviewer marker; on a **re-review** a failed overwrite leaves the **prior run's real marker** (the accepted staleness case; no freshness/expiry mechanism). A marker-write failure is reported but does not change the terminal state. The `/ptp:status` plan-review column reads this `reviews/plan.json`.
 
 ## Hard rules
 

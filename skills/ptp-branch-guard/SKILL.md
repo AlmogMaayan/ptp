@@ -11,13 +11,15 @@ Every ptp step that **creates or updates files** — planning artifacts, source 
 
 ## Which steps run the guard
 
-**Run the guard — write-capable** (they create or update files):
+**Run the guard — write-capable** (they create or update working-tree files):
 
-`brainstorm`, `brainstorm-only`, `plan`, `plan-multiple`, `apply`, `effort`, `review-fix`, `review-loop`, `review-plan-loop`, `codex-review-loop`, `codex-review-plan-loop`, `review-full`, `review-plan-full`, `full`, `full-plan`, `full-run`, `archive`, `archive-force`.
+`analyze`, `brainstorm`, `brainstorm-only`, `brainstorm-full`, `plan`, `plan-multiple`, `prd`, `prd-full`, `apply`, `effort`, `review-fix`, `review-loop`, `review-plan-loop`, `codex-review-loop`, `codex-review-plan-loop`, `codex-review-prd-loop`, `review-full`, `review-plan-full`, `review-brainstorm-full`, `review-prd-full`, `full`, `full-plan`, `full-run`, `archive`, `archive-force`.
 
-**Do NOT run the guard — read-only** (they never write working-tree files, so there is nothing to keep off master):
+**Do NOT run the guard — read-only** (they never write working-tree ptp/OpenSpec artifacts, so there is nothing to keep off the base branch):
 
-`review`, `review-plan`, `codex-review`, `codex-review-plan`, `codex-review-uncommitted`, `status`.
+`review`, `review-plan`, `review-brainstorm`, `review-prd`, `codex-review`, `codex-review-plan`, `codex-review-prd`, `codex-review-uncommitted`, `status`, `version`.
+
+**Do NOT run the guard — utility writes outside the repo tree** (they change state, but never a ptp/OpenSpec working-tree artifact, so the base-branch guard does not apply): `update` (updates the *installed plugin*, no repo files) and `config` (writes only `.claude/ptp/config.json` tool config, not a ptp artifact). Listed here separately so each category's rationale stays accurate.
 
 **Deliberate land-on-master exception — `/ptp:master`:** this command does **not** run the guard, but for a distinct reason: it authors no ptp/OpenSpec artifact (a `git switch` / fast-forward pull may update tracked files to match `master`, but the command creates nothing of its own) and its entire purpose is to land on `master` — running the guard would cut a `ptp/<...>` branch and directly defeat it. This is **not** a read-only command (it changes git state and a pull may update the working tree), so it is listed here separately rather than in the read-only list above, to keep each category's stated rationale accurate.
 
@@ -39,22 +41,35 @@ list, to keep each category's rationale accurate.
 
 The guard is the **first action that affects the working tree** — but it is *not* literally the first thing a command does. Any **cheap, read-only precondition or required user confirmation that would abort the whole command** runs **before** the guard: a missing `codex` CLI, a missing `openspec/changes/<id>/` folder, "no review present in the conversation", the no-arg scope-confirmation STOP, and the like. Evaluate those first; run the guard only once they pass. Cutting a branch (and spinning up the prep workflow) ahead of a guaranteed abort just leaves a throwaway branch behind.
 
+### What counts as the base branch
+
+The guard protects the repo's **base branch** — the long-lived integration branch ptp work must never
+be written onto directly. A repo's base branch is **`master` or `main`** (the two conventional
+default-branch names); the deploy family (`/ptp:deploy`, `/ptp:merge-to-master`) already treats both as
+the base. The guard therefore triggers when `git rev-parse --abbrev-ref HEAD` is **either `master` or
+`main`**, and treats every other branch name (feature branch, detached HEAD) as safe-to-proceed. When
+the guard fires it passes the detected base name to the prep workflow as `base`, so a `main`-default
+repo cuts its feature branch off `main`, not a nonexistent `master`. (If a repo uses some other default
+branch name, detect it via `git symbolic-ref --quiet --short refs/remotes/origin/HEAD` and use that; the
+`master`/`main` set is the minimum every ptp step must honor.)
+
 0. **CRLF self-heal (unconditional, first action — before the branch check).** Run the
    `ptp-workflow-cache-heal` step (see that skill for the canonical Bash command) via the Bash tool over
-   the whole glob `~/.claude/plugins/cache/ptp/*/workflows/*.js`. This runs **unconditionally**,
+   the whole glob `~/.claude/plugins/cache/ptp/*/*/workflows/*.js`. This runs **unconditionally**,
    regardless of whether HEAD is `master` or a feature branch — the CRLF defect is independent of branch
    state, and healing here ensures every cached workflow script is LF-only before any `Workflow({ name })`
    call. The step is idempotent and a silent no-op when the cache is already LF or absent.
 1. **Check the current branch:** `git rev-parse --abbrev-ref HEAD` (via Bash).
-2. **If it is anything other than `master`** — already on a feature branch, or a detached HEAD mid-operation — **proceed as-is.** Do **not** stash, switch, or cut a new branch. The guard is a **no-op**. (This is the confirmed posture: respect the branch the user is already on; never re-cut or re-base it.)
-3. **If it is `master`:** do not write onto master. Derive a branch name from context (see below), then launch the minimal git-prep workflow and **wait for it to return** before any file write:
+2. **If it is anything other than the repo's base branch** — already on a feature branch, or a detached HEAD mid-operation — **proceed as-is.** Do **not** stash, switch, or cut a new branch. The guard is a **no-op**. (This is the confirmed posture: respect the branch the user is already on; never re-cut or re-base it.)
+3. **If it is the repo's base branch** (see *What counts as the base branch* below): do not write onto it. Derive a branch name from context (see below), then launch the minimal git-prep workflow and **wait for it to return** before any file write:
    ```
-   Workflow({ name: 'ptp:ptp-branch-prep', args: { branch, description } })
+   Workflow({ name: 'ptp:ptp-branch-prep', args: { branch, base, description } })
    ```
    - `branch` — the derived feature-branch name (required).
+   - `base` — the detected base branch (`master` or `main`) HEAD is currently on (optional; defaults to `master` for back-compat). Pass the value from step 1 so a `main`-default repo bases off `main`.
    - `description` — a short human description of the change (optional; used only for the agent's context).
 
-   The workflow runs a single **haiku** agent (cheapest model, mechanical effort) that: stashes any dirty changes, checks out `master`, pulls latest, creates-and-checks-out `branch` (or switches to it if it already exists), and pops the stash back onto the new branch. It returns `{ branch, onBranch, created, stashed, stashRestored, baseUpdated, notes }`.
+   The workflow runs a single **haiku** agent (cheapest model, mechanical effort) that: stashes any dirty changes, checks out `base`, pulls latest, creates-and-checks-out `branch` (or switches to it if it already exists), and pops the stash back onto the new branch. It returns `{ branch, onBranch, created, stashed, stashRestored, baseUpdated, notes }`.
    - **Proceed only if `onBranch === true`.** If the workflow returns `onBranch: false` (or an `error`, or null) the prep did **not** put you on the feature branch — HEAD may still be on `master`. **STOP, surface the error, and write nothing.** Never fall through to the ptp step's file writes on a failed prep; doing so would defeat the guard.
    - Once `onBranch` is true you are on the fresh feature branch — continue the ptp step normally.
    - If it reports a stash-pop conflict (`stashRestored: false`), surface that to the user before proceeding.

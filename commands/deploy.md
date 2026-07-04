@@ -1,6 +1,7 @@
 ---
 description: Ship the current feature branch end-to-end — commit, push, open a PR, merge to master with squash, delete the branch, run the project's deploy CI/CD action, autonomously fix conflicts/CI/deploy failures within a bounded retry budget, then return to a clean master. Stops for a human approval only if branch protection requires one. Requires gh CLI authenticated.
 argument-hint: "(no arguments — operates on the current feature branch; configure via deploy.* in .claude/ptp/config.json)"
+disable-model-invocation: true
 ---
 
 You are running **`/ptp:deploy`** — the terminal "ship it" step of the ptp pipeline. It takes
@@ -68,8 +69,8 @@ is documented in the `ptp-branch-guard` skill as the single source of truth.
   `--admin`-bypasses** a required approval. A required, unmet approval surfaces as a
   `needs-human-action` state (reason + PR URL + the follow-up `/ptp:deploy-pr-approved`), never a
   success or a plain refusal; otherwise it merges straight through.
-- **Runs at a deterministic `sonnet.medium`** via `ptp-run-at-model` (one foreground subagent),
-  rather than the old soft model/effort prompt — the baseline is enforced, not merely suggested.
+- **Runs at a deterministic `sonnet.medium`** via `ptp-run-at-model` (one foreground subagent) — the
+  baseline model/effort is enforced, not merely suggested.
 - Both autonomous fix loops (PR-stage conflicts/checks; deploy-stage failures) are bounded by
   `maxFixRounds` (default 3); on exhaustion, STOP and report — never loop unbounded, never merge
   over red checks.

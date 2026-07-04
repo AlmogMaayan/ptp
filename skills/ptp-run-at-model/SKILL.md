@@ -23,28 +23,24 @@ skill generalizes it for single linear commands.
 
 ## Which commands use this skill
 
-The epic adopts this skill across the command set, by target. This table is a **documentation
-roadmap** of which commands adopt the skill and at what target — it is **not** the skill's
-target-resolution mechanism. At runtime the skill never looks a command up in this table; the
-**caller always supplies the target** (see *The contract* and the *Hard rules*), so the skill
-hardcodes no per-command target.
+Many ptp commands run their real work through this skill so it executes at a deterministic
+model+effort rather than at the session's current setting. This table is **representative
+documentation** — it is **not** the skill's target-resolution mechanism. At runtime the skill never
+looks a command up in a table; the **caller always supplies the target** (see *The contract* and the
+*Hard rules*), so the skill hardcodes no per-command target.
 
-| Target | Commands | Slice |
-|--------|----------|-------|
-| `sonnet.medium` | `archive`, `archive-force`, `master` | 0005_01 (this slice) |
-| `sonnet.medium` (deferred) | `deploy`, `deploy-pr-approved`, `merge-to-master` | 0005_02 |
-| (per command) | `plan`, `plan-multiple` | 0005_03 |
-| (per command) | the review family | 0005_04 |
-| read line 1 of `effort.md` | `apply` | 0005_05 |
-| `opus.high` | `brainstorm`, `brainstorm-only` | 0007_01 |
+| Target | Commands (representative) |
+|--------|---------------------------|
+| `sonnet.medium` | `archive`, `archive-force`, `master`, and the deploy family (`deploy`, `deploy-pr-approved`, `merge-to-master`) via their own skills |
+| `opus.high` | `brainstorm`, `brainstorm-only`, `plan`, `plan-multiple`, the review family (`review`, `review-loop`, `review-full`, `review-plan*`, `review-brainstorm*`, `review-prd*`), and the PRD stage (`prd`, `prd-full`) |
+| read line 1 of `effort.md` | `apply` |
 
 **Read-only commands skip the branch-guard step but still wrap** — they have no working-tree writes,
 so step 2 of the contract is a no-op for them, but they still run their work in the target-model
 subagent and relay the result.
 
-**This slice wires only `archive`, `archive-force`, `master` at `sonnet.medium`.** The
-`full`/`full-plan`/`full-run` family is explicitly out of scope for the whole epic — it already runs
-its work in workflow agents at chosen models.
+The `full`/`full-plan`/`full-run` family does **not** use this skill — it already runs its work in
+workflow agents at chosen models (see `ptp-full-run` and `workflows/ptp-full-run.js`).
 
 ## The contract
 
@@ -73,9 +69,9 @@ The skill then runs, **in this order**:
    - **Known before the work starts** (archive's review-clean confirm and its "confirm the action"
      step; archive-force's empty/all scope-confirm STOP): the **outer session performs the
      confirmation before spawning**, and the subagent then executes only the already-confirmed,
-     non-interactive operation. This is the path for all three of this slice's commands.
-   - **Discovered only during the subagent's work** (e.g. a deploy hitting a needs-PR-approval state,
-     0005_02): the subagent returns the `needs-human-action` terminal state (see *Result relay*) with
+     non-interactive operation. This is the path for the archive-family commands.
+   - **Discovered only during the subagent's work** (e.g. a deploy hitting a needs-PR-approval state):
+     the subagent returns the `needs-human-action` terminal state (see *Result relay*) with
      a reason and a precise follow-up command, and the outer session surfaces it.
 
    The subagent itself **never conducts an interactive prompt**; it runs only the non-interactive
@@ -91,8 +87,7 @@ The skill then runs, **in this order**:
 3. **Resolve the target.** If the caller passed `<model>.<effort>` literally, use it. If the caller
    passed "read from `effort.md`," read `openspec/changes/<id>/effort.md` **line 1** and parse
    `{model}.{effort}`. If the file is missing or line 1 is not a parseable `{model}.{effort}`, default
-   to `opus.high` and **note the defaulting**. (The read-from-`effort.md` path is used by 0005_05;
-   it is defined here so the contract is complete.)
+   to `opus.high` and **note the defaulting**. (The read-from-`effort.md` path is used by `/ptp:apply`.)
 
 4. **Spawn ONE foreground subagent** via the Agent tool with `model` = the resolved model. The prompt
    MUST contain:
@@ -145,8 +140,9 @@ surfaces each one rather than collapsing it into a generic "done":
   `/ptp:deploy-pr-approved`). The session reports the reason **and** the follow-up command.
 
 Whether the payload is literally a JSON object or a structured text block is an implementation choice;
-the **observable contract** is that the three terminal states are distinguishable and surfaced. Keep
-it general — 0005_02 populates the deploy-specific `needs-human-action` case.
+the **observable contract** is that the three terminal states are distinguishable and surfaced. The
+deploy family populates the deploy-specific `needs-human-action` case (a required PR approval →
+`/ptp:deploy-pr-approved`).
 
 ## Nesting caveat
 
@@ -154,11 +150,10 @@ A wrapped command whose **work itself spawns a subagent or a Workflow** cannot b
 inner spawn would be a second nesting level, which throws (nesting is one level only). For such
 commands (the deploy trio, whose `ptp-deploy` skill may spawn a fix subagent), the wrapping subagent
 must perform that inner work **inline** rather than spawning again, or the command must be wrapped at
-a boundary that keeps the nested spawn in the outer session. **Forward-reference 0005_02** for the
-deploy handling.
+a boundary that keeps the nested spawn in the outer session.
 
-This slice's three commands have **no nested spawn** — archive is an OpenSpec-CLI call, `master` is
-git, and archive-force delegates to the inline `ptp-archive-force` skill — so they wrap cleanly.
+Commands with **no nested spawn** wrap cleanly — e.g. `archive` is an OpenSpec-CLI call, `master` is
+git, and archive-force delegates to the inline `ptp-archive-force` skill.
 
 ## Hard rules
 

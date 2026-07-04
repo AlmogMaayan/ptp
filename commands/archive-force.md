@@ -1,6 +1,7 @@
 ---
 description: Gate-bypassing escape hatch for archiving changes that cannot pass the standard archive gates (unchecked tasks, unreviewed, failing validation) — still syncs delta specs. Use /ptp:archive for the default safe path.
 argument-hint: "id, epic:XXXX, story:NN, epic:XXXX story:NN, or empty for all active changes"
+disable-model-invocation: true
 ---
 
 You are running the `/ptp:archive-force` command — the gate-bypassing counterpart to `/ptp:archive`. Your job is to **resolve the selector, then delegate to the `ptp-archive-force` skill**.
@@ -23,7 +24,7 @@ Set `from_all = true` if and only if `$ARGUMENTS` was empty.
 
 ## Branch safety (first step)
 
-Force-archiving moves change folders and rewrites `openspec/specs/`, so before any move run the **`ptp-branch-guard`** preamble: check `git rev-parse --abbrev-ref HEAD`; if it is `master`, derive a feature-branch name from the resolved change id (→ `ptp/<change-id>`) and launch the minimal `ptp-branch-prep` workflow (stash → checkout master → pull → cut the branch) **before** writing anything; if you are already on a feature branch it is a **no-op** — proceed as-is. The full rule lives in the **`ptp-branch-guard`** skill — do not restate it here.
+Force-archiving moves change folders and rewrites `openspec/specs/`, so before any move run the **`ptp-branch-guard`** preamble: check `git rev-parse --abbrev-ref HEAD`; if it is the base branch (`master`/`main`), derive a feature-branch name from the resolved change id (→ `ptp/<change-id>`) and launch the minimal `ptp-branch-prep` workflow (stash → checkout the base branch → pull → cut the branch) **before** writing anything; if you are already on a feature branch it is a **no-op** — proceed as-is. The full rule lives in the **`ptp-branch-guard`** skill — do not restate it here.
 
 ## Steps
 

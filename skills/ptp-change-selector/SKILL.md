@@ -143,4 +143,5 @@ These **resolve** the selector via the algorithm in §3 and, if it resolves to m
 
 **Not set-capable:**
 - `/ptp:full-plan` — a producer-orchestrator; it decomposes via `/ptp:plan-multiple` and plan-reviews each slice it just produced, not a selector over existing changes.
+- `/ptp:full` — an end-to-end producer-orchestrator: it runs the full-plan flow (decompose via `/ptp:plan-multiple` + per-slice plan-review) and, on plan convergence, continues into the full-run flow (apply + review-full per slice) over the slices it just produced. Like `/ptp:full-plan` it takes a request / oversized-change argument, not a selector over existing changes.
 - `/ptp:brainstorm-only` — no change folder, no epic; writes to `openspec/brainstorms/` only.

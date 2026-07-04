@@ -9,11 +9,11 @@ You are running **`/ptp:review-full`** — a two-phase code-review loop that fir
 
 Change id: $ARGUMENTS
 
-Resolve `$ARGUMENTS` as a change selector per the `ptp-change-selector` skill; if it resolves to more than one change, run the steps below for each, in story order, reporting per change.
+Resolve `$ARGUMENTS` as a change selector per the `ptp-change-selector` skill; if it resolves to more than one change, run the steps below for each, in story order, reporting per change. Pass the **resolved change id** — never the raw `$ARGUMENTS` selector — into every inner skill and next-command below (`ptp-change-selector` mandates the resolved id; `ptp-review-loop` processes exactly one change per invocation).
 
 ## Branch safety (first step)
 
-Both phases apply inline code fixes, so before Phase 1 run the **`ptp-branch-guard`** preamble: check `git rev-parse --abbrev-ref HEAD`; if it is `master`, derive a feature-branch name from the resolved change id (→ `ptp/<change-id>`) and launch the minimal `ptp-branch-prep` workflow (stash → checkout master → pull → cut the branch) **before** writing anything; if you are already on a feature branch it is a **no-op** — proceed as-is. The full rule lives in the **`ptp-branch-guard`** skill — do not restate it here.
+Both phases apply inline code fixes, so before Phase 1 run the **`ptp-branch-guard`** preamble: check `git rev-parse --abbrev-ref HEAD`; if it is the base branch (`master`/`main`), derive a feature-branch name from the resolved change id (→ `ptp/<change-id>`) and launch the minimal `ptp-branch-prep` workflow (stash → checkout the base branch → pull → cut the branch) **before** writing anything; if you are already on a feature branch it is a **no-op** — proceed as-is. The full rule lives in the **`ptp-branch-guard`** skill — do not restate it here.
 
 ## Preconditions
 
@@ -44,7 +44,7 @@ Invoke the `ptp-review-loop` skill with:
 
 - `kind = code`
 - `reviewer = superpowers`
-- `change-id = $ARGUMENTS`
+- `change-id = <the resolved change id>` (the single id being processed this pass — not the raw `$ARGUMENTS` selector)
 
 The skill drives the full loop: per-iteration Superpowers code review, manual/test-only finding filter, rejection carry-over check, confirmation via `superpowers:receiving-code-review`, inline fix pass on confirmed findings, test/lint/typecheck verification, and termination at DONE or ITERATION CAP REACHED.
 
@@ -58,7 +58,7 @@ If and only if Phase 1 terminates with `DONE` **and** the decision permits Codex
 
 - `kind = code`
 - `reviewer = codex`
-- `change-id = $ARGUMENTS`
+- `change-id = <the resolved change id>` (the single id being processed this pass — not the raw `$ARGUMENTS` selector)
 
 The skill drives the full loop. For each iteration's review pass it runs the `codex-review.md` protocol inline: you (the caller) read the contract, capture the merge-base diff, run `npx -y openspec validate <change-id> --strict` and relevant tests, build a single closed-book prompt with all of this inlined, and pipe it to `codex exec -s read-only` over stdin. Findings are confirmed via `superpowers:receiving-code-review` before any fix is applied.
 
@@ -71,10 +71,10 @@ After both phases complete, report:
 1. Phase 1 summary (per-iteration table, total fixes, rejected/carry-over set, terminal state).
 2. Phase 2 summary (same) — or, if Codex was mode-skipped, the `Codex phase skipped (mode=…)` line in place of a Phase 2 table.
 3. Overall verdict: BOTH PHASES DONE (both converged), PHASE 1 DONE — CODEX SKIPPED (mode=…) (Phase 1 converged, Codex intentionally skipped by `codex.mode` — a success state), or PHASE 2 ITERATION CAP REACHED (Phase 1 converged, Phase 2 did not).
-4. Next command:
-   - If BOTH PHASES DONE → `/ptp:archive $ARGUMENTS` (or `/ptp:status` first).
-   - If PHASE 1 DONE — CODEX SKIPPED → `/ptp:archive $ARGUMENTS` (Superpowers signed off; Codex was skipped by mode — this is a successful single-reviewer run, not a halt). To add the Codex reviewer, set `codex.mode` via `/ptp:config` (and install `codex`) then run `/ptp:codex-review-loop $ARGUMENTS`.
-   - If PHASE 2 ITERATION CAP REACHED → resolve remaining Codex findings (e.g., `/ptp:review-fix`), then re-run `/ptp:review-full $ARGUMENTS` or run `/ptp:codex-review-loop $ARGUMENTS` directly.
+4. Next command (using the **resolved `<change-id>`** for this pass, not the raw `$ARGUMENTS` selector):
+   - If BOTH PHASES DONE → `/ptp:archive <change-id>` (or `/ptp:status` first).
+   - If PHASE 1 DONE — CODEX SKIPPED → `/ptp:archive <change-id>` (Superpowers signed off; Codex was skipped by mode — this is a successful single-reviewer run, not a halt). To add the Codex reviewer, set `codex.mode` via `/ptp:config` (and install `codex`) then run `/ptp:codex-review-loop <change-id>`.
+   - If PHASE 2 ITERATION CAP REACHED → resolve remaining Codex findings (e.g., `/ptp:review-fix`), then re-run `/ptp:review-full <change-id>` or run `/ptp:codex-review-loop <change-id>` directly.
 
 ## Hard rules
 

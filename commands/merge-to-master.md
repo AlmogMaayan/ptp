@@ -1,6 +1,7 @@
 ---
 description: Merge the current feature branch to master — commit, push, open a PR, squash-merge, delete the branch, then return to a clean master — without running the project's deploy CI/CD action. The merge-only variant of /ptp:deploy. Refuses to run on master/main. Never self-approves. Requires gh CLI authenticated.
 argument-hint: "(no arguments — operates on the current feature branch; configure via deploy.* in .claude/ptp/config.json)"
+disable-model-invocation: true
 ---
 
 You are running **`/ptp:merge-to-master`** — the merge-only variant of the ptp ship pipeline.
@@ -69,8 +70,8 @@ no `ptp/deploy-fix-*` branches are cut by this command.
   `--admin`-bypasses** a required approval. A required, unmet approval surfaces as a
   `needs-human-action` state (reason + PR URL + the follow-up "re-run `/ptp:merge-to-master`"), never
   a success or a plain refusal; re-run after a collaborator approves.
-- **Runs at a deterministic `sonnet.medium`** via `ptp-run-at-model` (one foreground subagent),
-  rather than the old soft model/effort prompt — the baseline is enforced, not merely suggested.
+- **Runs at a deterministic `sonnet.medium`** via `ptp-run-at-model` (one foreground subagent) — the
+  baseline model/effort is enforced, not merely suggested.
 - **Does not run a deploy action** — skipped by design, not by graceful degradation. This applies
   even when the repo has a detectable deploy workflow.
 - The PR-stage fix loop is bounded by `maxFixRounds` (default 3); on exhaustion, STOP and report —

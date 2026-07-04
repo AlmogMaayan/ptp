@@ -64,6 +64,47 @@ bounded retry budget → return to a clean `master` (via `/ptp:master`). It **ne
 refuses to run on `master`/`main` (the inverse of `/ptp:master`) and is a documented special case in
 `ptp-branch-guard`. See the README Configuration section for the `deploy` block.
 
+### PRD stage (epic-scoped, before planning)
+
+For an **epic-scoped** feature — larger than a single change — an optional PRD stage sits *before*
+`/ptp:plan`, mirroring the brainstorm stage one level up:
+
+- `/ptp:prd <selector>` — authors an epic Product Requirements Document into
+  `openspec/changes/<id>/prd.md` (the epic's lowest-numbered story folder). Free-text producer; delegates
+  to the `ptp-prd` skill.
+- `/ptp:review-prd <selector>` *(read-only)* — PRD-quality gate; PASS/WARN/FAIL, edits nothing.
+- `/ptp:review-prd-full <selector>` — dual-reviewer (Superpowers + Codex) inline-fix PRD-review loop.
+- `/ptp:prd-full <selector>` — seam-free `/ptp:prd` then `/ptp:review-prd-full` in one flow (the
+  PRD-stage analog of `/ptp:brainstorm-full`).
+
+### Brainstorm/plan review variants
+
+- `/ptp:brainstorm-full "<request>"` — `/ptp:brainstorm` then the dual-reviewer brainstorm-review loop
+  in one flow.
+- `/ptp:review-brainstorm [change-id]` *(read-only)* — brainstorm-quality gate between `/ptp:brainstorm`
+  and `/ptp:plan`; PASS/WARN/FAIL, edits nothing.
+- `/ptp:review-brainstorm-full [change-id]` — dual-reviewer inline-fix brainstorm-review loop.
+- `/ptp:effort [change-id]` — reads a planned change's artifacts and recommends the apply model/effort
+  (writes/refreshes `effort.md`). `/ptp:plan` already emits one; use this to re-derive it.
+
+### Orchestrators (multi-step, one invocation)
+
+- `/ptp:full-plan <request>` — `/ptp:plan-multiple` (decompose) then per-slice `/ptp:review-plan-full`;
+  read-only planning, never applies code.
+- `/ptp:full-run <selector>` — apply-then-`review-full` every change sequentially; each story's apply
+  runs at its `effort.md` model.
+- `/ptp:full <request>` — end-to-end: `full-plan` then, on plan convergence, `full-run`. Plans and runs
+  an oversized change in one invocation; never archives.
+
+### Ship variants (deploy family)
+
+- `/ptp:merge-to-master` — the merge-only variant of `/ptp:deploy`: commit → push → PR → squash-merge →
+  return to clean `master`, **without** running the deploy CI/CD action.
+- `/ptp:deploy-pr-approved` — finishes the merge+deploy after a required PR approval landed (the
+  follow-up `/ptp:deploy` hands off to).
+- `/ptp:archive-and-deploy <selector>` — archives every resolved change (through the standard archive
+  gates) then deploys once via `/ptp:deploy`, only if every archive succeeded.
+
 ### Codex-powered review alternatives (external second opinion)
 
 These commands delegate review to the external **Codex CLI** (`codex exec -s read-only "<prompt>"`) instead of the Superpowers code-review skill. Use them when you want an independent reviewer (a different model/agent) as a second opinion. The single-shot variants (`codex-review`, `codex-review-plan`, `codex-review-uncommitted`) only review and display findings — **they NEVER fix anything.** Codex runs read-only and never edits code or artifacts; applying any fix is always a separate, explicit user action — `/ptp:review-fix`, which independently confirms each Codex finding before touching anything.
@@ -73,6 +114,8 @@ These commands delegate review to the external **Codex CLI** (`codex exec -s rea
 - `/ptp:codex-review-uncommitted [change-id]` — Codex review of the **uncommitted** working-tree changes only (staged + unstaged + untracked); for catching issues mid-implementation before committing.
 - `/ptp:codex-review-loop <change-id>` *(loop variant of `/ptp:codex-review`)* — Codex code-review loop; same posture as `/ptp:review-loop` but the reviewer is Codex. Caller inlines diff + validation results each iteration; Codex runs no `npx`/network/install commands.
 - `/ptp:codex-review-plan-loop <change-id>` *(loop variant of `/ptp:codex-review-plan`)* — Codex artifact-review loop; caller assembles the closed-book prompt each iteration; Codex runs no commands.
+- `/ptp:codex-review-prd <selector>` — Codex review of the epic PRD (`prd.md`); no code, no artifacts.
+- `/ptp:codex-review-prd-loop <selector>` — Codex PRD-review loop; one pass per resolved epic.
 - `/ptp:review-full <change-id>` *(full dual-reviewer code-review loop)* — Superpowers code-review loop followed by the Codex code-review loop in a single invocation; both must converge (unless `codex.mode` skips Phase 2 — `auto`-missing or `off` — in which case the converged Superpowers phase alone is a green, non-silent success). Phase 2 (Codex) starts only if Phase 1 (Superpowers) terminates DONE and `codex.mode` permits. Unlike the single-shot commands, this loop does fix confirmed findings inline.
 - `/ptp:review-plan-full <change-id>` *(full dual-reviewer artifact-review loop)* — Same two-phase pattern for artifact review: Superpowers artifact loop → Codex artifact loop; Phase 2 starts only if Phase 1 terminates DONE.
 
@@ -85,7 +128,7 @@ These Codex-powered commands require the `codex` CLI on PATH. The explicit `/ptp
 
 ## Branch safety
 
-Every ptp step that **creates or updates files** runs the **`ptp-branch-guard`** preamble as its first write-affecting action: if HEAD is on `master`, it derives a feature-branch name from the change's context and launches the minimal `ptp-branch-prep` workflow (stash → checkout master → pull → cut the branch) **before** any file is written; if you are already on a feature branch, it is a no-op and you proceed on that branch. The read-only review/status steps skip it. The rule — including the exact write-capable/read-only split and the order relative to a command's own preconditions — is defined once in the **`ptp-branch-guard`** skill; every write-capable command references it rather than restating it.
+Every ptp step that **creates or updates files** runs the **`ptp-branch-guard`** preamble as its first write-affecting action: if HEAD is on the base branch (`master`/`main`), it derives a feature-branch name from the change's context and launches the minimal `ptp-branch-prep` workflow (stash → checkout the base branch → pull → cut the branch) **before** any file is written; if you are already on a feature branch, it is a no-op and you proceed on that branch. The read-only review/status steps skip it. The rule — including the exact write-capable/read-only split and the order relative to a command's own preconditions — is defined once in the **`ptp-branch-guard`** skill; every write-capable command references it rather than restating it.
 
 ## Artifact chain
 
@@ -120,6 +163,7 @@ Quick selector reference:
 
 | Form | Resolves to |
 | ---- | ----------- |
+| `epic:all` | All active changes across every epic (ascending by `(epic, story)`); legacy ids appended after |
 | `epic:XXXX` | All active changes in epic `XXXX`, ascending by story |
 | `epic:XXXX story:NN` | The single change `XXXX_NN_*` |
 | `story:NN` | The one active change with that story (if unambiguous) |
@@ -137,7 +181,7 @@ If OpenSpec's own prompts conflict with Superpowers reasoning:
 
 ## Hard prohibitions
 
-- **Never** invoke `/openspec:propose` or `/openspec:explore` as the primary planning step — that is what `/ptp:brainstorm` and `/ptp:plan` replace.
+- **Never** invoke `/opsx:propose` or `/opsx:explore` (nor the vendored `ptp:openspec-propose` / `ptp:openspec-explore` skills) as the primary planning step — that is what `/ptp:brainstorm` and `/ptp:plan` replace.
 - **Never** start implementation directly from OpenSpec explore/propose output.
 - **Never** edit OpenSpec's managed/regenerated instruction blocks.
 - **Never** skip `openspec validate <id> --strict` before implementation.

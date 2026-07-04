@@ -1,6 +1,6 @@
 ---
 name: ptp-review-brainstorm
-description: Use this skill when reviewing a change's brainstorm.md quality before /ptp:plan — the read-only brainstorm-quality gate that sits one step earlier than /ptp:review-plan, between /ptp:brainstorm and /ptp:plan. Owns the brainstorm-review methodology (locate the brainstorm, the rubric, Critical/High/Medium/Low classification, the PASS/WARN/FAIL verdict, and the report + next-step recommendation) that the thin /ptp:review-brainstorm command delegates to. Read-only: edits nothing, runs no git, runs no branch guard, runs no openspec validate, and triggers no other ptp command.
+description: "Use this skill when reviewing a change's brainstorm.md quality before /ptp:plan — the read-only brainstorm-quality gate that sits one step earlier than /ptp:review-plan, between /ptp:brainstorm and /ptp:plan. Owns the brainstorm-review methodology (locate the brainstorm, the rubric, Critical/High/Medium/Low classification, the PASS/WARN/FAIL verdict, and the report + next-step recommendation) that the thin /ptp:review-brainstorm command delegates to. Read-only: edits nothing, runs no git, runs no branch guard, runs no openspec validate, and triggers no other ptp command."
 ---
 
 # ptp-review-brainstorm — the brainstorm-quality gate methodology

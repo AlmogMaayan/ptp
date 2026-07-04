@@ -10,6 +10,13 @@ structured data — return only the requested JSON object.
 
 ## Preconditions
 
+- **Resolve `MAX_ITERATIONS` per the `ptp-review-loop` skill's *Resolution* section** (layered
+  `review.maxIterations`: global `~/.claude/ptp/config.json` then project `<repo>/.claude/ptp/config.json`;
+  any missing file / missing key / parse error / invalid value → keep the prior value, ultimately the
+  default `5`; never crash, never STOP over a config typo). Resolve it **once** at the start of the run
+  and hold it fixed. Each phase gets its own independent cap of `MAX_ITERATIONS`. This is the same cap
+  the interactive `/ptp:review-full` path uses, so the workflow path (`/ptp:full`, `/ptp:full-run`) and
+  the interactive path agree.
 - **Resolve `codex.mode` per the `ptp-codex-mode` skill** and apply its decision contract to Phase 2.
   Phase 1 (Superpowers) always runs. If the decision is to **skip** Codex (`off`, or `auto` with
   `codex` not on PATH), run Phase 1 only and, on Phase 1 convergence, return
@@ -19,9 +26,9 @@ structured data — return only the requested JSON object.
   already resolved the mode; this honors the same decision.)
 - `openspec/changes/<change-id>/` must exist.
 
-## Phase 1 — Superpowers code-review loop (cap 5)
+## Phase 1 — Superpowers code-review loop (cap MAX_ITERATIONS, default 5)
 
-Iterate review → confirm → fix until zero confirmed findings or 5 iterations:
+Iterate review → confirm → fix until zero confirmed findings or MAX_ITERATIONS iterations:
 - **Review:** load the contract (`proposal.md`, `design.md`, `tasks.md`, `specs/**/spec.md`) and
   the merge-base diff (`git merge-base HEAD master` → `git diff <base>...HEAD`). If you have the
   `Skill` tool you MAY invoke `superpowers:requesting-code-review`; otherwise review directly
@@ -35,10 +42,10 @@ Iterate review → confirm → fix until zero confirmed findings or 5 iterations
   whether it is a real defect (apply `superpowers:receiving-code-review` rigor if available).
 - **Fix:** edit source files inline for confirmed findings only. Never commit. Never archive.
 - **Verify:** run tests/lint/typecheck for touched files (failure is recorded, not fatal).
-- **Terminate:** zero confirmed findings → Phase 1 DONE. Hit iteration 6 → `PHASE1_CAP`: STOP,
-  do NOT start Phase 2.
+- **Terminate:** zero confirmed findings → Phase 1 DONE. Exceed MAX_ITERATIONS (i.e. the
+  `MAX_ITERATIONS + 1`th iteration, default the 6th) → `PHASE1_CAP`: STOP, do NOT start Phase 2.
 
-## Phase 2 — Codex code-review loop (cap 5) — only if Phase 1 is DONE and the mode decision permits Codex
+## Phase 2 — Codex code-review loop (cap MAX_ITERATIONS, default 5) — only if Phase 1 is DONE and the mode decision permits Codex
 
 Skip this phase entirely if the `codex.mode` decision was to skip Codex (see Preconditions) — return
 `BOTH_PHASES_DONE` with the `Codex phase skipped (mode=…)` note. Otherwise, fresh loop state (Phase 1
@@ -50,13 +57,16 @@ rejections do NOT carry over). Each iteration:
   `--sandbox workspace-write`, or `--dangerously-bypass-approvals-and-sandbox`. Codex runs no
   `npx`/network/install commands.
 - Confirm each finding (read the code) before fixing; fix confirmed findings inline.
-- Terminate: zero confirmed findings → `BOTH_PHASES_DONE`. Hit iteration 6 → `PHASE2_CAP`.
+- Terminate: zero confirmed findings → `BOTH_PHASES_DONE`. Exceed MAX_ITERATIONS (the
+  `MAX_ITERATIONS + 1`th iteration, default the 6th) → `PHASE2_CAP`.
 
 ## Hard rules
 
 - Never fix an unconfirmed finding. Never commit. Never archive. Never run `ptp:apply`.
 - Never edit planning artifacts (`proposal.md`/`design.md`/`tasks.md`/spec deltas) — code only.
-- Cap is 5 per phase, not configurable.
+- Cap is `MAX_ITERATIONS` per phase (layered `review.maxIterations`, default 5, resolved once per the
+  `ptp-review-loop` skill — see Preconditions); each phase has its own independent cap. This matches the
+  interactive `/ptp:review-full` path.
 
 ## Return value (your entire final message)
 

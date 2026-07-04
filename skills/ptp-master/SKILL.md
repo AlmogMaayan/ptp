@@ -1,6 +1,6 @@
 ---
 name: ptp-master
-description: Use this skill when the user wants to switch to master, go to master, return to master, get back to master, or pull the latest — runs only when the working tree is clean (no staged, unstaged, or untracked changes). Safe "return to up-to-date master" utility: gates on a clean tree, switches to master, and fast-forward-pulls.
+description: "Use this skill when the user wants to switch to master, go to master, return to master, get back to master, or pull the latest — runs only when the working tree is clean (no staged, unstaged, or untracked changes). Safe \"return to up-to-date master\" utility: gates on a clean tree, switches to master, and fast-forward-pulls."
 ---
 
 # ptp-master — safe return to up-to-date `master`

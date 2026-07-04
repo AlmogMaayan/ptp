@@ -1,6 +1,6 @@
 ---
 name: ptp-workflow-cache-heal
-description: Single-source CRLF self-heal for cached ptp workflow scripts. Run this step (via the Bash tool) before any named-workflow invocation to strip carriage-return characters from every file matching ~/.claude/plugins/cache/ptp/*/workflows/*.js. Idempotent, safe when the cache is absent, and never nests a Workflow() call.
+description: Single-source CRLF self-heal for cached ptp workflow scripts. Run this step (via the Bash tool) before any named-workflow invocation to strip carriage-return characters from every file matching ~/.claude/plugins/cache/ptp/*/*/workflows/*.js. Idempotent, safe when the cache is absent, and never nests a Workflow() call.
 ---
 
 # ptp-workflow-cache-heal — CRLF self-heal for cached ptp workflow scripts
@@ -22,7 +22,7 @@ Run the following via the **Bash tool** (Git Bash on Windows, bash on macOS/Linu
 is bash ANSI-C quoting, which the Bash tool provides on every platform):
 
 ```sh
-for f in ~/.claude/plugins/cache/ptp/*/workflows/*.js; do
+for f in ~/.claude/plugins/cache/ptp/*/*/workflows/*.js; do
   [ -f "$f" ] || continue
   if LC_ALL=C grep -q $'\r' "$f"; then
     if command -v perl >/dev/null 2>&1; then
@@ -42,8 +42,11 @@ done
 - **Safe when cache is absent** — `[ -f "$f" ] || continue` turns an unmatched glob (no cache
   directory, or no `*.js` files) into a silent no-op. The step exits `0` with no output and no error.
 
-- **Whole-glob** — the glob `~/.claude/plugins/cache/ptp/*/workflows/*.js` covers every cached version
-  directory under `ptp/` and both workflow script files in one pass, so stale versions are healed too.
+- **Whole-glob** — the glob `~/.claude/plugins/cache/ptp/*/*/workflows/*.js` covers every cached version
+  directory and both workflow script files in one pass, so stale versions are healed too. The two `*`
+  segments are the **marketplace/plugin-name** directory (`ptp/`) and the **version** directory: the real
+  installed layout is `~/.claude/plugins/cache/ptp/ptp/<version>/workflows/*.js`, so a single-`*` glob
+  (`cache/ptp/*/workflows/*.js`) reaches one level too shallow and silently matches **zero** files.
 
 - **Auto-selected fallback** — the rewrite auto-selects `perl -i -pe 's/\r//g'` when `perl` is
   present (typical on all platforms with Git Bash), and automatically falls back to `tr -d '\r'` (via a

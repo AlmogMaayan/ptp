@@ -1,6 +1,7 @@
 ---
 description: Archive every resolved change then ship the current feature branch — archives each resolved change through the existing /ptp:archive gates in story order, gates on full archive convergence, then deploys the current feature branch exactly once via /ptp:deploy, but only if every archive succeeded. Refuses on master/main, never cuts a branch, never self-approves a PR.
 argument-hint: "<change-selector> — id, epic:all, epic:XXXX, story:NN, or epic:XXXX story:NN"
+disable-model-invocation: true
 ---
 
 `/ptp:archive-and-deploy` chains the two end-of-epic steps — **archive every resolved change**, then

@@ -52,6 +52,6 @@ per-change pass, reporting per change.)
 
 - Do **not** count required manual tests that have not yet been performed as findings. Manual tests are a future verification step; their absence is not a code defect.
 - Do **not** archive in this command. Archiving is an explicit user action.
-- Do **not** silently fix Critical/High issues — report them so the user decides. (Apply fixes only if the user says so.)
+- **This command only reviews and classifies findings. It NEVER fixes anything.** It is read-only and runs no branch guard (the review subagent fixes nothing — see the flow above), so it must not edit code — not even for Critical/High findings, and not even if the user's phrasing sounds like "deal with it." Report the findings and stop. Fixing is a separate, explicit user action: route the user to `/ptp:review-fix <change-id>` (the same as the `codex-review` siblings).
 - Do **not** judge the proposal itself in this step — that was the planning step's job. Judge the implementation **against** the proposal.
-- Do **not** invoke `/ptp:apply` in response to findings, even if the user says "fix the findings." Fix inline (edit the code directly). `/ptp:apply` is only triggered by an explicit `/ptp:apply <change-id>` command from the user.
+- Do **not** invoke `/ptp:apply` in response to findings, even if the user says "fix the findings," and do **not** edit code inline (this command is read-only and runs no branch guard). Route fixes to `/ptp:review-fix <change-id>` instead. `/ptp:apply` is only triggered by an explicit `/ptp:apply <change-id>` command from the user.
