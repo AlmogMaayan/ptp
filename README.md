@@ -377,6 +377,15 @@ stop, have a collaborator approve and re-run `/ptp:merge-to-master` (idempotent)
 
 **`/ptp:archive-and-deploy`** — archive each resolved change through the existing archive gates in story order, then — only if every archive succeeded — run the deploy pipeline once on the current feature branch. Accepts a selector (including `epic:all`). Refuses to run on `master`/`main` and does not cut a branch. Never self-approves a PR.
 
+**`/ptp:deploy-master`** — deploys the current `master` by triggering the project's deploy CI/CD
+action (honoring `deploy.workflow`/`deploy.inputs`) **without** commit, push, PR, or merge. The
+inverse of `/ptp:deploy` (which ships a feature branch): use this when `master` is already in the
+desired state and you just want to re-trigger the deploy action. Refuses to run off `master`/`main`
+or on a dirty working tree. Reads the same `deploy` config block as `/ptp:deploy`, but only the
+`workflow`/`inputs` keys apply (no merge, so `mergeMethod`/`maxFixRounds` are irrelevant). Requires
+the `gh` CLI authenticated. This command is **exempt from `ptp-branch-guard`** (it intentionally
+operates on master, not a feature branch, and authors no artifact).
+
 ---
 
 ## Skills
@@ -457,6 +466,9 @@ Where am I / what model
 
 Merge to master without deploying
   → /ptp:merge-to-master              # commit → PR → squash-merge → land on master (no deploy)
+
+Deploy master as-is (no commit/PR/merge)
+  → /ptp:deploy-master                # trigger deploy CI/CD against the current master
 
 Archive all then deploy (one command)
   → /ptp:archive-and-deploy <sel>     # archive in story order → deploy once (only if all pass)
