@@ -60,6 +60,9 @@ config), and relaying the verdict — **fixing nothing**, and the subagent's out
    ```bash
    printf '%s' "$PROMPT" | codex exec -s read-only -
    ```
+   Assemble the invocation per the `ptp-codex-mode` flag-append rule: append `-m <model>` and/or
+   `-c model_reasoning_effort=<effort>` before the trailing `-` when `codex.model` /
+   `codex.reasoningEffort` resolve to a set value; both unset yields exactly the invocation shown above.
    - Always pipe via **stdin** (`-`); keep `-s read-only`. Do **not** pass `--full-auto`, `--sandbox workspace-write`, or `--dangerously-bypass-approvals-and-sandbox`.
    - Running it in the background and polling the output file for the verdict line is fine.
    - Sandbox noise (`blocked by policy`, `spawn setup refresh`) is harmless here — the diff is inlined, so Codex needs no commands. Proceed to relay the verdict.

@@ -52,5 +52,5 @@ The skill drives the full loop. For each iteration's review pass it runs the `co
 - Do **not** count findings whose only suggested remediation is a manual check or a missing test against convergence.
 - Do **not** edit spec deltas or planning artifacts in this command. Use `/ptp:codex-review-plan-loop` for artifact fixes.
 - Iteration cap is configurable via `review.maxIterations` in ptp config; default 5.
-- Run Codex under `codex exec -s read-only` with the prompt piped over **stdin** (`-`). Never pass `--full-auto`, `--sandbox workspace-write`, or `--dangerously-bypass-approvals-and-sandbox`.
+- Run Codex under `codex exec -s read-only` with the prompt piped over **stdin** (`-`), assembled per the `ptp-codex-mode` flag-append rule (resolved `-m`/`-c` flags before the trailing `-` when configured). Never pass `--full-auto`, `--sandbox workspace-write`, or `--dangerously-bypass-approvals-and-sandbox`.
 - **You (the caller) run `openspec validate` and all file reads** before each iteration. Codex receives an inlined, self-contained prompt and runs **no** `npx`, network, or install commands. Pass the prompt over stdin, not as an argv string.

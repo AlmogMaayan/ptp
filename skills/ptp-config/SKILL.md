@@ -38,6 +38,26 @@ parameters = [
     default: "auto"
   },
   {
+    key:      "codex.model",
+    label:    "Codex model override",
+    jsonPath: ["codex", "model"],
+    kind:     "string",
+    default:  undefined  // unset
+  },
+  {
+    key:      "codex.reasoningEffort",
+    label:    "Codex reasoning effort",
+    jsonPath: ["codex", "reasoningEffort"],
+    kind:     "enum",
+    values: [
+      { value: "minimal", desc: "Minimal reasoning effort" },
+      { value: "low",     desc: "Low reasoning effort" },
+      { value: "medium",  desc: "Medium reasoning effort" },
+      { value: "high",    desc: "High reasoning effort" }
+    ],
+    default: undefined  // unset
+  },
+  {
     key:      "review.maxIterations",
     label:    "Max review-loop iterations",
     jsonPath: ["review", "maxIterations"],
@@ -47,7 +67,7 @@ parameters = [
 ]
 ```
 
-**Parameter menu:** The registry currently holds two entries. Step 2 builds an `AskUserQuestion`
+**Parameter menu:** The registry currently holds four entries. Step 2 builds an `AskUserQuestion`
 menu from each entry's `label` value and presents it to the user. The flow is data-driven: adding
 a new entry to the registry automatically adds it to the menu with no further edits to this flow.
 
@@ -82,7 +102,9 @@ and writer pointed at one schema.
 Build an `AskUserQuestion` menu from the registry entries' `label` values:
 
 1. **Use Codex for review** (`codex.mode`)
-2. **Max review-loop iterations** (`review.maxIterations`)
+2. **Codex model override** (`codex.model`)
+3. **Codex reasoning effort** (`codex.reasoningEffort`)
+4. **Max review-loop iterations** (`review.maxIterations`)
 
 Use the selected entry's `jsonPath`, `kind`, `values` (for enum entries), and `default` for the
 remaining steps. This is data-driven off the registry — adding a parameter requires only a new
@@ -108,7 +130,8 @@ registry entry, no other edits to this flow.
    - If the selected parameter's **parent key** exists in the root object but its value is **not a
      JSON object**, **STOP and report** — the parent exists but is not an object; merging into it
      would clobber data. File unchanged. End the command here. Specifically:
-     - For `codex.mode`: if `codex` exists but is not an object (e.g. `{"codex":"auto"}` or
+     - For `codex.mode`, `codex.model`, or `codex.reasoningEffort` (they share the same `codex`
+       parent): if `codex` exists but is not an object (e.g. `{"codex":"auto"}` or
        `{"codex":null}`), STOP.
      - For `review.maxIterations`: if `review` exists but is not an object (e.g. `{"review":"x"}`
        or `{"review":null}`), STOP.
@@ -137,6 +160,32 @@ are:
 
 These are the only options. **Never write a value that is not in the entry's `values` list.** The
 value written to the file is exactly the selected string (verbatim, lowercase).
+
+#### kind = `enum` (e.g. `codex.reasoningEffort`)
+
+Use `AskUserQuestion` to offer the parameter's `values`. For `codex.reasoningEffort`, the four valid
+values are:
+
+1. **`minimal`** — Minimal reasoning effort
+2. **`low`** — Low reasoning effort
+3. **`medium`** — Medium reasoning effort
+4. **`high`** — High reasoning effort
+
+These are the only options. **Never write a value that is not in the entry's `values` list.** The
+value written to the file is exactly the selected string (verbatim, lowercase).
+
+#### kind = `string` (e.g. `codex.model`)
+
+Prompt the user for a free-text value (no fixed options; e.g. a Codex model id like `gpt-5.6`). Then
+validate the input:
+
+- **Accept:** any non-empty string after trimming leading/trailing whitespace. The value is written
+  as a JSON **string**, trimmed.
+- **Reject and re-prompt** on empty input or input that is only whitespace — do NOT write an empty
+  value.
+
+When rejecting, report that the value must be non-empty and ask again. Only proceed to step 5 once a
+non-empty, non-whitespace-only string is in hand.
 
 #### kind = `integer` (e.g. `review.maxIterations`)
 
@@ -175,7 +224,8 @@ With the resolved path, the base JSON object (from step 3), and the chosen value
 
 2. **Set the target path:** in the base JSON object, navigate the selected entry's `jsonPath`:
    - If the parent key is absent from the root, create it as an empty object `{}`.
-     For `codex.mode`: create `codex` as `{}`; for `review.maxIterations`: create `review` as `{}`.
+     For `codex.mode`, `codex.model`, or `codex.reasoningEffort`: create `codex` as `{}`; for
+     `review.maxIterations`: create `review` as `{}`.
    - Set the targeted key to the chosen value.
    - Leave **every other key** (e.g. `deploy`, any unknown keys) and every other nested value
      **untouched**.
@@ -216,11 +266,13 @@ Examples:
 | Target file valid JSON with other keys | Merge; preserve all other keys. |
 | Target file present but invalid JSON | STOP, report parse failure, do **not** overwrite. |
 | Root parses to non-object (`[]`, string, number, `null`) | STOP, report, do **not** overwrite. |
-| `codex` present but not an object (`"codex":"auto"`, `"codex":null`) | STOP, report, do **not** overwrite. |
+| `codex` present but not an object (`"codex":"auto"`, `"codex":null`) — applies to `codex.mode`, `codex.model`, and `codex.reasoningEffort` alike | STOP, report, do **not** overwrite. |
 | `review` present but not an object (`"review":"x"`, `"review":null`) | STOP, report, do **not** overwrite. |
 | `review` absent | Created as `{}` on write; not clobbering. |
 | Integer input not a positive integer (`0`, `-1`, `5.5`, `"5"`, `abc`) | Reject, re-prompt; do NOT write. |
 | Integer equals current stored value | Report no-op; do not write. |
+| `codex.model` input empty or whitespace-only | Reject, re-prompt; do NOT write. |
+| `codex.reasoningEffort` selection outside `minimal|low|medium|high` | Not offered — the enum menu only presents the four valid values. |
 | Not in a git repo (project target) | Fall back to `<cwd>/.claude/ptp/config.json`; note the fallback in output. |
 | Chosen value equals current stored value | Report no-op; do not write. |
 
@@ -239,10 +291,16 @@ Examples:
 - **Never write an out-of-enum value for `codex.mode`.** Only `auto`, `required`, or `off` may be
   written for `codex.mode`. The value comes from the step 4 enum menu — never from free-form user
   input.
+- **Never write an out-of-enum value for `codex.reasoningEffort`.** Only `minimal`, `low`, `medium`,
+  or `high` may be written. The value comes from the step 4 enum menu — never from free-form user
+  input.
+- **Never write an empty or whitespace-only string for `codex.model`.** Only a non-empty, trimmed
+  string may be written; empty/whitespace-only input is rejected and re-prompted.
 - **Never write an invalid integer for `review.maxIterations`.** Only a positive integer (`>= 1`)
   may be written. Any non-positive, non-integer, non-numeric, or string-typed input is rejected
   and re-prompted — never written.
 - **Never touch keys other than the selected parameter's `jsonPath`.** All other keys (including
-  `deploy` and any unknown keys) are preserved as data in the serialized output.
+  `deploy`, sibling `codex` keys, and any unknown keys) are preserved as data in the serialized
+  output.
 - This is an **ordinary interactive command** — `AskUserQuestion` is used deliberately and is
   allowed here. It is **not** part of the autonomous plan/apply pipeline.

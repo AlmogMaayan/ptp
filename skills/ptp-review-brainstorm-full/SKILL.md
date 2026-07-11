@@ -96,9 +96,10 @@ Phase 2 starts with **fresh loop state**: Phase 1's `rejected_findings` do **not
 is an independent reviewer and its findings are evaluated on their own merits. The loop drives the
 closed-book Codex review retargeted to `brainstorm.md` with **no** `openspec validate` (the caller
 reads `brainstorm.md` + any cited context, builds one self-contained prompt carrying the brainstorm
-rubric as the audit instructions, and pipes it to `codex exec -s read-only` over stdin; Codex runs no
-commands), and confirmed findings are fixed by editing `brainstorm.md` until it terminates `DONE` or
-`ITERATION CAP REACHED`.
+rubric as the audit instructions, and pipes it to `codex exec -s read-only` over stdin (assembled per
+the `ptp-codex-mode` flag-append rule — resolved `-m`/`-c` flags appended before the trailing `-` when
+configured); Codex runs no commands), and confirmed findings are fixed by editing `brainstorm.md`
+until it terminates `DONE` or `ITERATION CAP REACHED`.
 
 **Deliberate difference — NO `openspec validate`.** `codex-review-plan.md` inlines an authoritative
 `openspec validate --strict` result; this brainstorm loop **omits it**, because a brainstorm precedes
@@ -195,5 +196,7 @@ this orchestrator only ever drives the brainstorm kind.
 - **Don't re-author the rubric.** The brainstorm-quality rubric stays in `ptp-review-brainstorm`; only
   the disposition of findings (inline fix vs. report) changes here.
 - **Codex only read-only over stdin.** Run Codex only under `codex exec -s read-only` with the prompt
-  piped over **stdin** (`-`). Never `--full-auto`, `--sandbox workspace-write`, or
-  `--dangerously-bypass-approvals-and-sandbox`. Codex runs **no** commands.
+  piped over **stdin** (`-`), assembled per the `ptp-codex-mode` flag-append rule (resolved `-m`/`-c`
+  flags before the trailing `-` when `codex.model`/`codex.reasoningEffort` are configured). Never
+  `--full-auto`, `--sandbox workspace-write`, or `--dangerously-bypass-approvals-and-sandbox`. Codex
+  runs **no** commands.
