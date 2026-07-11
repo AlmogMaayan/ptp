@@ -134,11 +134,13 @@ default — PtP never fails to start over a config typo.
 {
   "codex": {
     "mode": "auto",
-    "model": "gpt-5.6",
+    "model": "<your-codex-model-id>",
     "reasoningEffort": "high"
   }
 }
 ```
+
+The `model` value above is an illustrative placeholder — replace it with a model id your own Codex CLI/account actually supports, or omit the key to use the model from your `~/.codex/config.toml`. A value Codex doesn't recognize is rejected, and Codex falls back to its own default model.
 
 ### `codex.mode`
 
