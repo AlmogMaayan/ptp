@@ -74,6 +74,9 @@ selector, the one subagent handles the whole per-change pass.)
    ```bash
    printf '%s' "$PROMPT" | codex exec -s read-only -
    ```
+   Assemble the invocation per the `ptp-codex-mode` flag-append rule: append `-m <model>` and/or
+   `-c model_reasoning_effort=<effort>` before the trailing `-` when `codex.model` /
+   `codex.reasoningEffort` resolve to a set value; both unset yields exactly the invocation shown above.
    - Always pipe the prompt via **stdin** (`-`), never as a quoted argv string — this avoids the argv quoting failures.
    - Keep `-s read-only`. Do **not** pass `--full-auto`, `--sandbox workspace-write`, or `--dangerously-bypass-approvals-and-sandbox` — loosening the sandbox is the wrong fix for a review.
    - `codex exec` may take a while; running it in the background and polling the output file for the `VERDICT:` line is fine.
@@ -88,5 +91,6 @@ selector, the one subagent handles the whole per-change pass.)
 - **This command only reviews and displays findings. It NEVER fixes anything.** Do not edit the artifacts, the code, or anything else — not even if findings are obvious. Report the findings and stop. To fix, the user runs `/ptp:review-fix` or re-runs `/ptp:plan`.
 - This command reviews **artifacts only** — never code logic, never the implementation diff. That's `/ptp:codex-review`'s job. (Inlining source excerpts here is solely to verify the artifacts' line references, not to review the code.)
 - The **caller** runs `openspec validate` and all file reads; **Codex runs no commands**. Pass the prompt over stdin.
+- Assemble the `codex exec` invocation per the `ptp-codex-mode` flag-append rule (append resolved `-m`/`-c` flags before the trailing `-` when `codex.model`/`codex.reasoningEffort` are configured).
 - Do **not** run Codex with a writable or bypassed sandbox.
 - Do **not** invoke `/ptp:apply` from here under any circumstance.

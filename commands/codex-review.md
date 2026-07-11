@@ -57,6 +57,9 @@ per-change pass.)
    ```bash
    printf '%s' "$PROMPT" | codex exec -s read-only -
    ```
+   Assemble the invocation per the `ptp-codex-mode` flag-append rule: append `-m <model>` and/or
+   `-c model_reasoning_effort=<effort>` before the trailing `-` when `codex.model` /
+   `codex.reasoningEffort` resolve to a set value; both unset yields exactly the invocation shown above.
    - Always pipe via **stdin** (`-`); keep `-s read-only`. Do **not** pass `--full-auto`, `--sandbox workspace-write`, or `--dangerously-bypass-approvals-and-sandbox` — loosening the sandbox is the wrong fix for a review.
    - Running it in the background and polling the output file for the verdict line is fine.
    - Sandbox noise (`blocked by policy`, `spawn setup refresh`) is harmless — the diff and results are inlined, so Codex needs no commands. Proceed to relay the verdict.
@@ -70,6 +73,7 @@ per-change pass.)
 - Do **not** count required manual tests that have not yet been performed as findings. Manual tests are a future verification step; their absence is not a code defect.
 - **This command only reviews and displays findings. It NEVER fixes anything.** Do not edit code, do not stage, do not commit — not even if Critical/High findings are obvious, and not even if the user's phrasing sounds like "deal with it." Report the findings and stop. Fixing is a separate, explicit user action (`/ptp:review-fix`).
 - The **caller** captures the diff and runs `openspec validate` / tests; **Codex runs no `npx`/network/install commands**. Pass the prompt over stdin.
+- Assemble the `codex exec` invocation per the `ptp-codex-mode` flag-append rule (append resolved `-m`/`-c` flags before the trailing `-` when `codex.model`/`codex.reasoningEffort` are configured).
 - Do **not** archive in this command.
 - Do **not** run Codex with a writable or bypassed sandbox (`workspace-write` / `danger-full-access`) — the reviewer must not edit the code.
 - Do **not** invoke `/ptp:apply` from here under any circumstance.

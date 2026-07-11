@@ -53,9 +53,10 @@ rejections do NOT carry over). Each iteration:
 - Read the contract yourself; capture the merge-base diff; run
   `npx -y openspec validate <change-id> --strict` and relevant tests yourself; build ONE
   self-contained closed-book prompt with all of that inlined; pipe it to
-  `codex exec -s read-only` over **stdin** (`-`). Never pass `--full-auto`,
-  `--sandbox workspace-write`, or `--dangerously-bypass-approvals-and-sandbox`. Codex runs no
-  `npx`/network/install commands.
+  `codex exec -s read-only` over **stdin** (`-`), assembled per the `ptp-codex-mode` flag-append rule
+  (resolved `-m`/`-c` flags before the trailing `-` when `codex.model`/`codex.reasoningEffort` are
+  configured). Never pass `--full-auto`, `--sandbox workspace-write`, or
+  `--dangerously-bypass-approvals-and-sandbox`. Codex runs no `npx`/network/install commands.
 - Confirm each finding (read the code) before fixing; fix confirmed findings inline.
 - Terminate: zero confirmed findings → `BOTH_PHASES_DONE`. Exceed MAX_ITERATIONS (the
   `MAX_ITERATIONS + 1`th iteration, default the 6th) → `PHASE2_CAP`.

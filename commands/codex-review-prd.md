@@ -98,6 +98,9 @@ multi-epic or empty-argument audit-all selector, the one subagent handles the wh
    ```bash
    printf '%s' "$PROMPT" | codex exec -s read-only -
    ```
+   Assemble the invocation per the `ptp-codex-mode` flag-append rule: append `-m <model>` and/or
+   `-c model_reasoning_effort=<effort>` before the trailing `-` when `codex.model` /
+   `codex.reasoningEffort` resolve to a set value; both unset yields exactly the invocation shown above.
    - Always pipe the prompt via **stdin** (`-`), never as a quoted argv string.
    - Keep `-s read-only`. Do **not** pass `--full-auto`, `--sandbox workspace-write`, or
      `--dangerously-bypass-approvals-and-sandbox` — loosening the sandbox is the wrong fix for a review.

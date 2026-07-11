@@ -133,7 +133,9 @@ default — PtP never fails to start over a config typo.
 ```json
 {
   "codex": {
-    "mode": "auto"
+    "mode": "auto",
+    "model": "gpt-5.6",
+    "reasoningEffort": "high"
   }
 }
 ```
@@ -157,6 +159,25 @@ PATH and stop if it's genuinely missing.
 A skipped Codex phase is **never silent**: the orchestrator's end-of-run summary states
 `Codex phase skipped (mode=…)` so a single-reviewer run is always visible.
 
+### `codex.model` and `codex.reasoningEffort`
+
+Two optional overrides that control **how** an invoked Codex run behaves — pin the model or the
+reasoning effort — independent of `codex.mode`, which controls only **whether** Codex runs.
+
+| Key | Type | Default | Meaning |
+|-----|------|---------|---------|
+| `codex.model` | string | unset | Passed as `-m <model>` to `codex exec`. When unset, no override is passed and Codex uses whatever model your own `~/.codex/config.toml` specifies. |
+| `codex.reasoningEffort` | enum: `minimal`\|`low`\|`medium`\|`high` | unset | Passed as `-c model_reasoning_effort=<effort>` to `codex exec`. When unset, no override is passed and Codex uses your own `~/.codex/config.toml` setting. |
+
+Both keys resolve from the same two layered files as `codex.mode` (global then project, project
+overriding key-by-key), independently of each other and of `codex.mode`. Every `codex exec`
+invocation ptp makes — mode-gated dual-reviewer commands and the explicit `/ptp:codex-*` commands
+alike — appends the resolved `-m`/`-c` flags before the trailing stdin marker when set; with both
+keys unset the invocation is byte-identical to `codex exec -s read-only -`. A missing file, missing
+key, unparseable JSON, wrong-type value, or out-of-set value leaves the prior layer's valid value in
+place (ultimately unset if no layer set a valid value) — never a crash or a STOP. Both keys are
+settable via `/ptp:config` (see below).
+
 ### `/ptp:config` — guided config editor
 
 **`/ptp:config`** is the interactive front door for editing these config files. Instead of
@@ -164,14 +185,18 @@ hand-editing JSON, it walks you through:
 
 1. **Target** — choose *User / global* (`~/.claude/ptp/config.json`) or *Project*
    (`<repo>/.claude/ptp/config.json`).
-2. **Parameter** — currently only `codex.mode` ("Use Codex for review"); the menu grows as the
-   registry grows.
-3. **Value** — select from the valid enum values with one-line descriptions.
+2. **Parameter** — `codex.mode` ("Use Codex for review"), `codex.model` ("Codex model override"),
+   `codex.reasoningEffort` ("Codex reasoning effort"), or `review.maxIterations` ("Max review-loop
+   iterations"); the menu grows as the registry grows.
+3. **Value** — select from the valid enum values with one-line descriptions (`codex.mode`,
+   `codex.reasoningEffort`), enter a free-text value (`codex.model`), or enter an integer
+   (`review.maxIterations`).
 
-The command then performs a **safe merge-write**: it sets only the targeted key (`codex.mode`),
-preserves every other existing key (including the `deploy` block), creates the parent directory
-and file if absent, and refuses to overwrite a malformed or wrong-shape JSON file. It echoes the
-absolute path written and the new value. It **never commits, pushes, or stages** the change.
+The command then performs a **safe merge-write**: it sets only the targeted key (e.g. `codex.mode`,
+`codex.model`, or `codex.reasoningEffort`), preserves every other existing key (including the
+`deploy` block and sibling `codex` keys), creates the parent directory and file if absent, and
+refuses to overwrite a malformed or wrong-shape JSON file. It echoes the absolute path written and
+the new value. It **never commits, pushes, or stages** the change.
 
 These are the same `~/.claude/ptp/config.json` and `<repo>/.claude/ptp/config.json` files
 described in the Configuration section above.
@@ -493,6 +518,7 @@ Experimental (no Superpowers layer)
 
 | Version | Changes |
 |---------|---------|
+| **0.1.36** | Add `codex.model` and `codex.reasoningEffort` layered-config keys, resolved by `ptp-codex-mode` (default unset, independent, forgiving reader) and consumed by a single canonical Codex invocation flag-append rule (`-m <model>` / `-c model_reasoning_effort=<effort>` appended before the trailing stdin `-`, both unset ⇒ today's exact `codex exec -s read-only -`). All 16 `codex exec` call sites now reference the rule instead of hardcoding the bare invocation. `/ptp:config` gains both keys (a new `string`-kind value-selection branch for `codex.model`, an enum branch for `codex.reasoningEffort`); README documents both. |
 | **0.1.33** | Promote `/ptp:prd` to a limited/hybrid producer: a free-text argument that doesn't parse as any known selector form and doesn't match an existing active change folder is now classified as a description, a fresh epic is allocated via `ptp-change-selector` §4 (the same algorithm `/ptp:brainstorm` uses), and the PRD is authored into the new `openspec/changes/<id>/prd.md` — instead of erroring out with a "no active epics" abort. `ptp-prd`, `ptp-change-selector` (§4/§5), `commands/prd.md`, and the `prd-authoring`/`change-selector` spec deltas updated accordingly. |
 | **0.1.32** | Relocate PRD artifacts into the change folder: `/ptp:prd` now writes `openspec/changes/<id>/prd.md` (where `<id>` is the epic's lowest-numbered story) instead of a standalone `openspec/prds/` folder; the `kind=prd` review-convergence marker moves to `openspec/changes/<id>/reviews/prd.json`; the `artifact_filename` stable-key becomes the constant `"prd.md"`. All PRD-family skills (`ptp-prd`, `ptp-review-prd`, `ptp-review-prd-full`, `ptp-prd-full`, `ptp-review-loop`), six commands (`prd`, `prd-full`, `review-prd`, `review-prd-full`, `codex-review-prd`, `codex-review-prd-loop`), and active delta specs (0019_01, 0021_01, 0021_02) updated to the new paths. |
 | **0.1.31** | Add the PRD-stage orchestrators — `/ptp:review-prd-full` command + `ptp-review-prd-full` skill (dual-reviewer inline-fix PRD loop: Superpowers then Codex per `codex.mode`, Phase 2 gated on Phase 1 convergence, one combined epic-scoped marker, no `openspec validate`) and `/ptp:prd-full` command + `ptp-prd-full` skill (seam-free PRD author → prd-gate → dual-reviewer review in one flow). |

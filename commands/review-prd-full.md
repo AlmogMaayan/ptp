@@ -105,9 +105,10 @@ marker once per epic (per the `ptp-review-prd-full` skill's single-combined-writ
   convergence in either phase.
 - Iteration cap per phase is `review.maxIterations` in ptp config; default 5. Each phase has its own
   independent cap.
-- Run Codex only under `codex exec -s read-only` with the prompt piped over **stdin** (`-`). Never pass
-  `--full-auto`, `--sandbox workspace-write`, or `--dangerously-bypass-approvals-and-sandbox`. Codex
-  runs **no** commands.
+- Run Codex only under `codex exec -s read-only` with the prompt piped over **stdin** (`-`), assembled
+  per the `ptp-codex-mode` flag-append rule (resolved `-m`/`-c` flags before the trailing `-` when
+  configured). Never pass `--full-auto`, `--sandbox workspace-write`, or
+  `--dangerously-bypass-approvals-and-sandbox`. Codex runs **no** commands.
 - Recommend the next command in **text only** (the user runs it explicitly): `/ptp:plan <change-id>` (the
   epic's lowest-numbered story id) on either green state (`BOTH PHASES DONE` or
   `PHASE 1 DONE — CODEX SKIPPED (mode=…)`); on a cap (`ITERATION CAP REACHED` — including the missing-PRD

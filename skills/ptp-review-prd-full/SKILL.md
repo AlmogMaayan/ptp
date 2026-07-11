@@ -115,8 +115,10 @@ Phase 2 starts with **fresh loop state**: Phase 1's `rejected_findings` do **not
 an independent reviewer and its findings are evaluated on their own merits. The loop drives the
 closed-book Codex review retargeted to the PRD file with **no** `openspec validate` (the caller reads
 the PRD + any cited context, builds one self-contained prompt carrying the PRD rubric as the audit
-instructions, and pipes it to `codex exec -s read-only` over stdin; Codex runs no commands), and
-confirmed findings are fixed by editing the PRD until it terminates `DONE` or `ITERATION CAP REACHED`.
+instructions, and pipes it to `codex exec -s read-only` over stdin (assembled per the `ptp-codex-mode`
+flag-append rule — resolved `-m`/`-c` flags appended before the trailing `-` when configured); Codex
+runs no commands), and confirmed findings are fixed by editing the PRD until it terminates `DONE` or
+`ITERATION CAP REACHED`.
 
 **Deliberate difference — NO `openspec validate`.** `codex-review-plan.md` inlines an authoritative
 `openspec validate --strict` result; this PRD loop **omits it**, because a PRD precedes any
@@ -221,5 +223,7 @@ For a **multi-epic selector**, iterate Phase 1 → gate → Phase 2 → combined
 - **Does not redo outer-session work.** Do not re-run the branch guard, re-resolve `codex.mode`, or
   re-resolve the epic — use the values the outer session passed in.
 - **Codex only read-only over stdin.** Run Codex only under `codex exec -s read-only` with the prompt
-  piped over **stdin** (`-`). Never `--full-auto`, `--sandbox workspace-write`, or
-  `--dangerously-bypass-approvals-and-sandbox`. Codex runs **no** commands.
+  piped over **stdin** (`-`), assembled per the `ptp-codex-mode` flag-append rule (resolved `-m`/`-c`
+  flags before the trailing `-` when `codex.model`/`codex.reasoningEffort` are configured). Never
+  `--full-auto`, `--sandbox workspace-write`, or `--dangerously-bypass-approvals-and-sandbox`. Codex
+  runs **no** commands.

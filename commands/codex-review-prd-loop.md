@@ -91,6 +91,8 @@ per epic. The `openspec/changes/<id>/reviews/` subfolder is created on demand.
 - **You (the caller) assemble the closed-book prompt each iteration.** You read the PRD yourself (via
   Read) and inline everything into one prompt piped to `codex exec -s read-only` over stdin. Codex runs
   **no** commands — no `npx`, no `openspec validate`, no network, no installs.
-- Run Codex under `codex exec -s read-only` with the prompt piped over **stdin** (`-`). Never pass
-  `--full-auto`, `--sandbox workspace-write`, or `--dangerously-bypass-approvals-and-sandbox`.
+- Run Codex under `codex exec -s read-only` with the prompt piped over **stdin** (`-`), assembled per
+  the `ptp-codex-mode` flag-append rule (resolved `-m`/`-c` flags before the trailing `-` when
+  configured). Never pass `--full-auto`, `--sandbox workspace-write`, or
+  `--dangerously-bypass-approvals-and-sandbox`.
 - Iteration cap is configurable via `review.maxIterations` in ptp config; default 5.
