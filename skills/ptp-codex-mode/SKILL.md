@@ -97,8 +97,12 @@ is unset; each is read and validated on its own — setting one never implies or
 
 ## Canonical Codex invocation flag-append rule
 
-Every ptp call site that runs `codex exec` MUST assemble its invocation via this single rule rather
-than restating it:
+Every ptp call site that runs a **read-only** `codex exec` — the Codex reviewer and the
+`/ptp:codex-*` overrides — MUST assemble its invocation via this single rule rather than restating
+it. (The one exception is the **write-capable main-implementer** invocation owned by
+`ptp-run-at-model` when `roles.main = codex`, a distinct `workspace-write` call site with its own
+invocation — see the *Scope fence* below; it is not a reviewer and does not use this read-only
+rule.)
 
 ```
 codex exec -s read-only [ -m <model> ] [ -c model_reasoning_effort=<effort> ] -
@@ -115,7 +119,7 @@ codex exec -s read-only [ -m <model> ] [ -c model_reasoning_effort=<effort> ] -
 - **Both keys unset** (the default) yields exactly `codex exec -s read-only -` — byte-identical to the
   invocation before this change.
 
-**Orthogonality note.** This rule applies to **every** `codex exec` invocation, independent of
+**Orthogonality note.** This rule applies to **every read-only** `codex exec` invocation, independent of
 `codex.mode`: both the mode-gated dual-reviewer commands (which first ask this skill's decision
 contract *whether* to run Codex, then — if running — assemble the invocation via this rule) and the
 always-Codex `/ptp:codex-*` explicit-override commands (which skip the mode gate but still assemble
@@ -125,8 +129,23 @@ together when relevant.
 
 ## Decision contract (consumed by the four orchestrators)
 
-The **Superpowers (non-Codex) phase always runs**, regardless of mode. Only the **Codex phase** is
-gated, by the resolved mode and (for `required`/`auto`) whether `codex` is on PATH:
+### Symmetric reviewer-gate invariant
+
+The reviewer gate is **symmetric**: the **MAIN agent's phase always runs; only the REVIEWER
+agent's phase is gated.** The main and reviewer agents are those resolved by the `ptp-agent-roles`
+skill from `roles.main` — the derived pair `{ main, reviewer }`, where `reviewer` is always the
+agent that is not `main`. This skill asks `ptp-agent-roles` who the reviewer is, then branches on
+the reviewer identity.
+
+Today's rule ("the Superpowers phase always runs; only the Codex phase is gated") is exactly the
+special case where `roles.main = claude`, so the main agent is Claude and the reviewer is Codex.
+That default direction is specified byte-identically below.
+
+### reviewer = codex (default; `roles.main = claude`)
+
+This is the byte-identical-to-today path. The **Superpowers (Claude, non-Codex) phase always
+runs**, regardless of mode. Only the **Codex reviewer phase** is gated, by the resolved mode and
+(for `required`/`auto`) whether `codex` is on PATH:
 
 | mode | `codex` on PATH? | Action |
 |------|------------------|--------|
@@ -137,6 +156,46 @@ gated, by the resolved mode and (for `required`/`auto`) whether `codex` is on PA
 | `off` | (not probed) | **Skip** the Codex phase without probing PATH, run Superpowers-only, and report `Codex phase skipped (mode=off)`. |
 
 Probe PATH with `codex --version`. In `off` mode, do **not** probe — the skip is unconditional.
+When the Codex reviewer runs, the `codex.model`/`codex.reasoningEffort` resolution and the
+canonical `codex exec -s read-only [ -m <model> ] [ -c model_reasoning_effort=<effort> ] -`
+flag-append rule (both above) apply unchanged, as do the non-silent-skip line and the mode-skip
+terminal state (both below). All of these — table, probe, skip line, terminal state, flag-append
+rule — are identical to their behavior before this change.
+
+### reviewer = claude (`roles.main = codex`)
+
+When the resolved reviewer is Claude, the reviewer phase **is** the Superpowers review loop and it
+**always runs** — mirroring how the Superpowers phase always runs in the default direction. For a
+Claude reviewer:
+
+- `codex.mode` is **NOT** consulted for the reviewer gate.
+- There is **no** `codex --version` PATH probe.
+- There is **no** `codex exec` invocation.
+
+Because `codex.mode`/`codex.model`/`codex.reasoningEffort` are not consulted for a Claude
+reviewer, neither `off` nor `required` can suppress or force it: `mode=off` does **not** stop a
+Claude reviewer (it still runs), and `required` cannot block or force one. Those keys concern the
+Codex CLI only.
+
+### Composition rule
+
+`codex.mode` concerns the Codex CLI. It gates the reviewer phase **iff the reviewer is Codex**; it
+**never** gates a Claude phase. The reviewer-gate mechanics — the entire `codex.mode` decision
+table, the `codex --version` PATH probe, the skip line, and the mode-skip terminal state — apply
+**only** on the reviewer=codex branch. (The read-only `codex exec` flag-append rule is **not**
+reviewer-gate scoped: per the *Orthogonality note* above it governs **how** any **read-only**
+`codex exec` runs — including the always-Codex `/ptp:codex-*` explicit-override commands, which are
+unaffected by role resolution — so it applies to every read-only `codex exec` invocation, not only
+the reviewer=codex branch. It does **not** govern the write-capable main-implementer invocation
+owned by `ptp-run-at-model`, per the *Scope fence* below.)
+
+**Scope fence.** The **write-capable main-agent-as-Codex invocation** — the `codex exec`
+`workspace-write` call site itself and how it is assembled — is **out of scope** for this skill; that
+wiring is owned by `ptp-run-at-model` (slice 0027_04). This skill's reviewer-gate mechanics
+(`codex.mode`, the PATH probe, the skip line, the terminal state) only ever concern a Codex
+*reviewer*. The `codex.model`/`codex.reasoningEffort` **resolution** owned here is reused by that
+main-implementer invocation (no new config keys), but this skill never assembles or governs the
+write-capable invocation.
 
 ## Explicit-override rule
 
@@ -161,6 +220,12 @@ so a single-reviewer run is always visible to the user. The general form is
 `Codex phase skipped (mode=…)`; the `auto`-missing case additionally states that `codex` was not
 found.
 
+**Reviewer-generalized framing.** A skip line only ever arises on the reviewer=codex branch — a
+Claude reviewer always runs and never produces a skip line. Generally, the contract is that a
+skipped reviewer phase is named after the reviewer that was skipped; the reviewer=codex strings
+above are exactly `Codex phase skipped (mode=…)` and are unchanged by this slice. The orchestrator
+print sites that emit these strings are not edited here (that is 0027_03).
+
 ## Mode-skip terminal state
 
 When a `*-full` review (`/ptp:review-full`, `/ptp:review-plan-full`, `/ptp:review-brainstorm-full`, or
@@ -174,6 +239,12 @@ PHASE 1 DONE — CODEX SKIPPED (mode=…)
 
 This sits alongside the existing terminal states (`BOTH PHASES DONE`, `ITERATION CAP REACHED`,
 `PHASE 2 ITERATION CAP REACHED`).
+
+**Reviewer-generalized framing.** This mode-skip terminal state only ever arises on the
+reviewer=codex branch (a Claude reviewer always runs and is never mode-skipped). Generally, the
+terminal state names the reviewer that was skipped; the reviewer=codex string above is exactly
+`PHASE 1 DONE — CODEX SKIPPED (mode=…)` and is unchanged by this slice. The orchestrators that
+print it are not edited here (that is 0027_03).
 
 **Convergence gates MUST treat it as success.** `/ptp:full`'s plan-convergence gate (which keys on
 `BOTH PHASES DONE`) and `ptp-full-run`'s review-convergence gate (which keys on
@@ -194,14 +265,23 @@ in `ptp-full-run`, no pre-run stop in `/ptp:full`), with the skip always named i
 - Resolve `codex.model` (non-empty string, default unset) and `codex.reasoningEffort`
   (`minimal|low|medium|high`, default unset) from the same layered config, independently, with the
   same forgiving reader posture.
-- Superpowers phase always runs; only the Codex phase is gated by `codex.mode`.
-- `required` + missing codex → STOP. `auto` + missing codex → skip + report. `off` → skip without
-  probing + report.
+- The reviewer gate is symmetric: the MAIN agent's phase always runs; only the REVIEWER agent's
+  phase is gated. Main/reviewer come from `ptp-agent-roles`' `{ main, reviewer }`. At the default
+  `roles.main = claude` (reviewer=codex) this reduces to "the Superpowers phase always runs; only
+  the Codex phase is gated by `codex.mode`."
+- `codex.mode` gates the reviewer phase **iff the reviewer is Codex**; it never gates a Claude
+  phase. A Claude reviewer (`roles.main = codex`) is the Superpowers loop and always runs — no
+  `codex.mode`, no `codex --version` probe, no `codex exec`.
+- reviewer=codex: `required` + missing codex → STOP. `auto` + missing codex → skip + report. `off`
+  → skip without probing + report.
 - `/ptp:codex-*` commands always attempt Codex (the mode gate does not apply to them).
 - A skip is always reported as `Codex phase skipped (mode=…)`.
 - The mode-skip terminal state `PHASE 1 DONE — CODEX SKIPPED (mode=…)` is gate-success for both
   convergence gates.
-- Every `codex exec` invocation — mode-gated or explicit — is assembled via the canonical
-  flag-append rule: `codex exec -s read-only [ -m <model> ] [ -c model_reasoning_effort=<effort> ] -`,
-  flags appended only when the corresponding key is set, always before the trailing `-`, both unset
-  ⇒ today's exact `codex exec -s read-only -`.
+- Every **read-only** `codex exec` invocation — the mode-gated reviewer or the explicit
+  `/ptp:codex-*` overrides — is assembled via the canonical flag-append rule:
+  `codex exec -s read-only [ -m <model> ] [ -c model_reasoning_effort=<effort> ] -`, flags appended
+  only when the corresponding key is set, always before the trailing `-`, both unset ⇒ today's exact
+  `codex exec -s read-only -`. (The write-capable main-implementer invocation owned by
+  `ptp-run-at-model` is the one exception — a distinct `workspace-write` call site, not governed by
+  this read-only rule.)

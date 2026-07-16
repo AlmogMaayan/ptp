@@ -1,0 +1,152 @@
+---
+name: ptp-agent-roles
+description: Resolve roles.main from layered ptp config and expose the derived { main, reviewer } role pair — the single source of truth for which agent is the main planning/implementation agent and which is the reviewer. Defined here (0027_01); consumed by later slices (0027_02 reviewer-gate direction, 0027_03 review orchestrators, 0027_04 main-implementer path). This slice performs no consumer wiring — it only defines the contract.
+---
+
+# ptp-agent-roles — resolve `roles.main` and derive the reviewer
+
+## Purpose
+
+ptp hardcodes Claude as the main planning/implementation agent and Codex as the (optional,
+gated) reviewer everywhere. Supporting the reverse — Codex as main, Claude as reviewer —
+requires one canonical, configurable notion of "which agent is main" before any orchestrator can
+be generalized. This skill is that single source of truth: it resolves the `roles.main` config
+key from layered config and exposes the derived role pair `{ main, reviewer }`.
+
+This skill is a **pure resolver**: config-in, role-pair-out. It performs no git, no spawn, no CLI
+probe, and edits nothing. It is the role-naming analog of `ptp-codex-mode` (reviewer gate) and
+`ptp-change-selector` (id grammar).
+
+**This slice (0027_01) only defines the contract.** No orchestrator, reviewer, implementer, or
+apply/effort file references or consumes this skill yet — that wiring happens in 0027_02
+(reviewer-gate direction), 0027_03 (review orchestrators), and 0027_04 (main-implementer path).
+
+## Resolving `roles.main` (mirrors `ptp-codex-mode`'s `codex.mode` resolution)
+
+Read and merge the optional ptp config — global `~/.claude/ptp/config.json` first, then project
+`<repo>/.claude/ptp/config.json` overriding **key-by-key** (the same two files and precedence
+`ptp-codex-mode` uses for `codex.mode` and `ptp-config` writes). Extract `roles.main`, then — only
+if both layers left it unset — fall back to an opt-in detection step, and only then to the
+ultimate fallback `claude`:
+
+```
+main = undefined
+for path in [ ~/.claude/ptp/config.json,     # global first
+              <repo>/.claude/ptp/config.json ]:   # then project (overrides)
+    if file exists and parses as JSON and obj.roles?.main ∈ {claude, codex}:
+        main = obj.roles.main
+# any missing file / missing key / parse error / out-of-enum value → leave the prior value
+
+# Tier 3 — detection (runs ONLY when main is still undefined here):
+if main is undefined:
+    env = PTP_MAIN_AGENT                     # opt-in env var, not driver detection
+    if env ∈ {"claude", "codex"} (exact match):
+        main = env
+    # absent / empty / whitespace / wrong-case / any other value → leave undefined, fall through
+
+# Tier 4 — ultimate fallback:
+if main is undefined:
+    main = "claude"
+# never throw, never STOP at any tier
+```
+
+**Reader posture: never crash, never STOP over a config typo.** A missing file, a missing key,
+unparseable JSON, or an out-of-enum value all resolve to `claude` (or to whatever the prior layer
+validly set) — identical to how `ptp-codex-mode` reads `codex.mode`. A valid global value is
+**never** overridden by a missing or malformed project layer; the default `claude` applies only
+when no layer supplies a valid value and detection also yields nothing.
+
+### Precedence, highest to lowest
+
+1. `roles.main` in the **project** config (`<repo>/.claude/ptp/config.json`).
+2. `roles.main` in the **global** config (`~/.claude/ptp/config.json`).
+3. **Detection (opt-in, only when both config layers are unset):** the environment variable
+   `PTP_MAIN_AGENT`, exact value `claude` or `codex`.
+4. **Ultimate fallback:** `claude`.
+
+Explicit config **always** wins over detection — detection only fills an *unset* `roles.main`; it
+never overrides a value either config layer supplies. `PTP_MAIN_AGENT` is a best-effort, **opt-in
+default**, not driver detection (see "Why true detection is impossible" below): an absent, empty,
+whitespace-only, wrong-case, or otherwise invalid value is treated as absent and falls through to
+`claude`. Nothing at any tier throws or STOPs.
+
+### Why true CLI-driver detection is impossible here
+
+Every `/ptp:*` command is a Claude Code slash command, so the CLI that launched the initial command
+is **always** Claude Code — Codex cannot invoke a Claude Code slash command, so there is no runtime
+signal that "Codex is driving." The Claude Code session is always the outer harness; `roles.main
+= codex` never means a different CLI launched the command, it means the harness delegates the heavy
+work to `codex exec` (see "Harness framing" below). Consequently `PTP_MAIN_AGENT` cannot be genuine
+detection — it is a user-supplied, best-effort **default** for an unset key. Users who want
+deterministic behavior should set `roles.main` explicitly via `/ptp:config` rather than relying on
+the env var.
+
+### No-fake-signal rule
+
+The resolver **SHALL NOT** treat `codex` being present on PATH as a main-agent signal — PATH
+presence is already the *reviewer-present* signal (`ptp-codex-mode`'s auto-mode uses it to decide
+whether the reviewer Codex phase runs); using it to flip the *main* agent would silently change
+behavior for every user who installed codex only for reviews. The resolver **SHALL NOT** inspect
+process ancestry or parent-process names to guess a driver — unreliable, platform-specific, and
+conceptually wrong (the driver is always Claude Code). The only detection input today is the
+opt-in `PTP_MAIN_AGENT` env var; if a genuine session-provided "main agent" signal ever becomes
+available, it could slot into tier 3 alongside or above the env var, but none is known today.
+
+`roles.main` resolves **independently** of `codex.mode`, `codex.model`, and
+`codex.reasoningEffort`. `codex.mode` answers "does the reviewer Codex phase run?"; `roles.main`
+answers "which agent is main?" — orthogonal axes. Setting one never implies or requires the
+other.
+
+## Derived role pair
+
+This skill exposes `{ main, reviewer }` where `main` is the resolved value above and `reviewer`
+is the **other** agent:
+
+```
+reviewer = (main == "claude") ? "codex" : "claude"
+```
+
+**Only `roles.main` is stored in config.** `reviewer` is never a separate stored key — it is
+always derived from `main` at resolution time. This makes a state where `main == reviewer`
+unrepresentable.
+
+| `roles.main` resolves to | `main` | `reviewer` |
+|---------------------------|--------|------------|
+| `claude` (default/unset) | `claude` | `codex` |
+| `codex` | `codex` | `claude` |
+
+## Harness framing
+
+The Claude Code session is **always** the outer harness — every `/ptp:*` command is a Claude Code
+slash command, so Codex can never "drive" the initial command. `roles.main=codex` therefore does
+**not** mean the user launched a different CLI; it means the heavy planning/implementation work
+is delegated to `codex exec` while Claude reviews in-session (the mirror of today's
+Claude-main/Codex-reviewer default). Later slices (0027_02/03/04) consume this distinction when
+they generalize the reviewer gate and the implementer path; this slice only names it.
+
+## Default-preservation invariant
+
+When `roles.main` resolves to the default `claude`, every existing ptp flow remains
+**byte-identical** to its behavior before this change: Claude is the main planning/implementation
+agent working in-session and Codex is the gated reviewer. This slice modifies no orchestrator,
+reviewer, implementer, `ptp-run-at-model`, `ptp-codex-mode`, or apply/effort file — it is
+deliberately inert at the default value.
+
+## Summary of the contract
+
+- Resolve `roles.main` from layered config (global then project, project overriding key-by-key);
+  never crash or STOP on a typo or out-of-enum value.
+- If — and only if — both config layers leave `roles.main` unset, fall back to the opt-in
+  `PTP_MAIN_AGENT` env var (exact `claude`/`codex`); any other/absent value falls through.
+- Ultimate fallback (no config, no valid env var): `claude`.
+- Explicit config always overrides detection; detection only fills an unset key and stores
+  nothing.
+- No fake signal: never treats `codex` on PATH or process ancestry as a main-agent signal.
+- Expose the derived pair `{ main, reviewer }`; only `main` is stored, `reviewer` is always
+  `¬main`.
+- Resolves independently of `codex.mode` / `codex.model` / `codex.reasoningEffort`.
+- The Claude Code session is always the outer harness; `roles.main=codex` designates which agent
+  runs the heavy work, not which CLI the user launched — genuine CLI-driver detection is
+  impossible here, which is why `PTP_MAIN_AGENT` is opt-in/best-effort rather than detection.
+- Default (`claude`, no config, no env var) preserves all existing behavior; this skill defines
+  the contract only — no consumer wiring in this slice.

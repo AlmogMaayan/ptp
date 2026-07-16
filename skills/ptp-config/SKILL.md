@@ -63,11 +63,22 @@ parameters = [
     jsonPath: ["review", "maxIterations"],
     kind:     "integer",
     default:  5
+  },
+  {
+    key:      "roles.main",
+    label:    "Main agent",
+    jsonPath: ["roles", "main"],
+    kind:     "enum",
+    values: [
+      { value: "claude", desc: "Claude is the main planning/implementation agent; Codex is the reviewer (default)" },
+      { value: "codex",  desc: "Codex is the main planning/implementation agent; Claude is the reviewer" }
+    ],
+    default: "claude"
   }
 ]
 ```
 
-**Parameter menu:** The registry currently holds four entries. Step 2 builds an `AskUserQuestion`
+**Parameter menu:** The registry currently holds five entries. Step 2 builds an `AskUserQuestion`
 menu from each entry's `label` value and presents it to the user. The flow is data-driven: adding
 a new entry to the registry automatically adds it to the menu with no further edits to this flow.
 
@@ -105,6 +116,7 @@ Build an `AskUserQuestion` menu from the registry entries' `label` values:
 2. **Codex model override** (`codex.model`)
 3. **Codex reasoning effort** (`codex.reasoningEffort`)
 4. **Max review-loop iterations** (`review.maxIterations`)
+5. **Main agent** (`roles.main`)
 
 Use the selected entry's `jsonPath`, `kind`, `values` (for enum entries), and `default` for the
 remaining steps. This is data-driven off the registry — adding a parameter requires only a new
@@ -135,8 +147,10 @@ registry entry, no other edits to this flow.
        `{"codex":null}`), STOP.
      - For `review.maxIterations`: if `review` exists but is not an object (e.g. `{"review":"x"}`
        or `{"review":null}`), STOP.
-   - Absent parents (`codex` or `review` not present in the root) are fine — they will be created
-     as empty objects on write. This is not clobbering.
+     - For `roles.main`: if `roles` exists but is not an object (e.g. `{"roles":"claude"}` or
+       `{"roles":null}`), STOP.
+   - Absent parents (`codex`, `review`, or `roles` not present in the root) are fine — they will
+     be created as empty objects on write. This is not clobbering.
 
 4. Show the **current value** of the selected parameter:
    - If the parameter's value is set in the file (at its `jsonPath`), display:
@@ -170,6 +184,17 @@ values are:
 2. **`low`** — Low reasoning effort
 3. **`medium`** — Medium reasoning effort
 4. **`high`** — High reasoning effort
+
+These are the only options. **Never write a value that is not in the entry's `values` list.** The
+value written to the file is exactly the selected string (verbatim, lowercase).
+
+#### kind = `enum` (e.g. `roles.main`)
+
+Use `AskUserQuestion` to offer the parameter's `values`. For `roles.main`, the two valid values
+are:
+
+1. **`claude`** — Claude is the main planning/implementation agent; Codex is the reviewer (default)
+2. **`codex`** — Codex is the main planning/implementation agent; Claude is the reviewer
 
 These are the only options. **Never write a value that is not in the entry's `values` list.** The
 value written to the file is exactly the selected string (verbatim, lowercase).
@@ -225,7 +250,7 @@ With the resolved path, the base JSON object (from step 3), and the chosen value
 2. **Set the target path:** in the base JSON object, navigate the selected entry's `jsonPath`:
    - If the parent key is absent from the root, create it as an empty object `{}`.
      For `codex.mode`, `codex.model`, or `codex.reasoningEffort`: create `codex` as `{}`; for
-     `review.maxIterations`: create `review` as `{}`.
+     `review.maxIterations`: create `review` as `{}`; for `roles.main`: create `roles` as `{}`.
    - Set the targeted key to the chosen value.
    - Leave **every other key** (e.g. `deploy`, any unknown keys) and every other nested value
      **untouched**.
@@ -269,6 +294,9 @@ Examples:
 | `codex` present but not an object (`"codex":"auto"`, `"codex":null`) — applies to `codex.mode`, `codex.model`, and `codex.reasoningEffort` alike | STOP, report, do **not** overwrite. |
 | `review` present but not an object (`"review":"x"`, `"review":null`) | STOP, report, do **not** overwrite. |
 | `review` absent | Created as `{}` on write; not clobbering. |
+| `roles` present but not an object (`"roles":"claude"`, `"roles":null`) | STOP, report, do **not** overwrite. |
+| `roles` absent | Created as `{}` on write; not clobbering. |
+| `roles.main` selection outside `claude|codex` | Not offered — the enum menu only presents the two valid values. |
 | Integer input not a positive integer (`0`, `-1`, `5.5`, `"5"`, `abc`) | Reject, re-prompt; do NOT write. |
 | Integer equals current stored value | Report no-op; do not write. |
 | `codex.model` input empty or whitespace-only | Reject, re-prompt; do NOT write. |
@@ -294,6 +322,8 @@ Examples:
 - **Never write an out-of-enum value for `codex.reasoningEffort`.** Only `minimal`, `low`, `medium`,
   or `high` may be written. The value comes from the step 4 enum menu — never from free-form user
   input.
+- **Never write an out-of-enum value for `roles.main`.** Only `claude` or `codex` may be written.
+  The value comes from the step 4 enum menu — never from free-form user input.
 - **Never write an empty or whitespace-only string for `codex.model`.** Only a non-empty, trimmed
   string may be written; empty/whitespace-only input is rejected and re-prompted.
 - **Never write an invalid integer for `review.maxIterations`.** Only a positive integer (`>= 1`)

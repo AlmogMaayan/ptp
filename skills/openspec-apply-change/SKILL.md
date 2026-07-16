@@ -11,6 +11,8 @@ metadata:
 
 Implement tasks from an OpenSpec change.
 
+> **Implementer is agent-neutral.** This protocol makes no assumption about which agent runs it. Under ptp's `/ptp:apply`, `ptp-run-at-model` resolves the main agent (via `ptp-agent-roles`) and runs this same protocol either in a Claude Agent-tool subagent (`roles.main=claude`, the default) or via a write-capable `codex exec` main run (`roles.main=codex`) — the steps below are identical in both directions. "You" throughout means whichever agent is executing this protocol.
+
 **Input**: Optionally specify a change name. If omitted, check if it can be inferred from conversation context. If vague or ambiguous you MUST prompt for available changes.
 
 **Steps**

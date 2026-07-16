@@ -1,12 +1,12 @@
 ---
-description: Brainstorm-then-review in one uninterrupted flow — allocates a change id, runs the Superpowers brainstorm phase (producing brainstorm.md), then continues without a manual re-invocation into the dual-reviewer (Superpowers + Codex) inline-fix brainstorm-review loop. The seam-free union of /ptp:brainstorm and /ptp:review-brainstorm-full.
+description: Brainstorm-then-review in one uninterrupted flow — allocates a change id, runs the Superpowers brainstorm phase (producing brainstorm.md), then continues without a manual re-invocation into the dual-reviewer (main agent + reviewer agent; default Superpowers + Codex) inline-fix brainstorm-review loop. The seam-free union of /ptp:brainstorm and /ptp:review-brainstorm-full.
 argument-hint: "<short description of the change> (or a fully-formed XXXX_NN_<desc> id to re-run on an existing change)"
 ---
 
 You are running **`/ptp:brainstorm-full`** — the union of `/ptp:brainstorm` and
 `/ptp:review-brainstorm-full`, connected by a brainstorm-gate. It allocates a change id, runs the
 brainstorm phase (producing `brainstorm.md`), and — **without a manual re-invocation in between** —
-continues into the dual-reviewer (Superpowers + Codex) inline-fix convergence loop. The point of
+continues into the dual-reviewer (main agent + reviewer agent; default Superpowers + Codex) inline-fix convergence loop. The point of
 having one command is the **automatic handoff**: no second `/ptp:review-brainstorm-full <id>` needed.
 The orchestration detail lives in the **`ptp-brainstorm-full`** skill — this command is the thin
 front door.

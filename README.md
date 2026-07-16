@@ -136,6 +136,9 @@ default — PtP never fails to start over a config typo.
     "mode": "auto",
     "model": "<your-codex-model-id>",
     "reasoningEffort": "high"
+  },
+  "roles": {
+    "main": "claude"
   }
 }
 ```
@@ -180,6 +183,45 @@ key, unparseable JSON, wrong-type value, or out-of-set value leaves the prior la
 place (ultimately unset if no layer set a valid value) — never a crash or a STOP. Both keys are
 settable via `/ptp:config` (see below).
 
+### `roles.main`
+
+Selects which agent is the **main** planning/implementation agent; the **reviewer** is always
+the other agent (derived, never a separate stored key).
+
+| Key | Type | Default | Meaning |
+|-----|------|---------|---------|
+| `roles.main` | enum: `claude`\|`codex` | `claude` | Names the main planning/implementation agent. The reviewer is derived as the other agent (`claude` ↔ `codex`). |
+
+Resolves from the same two layered files as `codex.mode` (global then project, project
+overriding key-by-key), independently of `codex.mode`/`codex.model`/`codex.reasoningEffort` —
+`codex.mode` controls whether a reviewer Codex phase runs; `roles.main` controls which agent is
+main. A missing file, missing key, unparseable JSON, or out-of-enum value leaves the prior
+layer's valid value in place — never a crash or a STOP.
+
+**Opt-in default via `PTP_MAIN_AGENT` (best-effort, not detection).** Every `/ptp:*` command is a
+Claude Code slash command, so the CLI that launches the initial command is always Claude Code —
+Codex cannot invoke a Claude Code slash command, so there is no runtime signal that "Codex is
+driving." Genuine CLI-driver auto-detection is therefore impossible in this architecture. What ptp
+offers instead is a best-effort **default** for an *unset* `roles.main`: if — and only if —
+`roles.main` is unset in both the project and global config, ptp reads the environment variable
+`PTP_MAIN_AGENT` (exact value `claude` or `codex`); an absent, empty, whitespace-only, wrong-case,
+or otherwise invalid value falls through to the ultimate fallback `claude`, and nothing throws or
+STOPs. The full precedence, highest to lowest:
+
+1. `roles.main` in the project config.
+2. `roles.main` in the global config.
+3. `PTP_MAIN_AGENT` env var (opt-in detection; runs only when 1 and 2 are both unset).
+4. Ultimate fallback: `claude`.
+
+Explicit config always wins over the env var — set `roles.main` via `/ptp:config` for
+deterministic behavior rather than relying on `PTP_MAIN_AGENT`. The resolver never treats `codex`
+being on PATH (the reviewer-present signal) or process ancestry as a main-agent signal; the env
+var is the only detection input.
+
+With `roles.main` unset, no `PTP_MAIN_AGENT` set, every existing ptp flow is byte-identical to
+today: Claude is the main agent working in-session and Codex is the gated reviewer. Settable via
+`/ptp:config` (see below).
+
 ### `/ptp:config` — guided config editor
 
 **`/ptp:config`** is the interactive front door for editing these config files. Instead of
@@ -188,11 +230,11 @@ hand-editing JSON, it walks you through:
 1. **Target** — choose *User / global* (`~/.claude/ptp/config.json`) or *Project*
    (`<repo>/.claude/ptp/config.json`).
 2. **Parameter** — `codex.mode` ("Use Codex for review"), `codex.model` ("Codex model override"),
-   `codex.reasoningEffort` ("Codex reasoning effort"), or `review.maxIterations` ("Max review-loop
-   iterations"); the menu grows as the registry grows.
+   `codex.reasoningEffort` ("Codex reasoning effort"), `review.maxIterations` ("Max review-loop
+   iterations"), or `roles.main` ("Main agent"); the menu grows as the registry grows.
 3. **Value** — select from the valid enum values with one-line descriptions (`codex.mode`,
-   `codex.reasoningEffort`), enter a free-text value (`codex.model`), or enter an integer
-   (`review.maxIterations`).
+   `codex.reasoningEffort`, `roles.main`), enter a free-text value (`codex.model`), or enter an
+   integer (`review.maxIterations`).
 
 The command then performs a **safe merge-write**: it sets only the targeted key (e.g. `codex.mode`,
 `codex.model`, or `codex.reasoningEffort`), preserves every other existing key (including the
@@ -520,6 +562,7 @@ Experimental (no Superpowers layer)
 
 | Version | Changes |
 |---------|---------|
+| **0.1.37** | Add `ptp-agent-roles` skill and `roles.main` layered-config key (default `claude`) resolving a `{ main, reviewer }` agent pair — the contract for swapping which agent (Claude/Superpowers or Codex) is the main planning/implementation agent vs. the reviewer. `ptp-review`, `ptp-run-at-model`, `ptp-codex-mode`, and the dual-reviewer orchestrators (`review-full`, `review-plan-full`, `review-brainstorm-full`, `review-prd-full`) updated to resolve roles via this skill and apply the Codex reviewer-gate symmetrically regardless of which agent plays reviewer; `ptp-config` and `effort` gain awareness of the new key. This slice (0027_01) defines the contract — no consumer performs a live role swap yet. |
 | **0.1.36** | Add `codex.model` and `codex.reasoningEffort` layered-config keys, resolved by `ptp-codex-mode` (default unset, independent, forgiving reader) and consumed by a single canonical Codex invocation flag-append rule (`-m <model>` / `-c model_reasoning_effort=<effort>` appended before the trailing stdin `-`, both unset ⇒ today's exact `codex exec -s read-only -`). All 16 `codex exec` call sites now reference the rule instead of hardcoding the bare invocation. `/ptp:config` gains both keys (a new `string`-kind value-selection branch for `codex.model`, an enum branch for `codex.reasoningEffort`); README documents both. |
 | **0.1.33** | Promote `/ptp:prd` to a limited/hybrid producer: a free-text argument that doesn't parse as any known selector form and doesn't match an existing active change folder is now classified as a description, a fresh epic is allocated via `ptp-change-selector` §4 (the same algorithm `/ptp:brainstorm` uses), and the PRD is authored into the new `openspec/changes/<id>/prd.md` — instead of erroring out with a "no active epics" abort. `ptp-prd`, `ptp-change-selector` (§4/§5), `commands/prd.md`, and the `prd-authoring`/`change-selector` spec deltas updated accordingly. |
 | **0.1.32** | Relocate PRD artifacts into the change folder: `/ptp:prd` now writes `openspec/changes/<id>/prd.md` (where `<id>` is the epic's lowest-numbered story) instead of a standalone `openspec/prds/` folder; the `kind=prd` review-convergence marker moves to `openspec/changes/<id>/reviews/prd.json`; the `artifact_filename` stable-key becomes the constant `"prd.md"`. All PRD-family skills (`ptp-prd`, `ptp-review-prd`, `ptp-review-prd-full`, `ptp-prd-full`, `ptp-review-loop`), six commands (`prd`, `prd-full`, `review-prd`, `review-prd-full`, `codex-review-prd`, `codex-review-prd-loop`), and active delta specs (0019_01, 0021_01, 0021_02) updated to the new paths. |

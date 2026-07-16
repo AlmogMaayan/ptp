@@ -1,12 +1,12 @@
 ---
-description: Seam-free union of /ptp:prd and /ptp:review-prd-full in one uninterrupted flow — authors the epic PRD into openspec/changes/<id>/prd.md, then continues without a manual re-invocation into the dual-reviewer (Superpowers + Codex) inline-fix PRD-review loop. A prd-gate between phases blocks the review if no PRD was written. The PRD-stage analog of /ptp:brainstorm-full.
+description: Seam-free union of /ptp:prd and /ptp:review-prd-full in one uninterrupted flow — authors the epic PRD into openspec/changes/<id>/prd.md, then continues without a manual re-invocation into the dual-reviewer (main agent + reviewer agent; default Superpowers + Codex) inline-fix PRD-review loop. A prd-gate between phases blocks the review if no PRD was written. The PRD-stage analog of /ptp:brainstorm-full.
 argument-hint: "<epic-selector> — id, epic:XXXX, story:NN, or epic:XXXX story:NN (omit = all active epics)"
 ---
 
 You are running **`/ptp:prd-full`** — the union of `/ptp:prd` and `/ptp:review-prd-full`, connected by a
 prd-gate. It authors the epic PRD (`openspec/changes/<id>/prd.md`, where `<id>` is the epic's
 lowest-numbered story) and — **without a manual re-invocation in between** — continues into the
-dual-reviewer (Superpowers + Codex) inline-fix PRD-review convergence loop. The point of having one
+dual-reviewer (main agent + reviewer agent; default Superpowers + Codex) inline-fix PRD-review convergence loop. The point of having one
 command is the **automatic handoff**: no second `/ptp:review-prd-full <epic>` needed. The orchestration
 detail lives in the **`ptp-prd-full`** skill — this command is the thin front door. It is the PRD-stage
 analog of `/ptp:brainstorm-full`.
