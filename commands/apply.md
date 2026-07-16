@@ -3,7 +3,7 @@ description: Implement an OpenSpec change sequentially from tasks.md with Superp
 argument-hint: "<change-selector> — id, epic:XXXX, story:NN, or epic:XXXX story:NN"
 ---
 
-You are running **step 3** of the ptp flow. The OpenSpec change has been planned and validated. Your job is to **execute the tasks sequentially**, verifying each one before checking it off. The per-task implementation work runs in a **subagent** at the model and effort from the change's own `effort.md` — so apply quality is no longer incidental to the session's model.
+You are running **step 3** of the ptp flow. The OpenSpec change has been planned and validated. Your job is to **execute the tasks sequentially**, verifying each one before checking it off. The per-task implementation work runs as the **resolved main agent** (`ptp-run-at-model` resolves it via `ptp-agent-roles`) — by default a Claude **subagent** at the model and effort from the change's own `effort.md`, or a write-capable `codex exec` main run (model/effort from `codex.model`/`codex.reasoningEffort`) when `roles.main=codex` — so apply quality is no longer incidental to the session's model.
 
 ## Inputs
 
@@ -21,12 +21,14 @@ These two steps are **abort-guaranteeing preconditions** that MUST run in the ou
 
 For **each resolved change** in order (one change fully applied before starting the next), invoke the **`ptp-run-at-model`** skill with:
 
-- **target** = "read from `effort.md`" for this change id — `ptp-run-at-model` reads line 1 of `openspec/changes/<id>/effort.md`, parses `{model}.{effort}` (missing or unparseable → `opus.high`, **noted**), and spawns one foreground subagent at the resolved model with the effort directive; and
+- **target** = "read from `effort.md`" for this change id — `ptp-run-at-model` reads line 1 of `openspec/changes/<id>/effort.md`, parses `{model}.{effort}` (missing or unparseable → `opus.high`, **noted**), and — for the default `roles.main=claude` — spawns one foreground subagent at the resolved model with the effort directive (when `roles.main=codex`, model/effort instead come from `codex.model`/`codex.reasoningEffort` per the main-agent branch below); and
 - **work** = "run the `/ptp:apply` per-task implementation protocol for this single change" (see *Subagent responsibilities* below).
 
-`ptp-run-at-model` owns the spawn-and-relay mechanism — reference that skill for the contract (effort directive mapping, relay states, branch-guard ordering). Do not restate its mechanism here.
+`ptp-run-at-model` owns the run-and-relay mechanism — reference that skill for the contract (effort directive mapping, relay states, branch-guard ordering, and the **main-agent branch**). Do not restate its mechanism here.
 
-The **subagent's own `ptp-branch-guard` check is a no-op**: HEAD is already on the feature branch when the subagent runs, so the subagent **must not** attempt to launch `ptp-branch-prep`.
+**Who implements is the resolved main agent.** `ptp-run-at-model` resolves the main agent via `ptp-agent-roles`: by default (`roles.main=claude`) the per-task implementation runs in a foreground Claude Agent-tool subagent exactly as before this text; when `roles.main=codex` the same per-task protocol below is performed instead by a **write-capable `codex exec`** main run (model/effort from `codex.model`/`codex.reasoningEffort`). The *Subagent responsibilities* protocol (TDD discipline, task sequencing, re-validation, no-archive/no-commit) is the work handed to whichever main agent runs — it is unchanged in both directions; "subagent" below names the Claude default and reads as "the Codex main run" when `roles.main=codex`.
+
+The **main run's own `ptp-branch-guard` check is a no-op**: HEAD is already on the feature branch when the main work runs, so the subagent (or the shelled-out Codex) **must not** attempt to launch `ptp-branch-prep`.
 
 **Relay** the subagent's terminal result per `ptp-run-at-model`: a refusal or `needs-human-action` state is surfaced verbatim and does **not** silently proceed to the next change.
 
@@ -55,7 +57,7 @@ The subagent runs the following steps for the single change assigned to it:
 
 ## Closing report
 
-After all changes have been processed, the outer session reports per change: the change id, the model used (from its `effort.md`), and the outcome (completed / refused). Tell the user the next command is **`/ptp:review <change-id>`**.
+After all changes have been processed, the outer session reports per change: the change id, the model used (from its `effort.md` by default; when `roles.main=codex`, `codex.model` if set, otherwise report "Codex CLI default (`codex.model` unset)" rather than naming a specific model), and the outcome (completed / refused / needs-human-action). For a **completed** change, tell the user the next command is **`/ptp:review <change-id>`**; for a **refused** or **needs-human-action** outcome, surface that terminal state (and, for `needs-human-action`, the exact follow-up) per the relay above instead of recommending `/ptp:review`.
 
 ## Hard rules
 

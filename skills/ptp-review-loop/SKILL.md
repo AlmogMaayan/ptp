@@ -18,7 +18,9 @@ This skill encodes the iteration semantics shared by the `/ptp:*-loop` commands 
 ```
 
 The `/ptp:review-brainstorm-full` skill (`ptp-review-brainstorm-full`) also drives this loop with
-`kind=brainstorm` in two phases (Phase 1 `reviewer=superpowers`, Phase 2 `reviewer=codex`), so the
+`kind=brainstorm` in two phases — **Phase 1 with the main agent, Phase 2 with the reviewer agent**,
+resolved from `roles.main` via `ptp-agent-roles` (default `roles.main=claude`: Phase 1
+`reviewer=superpowers`, Phase 2 `reviewer=codex`) — so the
 `-full` suffix means a dual-reviewer inline-fix loop at every pipeline stage (brainstorm, artifact,
 code). The `prd` kind is anchored to the epic's **lowest-numbered story change folder**: the caller resolves
 the selector to epics and drives this loop **once per epic** over

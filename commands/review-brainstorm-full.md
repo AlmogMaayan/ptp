@@ -1,10 +1,13 @@
 ---
-description: Dual-reviewer inline-fix brainstorm-review loop — runs the Superpowers brainstorm loop then (per codex.mode) the Codex brainstorm loop, editing brainstorm.md to resolve confirmed findings until each phase converges or the iteration cap is reached; Phase 2 starts only if Phase 1 converges; runs no openspec validate (a brainstorm precedes any spec — the one divergence from /ptp:review-plan-full)
+description: Dual-reviewer inline-fix brainstorm-review loop — runs the main-agent brainstorm loop then the reviewer-agent brainstorm loop (default roles.main=claude: Superpowers then Codex; a Codex reviewer gated per codex.mode), editing brainstorm.md to resolve confirmed findings until each phase converges or the iteration cap is reached; Phase 2 starts only if Phase 1 converges; runs no openspec validate (a brainstorm precedes any spec — the one divergence from /ptp:review-plan-full)
 argument-hint: "[change-selector] (optional — id, epic:XXXX, story:NN, or epic:XXXX story:NN; omit to review ALL active changes' brainstorms)"
 ---
 
-You are running **`/ptp:review-brainstorm-full`** — the **dual-reviewer** (Superpowers + Codex)
-variant of `/ptp:review-brainstorm`, exactly as `/ptp:review-plan-full` is to `/ptp:review-plan`. It
+You are running **`/ptp:review-brainstorm-full`** — the **dual-reviewer** (main agent + reviewer
+agent; default Superpowers + Codex) variant of `/ptp:review-brainstorm`, exactly as
+`/ptp:review-plan-full` is to `/ptp:review-plan`. Resolve `{ main, reviewer }` from `roles.main` via
+the **`ptp-agent-roles`** skill; at the default `roles.main=claude` Phase 1 is the Superpowers loop
+and Phase 2 is the gated Codex loop (byte-identical to before). It
 audits a change's **brainstorm** (`brainstorm.md`), before any proposal/spec artifacts exist, with two
 independent reviewers run as **inline-fix convergence loops** — **editing `brainstorm.md`** to resolve
 confirmed findings until each phase converges to zero confirmed findings or the configured iteration
@@ -43,12 +46,14 @@ spawns a subagent:
 1. **Selector disambiguation that STOPs and asks.** Resolve `$ARGUMENTS` per `ptp-change-selector`. If
    it is ambiguous in a way that must STOP and ask the user, do that here (the subagent is
    non-interactive and cannot ask). Preserve the empty-argument review-all-active default.
-2. **Resolve `codex.mode` per the `ptp-codex-mode` skill** and apply its decision contract — do not
-   hard-require Codex here. Phase 1 (the Superpowers brainstorm loop) always runs regardless of mode.
-   **Only `required` + `codex` missing STOPs** here (with the install-or-change-mode message). Under
+2. **Resolve `{ main, reviewer }` per `ptp-agent-roles`, then resolve the reviewer gate per the
+   `ptp-codex-mode` skill** and apply its symmetric decision contract — do not
+   hard-require Codex here. Phase 1 (the main agent's brainstorm loop) always runs regardless of mode.
+   The reviewer phase is gated only when the reviewer is Codex: **only `required` + `codex` missing
+   STOPs** here (with the install-or-change-mode message). Under
    `auto` + `codex` missing or `off`, Phase 2 is skipped **inside** the subagent (not an outer STOP),
-   and the skip is reported (never silent). The full resolution + decision rule lives in the
-   `ptp-codex-mode` skill — do not restate it here.
+   and the skip is reported (never silent). A Claude reviewer is never gated and always runs. The full
+   resolution + decision rule lives in the `ptp-codex-mode` skill — do not restate it here.
 3. **`openspec/changes/<change-id>/` must exist.** If it does not, **STOP** and redirect the user to run
    `/ptp:brainstorm` first (the loop requires the change folder, which `/ptp:brainstorm` creates — it
    precedes `/ptp:plan` in the stage order, so redirecting to `/ptp:plan` here would skip the brainstorm).
@@ -61,13 +66,15 @@ as `/ptp:review-brainstorm` does.
 
 This entire two-phase orchestration runs **at a deterministic model** via the **`ptp-run-at-model`**
 skill at `opus.high`. The outer session runs only the abort-guaranteeing preconditions first — the
-`ptp-branch-guard` preamble (above), the `codex.mode` resolution per `ptp-codex-mode` (including the
-`required` + `codex` missing STOP), and the change-folder existence check. It then invokes
-**`ptp-run-at-model`** with target `opus.high`, passing the already-resolved `codex.mode` decision, and
+`ptp-branch-guard` preamble (above), the role resolution per `ptp-agent-roles` and the reviewer-gate
+resolution per `ptp-codex-mode` (including the `required` + `codex` missing STOP for a Codex reviewer),
+and the change-folder existence check. It then invokes
+**`ptp-run-at-model`** with target `opus.high`, passing the already-resolved role pair and reviewer-gate
+decision, and
 the work being "run the **`ptp-review-brainstorm-full`** skill over the already-resolved scope." That
-spawns one foreground `opus` subagent (high effort directive) which performs Phase 1 (the Superpowers
-brainstorm loop) → the convergence-based Phase-1-gates-Phase-2 gate → Phase 2 (the Codex brainstorm
-loop, per the resolved mode) → the combined terminal state + report, **editing `brainstorm.md` inline**,
+spawns one foreground `opus` subagent (high effort directive) which performs Phase 1 (the main agent's
+brainstorm loop) → the convergence-based Phase-1-gates-Phase-2 gate → Phase 2 (the reviewer agent's
+brainstorm loop, gated per the reviewer gate) → the combined terminal state + report, **editing `brainstorm.md` inline**,
 and the subagent's outcome (including the mode-skip success state
 `PHASE 1 DONE — CODEX SKIPPED (mode=…)`) is relayed back per `ptp-run-at-model`'s *Result relay* — never
 downgraded to or away from its true meaning. Do **not** split the phases across multiple subagents and

@@ -1,12 +1,12 @@
 ---
-description: Interactively set a ptp config value — guides you through target (user/global or project), parameter selection (codex.mode or review.maxIterations), and value selection, then writes the chosen value into the correct config.json with a safe merge-write that preserves existing keys.
+description: Interactively set a ptp config value — guides you through target (user/global or project), parameter selection (codex.mode, review.maxIterations, or roles.main), and value selection, then writes the chosen value into the correct config.json with a safe merge-write that preserves existing keys.
 argument-hint: "(no arguments — fully interactive)"
 ---
 
 You are running **`/ptp:config`** — a guided front door for editing ptp's layered configuration
 files (`~/.claude/ptp/config.json` and `<repo>/.claude/ptp/config.json`). It walks you through
-choosing a target layer, selecting a parameter (`codex.mode` or `review.maxIterations`), and
-picking a valid value, then writes only the targeted key while preserving all other existing keys
+choosing a target layer, selecting a parameter (`codex.mode`, `review.maxIterations`, or
+`roles.main`), and picking a valid value, then writes only the targeted key while preserving all other existing keys
 (including the `deploy` block). A missing file or directory is created automatically. A malformed
 or wrong-shape existing file is never overwritten.
 
@@ -31,3 +31,5 @@ or wrong-shape existing file is never overwritten.
 - **Positive-integer writes for `review.maxIterations`.** Only a positive integer (`>= 1`) may be
   written for `review.maxIterations`. Invalid input (non-numeric, non-integer, zero, negative) is
   rejected and re-prompted, never written.
+- **Enum-only writes for `roles.main`.** Only `claude` or `codex` may be written for `roles.main`.
+  No free-form values.

@@ -19,7 +19,7 @@ Run the **`ptp-branch-guard`** preamble **once up front**, before either phase w
 
 Check before doing any work:
 
-1. **Resolve `codex.mode` per the `ptp-codex-mode` skill** (one resolution covers the whole command). Apply its decision contract: under **`required`** the `codex` CLI must be on PATH — run `codex --version`, and if missing **STOP** up front with the install-or-change-mode message, doing no work in either phase. Under **`auto`** or **`off`** the command **proceeds**: each phase's `review-plan-full` / `review-full` then applies the per-phase Codex skip itself (Superpowers-only, non-silent), and a mode-skipped phase is treated as convergence by the gates. The full resolution + decision rule lives in the `ptp-codex-mode` skill — do not restate it here.
+1. **Resolve `codex.mode` per the `ptp-codex-mode` skill** (one resolution covers the whole command). Apply its decision contract: under **`required`** the `codex` CLI must be on PATH — run `codex --version`, and if missing **STOP** up front with the install-or-change-mode message, doing no work in either phase. Under **`auto`** or **`off`** the command **proceeds**: each phase's `review-plan-full` / `review-full` then applies the per-phase reviewer skip itself (main-agent-only when a Codex reviewer is skipped, non-silent), and a mode-skipped reviewer phase is treated as convergence by the gates. A Claude reviewer is never gated and always runs. The full resolution + decision rule lives in the `ptp-codex-mode` skill — do not restate it here.
 
 ## What this command does
 

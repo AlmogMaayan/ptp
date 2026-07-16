@@ -1,11 +1,14 @@
 ---
-description: Dual-reviewer inline-fix PRD-review loop — runs the Superpowers PRD loop then (per codex.mode) the Codex PRD loop, editing the epic PRD openspec/changes/<id>/prd.md to resolve confirmed findings until each phase converges or the iteration cap is reached; Phase 2 starts only if Phase 1 converges; epic-scoped; runs no openspec validate (a PRD precedes any spec — the one divergence from /ptp:review-plan-full)
+description: Dual-reviewer inline-fix PRD-review loop — runs the main-agent PRD loop then the reviewer-agent PRD loop (default roles.main=claude: Superpowers then Codex; a Codex reviewer gated per codex.mode), editing the epic PRD openspec/changes/<id>/prd.md to resolve confirmed findings until each phase converges or the iteration cap is reached; Phase 2 starts only if Phase 1 converges; epic-scoped; runs no openspec validate (a PRD precedes any spec — the one divergence from /ptp:review-plan-full)
 argument-hint: "[epic-selector] (optional — id, epic:XXXX, story:NN, or epic:XXXX story:NN; omit to review ALL active epics' PRDs)"
 ---
 
-You are running **`/ptp:review-prd-full`** — the **dual-reviewer** (Superpowers + Codex) variant of
+You are running **`/ptp:review-prd-full`** — the **dual-reviewer** (main agent + reviewer agent;
+default Superpowers + Codex) variant of
 `/ptp:review-prd`, exactly as `/ptp:review-plan-full` is to `/ptp:review-plan` and
-`/ptp:review-brainstorm-full` is to `/ptp:review-brainstorm`. It audits an epic's **PRD**
+`/ptp:review-brainstorm-full` is to `/ptp:review-brainstorm`. Resolve `{ main, reviewer }` from
+`roles.main` via the **`ptp-agent-roles`** skill; at the default `roles.main=claude` Phase 1 is the
+Superpowers loop and Phase 2 is the gated Codex loop (byte-identical to before). It audits an epic's **PRD**
 (`openspec/changes/<id>/prd.md`, where `<id>` is the epic's lowest-numbered story), before any
 proposal/spec/brainstorm artifacts for the epic plan exist, with two independent reviewers run as
 **inline-fix convergence loops** — **editing the PRD** to resolve confirmed findings until each phase
@@ -47,12 +50,14 @@ spawns a subagent:
    is non-interactive and cannot ask). Preserve the empty-argument review-all-active default. A
    legacy/unprefixed id that cannot project to an epic is reported unsupported and skipped (per
    `ptp-prd`).
-2. **Resolve `codex.mode` per the `ptp-codex-mode` skill** and apply its decision contract — do not
-   hard-require Codex here. Phase 1 (the Superpowers PRD loop) always runs regardless of mode. **Only
+2. **Resolve `{ main, reviewer }` per `ptp-agent-roles`, then resolve the reviewer gate per the
+   `ptp-codex-mode` skill** and apply its symmetric decision contract — do not
+   hard-require Codex here. Phase 1 (the main agent's PRD loop) always runs regardless of mode. The
+   reviewer phase is gated only when the reviewer is Codex: **only
    `required` + `codex` missing STOPs** here (with the install-or-change-mode message). Under `auto` +
    `codex` missing or `off`, Phase 2 is skipped **inside** the subagent (not an outer STOP), and the
-   skip is reported (never silent). The full resolution + decision rule lives in the `ptp-codex-mode`
-   skill — do not restate it here.
+   skip is reported (never silent). A Claude reviewer is never gated and always runs. The full
+   resolution + decision rule lives in the `ptp-codex-mode` skill — do not restate it here.
 
 The per-epic **PRD-file existence** check is part of Phase 1's rubric (a missing PRD is a Critical
 finding the loop cannot fix, not an outer abort), so it runs **inside** the subagent — exactly as
@@ -62,14 +67,15 @@ finding the loop cannot fix, not an outer abort), so it runs **inside** the suba
 
 This entire two-phase orchestration runs **at a deterministic model** via the **`ptp-run-at-model`**
 skill at `opus.high`. The outer session runs only the abort-guaranteeing preconditions first — the
-`ptp-branch-guard` preamble (above), the selector disambiguation, and the `codex.mode` resolution per
-`ptp-codex-mode` (including the `required` + `codex` missing STOP) — so a guaranteed abort never spawns a
+`ptp-branch-guard` preamble (above), the selector disambiguation, and the role resolution per
+`ptp-agent-roles` + the reviewer-gate resolution per
+`ptp-codex-mode` (including the `required` + `codex` missing STOP for a Codex reviewer) — so a guaranteed abort never spawns a
 subagent. It then invokes **`ptp-run-at-model`** with target `opus.high`, passing the already-resolved
-`codex.mode` decision and the resolved epic(s) + PRD path(s), and the work being "run the
+role pair and reviewer-gate decision and the resolved epic(s) + PRD path(s), and the work being "run the
 **`ptp-review-prd-full`** skill over the already-resolved scope." That spawns one foreground `opus`
-subagent (high effort directive) which performs Phase 1 (the Superpowers `kind = prd` loop) → the
-convergence-based Phase-1-gates-Phase-2 gate → Phase 2 (the Codex `kind = prd` loop, per the resolved
-mode) → the combined terminal state + single combined marker write + report, **editing the PRD inline**,
+subagent (high effort directive) which performs Phase 1 (the main agent's `kind = prd` loop) → the
+convergence-based Phase-1-gates-Phase-2 gate → Phase 2 (the reviewer agent's `kind = prd` loop, gated per the reviewer
+gate) → the combined terminal state + single combined marker write + report, **editing the PRD inline**,
 and the subagent's outcome (including the mode-skip success state
 `PHASE 1 DONE — CODEX SKIPPED (mode=…)`) is relayed back per `ptp-run-at-model`'s *Result relay* — never
 downgraded to or away from its true meaning. Do **not** split the phases across multiple subagents and

@@ -1,6 +1,6 @@
 ---
 name: ptp-run-at-model
-description: Single source of truth for running a ptp command's work at a deterministic model+effort. Because the session model cannot be changed in place, this skill owns the contract for spawning ONE foreground Agent-tool subagent at a caller-named target model — with effort injected as a prompt directive (mirroring workflows/ptp-full-run.js) — running the command's real work there, and relaying the subagent's terminal result (completed / refused / needs-human-action) back to the session verbatim. The branch guard and abort-preconditions run in the outer session before the spawn. Commands reference this skill instead of restating the spawn-and-relay, the same way ptp-branch-guard owns branch safety and ptp-codex-mode owns the Codex gate.
+description: Single source of truth for running a ptp command's work at a deterministic model+effort as the resolved main agent (via ptp-agent-roles). Because the session model cannot be changed in place, this skill owns the contract for running the command's real work either by spawning ONE foreground Claude Agent-tool subagent at a caller-named target model with effort injected as a prompt directive (main=claude, the default, mirroring workflows/ptp-full-run.js) or by shelling out to a write-capable codex exec with model/effort from codex.model/codex.reasoningEffort (main=codex) — then relaying the main run's terminal result (completed / refused / needs-human-action) back to the session verbatim. The branch guard and abort-preconditions run in the outer session before any main work in both directions. Commands reference this skill instead of restating the run-and-relay, the same way ptp-branch-guard owns branch safety and ptp-codex-mode owns the Codex reviewer gate plus the codex.model/codex.reasoningEffort resolution reused here.
 ---
 
 # ptp-run-at-model — run a command's work at a deterministic model+effort
@@ -12,10 +12,11 @@ guard was a soft model/effort check that could merely **ask** the user to switch
 could not change the session model in place, because no tool can. The only way to actually **run**
 work at a chosen model is a **sub-context** with a `model` override.
 
-This skill is the **single source of truth** for that spawn-and-relay: a command names a target
-(`<model>.<effort>`), and this skill runs the command's real work in one foreground subagent at that
-model, injecting effort as a prompt directive, then relays the subagent's terminal result to the
-session. Commands **reference** this skill instead of each restating the spawn, the effort directive,
+This skill is the **single source of truth** for that run-and-relay: a command names a target
+(`<model>.<effort>`), and this skill runs the command's real work as the resolved main agent — by
+default (`main=claude`) in one foreground Claude subagent at that model with effort injected as a
+prompt directive, or (`main=codex`) via a write-capable `codex exec` shell-out — then relays the main
+run's terminal result to the session. Commands **reference** this skill instead of each restating the spawn, the effort directive,
 the branch-guard ordering, and the relay — the same single-source-of-truth pattern as
 `ptp-branch-guard` (branch safety) and `ptp-codex-mode` (the Codex gate). ptp already does this
 spawn-at-a-model-with-an-effort-directive trick for apply/review in `workflows/ptp-full-run.js`; this
@@ -37,7 +38,7 @@ looks a command up in a table; the **caller always supplies the target** (see *T
 
 **Read-only commands skip the branch-guard step but still wrap** — they have no working-tree writes,
 so step 2 of the contract is a no-op for them, but they still run their work in the target-model
-subagent and relay the result.
+main run (the Claude subagent, or the `codex exec` shell-out when `main=codex`) and relay the result.
 
 The `full`/`full-plan`/`full-run` family does **not** use this skill — it already runs its work in
 workflow agents at chosen models (see `ptp-full-run` and `workflows/ptp-full-run.js`).
@@ -48,7 +49,8 @@ The caller passes:
 
 - a **target** — either a `<model>.<effort>` literal (e.g. `sonnet.medium`, `opus.high`), or the
   instruction "read line 1 of `effort.md`" for a change id; and
-- a **work description** — which underlying skill the subagent must invoke, or which documented
+- a **work description** — which underlying skill the resolved main agent (the Claude subagent when
+  `main=claude`, or the `codex exec` main run when `main=codex`) must invoke, or which documented
   steps it must run (i.e. exactly the work the command would have run in-session).
 
 The skill then runs, **in this order**:
@@ -56,30 +58,34 @@ The skill then runs, **in this order**:
 1. **Outer abort-preconditions first.** The calling command runs its cheap, abort-guaranteeing
    preconditions **before** this skill spawns anything — a missing change folder, an empty-selector
    disambiguation, and the like. This mirrors `ptp-branch-guard`'s "abort-guaranteeing
-   preconditions run before the guard" rule: **a guaranteed abort must never spawn a subagent.**
-   (Note: a command's *own* refusal gate that is part of the work the subagent runs — e.g.
-   `/ptp:master`'s clean-tree gate inside the `ptp-master` skill — does **not** move outer; it runs
-   inside the subagent and surfaces via the `refused` relay state, see *Result relay*. The
+   preconditions run before the guard" rule: **a guaranteed abort must never spawn a subagent or
+   start a Codex shell-out.** (Note: a command's *own* refusal gate that is part of the work the main
+   run performs — e.g. `/ptp:master`'s clean-tree gate inside the `ptp-master` skill — does **not**
+   move outer; it runs inside the main run (the subagent, or the `codex exec` shell-out) and surfaces
+   via the `refused` relay state, see *Result relay*. The
    pre-spawn-outer rule is for the command's standalone preconditions and for `ptp-branch-guard`'s
    own dirty-tree handling, which stashes before cutting a branch.)
 
-   **Interactive user confirmations stay outer, too.** The Agent-tool subagent is **non-interactive**
-   — it cannot pause to ask the user a question mid-run; it can only return a terminal state. Split by
-   *when the need for the confirmation is known*:
+   **Interactive user confirmations stay outer, too.** The main run is **non-interactive in both
+   directions** — neither the Agent-tool subagent (`main=claude`) nor the `codex exec` shell-out
+   (`main=codex`) can pause to ask the user a question mid-run; each can only return a terminal state.
+   Split by *when the need for the confirmation is known*:
    - **Known before the work starts** (archive's review-clean confirm and its "confirm the action"
      step; archive-force's empty/all scope-confirm STOP): the **outer session performs the
-     confirmation before spawning**, and the subagent then executes only the already-confirmed,
+     confirmation before the main work starts** (before spawning the subagent, or before starting the
+     `codex exec` shell-out), and the main run then executes only the already-confirmed,
      non-interactive operation. This is the path for the archive-family commands.
-   - **Discovered only during the subagent's work** (e.g. a deploy hitting a needs-PR-approval state):
-     the subagent returns the `needs-human-action` terminal state (see *Result relay*) with
+   - **Discovered only during the main run's work** (e.g. a deploy hitting a needs-PR-approval state):
+     the main run returns the `needs-human-action` terminal state (see *Result relay*) with
      a reason and a precise follow-up command, and the outer session surfaces it.
 
-   The subagent itself **never conducts an interactive prompt**; it runs only the non-interactive
-   enforcement + CLI/git work.
+   The main run itself — subagent or `codex exec` shell-out — **never conducts an interactive
+   prompt**; it runs only the non-interactive enforcement + CLI/git work.
 
 2. **Branch guard in the outer session** (write-capable commands only). Run the `ptp-branch-guard`
    preamble **here, in the main session**, because cutting a branch uses the `ptp-branch-prep`
-   **Workflow**, and a subagent cannot launch a Workflow (nesting is one level only). After this, HEAD
+   **Workflow**, and neither a subagent nor a shelled-out Codex can launch it (one-level Agent nesting
+   for the subagent; a `codex exec` shell-out runs outside the Agent tree). After this, HEAD
    is on the feature branch. **Defer the run/skip decision to `ptp-branch-guard`'s own "which steps
    run the guard" list** — do not re-decide it here. In particular `/ptp:master` is guard-exempt (it
    deliberately lands on master), so for it this step is intentionally skipped.
@@ -89,31 +95,54 @@ The skill then runs, **in this order**:
    `{model}.{effort}`. If the file is missing or line 1 is not a parseable `{model}.{effort}`, default
    to `opus.high` and **note the defaulting**. (The read-from-`effort.md` path is used by `/ptp:apply`.)
 
-4. **Spawn ONE foreground subagent** via the Agent tool with `model` = the resolved model. The prompt
-   MUST contain:
-   - (a) the **effort directive** for the resolved effort (see *Effort as a prompt directive*);
-   - (b) an instruction to perform the command's actual work — invoke the same underlying skill, or
-     run the same documented steps the command would have run in-session;
-   - (c) **for a branch-guarded command** (one for which step 2 ran the outer branch guard): a note
-     that the subagent's own `ptp-branch-guard` check will be a **no-op** because HEAD is already on
-     the feature branch, so it must **not** attempt to launch `ptp-branch-prep`. **For a
-     guard-exempt command** (e.g. `/ptp:master`, where step 2 was skipped): a note that the branch
-     guard does **not** apply and the subagent must **not** run it or launch `ptp-branch-prep`
-     (matching the command's own guard-exemption);
-   - (d) an instruction to return its final result — including any terminal state — as the relay
-     payload (see *Result relay*).
+4. **Resolve the main agent.** Invoke the **`ptp-agent-roles`** skill to resolve the role pair
+   `{ main, reviewer }` from layered config (default `main=claude`). The value of `main` selects
+   which of the two branches in step 5 runs the command's real work. This resolution is a pure
+   config read — it spawns nothing, runs no git, and never STOPs on a config typo (a missing
+   file/key or out-of-enum value resolves to `claude`, keeping the default path). Only `main` matters
+   here; the derived `reviewer` is not used by this skill.
 
-   The spawn is **foreground**: the session **blocks** until the subagent returns.
+5. **Run the main work** as the resolved main agent. The caller-facing contract (target + work
+   description → relayed terminal result) is identical in both branches; only *how* the work runs
+   differs.
 
-5. **Relay.** When the subagent returns, the session surfaces its final result to the user **verbatim
-   in meaning** — a success report, a gate refusal, or a structured "needs human action" state. Never
-   silently swallow a STOP and never downgrade a refusal to success.
+   - **`main == claude` (default — unchanged from before this change).** **Spawn ONE foreground
+     subagent** via the Agent tool with `model` = the resolved model. The prompt MUST contain:
+     - (a) the **effort directive** for the resolved effort (see *Effort as a prompt directive*);
+     - (b) an instruction to perform the command's actual work — invoke the same underlying skill, or
+       run the same documented steps the command would have run in-session;
+     - (c) **for a branch-guarded command** (one for which step 2 ran the outer branch guard): a note
+       that the subagent's own `ptp-branch-guard` check will be a **no-op** because HEAD is already on
+       the feature branch, so it must **not** attempt to launch `ptp-branch-prep`. **For a
+       guard-exempt command** (e.g. `/ptp:master`, where step 2 was skipped): a note that the branch
+       guard does **not** apply and the subagent must **not** run it or launch `ptp-branch-prep`
+       (matching the command's own guard-exemption);
+     - (d) an instruction to return its final result — including any terminal state — as the relay
+       payload (see *Result relay*).
+
+     The spawn is **foreground**: the session **blocks** until the subagent returns.
+
+   - **`main == codex` (new — write-capable Codex shell-out).** Instead of spawning a Claude
+     Agent-tool subagent, run the command's real work by **shelling out (via Bash) to a write-capable
+     `codex exec`**. See *The `main=codex` direction* below for the full invocation, the reused
+     `codex.model`/`codex.reasoningEffort` resolution, the missing-CLI handling, and the four
+     constraints. The resolved-model / effort-directive machinery of the `claude` branch does **not**
+     apply here — model and effort come from `codex.model` / `codex.reasoningEffort` (resolved by
+     `ptp-codex-mode`). The shell-out is **foreground**: the session **blocks** until `codex exec`
+     returns, then relays its result exactly as the `claude` branch does.
+
+6. **Relay.** When the main work returns (whether from the Claude subagent or the `codex exec`
+   shell-out), the session surfaces its final result to the user **verbatim in meaning** — a success
+   report, a gate refusal, or a structured "needs human action" state. Never silently swallow a STOP
+   and never downgrade a refusal to success.
 
 ## Effort as a prompt directive
 
-Effort is **not** an Agent-tool parameter; the Agent tool has no effort knob. The skill injects the
-effort as a directive in the subagent prompt, mapping the effort token exactly as
-`workflows/ptp-full-run.js` `effortDirective(effort)` does:
+This section describes the **`main=claude`** direction; the `main=codex` direction maps effort to
+`codex.reasoningEffort` instead (see *The `main=codex` direction*). Effort is **not** an Agent-tool
+parameter; the Agent tool has no effort knob. The skill injects the effort as a directive in the
+subagent prompt, mapping the effort token exactly as `workflows/ptp-full-run.js`
+`effortDirective(effort)` does:
 
 | effort | directive injected into the subagent prompt |
 |--------|----------------------------------------------|
@@ -126,15 +155,97 @@ effort as a directive in the subagent prompt, mapping the effort token exactly a
 This is a **soft hint** — the directive nudges the subagent's deliberation; it is not a hard setting.
 This is the same limitation `ptp-full-run` already accepts.
 
+## The `main=codex` direction (write-capable Codex shell-out)
+
+When `ptp-agent-roles` resolves `main=codex` (step 4), step 5 runs the command's real work by
+shelling out to a **write-capable** `codex exec` instead of spawning a Claude Agent-tool subagent.
+The caller-facing contract is unchanged: same target + work description in, same three-state relay
+out.
+
+**Invocation.** Pipe the work description (the exact work the command would have run in-session,
+i.e. the same skill/steps the `claude` branch would have instructed the subagent to run) as the
+prompt to a `codex exec` running in a **`workspace-write`** sandbox, sourcing model and reasoning
+effort from config:
+
+Because the shelled-out `codex exec` is a **separate CLI** that does **not** have the Claude Skill
+tool and does **not** inherit the outer command/skill context, `$WORK_PROMPT` MUST be
+**self-contained** — do **not** merely name a Claude skill to "invoke". Spell the protocol out inline
+(the change id, the relevant paths, the full task sequence, and the terminal-state and branch-guard
+instructions), or explicitly direct Codex to **read** the specific repository Markdown file(s) that
+carry the protocol (e.g. the command file and `skills/openspec-apply-change/SKILL.md`). The
+`claude` branch can rely on the subagent's Skill tool; the `codex` branch cannot.
+
+```
+printf '%s' "$WORK_PROMPT" | codex exec -s workspace-write [ -m <model> ] [ -c model_reasoning_effort=<effort> ] -
+```
+
+- `-s workspace-write` (equivalently `--sandbox workspace-write`) — the main implementer must write
+  files, so it needs a write-capable sandbox. Confirm the exact flag spelling against the installed
+  `codex` CLI; the mandate is a write-capable posture, not a specific spelling.
+- `-m <model>` — appended **iff** `codex.model` resolves to a set value.
+- `-c model_reasoning_effort=<effort>` — appended **iff** `codex.reasoningEffort` resolves to a set
+  value.
+- **`model` from `codex.model`, `effort` from `codex.reasoningEffort`, both resolved by
+  `ptp-codex-mode`** (its existing model/effort resolution — reused, **no new config keys**). An
+  optional soft effort **prompt hint** MAY additionally be woven into `$WORK_PROMPT`.
+- The `$WORK_PROMPT` also carries the same branch-guard note the `claude` branch gives its subagent —
+  which case depends on the command exactly as in the `claude` branch: **for a branch-guarded
+  command** the outer guard already ran, so the shelled-out Codex must **not** attempt to launch
+  `ptp-branch-prep`; **for a guard-exempt command** (e.g. `/ptp:master`, where step 2 was skipped) the
+  branch guard does **not** apply and the shelled-out Codex must **not** run it or launch
+  `ptp-branch-prep` — plus the same instruction to return a terminal result for the relay.
+
+**Ownership boundary (do not confuse with the reviewer).** This write-capable invocation is a
+**NEW call site owned by `ptp-run-at-model`** — it is **NOT** a relaxation of the read-only Codex
+**reviewer** rule that `ptp-codex-mode` owns (`codex exec -s read-only …`, which that skill forbids
+loosening). `ptp-codex-mode` keeps owning the read-only reviewer mechanics **and** the
+`codex.model`/`codex.reasoningEffort` resolution reused here; `ptp-run-at-model` owns only this
+write-capable main invocation. **Never** use `--full-auto`,
+`--dangerously-bypass-approvals-and-sandbox`, or any flag that bypasses the sandbox/approvals.
+
+**Missing `codex` CLI.** If `main=codex` but the `codex` CLI is not available to run the main work
+(not on PATH), the main run **cannot proceed**. Do **not** report a silent success and do **not**
+fall back to Claude silently. Route it through the relay as a `refused` / `needs-human-action`
+terminal state carrying the remediation: **install `codex`, or set `roles.main=claude`**. The three
+terminal states (completed / refused / needs-human-action) apply in this direction exactly as in the
+`claude` direction.
+
+### Four honest constraints (Codex main direction)
+
+1. **Harness is always Claude.** The Claude Code session remains the **outer harness**. `main=codex`
+   is a **shell-out**: the session shells out to `codex exec` for the heavy work and control
+   **returns to the session** when `codex exec` finishes. It is **not** a Codex-launched session and
+   the user did not start a different CLI.
+2. **Write-capable sandbox (safety).** The main implementer runs in a **write-capable**
+   (`workspace-write`) sandbox — materially different from the read-only reviewer — so a Codex main
+   run **can modify the working tree and run tools**. The posture is scoped to this
+   main-implementer call site only; the reviewer stays `-s read-only`; and the outer-session branch
+   guard (step 2) still runs before any main work, so — for a **branch-guarded** command (one not
+   exempt per `ptp-branch-guard`, e.g. not `/ptp:master`) — a write-capable Codex run never starts on
+   the base branch. (A guard-exempt command such as `/ptp:master` deliberately operates on the base
+   branch; the guard defers that decision to `ptp-branch-guard`.) Never bypass the sandbox or
+   approvals.
+3. **Shell-out, not Agent nesting.** A `codex exec` main run is a **Bash shell-out**, not a Claude
+   Agent-tool subagent — so it does **not** consume the one-level Agent nesting budget (it sidesteps
+   that limit). But the shelled-out Codex **cannot itself launch a Claude Workflow**; long-running
+   writes happen outside the Agent tree. This is the key difference from the `claude` branch.
+4. **Effort is a soft hint — both directions.** Effort never hard-guarantees the model's
+   deliberation. For `claude` it is the **prompt directive** (see *Effort as a prompt directive*);
+   for `codex` it is `codex.reasoningEffort` applied as an explicit Codex **runtime setting**
+   (`-c model_reasoning_effort=<effort>`) plus an **optional soft prompt hint**. Both influence, but
+   neither guarantees, how hard the model deliberates.
+
 ## Result relay
 
-The subagent returns a **terminal state** that is one of three distinguishable cases; the session
+The main work (the Claude Agent-tool subagent when `main=claude`, or the `codex exec` shell-out when
+`main=codex`) returns a **terminal state** that is one of three distinguishable cases; the session
 surfaces each one rather than collapsing it into a generic "done":
 
 - **`completed`** — with a human-facing summary of what was done. The session prints the summary.
-- **`refused`** — a gate or precondition the subagent hit (e.g. an archive gate finding unchecked
-  tasks, a failing `openspec validate`, `master`'s dirty-tree gate). The session reports the
-  **refusal and its reason** — never as a successful completion.
+- **`refused`** — a gate or precondition the main run hit (e.g. an archive gate finding unchecked
+  tasks, a failing `openspec validate`, `master`'s dirty-tree gate, or — when `main=codex` — the
+  `codex` CLI being unavailable). The session reports the **refusal and its reason** — never as a
+  successful completion.
 - **`needs-human-action`** — a state that needs a human, carrying a machine-readable **reason** plus
   the **exact follow-up command** the user should run (e.g. a deploy that needs PR approval →
   `/ptp:deploy-pr-approved`). The session reports the reason **and** the follow-up command.
@@ -157,16 +268,23 @@ git, and archive-force delegates to the inline `ptp-archive-force` skill.
 
 ## Hard rules
 
-- **Never spawn before the outer branch guard** (for write-capable commands) — the subagent cannot
-  cut the branch (it cannot launch the `ptp-branch-prep` Workflow).
-- **Never swallow a subagent STOP/refusal** — relay it verbatim in meaning; a refusal or
-  needs-human-action state must never be reported as success.
+- **Never start the main work before the outer branch guard** (for write-capable commands) — neither
+  the Claude subagent nor the `codex exec` shell-out can cut the branch (a subagent cannot launch the
+  `ptp-branch-prep` Workflow; a shell-out runs outside the Agent tree).
+- **Never swallow a main-run STOP/refusal** — relay it verbatim in meaning; a refusal or
+  needs-human-action state (including a missing `codex` CLI when `main=codex`) must never be reported
+  as success.
 - **Never hardcode a per-command model/effort target** — the caller always supplies the target.
-- **Effort is a prompt directive, never an Agent parameter.**
-- **One foreground subagent per `ptp-run-at-model` invocation** — not a fan-out, not a background
-  Workflow. A single invocation spawns exactly one blocking subagent and waits for it. (A command
-  that processes a multi-item selector — e.g. `/ptp:archive epic:XXXX` — invokes `ptp-run-at-model`
-  once **per item in sequence**, one blocking subagent at a time; that is still no fan-out and no
-  background Workflow.)
+- **Effort is a prompt directive (`main=claude`), never an Agent parameter**; when `main=codex` it is
+  `codex.reasoningEffort` plus an optional soft prompt hint.
+- **The Codex main invocation is write-capable but distinct from the reviewer** — it never loosens
+  `ptp-codex-mode`'s read-only reviewer rule and never uses
+  `--dangerously-bypass-approvals-and-sandbox`. No new config keys; model/effort come from
+  `codex.model`/`codex.reasoningEffort`.
+- **One foreground main run per `ptp-run-at-model` invocation** — not a fan-out, not a background
+  Workflow. A single invocation runs exactly one blocking main run (one Claude subagent, or one
+  `codex exec` shell-out) and waits for it. (A command that processes a multi-item selector — e.g.
+  `/ptp:archive epic:XXXX` — invokes `ptp-run-at-model` once **per item in sequence**, one blocking
+  main run at a time; that is still no fan-out and no background Workflow.)
 - **Defer the branch-guard run/skip decision to `ptp-branch-guard`** — do not re-decide which commands
   are guard-exempt here (e.g. `/ptp:master` stays exempt).

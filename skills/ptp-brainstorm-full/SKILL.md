@@ -10,7 +10,7 @@ description: Use this skill when orchestrating the two-phase brainstorm-then-rev
 This skill is the orchestration contract behind the single `/ptp:brainstorm-full` command. It is the
 union of `/ptp:brainstorm` and `/ptp:review-brainstorm-full`: it runs the brainstorm phase (producing
 `brainstorm.md`) and — without a user re-invocation in between — continues into the dual-reviewer
-(Superpowers + Codex) inline-fix brainstorm-review loop. The seam between the two commands is exactly
+(main agent + reviewer agent; default Superpowers + Codex) inline-fix brainstorm-review loop. The seam between the two commands is exactly
 why this skill exists: the change id produced by the brainstorm phase is passed *explicitly* into the
 review phase, so the review phase skips any scope-confirmation stop. "Run brainstorm and continue
 without stopping to review-brainstorm-full."
@@ -101,9 +101,10 @@ The subagent prompt MUST carry:
 - The change-folder existence check passes (`brainstorm.md` was just written by Phase A).
 - `codex.mode` is pre-resolved: `<decision>`. Apply it directly; do NOT re-resolve via `ptp-codex-mode`.
 
-The subagent runs the full `ptp-review-brainstorm-full` skill: Phase 1 Superpowers brainstorm loop →
-Phase-1-gates-Phase-2 gate → Phase 2 Codex brainstorm loop (mode-gated) → combined terminal state +
-report.
+The subagent runs the full `ptp-review-brainstorm-full` skill: Phase 1 main-agent brainstorm loop →
+Phase-1-gates-Phase-2 gate → Phase 2 reviewer-agent brainstorm loop (gated for a Codex reviewer) →
+combined terminal state + report. At the default `roles.main=claude` this is Phase 1 Superpowers →
+Phase 2 Codex, byte-identical to before.
 
 Relay the Phase B terminal state exactly as `ptp-review-brainstorm-full` emits it — never downgrade
 or misreport it.
@@ -116,8 +117,8 @@ Report at whichever terminal point is reached:
 
 | Terminal state | Meaning | Next-step recommendation |
 |---|---|---|
-| `BOTH PHASES DONE` | Phase A wrote brainstorm.md; Phase 1 (Superpowers) and Phase 2 (Codex) both converged | `/ptp:plan <change-id>` |
-| `PHASE 1 DONE — CODEX SKIPPED (mode=…)` | Phase A wrote brainstorm.md; Phase 1 converged; Codex skipped per `codex.mode` | `/ptp:plan <change-id>` |
+| `BOTH PHASES DONE` | Phase A wrote brainstorm.md; Phase 1 (main agent) and Phase 2 (reviewer agent) both converged (default: Superpowers then Codex) | `/ptp:plan <change-id>` |
+| `PHASE 1 DONE — CODEX SKIPPED (mode=…)` | Phase A wrote brainstorm.md; Phase 1 converged; a Codex reviewer skipped per `codex.mode` | `/ptp:plan <change-id>` |
 | `ITERATION CAP REACHED` | Phase A wrote brainstorm.md; Phase 1 hit the iteration cap before converging; Phase 2 not started | Fix remaining Phase 1 findings → re-run `/ptp:review-brainstorm-full <change-id>` |
 | `PHASE 2 ITERATION CAP REACHED` | Phase A wrote brainstorm.md; Phase 1 converged; Phase 2 hit the cap | Fix remaining Phase 2 findings → re-run `/ptp:review-brainstorm-full <change-id>` |
 | Brainstorm-gate STOP | Phase A completed but `brainstorm.md` is absent | Debug Phase A → run `/ptp:brainstorm <change-id>`, then re-run `/ptp:review-brainstorm-full <change-id>` |

@@ -5,6 +5,15 @@ argument-hint: "<change-selector> — id, epic:XXXX, story:NN, or epic:XXXX stor
 
 Analyze the change artifacts and recommend the model and effort level to use when running `/ptp:apply`.
 
+## Acknowledge the active main agent
+
+`/ptp:apply` runs the implementation as the **resolved main agent** (`ptp-run-at-model` resolves it via `ptp-agent-roles`). **Resolve the main agent first** — invoke the `ptp-agent-roles` skill (a pure layered-config read of `roles.main`; default `claude`) — then branch this recommendation on the resolved value:
+
+- **`roles.main=claude` (default).** Emit today's recommendation **unchanged**: the haiku/sonnet/opus decision table below, the `xhigh`/`high`/`medium`/`low` effort dial, and the strict `{model}.{effort}` machine format written to `effort.md`. Byte-identical to before this change.
+- **`roles.main=codex`.** The Claude model vocabulary does not apply — the main run's model comes from **`codex.model`** and the effort maps to the **Codex reasoning-effort scale** (`minimal`/`low`/`medium`/`high` via `codex.reasoningEffort`, both resolved by `ptp-codex-mode`). Note this in the justification: the runtime reasoning effort comes **solely** from `codex.reasoningEffort` — **never** derived or defaulted from `effort.md` (whose dial includes `xhigh`, which is not on the Codex scale). The `effort.md` effort word (see step 5) may only inform an **optional natural-language prompt hint**, not the `-c model_reasoning_effort` runtime value; and the model source is `codex.model`, not the table below. **Do not invent a second machine format** — keep the `{model}.{effort}` line so the file stays parseable; the complexity scoring and effort word still apply, and the note simply records that model/effort resolve from `codex.*` when Codex is the main agent.
+
+The steps below (complexity scoring, effort dial, the `{model}.{effort}` file format) are written for the default `claude` direction; apply them as-is and add the Codex note above when `roles.main=codex`.
+
 ## Inputs
 
 Change id: $ARGUMENTS

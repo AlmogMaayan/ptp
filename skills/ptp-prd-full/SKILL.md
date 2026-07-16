@@ -10,7 +10,7 @@ description: Use this skill when orchestrating the two-phase author-then-review 
 This skill is the orchestration contract behind the single `/ptp:prd-full` command. It is the union of
 `/ptp:prd` and `/ptp:review-prd-full`: it runs the PRD-authoring phase (producing
 `openspec/changes/<id>/prd.md`, where `<id>` is the epic's lowest-numbered story) and — without a user
-re-invocation in between — continues into the dual-reviewer (Superpowers + Codex) inline-fix PRD-review
+re-invocation in between — continues into the dual-reviewer (main agent + reviewer agent; default Superpowers + Codex) inline-fix PRD-review
 loop. The seam between the two commands is exactly why this skill exists: the epic resolved by the
 authoring phase is passed *explicitly* into the review phase, so the review phase skips any
 scope-confirmation stop. "Run the PRD author and continue without stopping to review-prd-full."
@@ -93,9 +93,11 @@ The subagent prompt MUST carry:
   Phase A) — do NOT re-project the selector.
 - `codex.mode` is pre-resolved: `<decision>`. Apply it directly; do NOT re-resolve via `ptp-codex-mode`.
 
-The subagent runs the full `ptp-review-prd-full` skill: Phase 1 Superpowers `kind = prd` loop →
-Phase-1-gates-Phase-2 gate → Phase 2 Codex `kind = prd` loop (mode-gated) → combined terminal state +
-single combined epic-scoped marker write + report.
+The subagent runs the full `ptp-review-prd-full` skill: Phase 1 main-agent `kind = prd` loop →
+Phase-1-gates-Phase-2 gate → Phase 2 reviewer-agent `kind = prd` loop (gated for a Codex reviewer) →
+combined terminal state +
+single combined epic-scoped marker write + report. At the default `roles.main=claude` this is Phase 1
+Superpowers → Phase 2 Codex, byte-identical to before.
 
 Relay the Phase B terminal state exactly as `ptp-review-prd-full` emits it — never downgrade or
 misreport it, and never collapse the mode-skip green state.
@@ -108,8 +110,8 @@ Report at whichever terminal point is reached (`<change-id>` = the epic's lowest
 
 | Terminal state | Meaning | Next-step recommendation |
 |---|---|---|
-| `BOTH PHASES DONE` | Phase A wrote the PRD; Phase 1 (Superpowers) and Phase 2 (Codex) both converged | `/ptp:plan <change-id>` |
-| `PHASE 1 DONE — CODEX SKIPPED (mode=…)` | Phase A wrote the PRD; Phase 1 converged; Codex skipped per `codex.mode` | `/ptp:plan <change-id>` |
+| `BOTH PHASES DONE` | Phase A wrote the PRD; Phase 1 (main agent) and Phase 2 (reviewer agent) both converged (default: Superpowers then Codex) | `/ptp:plan <change-id>` |
+| `PHASE 1 DONE — CODEX SKIPPED (mode=…)` | Phase A wrote the PRD; Phase 1 converged; a Codex reviewer skipped per `codex.mode` | `/ptp:plan <change-id>` |
 | `ITERATION CAP REACHED` | Phase A wrote the PRD; Phase 1 hit the iteration cap before converging; Phase 2 not started | Fix remaining Phase 1 findings (re-run `/ptp:prd <epic>` to revise) → re-run `/ptp:review-prd-full <epic>` |
 | `PHASE 2 ITERATION CAP REACHED` | Phase A wrote the PRD; Phase 1 converged; Phase 2 hit the cap | Fix remaining Phase 2 findings → re-run `/ptp:review-prd-full <epic>` |
 | prd-gate STOP | Phase A completed but `openspec/changes/<id>/prd.md` is absent | Debug Phase A → run `/ptp:prd <epic>`, then re-run `/ptp:review-prd-full <epic>` |

@@ -34,7 +34,15 @@ const APPLY_SCHEMA = {
 const REVIEW_SCHEMA = {
   type: 'object',
   properties: {
+    // Machine enum values are load-bearing: workflows/gates key on terminalState.
+    // These values (and the BOTH_PHASES_DONE gate below) are intentionally unchanged.
     terminalState: { type: 'string', enum: ['BOTH_PHASES_DONE', 'PHASE1_CAP', 'PHASE2_CAP'] },
+    // Internal telemetry only (not read by the gate). These are the fix counts the
+    // ptp-review agent (agents/ptp-review.md) actually returns; keep the names matching
+    // that producer's contract. The fields are agent-named, not phase-named:
+    // superpowersFixes = the Superpowers reviewer's fix count and codexFixes = the Codex
+    // reviewer's fix count, regardless of which phase each ran in (at the default
+    // roles.main=claude, Superpowers is Phase 1 and Codex is Phase 2).
     superpowersFixes: { type: 'integer' },
     codexFixes: { type: 'integer' },
     openFindings: { type: 'integer' },
@@ -78,7 +86,7 @@ for (let i = 0; i < stories.length; i++) {
   }
 
   const reviewPrompt = [
-    `Run the review-full protocol (Superpowers loop then Codex loop) on the OpenSpec change \`${s.id}\`, per your system prompt.`,
+    `Run the review-full protocol (the main-agent loop then the reviewer-agent loop; at the default roles.main=claude this is the Superpowers loop then the Codex loop) on the OpenSpec change \`${s.id}\`, per your system prompt.`,
     `Change folder: openspec/changes/${s.id}/`,
     `Work at **high** effort. Fix only confirmed findings inline. Do NOT commit. Do NOT archive.`,
     `Return the JSON object.`,
