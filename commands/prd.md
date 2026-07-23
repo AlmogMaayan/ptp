@@ -9,11 +9,29 @@ You are running **`/ptp:prd`** — the PRD-authoring entry point. Your job is to
 
 ## Inputs
 
-Selectors: $ARGUMENTS (one or more of: a bare change id, `epic:XXXX`, `story:NN`, `epic:XXXX story:NN`, or multiple whitespace-separated selectors; a `"<free-text description>"` that is not a selector and matches no existing active folder — allocates a fresh epic and authors its PRD; omit = all active epics)
+Selectors: $ARGUMENTS (one or more of: a bare change id, `epic:XXXX`, `story:NN`, `epic:XXXX story:NN`, or multiple whitespace-separated selectors; a `"<free-text description>"` that is not a selector and matches no existing active folder — allocates a fresh epic and authors its PRD; omit = all active epics). An optional anywhere-in-text `model:<sonnet|opus|haiku|fable>.<low|medium|high|xhigh>` override token — e.g. `model:sonnet.medium` — overrides the `opus.high` default for **every** targeted epic in this invocation; see "Branch safety" below.
 
 ## Branch safety
 
 `/ptp:prd` writes a file, so it runs the **`ptp-branch-guard`** preamble before any write. Per that skill's **abort-precondition rule**, first evaluate the cheap read-only precondition that would abort the whole command.
+
+**Parse the `model:` override first, in this outer session, before anything else below.** Scan the raw
+`$ARGUMENTS` text for an optional `model:<model>.<effort>` override token per the "Optional caller-side
+`model:` override token" section of **`ptp-run-at-model`** — do not restate that grammar/validation
+here.
+
+- **Absent** → target = `opus.high` (unchanged path); proceed below with `$ARGUMENTS` as given.
+- **Exactly one valid candidate** → strip it from `$ARGUMENTS` before the free-text classification and
+  branch-name derivation below; target = the resolved `<model>.<effort>` literal. This one resolved
+  target applies uniformly to every epic this invocation targets.
+- **Invalid** (a `model:`-prefixed candidate with a bad model, bad effort, or wrong shape, or more than
+  one candidate) → **STOP immediately, in this outer session**, before the free-text classification,
+  the selector resolve/project step, branch-name derivation, and the branch guard below, and before
+  invoking `ptp-prd`. Report the offending candidate(s) and the two valid enums
+  (`sonnet|opus|haiku|fable`, `low|medium|high|xhigh`).
+
+The remainder of this section, and the `ptp-prd` invocation in Steps below, operate on the now
+token-free `$ARGUMENTS` and the resolved target.
 
 **First classify the free-text case from the raw argument** — **before** the read-only resolve/project step — so that base §3's `"no change <id>"` STOP never fires for free text: the argument is free text iff `$ARGUMENTS` is **non-empty**, carries **no** `epic:`/`story:` reserved-prefix token, and does **not** exactly equal an existing active change folder name. (Folder-match wins: a bare id naming a real folder is a selector, not free text.)
 
@@ -24,7 +42,7 @@ Only once the command is proceeding (free text, or at least one epic targeted), 
 
 ## Steps
 
-1. **Invoke the `ptp-prd` skill** via the Skill tool, passing the selectors from `$ARGUMENTS`. The skill owns the full protocol: selector-to-epic projection (additive layer on top of `ptp-change-selector`), `ptp-run-at-model` at `opus.high` (one foreground subagent per epic in sequence), Phase-0 prd-taskmaster backend detection, epic-context pre-load, `prd:generate` invocation and output relocation, and the inline auto-degrade fallback. Do not duplicate the protocol here.
+1. **Invoke the `ptp-prd` skill** via the Skill tool, passing the token-free selectors from `$ARGUMENTS` (per "Branch safety" above) and the resolved target (`opus.high` by default, or the valid `model:` override). The skill owns the full protocol: selector-to-epic projection (additive layer on top of `ptp-change-selector`), `ptp-run-at-model` at the resolved target (one foreground subagent per epic in sequence, all epics sharing that one resolved target), Phase-0 prd-taskmaster backend detection, epic-context pre-load, `prd:generate` invocation and output relocation, and the inline auto-degrade fallback. The skill consumes the resolved target as given — it does **not** re-parse a `model:` token. Do not duplicate the protocol here.
 2. **STOP.** The skill writes `openspec/changes/<id>/prd.md` for each targeted epic (where `<id>` is the epic's lowest-numbered story) and recommends `/ptp:plan` as the next step. Do not proceed into brainstorming, planning, or implementation.
 
 ## Hard rules

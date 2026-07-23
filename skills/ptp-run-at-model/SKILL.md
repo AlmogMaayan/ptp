@@ -136,6 +136,82 @@ The skill then runs, **in this order**:
    report, a gate refusal, or a structured "needs human action" state. Never silently swallow a STOP
    and never downgrade a refusal to success.
 
+## Optional caller-side `model:` override token
+
+Any command that references this skill MAY additionally support an **opt-in, per-invocation**
+`model:<model>.<effort>` token that a user embeds anywhere in that command's free-text argument text,
+to override the command's stated default target for that single invocation only. This section is the
+single source of truth for the token's grammar, validation, and refusal contract; a supporting command
+references this section rather than restating it. As of this writing, `/ptp:brainstorm` and
+`/ptp:prd` support this token (see `commands/brainstorm.md` and `commands/prd.md` /
+`skills/ptp-prd/SKILL.md`); no other caller of this skill is affected.
+
+### Grammar
+
+```
+model:<model>.<effort>
+```
+
+- `<model>` ∈ `{sonnet, opus, haiku, fable}` — the Agent tool's `model` parameter enum.
+- `<effort>` ∈ `{low, medium, high, xhigh}` — this skill's own effort-directive table keys (see
+  *Effort as a prompt directive* below).
+
+### Two-stage detect-then-validate
+
+Recognition is deliberately split into two stages so that "wrong shape → refuse" is achievable rather
+than silently swallowed:
+
+1. **Detect a candidate.** Scan the argument text for a whitespace-delimited token that **begins with
+   the lowercase literal `model:`** — bounded by start-of-string or whitespace on the left, and
+   whitespace or end-of-string on the right. A `model:` substring inside a larger word (e.g.
+   `premodel:opus.high`, `x=model:opus.high`) is **not** a candidate. Detection keys on the `model:`
+   **prefix alone**, **not** on a dot-bearing pattern — a dot-requiring detector would silently miss
+   near-miss typos like `model:opus` (missing effort) and let them fall through as absent, which this
+   contract forbids (see step 2).
+2. **Validate each candidate** against the exact grammar
+   `model:<one of sonnet|opus|haiku|fable>.<one of low|medium|high|xhigh>`, matched case-sensitively
+   against these lowercase values. A candidate that begins with the lowercase `model:` prefix but does
+   **not** match this exactly — a missing or empty effort (`model:opus`, `model:opus.`), an empty model
+   (`model:.high`), an unknown model or effort name, or extra dots — is **recognized-but-invalid**: it
+   REFUSES. It does **not** fall through as "absent."
+
+**Case is the one deliberate exception.** Only the exact lowercase `model:` prefix is scanned for, so a
+non-lowercase prefix (e.g. `Model:Fable.High`) is **never** a candidate at all and falls through as
+**absent** (the command's own default target applies) — this is the single documented case where a
+`model:`-shaped-looking token does not refuse.
+
+**At most one candidate is recognized.** Two or more `model:` candidates found in the same argument
+text is treated as **invalid** — not "last one wins" — and the refusal reports **all** detected
+candidates, not a single "offending token."
+
+### Resolution outcomes
+
+- **Absent** (no candidate detected at all) → the command's target is its own stated default,
+  unchanged — exactly as if this section did not exist.
+- **Exactly one valid candidate** → the resolved literal (`<model>.<effort>`) **replaces** the
+  command's default as the target passed to this skill, for that invocation only. No config file is
+  read or written; nothing persists past the invocation.
+- **Invalid** (a recognized-but-invalid candidate, or two or more candidates) → the calling command
+  **refuses and stops**, reporting the offending candidate(s) and the two valid enums, **before**
+  evaluating any branch guard or spawning any subagent or Codex shell-out. It never silently falls
+  back to the command's default target.
+
+### Strip-before-use ordering
+
+The parse-and-strip step runs in the calling command's **outer session**, **before** that command's own
+argument grammar (e.g. change-id derivation, selector/free-text classification) and **before** that
+command's own branch-name derivation or branch guard. This ordering matters: if the token were left in
+place, it could get folded into a derived description or misread as part of a selector, and — for a
+command that derives its branch name from raw argument text before invoking this skill — an invalid
+token must abort before that branch-name derivation and branch cut, not after.
+
+### Interaction with `main=codex`
+
+The override only ever selects among the 4 Claude Agent-tool models — it has no effect when
+`ptp-agent-roles` resolves `main=codex` for this invocation. In that case Codex's model/effort continue
+to come from `codex.model`/`codex.reasoningEffort` per `ptp-codex-mode`, unaffected by this token
+(documented, not silently ignored).
+
 ## Effort as a prompt directive
 
 This section describes the **`main=claude`** direction; the `main=codex` direction maps effort to
