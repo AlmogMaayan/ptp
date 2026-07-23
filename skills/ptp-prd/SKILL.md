@@ -29,10 +29,21 @@ free-text producer path the folder is freshly created by the free-text branch (s
 
 | Input | Values | Source |
 |-------|--------|--------|
-| `selectors` | One or more of: bare change id, `epic:XXXX`, `story:NN`, `epic:XXXX story:NN`, multiple whitespace-separated; a free-text description (produces a fresh epic — see the free-text branch below); omit = all active epics | `$ARGUMENTS` from the command |
+| `selectors` | One or more of: bare change id, `epic:XXXX`, `story:NN`, `epic:XXXX story:NN`, multiple whitespace-separated; a free-text description (produces a fresh epic — see the free-text branch below); omit = all active epics | Already-token-free `$ARGUMENTS` from the command |
+| `target` | A `<model>.<effort>` literal — `opus.high` by default, or the caller's resolved `model:` override | Resolved once by `commands/prd.md`'s outer session |
 
 The branch guard has already run in the outer session before this skill is invoked. This skill does
-**not** re-run the branch guard. It receives the selectors and performs the projection and authoring.
+**not** re-run the branch guard. It receives the already-token-free selectors and the one resolved
+target, and performs the projection and authoring.
+
+**This skill does not parse a `model:` token.** `commands/prd.md`'s outer session parses, validates,
+and strips any `model:` override **before** invoking this skill — because `commands/prd.md` derives its
+free-text branch name from raw `$ARGUMENTS` and cuts the branch before this skill ever runs (see that
+command's "Branch safety" section, and the "Optional caller-side `model:` override token" section of
+`ptp-run-at-model`). This skill applies its own selector projection / free-text `<desc>` derivation
+below to the already-clean `$ARGUMENTS` it receives, and reuses the **one** resolved `target` across
+every per-epic `ptp-run-at-model` invocation in its loop — there is no per-epic re-parsing and no
+scenario where different epics in the same invocation get different targets.
 
 ---
 
@@ -102,12 +113,14 @@ Use the `ptp-change-selector` skill for base resolution, then apply the projecti
 
 ---
 
-## Run at model — `ptp-run-at-model` at `opus.high`
+## Run at model — `ptp-run-at-model` at the resolved target
 
 PRD authoring is high-judgment work. For each targeted epic, invoke the **`ptp-run-at-model`** skill
-at target **`opus.high`**, one foreground subagent per epic, in sequence (one subagent per
-invocation, no fan-out). The selector projection and the "empty result" check stay in the outer
-session (cheap, abort-capable). Only the per-epic authoring work runs in the subagent.
+at the **resolved `target`** received from `commands/prd.md` (`opus.high` by default, or the valid
+`model:` override, resolved once and reused unchanged for every epic in this loop), one foreground
+subagent per epic, in sequence (one subagent per invocation, no fan-out). The selector projection and
+the "empty result" check stay in the outer session (cheap, abort-capable). Only the per-epic authoring
+work runs in the subagent.
 
 For the **free-text case**, the outer session performs only **read-only classification** (it
 recognizes the argument is free text so it can skip the empty-result abort and derive the
