@@ -1,6 +1,6 @@
 ---
 name: ptp-apply
-description: Implements exactly one OpenSpec change end-to-end from tasks.md with TDD discipline, then stops without archiving or committing. Spawned as a workflow subagent by ptp-full-run.
+description: Implements exactly one OpenSpec change end-to-end from tasks.md with TDD discipline, then stops without archiving or committing. Spawned as a workflow subagent by ptp-full-apply.
 tools: Read, Write, Edit, Bash, Glob, Grep, Skill
 ---
 

@@ -53,7 +53,7 @@ The subagent runs the following steps for the single change assigned to it:
    - All tasks checked.
    - Project test/lint/type suites pass.
    - `npx -y openspec validate <change-id> --strict` still passes.
-5. **Return** the terminal result. Do **not** archive. Do **not** commit (apply defers commit to deploy — this is reinforced here, matching `ptp-full-run`'s instruction to its apply agent). Report status.
+5. **Return** the terminal result. Do **not** archive. Do **not** commit (apply defers commit to deploy — this is reinforced here, matching `ptp-full-apply`'s instruction to its apply agent). Report status.
 
 ## Closing report
 

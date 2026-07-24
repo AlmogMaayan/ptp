@@ -66,8 +66,8 @@ This skill is the **single source of truth** for the heal command. Invocation si
 rather than inlining the command body, so the logic lives in exactly one place:
 
 - `skills/ptp-branch-guard/SKILL.md` — first action of the guard, before the branch check
-- `skills/ptp-full-run/SKILL.md` — before both `Workflow({ name: 'ptp:ptp-full-run' })` invocations
+- `skills/ptp-full-apply/SKILL.md` — before both `Workflow({ name: 'ptp:ptp-full-apply' })` invocations
   (normal launch and `resumeFromRunId` resume launch)
-- `skills/ptp-full/SKILL.md` — before the `Workflow({ name: 'ptp:ptp-full-run' })` launch
-- `commands/full-run.md` — before the `Workflow({ name: 'ptp:ptp-full-run' })` launch
-- `commands/full.md` — before the `Workflow({ name: 'ptp:ptp-full-run' })` launch
+- `skills/ptp-full/SKILL.md` — before the `Workflow({ name: 'ptp:ptp-full-apply' })` launch
+- `commands/full-apply.md` — before the `Workflow({ name: 'ptp:ptp-full-apply' })` launch
+- `commands/full.md` — before the `Workflow({ name: 'ptp:ptp-full-apply' })` launch

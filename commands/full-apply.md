@@ -3,7 +3,7 @@ description: Apply-then-review-full every change in a single sequential Claude C
 argument-hint: "[change-selector or id …] (epic:XXXX, id list, or omit to run all active changes)"
 ---
 
-`/ptp:full-run` applies and code-reviews every change in one invocation by launching the `ptp-full-run` workflow, which runs `apply → review-full` per story sequentially — one story fully before the next. Each story's apply agent runs at the model read from that story's `effort.md`; review always runs at `opus.high`. The per-story loop, change discovery/ordering, and resume/report all live in the shared `ptp-full-run` skill and its workflow script (`workflows/ptp-full-run.js`, launched by the named form `Workflow({ name: 'ptp:ptp-full-run' })`) — this command defers to them rather than restating their detail.
+`/ptp:full-apply` applies and code-reviews every change in one invocation by launching the `ptp-full-apply` workflow, which runs `apply → review-full` per story sequentially — one story fully before the next. Each story's apply agent runs at the model read from that story's `effort.md`; review always runs at `opus.high`. The per-story loop, change discovery/ordering, and resume/report all live in the shared `ptp-full-apply` skill and its workflow script (`workflows/ptp-full-apply.js`, launched by the named form `Workflow({ name: 'ptp:ptp-full-apply' })`) — this command defers to them rather than restating their detail.
 
 Because each workflow agent carries its own model (the apply agent at the story's `effort.md` model, the review agent at `opus`), there is no single-dial session model/effort thrash to gate against — the run needs no model/effort gate and never stops to suggest a `/model`+`/effort` switch.
 
@@ -31,7 +31,7 @@ Check before launching the workflow:
 
 ## What this command does
 
-The command is a thin wrapper that does all the file I/O up front (impossible inside the workflow script), then hands off. Loop detail lives in the `ptp-full-run` skill.
+The command is a thin wrapper that does all the file I/O up front (impossible inside the workflow script), then hands off. Loop detail lives in the `ptp-full-apply` skill.
 
 1. **Resolve** `$ARGUMENTS` → an ordered list of story ids (selector / explicit ids / empty), per the skill's *Change discovery and ordering*. For the **empty (no-arg)** case, perform the one-time scope-confirmation **STOP** — print the full resolved ordered id list and wait for the user to re-invoke before any apply.
 2. **Read each story's effort.** For each id, `Read` `openspec/changes/<id>/effort.md` and parse line 1 as `{model}.{effort}`. If the file is missing or line 1 is not a parseable `{model}.{effort}`, default to `opus.high` and **note the defaulting** (never crash, never stop on it). This yields `{ id, model, effort }` per story.
@@ -39,9 +39,9 @@ The command is a thin wrapper that does all the file I/O up front (impossible in
 4. **Run the `ptp-workflow-cache-heal` step** (see that skill for the canonical Bash command) via the
    Bash tool, then **launch the workflow:**
    ```
-   Workflow({ name: 'ptp:ptp-full-run', args: { stories } })
+   Workflow({ name: 'ptp:ptp-full-apply', args: { stories } })
    ```
-   (Use the named form — the plugin ships `workflows/ptp-full-run.js` whose `meta.name` is `ptp-full-run`; there is no project-relative `scriptPath` under a global plugin install.) The workflow loops the stories in order, spawning the `ptp-apply` agent at the story's `model` (effort injected as a prompt directive) then the `ptp-review` agent at `opus`, and returns `{ results, halted, total }`.
+   (Use the named form — the plugin ships `workflows/ptp-full-apply.js` whose `meta.name` is `ptp-full-apply`; there is no project-relative `scriptPath` under a global plugin install.) The workflow loops the stories in order, spawning the `ptp-apply` agent at the story's `model` (effort injected as a prompt directive) then the `ptp-review` agent at `opus`, and returns `{ results, halted, total }`.
 5. **On completion**, render the three-bucket terminal report (`processed` / `applied (review pending)` / `never-started`) + per-story outcome table + resume command + a `/ptp:archive <id>` recommendation per fully-processed story — **exactly as specified in the skill's "Terminal report" section** (defer to it; do not restate the bucket math here).
 
 ## Hard rules

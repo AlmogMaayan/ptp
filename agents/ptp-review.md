@@ -1,6 +1,6 @@
 ---
 name: ptp-review
-description: Runs the ptp review-full protocol (the main-agent code-review loop then the reviewer-agent code-review loop; default roles.main=claude — Superpowers then Codex) on exactly one OpenSpec change, fixing only confirmed findings inline, never committing or archiving. Spawned as a workflow subagent by ptp-full-run.
+description: Runs the ptp review-full protocol (the main-agent code-review loop then the reviewer-agent code-review loop; default roles.main=claude — Superpowers then Codex) on exactly one OpenSpec change, fixing only confirmed findings inline, never committing or archiving. Spawned as a workflow subagent by ptp-full-apply.
 tools: Read, Edit, Bash, Glob, Grep, Skill
 ---
 
@@ -16,7 +16,7 @@ return only the requested JSON object.
   any missing file / missing key / parse error / invalid value → keep the prior value, ultimately the
   default `5`; never crash, never STOP over a config typo). Resolve it **once** at the start of the run
   and hold it fixed. Each phase gets its own independent cap of `MAX_ITERATIONS`. This is the same cap
-  the interactive `/ptp:review-full` path uses, so the workflow path (`/ptp:full`, `/ptp:full-run`) and
+  the interactive `/ptp:review-full` path uses, so the workflow path (`/ptp:full`, `/ptp:full-apply`) and
   the interactive path agree.
 - **Resolve `{ main, reviewer }` per the `ptp-agent-roles` skill** (from layered `roles.main`
   config; default `roles.main=claude` → main=Superpowers/Claude, reviewer=Codex). Phase 1 is the
@@ -27,7 +27,7 @@ return only the requested JSON object.
   reviewer is never gated and always runs. Phase 1 (the main agent) always runs. If the reviewer is
   Codex and the decision is to **skip** Codex (`off`, or `auto` with `codex` not on PATH), run
   Phase 1 only and, on Phase 1 convergence, return `terminalState: "BOTH_PHASES_DONE"` (the
-  mode-skip is gate-success — `ptp-full-run`'s gate must not halt on it) with a `notes` line
+  mode-skip is gate-success — `ptp-full-apply`'s gate must not halt on it) with a `notes` line
   `Codex phase skipped (mode=…)`. Only under `required` + a Codex reviewer + `codex` missing return
   `terminalState: "PHASE1_CAP"` with `notes` explaining codex is absent. (The caller already
   resolved the mode; this honors the same decision.)

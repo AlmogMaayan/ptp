@@ -1,6 +1,6 @@
 ---
 name: ptp-run-at-model
-description: Single source of truth for running a ptp command's work at a deterministic model+effort as the resolved main agent (via ptp-agent-roles). Because the session model cannot be changed in place, this skill owns the contract for running the command's real work either by spawning ONE foreground Claude Agent-tool subagent at a caller-named target model with effort injected as a prompt directive (main=claude, the default, mirroring workflows/ptp-full-run.js) or by shelling out to a write-capable codex exec with model/effort from codex.model/codex.reasoningEffort (main=codex) — then relaying the main run's terminal result (completed / refused / needs-human-action) back to the session verbatim. The branch guard and abort-preconditions run in the outer session before any main work in both directions. Commands reference this skill instead of restating the run-and-relay, the same way ptp-branch-guard owns branch safety and ptp-codex-mode owns the Codex reviewer gate plus the codex.model/codex.reasoningEffort resolution reused here.
+description: Single source of truth for running a ptp command's work at a deterministic model+effort as the resolved main agent (via ptp-agent-roles). Because the session model cannot be changed in place, this skill owns the contract for running the command's real work either by spawning ONE foreground Claude Agent-tool subagent at a caller-named target model with effort injected as a prompt directive (main=claude, the default, mirroring workflows/ptp-full-apply.js) or by shelling out to a write-capable codex exec with model/effort from codex.model/codex.reasoningEffort (main=codex) — then relaying the main run's terminal result (completed / refused / needs-human-action) back to the session verbatim. The branch guard and abort-preconditions run in the outer session before any main work in both directions. Commands reference this skill instead of restating the run-and-relay, the same way ptp-branch-guard owns branch safety and ptp-codex-mode owns the Codex reviewer gate plus the codex.model/codex.reasoningEffort resolution reused here.
 ---
 
 # ptp-run-at-model — run a command's work at a deterministic model+effort
@@ -19,7 +19,7 @@ prompt directive, or (`main=codex`) via a write-capable `codex exec` shell-out �
 run's terminal result to the session. Commands **reference** this skill instead of each restating the spawn, the effort directive,
 the branch-guard ordering, and the relay — the same single-source-of-truth pattern as
 `ptp-branch-guard` (branch safety) and `ptp-codex-mode` (the Codex gate). ptp already does this
-spawn-at-a-model-with-an-effort-directive trick for apply/review in `workflows/ptp-full-run.js`; this
+spawn-at-a-model-with-an-effort-directive trick for apply/review in `workflows/ptp-full-apply.js`; this
 skill generalizes it for single linear commands.
 
 ## Which commands use this skill
@@ -40,8 +40,8 @@ looks a command up in a table; the **caller always supplies the target** (see *T
 so step 2 of the contract is a no-op for them, but they still run their work in the target-model
 main run (the Claude subagent, or the `codex exec` shell-out when `main=codex`) and relay the result.
 
-The `full`/`full-plan`/`full-run` family does **not** use this skill — it already runs its work in
-workflow agents at chosen models (see `ptp-full-run` and `workflows/ptp-full-run.js`).
+The `full`/`full-plan`/`full-apply` family does **not** use this skill — it already runs its work in
+workflow agents at chosen models (see `ptp-full-apply` and `workflows/ptp-full-apply.js`).
 
 ## The contract
 
@@ -217,7 +217,7 @@ to come from `codex.model`/`codex.reasoningEffort` per `ptp-codex-mode`, unaffec
 This section describes the **`main=claude`** direction; the `main=codex` direction maps effort to
 `codex.reasoningEffort` instead (see *The `main=codex` direction*). Effort is **not** an Agent-tool
 parameter; the Agent tool has no effort knob. The skill injects the effort as a directive in the
-subagent prompt, mapping the effort token exactly as `workflows/ptp-full-run.js`
+subagent prompt, mapping the effort token exactly as `workflows/ptp-full-apply.js`
 `effortDirective(effort)` does:
 
 | effort | directive injected into the subagent prompt |
@@ -229,7 +229,7 @@ subagent prompt, mapping the effort token exactly as `workflows/ptp-full-run.js`
 | (unknown) | fall back to the `high` directive ("think carefully about interactions and edge cases before each edit."). |
 
 This is a **soft hint** — the directive nudges the subagent's deliberation; it is not a hard setting.
-This is the same limitation `ptp-full-run` already accepts.
+This is the same limitation `ptp-full-apply` already accepts.
 
 ## The `main=codex` direction (write-capable Codex shell-out)
 

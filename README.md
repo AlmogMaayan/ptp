@@ -17,7 +17,7 @@ You can use PtP one step at a time (`brainstorm → plan → apply → review �
 - **Autonomous end-to-end.** `/ptp:full` takes a request from description to reviewed code: decompose → plan → per-slice dual plan-review → apply → per-story dual code-review — stopping only when a gate genuinely can't be met.
 - **Two independent reviewers, not one.** Every review-to-convergence flow runs the Superpowers loop *and* (per `codex.mode`) the Codex CLI loop. Both must sign off before a change is archive-ready — unless `codex.mode` skips the Codex phase (`auto` with `codex` absent, or `off`), in which case the converged Superpowers loop alone is a successful single-reviewer run and the skip is reported (never silent).
 - **Review *loops*, not single passes.** The `-loop` and `-full` commands alternate review → confirm → fix automatically until zero open findings (or an iteration cap), instead of you manually re-running review/fix.
-- **Workflow-backed runs.** `/ptp:full-run` launches a deterministic workflow (the plugin's `workflows/`, resolved by name) that runs `apply → review-full` per story sequentially, each apply agent at the model recommended by that story's `effort.md`.
+- **Workflow-backed runs.** `/ptp:full-apply` launches a deterministic workflow (the plugin's `workflows/`, resolved by name) that runs `apply → review-full` per story sequentially, each apply agent at the model recommended by that story's `effort.md`.
 - **Branch-safe by construction.** Every write-capable command runs a branch guard first: if HEAD is `master`, it stashes, pulls, and cuts a fresh `ptp/<…>` feature branch before writing a single file.
 
 ---
@@ -149,7 +149,7 @@ The `model` value above is an illustrative placeholder — replace it with a mod
 
 Controls whether the external Codex CLI is used as the second reviewer.
 
-| Mode | Dual-reviewer orchestrators<br>(`/ptp:review-full`, `/ptp:review-plan-full`, `/ptp:full-run`, `/ptp:full`) | When `codex` is **not** on PATH |
+| Mode | Dual-reviewer orchestrators<br>(`/ptp:review-full`, `/ptp:review-plan-full`, `/ptp:full-apply`, `/ptp:full`) | When `codex` is **not** on PATH |
 |------|------|------|
 | `auto` *(default)* | Use Codex if available | Skip the Codex phase, run Superpowers-only, and report the skip |
 | `required` | Use Codex | **Stop** — install Codex or change the mode |
@@ -302,7 +302,7 @@ Commands that take a change argument accept a **selector** instead of a bare id 
 | bare id | that exact change folder |
 | *(omitted)* | all active changes, ordered by epic then story |
 
-This is what lets `/ptp:full-run epic:0021` apply-and-review an entire epic's worth of stories in one go.
+This is what lets `/ptp:full-apply epic:0021` apply-and-review an entire epic's worth of stories in one go.
 
 ---
 
@@ -310,11 +310,11 @@ This is what lets `/ptp:full-run epic:0021` apply-and-review an entire epic's wo
 
 These three commands turn a description into reviewed code with minimal hand-holding. All can use the Codex CLI as the second reviewer — governed by `codex.mode` (default `auto`; see [Configuration](#configuration)).
 
-**`/ptp:full "<request-or-big-change-id>"`** — the whole pipeline in one call. Runs the plan phase (decompose into slices + dual plan-review each slice), and **only if every slice's plan converges**, continues without stopping into the run phase (apply + dual code-review each story). Never archives. This is the union of the two commands below.
+**`/ptp:full "<request-or-big-change-id>"`** — the whole pipeline in one call. Runs the plan phase (decompose into slices + dual plan-review each slice), and **only if every slice's plan converges**, continues without stopping into the apply phase (apply + dual code-review each story). Never archives. This is the union of the two commands below.
 
-**`/ptp:full-plan "<request-or-big-change-id>"`** — the **read-only planning** half. Decomposes the work into independently-shippable slices (`/ptp:plan-multiple`) and runs the full two-phase (Superpowers + Codex) artifact review on every slice. Never applies code, never archives. Next step is `/ptp:full-run`.
+**`/ptp:full-plan "<request-or-big-change-id>"`** — the **read-only planning** half. Decomposes the work into independently-shippable slices (`/ptp:plan-multiple`) and runs the full two-phase (Superpowers + Codex) artifact review on every slice. Never applies code, never archives. Next step is `/ptp:full-apply`.
 
-**`/ptp:full-run [selector | id …]`** — the **execution** half. Launches the `ptp-full-run` workflow, which runs `apply → review-full` per story **sequentially** — one story fully finished before the next. Each story's apply agent runs at the model from its `effort.md`; review always runs at `opus.high`. Pass a selector/id list, or omit to run all active changes (with a one-time scope confirmation).
+**`/ptp:full-apply [selector | id …]`** — the **execution** half. Launches the `ptp-full-apply` workflow, which runs `apply → review-full` per story **sequentially** — one story fully finished before the next. Each story's apply agent runs at the model from its `effort.md`; review always runs at `opus.high`. Pass a selector/id list, or omit to run all active changes (with a one-time scope confirmation).
 
 ---
 
@@ -469,8 +469,8 @@ Skills are invoked by Claude automatically (via the `Skill` tool) when the flow 
 | `ptp-branch-guard` | The "are we on a feature branch, not `master`?" preamble every write-capable command runs first. |
 | `ptp-branch-prep` | Minimal git prep invoked by the guard when HEAD is `master`: stash → checkout master → pull → cut a fresh feature branch. Never commits or pushes. |
 | `ptp-run-at-model` | Single source of truth for running a command's work at a deterministic model+effort: spawns one foreground subagent at a caller-named target model (effort injected as a prompt directive), runs the work there, and relays the subagent's terminal result. |
-| `ptp-full` | Orchestrates `/ptp:full` — the plan phase, the plan-convergence gate, and the seam into the run phase. |
-| `ptp-full-run` | The workflow-backed sequential `apply → review-full` per-story engine behind `/ptp:full-run`. |
+| `ptp-full` | Orchestrates `/ptp:full` — the plan phase, the plan-convergence gate, and the seam into the apply phase. |
+| `ptp-full-apply` | The workflow-backed sequential `apply → review-full` per-story engine behind `/ptp:full-apply`. |
 | `ptp-review-brainstorm` | The brainstorm-review rubric/protocol the thin `/ptp:review-brainstorm` command delegates to: locate the brainstorm (change-scoped preferred, deterministic general fallback), the rubric, Critical/High/Medium/Low classification, the PASS/WARN/FAIL verdict, the report + next-step — read-only, no `openspec validate`. |
 | `ptp-review-brainstorm-full` | The dual-reviewer **report-only** brainstorm-review contract the thin `/ptp:review-brainstorm-full` command delegates to: composes the `ptp-review-brainstorm` rubric for Phase 1 (Superpowers), gates Phase 2 on a located brainstorm, runs a Phase 2 Codex closed-book read-only pass (mode-gated per `ptp-codex-mode`), and emits the combined verdict — no inline fixing, no iteration cap, no `openspec validate`, never edits the brainstorm. |
 | `ptp-brainstorm-full` | Two-phase brainstorm → dual-reviewer-review orchestration behind `/ptp:brainstorm-full`. Receives the already-allocated id, resolved `codex.mode`, and branch-guard from the command's outer session. Phase A: `ptp-run-at-model` at `opus.high` runs brainstorm steps 2–7 (producing `brainstorm.md`; step 8 STOP suppressed). Brainstorm-gate: missing `brainstorm.md` → STOP. Phase B: `ptp-run-at-model` at `opus.high` runs `ptp-review-brainstorm-full` with pre-resolved `codex.mode`. Relays all four terminal states accurately. |
@@ -491,7 +491,7 @@ Hand it the whole thing (autonomous, dual-reviewed; Codex optional — codex.mod
   → /ptp:full "<request>"             # decompose → plan → dual plan-review
                                       #   → apply → dual code-review, per story
   → /ptp:full-plan "<request>"        # planning half only (read-only)
-  → /ptp:full-run [selector | id …]   # execution half only (apply + review-full)
+  → /ptp:full-apply [selector | id …] # execution half only (apply + review-full)
 
 Drive it step by step
   → /ptp:prd [<sel>]                  # optional: epic-scoped PRD before brainstorm/plan (auto-degrade)

@@ -1,6 +1,6 @@
 ---
 name: ptp-codex-mode
-description: Resolve codex.mode, codex.model, and codex.reasoningEffort from layered ptp config, decide whether a dual-reviewer step runs its Codex phase, and own the canonical flag-append rule every `codex exec` call site references. The single source of truth every dual-reviewer orchestrator (the code/plan/brainstorm/PRD -full reviews and the full/full-run/brainstorm-full/prd-full orchestrators) and every codex-invoking command references instead of hard-requiring Codex or hardcoding its invocation — covers mode resolution (default auto), the three-mode decision contract, the /ptp:codex-* override, the non-silent-skip rule, the mode-skip terminal state the convergence gates treat as success, and the model/reasoning-effort resolution + flag-append rule.
+description: Resolve codex.mode, codex.model, and codex.reasoningEffort from layered ptp config, decide whether a dual-reviewer step runs its Codex phase, and own the canonical flag-append rule every `codex exec` call site references. The single source of truth every dual-reviewer orchestrator (the code/plan/brainstorm/PRD -full reviews and the full/full-apply/brainstorm-full/prd-full orchestrators) and every codex-invoking command references instead of hard-requiring Codex or hardcoding its invocation — covers mode resolution (default auto), the three-mode decision contract, the /ptp:codex-* override, the non-silent-skip rule, the mode-skip terminal state the convergence gates treat as success, and the model/reasoning-effort resolution + flag-append rule.
 ---
 
 # ptp-codex-mode — resolve `codex.mode` and gate the Codex phase
@@ -23,8 +23,8 @@ to the README §Configuration table (the *schema*). It changes no config and add
 **Mode-gated — they ask this skill whether to run their Codex phase:**
 
 `/ptp:review-full`, `/ptp:review-plan-full`, `/ptp:review-brainstorm-full`, `/ptp:review-prd-full`,
-`/ptp:full`, `/ptp:full-run`, `/ptp:brainstorm-full`, `/ptp:prd-full` (and the skills behind them:
-`ptp-full`, `ptp-full-run`, `ptp-review-brainstorm-full`, `ptp-review-prd-full`, `ptp-brainstorm-full`,
+`/ptp:full`, `/ptp:full-apply`, `/ptp:brainstorm-full`, `/ptp:prd-full` (and the skills behind them:
+`ptp-full`, `ptp-full-apply`, `ptp-review-brainstorm-full`, `ptp-review-prd-full`, `ptp-brainstorm-full`,
 `ptp-prd-full` — the brainstorm/PRD `-full` orchestrators run a `-full` review as their Phase B, which
 consults this skill).
 
@@ -247,17 +247,17 @@ terminal state names the reviewer that was skipped; the reviewer=codex string ab
 print it are not edited here (that is 0027_03).
 
 **Convergence gates MUST treat it as success.** `/ptp:full`'s plan-convergence gate (which keys on
-`BOTH PHASES DONE`) and `ptp-full-run`'s review-convergence gate (which keys on
+`BOTH PHASES DONE`) and `ptp-full-apply`'s review-convergence gate (which keys on
 `terminalState === 'BOTH_PHASES_DONE'`) SHALL accept the mode-skip terminal state as **converged /
 gate-success**, exactly like a both-phases run — and SHALL NOT read a legitimately mode-skipped Codex
 phase as a non-convergence halt or a pre-run stop.
 
-How the gate-success outcome reaches the `ptp-full-run` *workflow* is an implementation choice (the
+How the gate-success outcome reaches the `ptp-full-apply` *workflow* is an implementation choice (the
 machine layer is separate from the human-facing label): the least-invasive expression is for the
 `ptp-review` workflow agent to return `terminalState === 'BOTH_PHASES_DONE'` for a mode-skipped
-review too, so `workflows/ptp-full-run.js` needs no logic change while the printed summary still
+review too, so `workflows/ptp-full-apply.js` needs no logic change while the printed summary still
 names the skip. The observable contract is the same either way: **mode-skip ⇒ gate success** (no halt
-in `ptp-full-run`, no pre-run stop in `/ptp:full`), with the skip always named in the summary.
+in `ptp-full-apply`, no pre-run stop in `/ptp:full`), with the skip always named in the summary.
 
 ## Summary of the contract
 
