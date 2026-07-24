@@ -142,9 +142,11 @@ Any command that references this skill MAY additionally support an **opt-in, per
 `model:<model>.<effort>` token that a user embeds anywhere in that command's free-text argument text,
 to override the command's stated default target for that single invocation only. This section is the
 single source of truth for the token's grammar, validation, and refusal contract; a supporting command
-references this section rather than restating it. As of this writing, `/ptp:brainstorm` and
-`/ptp:prd` support this token (see `commands/brainstorm.md` and `commands/prd.md` /
-`skills/ptp-prd/SKILL.md`); no other caller of this skill is affected.
+references this section rather than restating it. As of this writing, `/ptp:brainstorm`, `/ptp:prd`,
+`/ptp:brainstorm-full`, and `/ptp:prd-full` support this token (see `commands/brainstorm.md`,
+`commands/prd.md` / `skills/ptp-prd/SKILL.md`, `commands/brainstorm-full.md` /
+`skills/ptp-brainstorm-full/SKILL.md`, and `commands/prd-full.md` / `skills/ptp-prd-full/SKILL.md`);
+no other caller of this skill is affected.
 
 ### Grammar
 
