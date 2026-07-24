@@ -1,6 +1,6 @@
 ---
 name: ptp-brainstorm-full
-description: Use this skill when orchestrating the two-phase brainstorm-then-review flow behind /ptp:brainstorm-full. Owns the Phase A brainstorm (ptp-run-at-model at opus.high → brainstorm-production subagent), the brainstorm-gate (missing brainstorm.md → STOP), and Phase B review (ptp-run-at-model at opus.high → ptp-review-brainstorm-full skill with pre-resolved codex.mode). Never re-allocates the change id, never re-runs the branch guard, never archives, never commits.
+description: Use this skill when orchestrating the two-phase brainstorm-then-review flow behind /ptp:brainstorm-full. Owns the Phase A brainstorm (ptp-run-at-model at the resolved target → brainstorm-production subagent), the brainstorm-gate (missing brainstorm.md → STOP), and Phase B review (ptp-run-at-model at the resolved target → ptp-review-brainstorm-full skill with pre-resolved codex.mode). Never re-allocates the change id, never re-runs the branch guard, never archives, never commits.
 ---
 
 # ptp-brainstorm-full — brainstorm-then-review two-phase orchestration
@@ -28,8 +28,13 @@ this skill — the skill receives these as inputs and does **not** redo them.
 | `request` | the original change request text (free-text path), or empty for the re-run-with-bare-id path | `$ARGUMENTS` from the command; threaded through to the Phase A brainstorm subagent so it brainstorms the actual request, not the lossy id slug. In the bare-id re-run path there is no request text — Phase A brainstorms from the change context (the id's `<desc>` and any existing `openspec/changes/<id>/` artifacts), exactly as `/ptp:brainstorm <id>` does. |
 | `change-id` | fully-formed `XXXX_NN_<desc>` change id | Allocated/preserved by the outer session (derived from the request text, or preserved verbatim when `$ARGUMENTS` is already a fully-formed id). |
 | `codex.mode` decision | already-resolved mode decision from `ptp-codex-mode` | Resolved once in the outer session; threaded through to Phase B so the review subagent does not re-resolve it. |
+| `target` | A `<model>.<effort>` literal — `opus.high` by default, or the caller's resolved `model:` override | Resolved once by `commands/brainstorm-full.md`'s outer session. |
 
-There is no effort/model input. Both phases run at `opus.high` via `ptp-run-at-model`.
+Both phases run at the resolved `target` (default `opus.high`) via `ptp-run-at-model`. This skill
+consumes the already-resolved target and does **not** re-parse a `model:` token — the command's outer
+session parsed and stripped it (see the "Optional caller-side `model:` override token" section of
+`ptp-run-at-model` for the token's grammar, validation, and refusal contract, and the corresponding
+note in `skills/ptp-prd/SKILL.md`). This skill does not restate that grammar.
 
 ---
 
@@ -47,7 +52,7 @@ The outer session guarantees:
 
 ## Phase A — brainstorm
 
-Invoke **`ptp-run-at-model`** at `opus.high` with the work being the brainstorm-production steps
+Invoke **`ptp-run-at-model`** at the resolved `target` with the work being the brainstorm-production steps
 (steps 2–7 of `/ptp:brainstorm`). The subagent prompt MUST include the original `request` text (the
 command's `$ARGUMENTS`) so the brainstorm operates on the actual request, not the lossy slug derived
 for the change id. In the bare-id re-run path (no request text) the subagent brainstorms from the
@@ -91,7 +96,7 @@ After Phase A returns, read `openspec/changes/<change-id>/brainstorm.md`:
 
 ## Phase B — review (the `/ptp:review-brainstorm-full` flow)
 
-**Only if the brainstorm-gate passed**, invoke **`ptp-run-at-model`** at `opus.high` with the work
+**Only if the brainstorm-gate passed**, invoke **`ptp-run-at-model`** at the resolved `target` with the work
 being "run the `ptp-review-brainstorm-full` skill over `<change-id>` with the pre-resolved
 `codex.mode`." Pass the already-resolved `codex.mode` decision so the review subagent does not
 re-resolve it.

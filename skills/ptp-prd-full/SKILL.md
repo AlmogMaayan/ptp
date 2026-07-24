@@ -1,6 +1,6 @@
 ---
 name: ptp-prd-full
-description: Use this skill when orchestrating the two-phase author-then-review PRD flow behind /ptp:prd-full. Owns Phase A authoring (ptp-run-at-model at opus.high → ptp-prd over the resolved epic; the /ptp:prd terminal STOP suppressed), the prd-gate (missing openspec/changes/<id>/prd.md → STOP), and Phase B review (ptp-run-at-model at opus.high → ptp-review-prd-full skill with pre-resolved codex.mode). Epic-scoped; never re-resolves the epic, never re-runs the branch guard, never re-resolves codex.mode, never archives, never commits, runs no openspec validate.
+description: Use this skill when orchestrating the two-phase author-then-review PRD flow behind /ptp:prd-full. Owns Phase A authoring (ptp-run-at-model at the resolved target, opus.high by default → ptp-prd over the resolved epic; the /ptp:prd terminal STOP suppressed), the prd-gate (missing openspec/changes/<id>/prd.md → STOP), and Phase B review (ptp-run-at-model at the resolved target, opus.high by default → ptp-review-prd-full skill with pre-resolved codex.mode). Epic-scoped; never re-resolves the epic, never re-runs the branch guard, never re-resolves codex.mode, never archives, never commits, runs no openspec validate.
 ---
 
 # ptp-prd-full — PRD author-then-review two-phase orchestration
@@ -29,8 +29,13 @@ does **not** redo them.
 | resolved epic | the projected epic(s) (and the original selector for reporting) | Resolved by the outer session via the `ptp-prd` selector→epic projection; passed in verbatim. The skill does NOT re-resolve or re-project it. |
 | original selector | the user's `$ARGUMENTS` | Threaded through for reporting / next-step text. |
 | `codex.mode` decision | already-resolved mode decision from `ptp-codex-mode` | Resolved once in the outer session; threaded through to Phase B so the review subagent does not re-resolve it. |
+| `target` | A `<model>.<effort>` literal — `opus.high` by default, or the caller's resolved `model:` override | Resolved once by `commands/prd-full.md`'s outer session, reused for every epic. |
 
-There is no effort/model input. Both phases run at `opus.high` via `ptp-run-at-model`.
+Both phases run at the resolved `target` (default `opus.high`) via `ptp-run-at-model`. This skill
+consumes the already-resolved target as given — it does **not** re-parse a `model:` token (the
+command's outer session parsed and stripped it; see the "Optional caller-side `model:` override token"
+section of `ptp-run-at-model` for the token's grammar, validation, and refusal contract), mirroring
+`skills/ptp-prd/SKILL.md`.
 
 ---
 
@@ -50,7 +55,7 @@ session. The skill does NOT re-resolve any of them. The outer session guarantees
 
 ## Phase A — author
 
-Invoke **`ptp-run-at-model`** at `opus.high` with the work being "run the **`ptp-prd`** skill over the
+Invoke **`ptp-run-at-model`** at the resolved `target` with the work being "run the **`ptp-prd`** skill over the
 resolved epic." That writes `openspec/changes/<id>/prd.md` (where `<id>` is the epic's lowest-numbered
 story across active + archived changes, per `ptp-prd`'s naming rule). The subagent runs the full
 `ptp-prd` protocol (Phase-0 prd-taskmaster backend detection, epic-context pre-load, `prd:generate`
@@ -82,7 +87,7 @@ After Phase A returns, read `openspec/changes/<id>/prd.md`:
 
 ## Phase B — review (the `/ptp:review-prd-full` flow)
 
-**Only if the prd-gate passed**, invoke **`ptp-run-at-model`** at `opus.high` with the work being "run
+**Only if the prd-gate passed**, invoke **`ptp-run-at-model`** at the resolved `target` with the work being "run
 the `ptp-review-prd-full` skill over the resolved epic with the pre-resolved `codex.mode`." Pass the
 already-resolved `codex.mode` decision and the resolved epic + PRD path (`openspec/changes/<id>/prd.md`)
 so the review subagent does not re-resolve them.

@@ -14,7 +14,11 @@ analog of `/ptp:brainstorm-full`.
 ## Inputs
 
 Epic selector: $ARGUMENTS (a bare change id, `epic:XXXX`, `story:NN`, `epic:XXXX story:NN`, or multiple
-whitespace-separated selectors; omit = all active epics)
+whitespace-separated selectors; omit = all active epics). An optional anywhere-in-text
+`model:<sonnet|opus|haiku|fable>.<low|medium|high|xhigh>` override token (e.g. `model:sonnet.medium`)
+overrides the `opus.high` default for this invocation only and applies uniformly to every targeted
+epic — mirroring `commands/prd.md`'s Inputs note. See "Parse the `model:` override" below; the
+grammar/validation/refusal contract is not restated here.
 
 ## Preconditions (outer session, abort-guaranteeing — checked first, in order)
 
@@ -28,14 +32,35 @@ order**:
    proceed — the review phase applies its own non-silent Codex skip. The full resolution + decision rule
    lives in the `ptp-codex-mode` skill — do not restate it here.
 
-2. **Resolve the epic selector** via the `ptp-prd` selector→epic projection (a bare id / `story:NN` → the
+2. **Parse the `model:` override.** Scan the raw `$ARGUMENTS` text for an optional
+   `model:<model>.<effort>` override token per the "Optional caller-side `model:` override token"
+   section of **`ptp-run-at-model`** — do not restate that grammar/validation here.
+
+   - **Absent** → target = `opus.high`; proceed below with `$ARGUMENTS` as given.
+   - **Exactly one valid candidate** → strip it from `$ARGUMENTS` before precondition 3 (the
+     epic-selector resolve/project step below); target = the resolved `<model>.<effort>` literal,
+     applied uniformly to every epic this invocation targets.
+   - **Invalid** (bad model, bad effort, wrong shape, or more than one candidate) → **STOP
+     immediately, in this outer session**, before the epic-selector resolution (precondition 3),
+     before branch-name derivation and the branch guard (precondition 4), and before any subagent
+     spawn. Report the offending candidate(s) and the two valid enums (`sonnet|opus|haiku|fable`,
+     `low|medium|high|xhigh`).
+
+   This parse runs after the `codex.mode` guaranteed-abort (precondition 1) but before the
+   epic-selector resolution and the branch guard, per `ptp-run-at-model`'s "Strip-before-use
+   ordering" — so a stripped token never contaminates the selector/branch-name derivation and an
+   invalid token aborts before any branch is cut. The remainder of this section, and the
+   `ptp-prd-full` invocation below, operate on the now token-free `$ARGUMENTS` and the resolved
+   target.
+
+3. **Resolve the epic selector** via the `ptp-prd` selector→epic projection (a bare id / `story:NN` → the
    change's epic; `epic:XXXX` → that epic; `epic:all` / omitted → all active epics). If it resolves to
    **no active epic** (e.g. every supplied selector is a legacy/unprefixed id, or there are no active
    epics), report **nothing-to-do** and exit **without cutting a branch** (the
    abort-precondition-before-branch rule — cutting one ahead of a guaranteed abort just leaves a
    throwaway branch).
 
-3. **Branch guard** — run the `ptp-branch-guard` preamble on the resolved epic: if HEAD is the base branch (`master`/`main`),
+4. **Branch guard** — run the `ptp-branch-guard` preamble on the resolved epic: if HEAD is the base branch (`master`/`main`),
    derive a feature-branch name from the resolved epic (→ `ptp/<change-id>` using the epic's
    lowest-numbered story id, or a `ptp/<≤5-kebab-word summary>` for a multi-epic/omitted selector) and
    launch the minimal `ptp-branch-prep` workflow (stash → checkout the base branch → pull → cut the branch)
@@ -44,18 +69,21 @@ order**:
 
 ## What this command does
 
-After the three outer preconditions above have settled, delegate the two-phase orchestration to the
-**`ptp-prd-full`** skill. Pass the resolved epic, the original selector (`$ARGUMENTS`), and the resolved
-`codex.mode` decision. The skill performs:
+After the four outer preconditions above have settled, delegate the two-phase orchestration to the
+**`ptp-prd-full`** skill. Pass the resolved epic, the original selector (`$ARGUMENTS`), the resolved
+`codex.mode` decision, and the resolved target (`opus.high` by default, or the valid `model:`
+override). The skill performs, at the resolved target for every epic in a multi-epic selector:
 
-- **Phase A (author):** invokes `ptp-run-at-model` at `opus.high` to run the `ptp-prd` skill over the
-  resolved epic, writing `openspec/changes/<id>/prd.md`. The `/ptp:prd` terminal STOP and `/ptp:plan`
-  recommendation are suppressed — the outer flow continues to the prd-gate. The subagent's branch guard
-  is a no-op (HEAD is already on the feature branch); it must NOT launch `ptp-branch-prep`.
+- **Phase A (author):** invokes `ptp-run-at-model` at the resolved target (`opus.high` by default) to
+  run the `ptp-prd` skill over the resolved epic, writing `openspec/changes/<id>/prd.md`. The
+  `/ptp:prd` terminal STOP and `/ptp:plan` recommendation are suppressed — the outer flow continues to
+  the prd-gate. The subagent's branch guard is a no-op (HEAD is already on the feature branch); it must
+  NOT launch `ptp-branch-prep`.
 - **prd-gate:** reads `openspec/changes/<id>/prd.md`; if missing → STOP (do not enter Phase B). Reports
   the authoring failure and recommends `/ptp:prd <epic>` to debug, then `/ptp:review-prd-full <epic>`.
-- **Phase B (review):** invokes `ptp-run-at-model` at `opus.high` to run the `ptp-review-prd-full` skill
-  over the resolved epic with the pre-resolved `codex.mode`. Relays the combined terminal state.
+- **Phase B (review):** invokes `ptp-run-at-model` at the resolved target (`opus.high` by default) to
+  run the `ptp-review-prd-full` skill over the resolved epic with the pre-resolved `codex.mode`. Relays
+  the combined terminal state.
 
 Keep this command **thin**: the two phases, the prd-gate, the terminal report, and the hard rules all
 live in the **`ptp-prd-full`** skill. Do not restate the skill's methodology here. For a multi-epic
@@ -63,10 +91,13 @@ selector the skill runs author → gate → review per epic in sequence.
 
 ## Model/effort posture
 
-This command has **no effort gate** and no `full-effort` variant. Both phases run at `opus.high` via
-`ptp-run-at-model`. No `effort.md` is read — this is a PRD-phase command, not an apply command. If the
-session is below `opus.high` when the outer preconditions run, **note a reminder** but do **not** stop
-(same posture as `/ptp:brainstorm-full`).
+This command has **no effort gate** and no `full-effort` variant. `opus.high` is the **default** target
+for both phases, overridable for a single invocation via the `model:` override token (see "Parse the
+`model:` override" above; grammar/validation/refusal contract per `ptp-run-at-model`), and the one
+resolved target applies uniformly to every targeted epic. No `effort.md` is read — this is a PRD-phase
+command, not an apply command. If the session is below the resolved target (`opus.high` by default)
+when the outer preconditions run, **note a reminder** but do **not** stop (same posture as
+`/ptp:brainstorm-full`).
 
 ## Hard rules
 
