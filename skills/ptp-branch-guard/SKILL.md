@@ -13,7 +13,7 @@ Every ptp step that **creates or updates files** — planning artifacts, source 
 
 **Run the guard — write-capable** (they create or update working-tree files):
 
-`analyze`, `brainstorm`, `brainstorm-only`, `brainstorm-full`, `plan`, `plan-multiple`, `prd`, `prd-full`, `apply`, `effort`, `review-fix`, `review-loop`, `review-plan-loop`, `codex-review-loop`, `codex-review-plan-loop`, `codex-review-prd-loop`, `review-full`, `review-plan-full`, `review-brainstorm-full`, `review-prd-full`, `full`, `full-plan`, `full-run`, `archive`, `archive-force`.
+`analyze`, `brainstorm`, `brainstorm-only`, `brainstorm-full`, `plan`, `plan-multiple`, `prd`, `prd-full`, `apply`, `effort`, `review-fix`, `review-loop`, `review-plan-loop`, `codex-review-loop`, `codex-review-plan-loop`, `codex-review-prd-loop`, `review-full`, `review-plan-full`, `review-brainstorm-full`, `review-prd-full`, `full`, `full-plan`, `full-apply`, `archive`, `archive-force`.
 
 **Do NOT run the guard — read-only** (they never write working-tree ptp/OpenSpec artifacts, so there is nothing to keep off the base branch):
 
@@ -88,13 +88,13 @@ Keep it lowercase-kebab, no spaces or slashes beyond the single `ptp/` prefix se
 
 ## Why a workflow (not inline git)
 
-The git dance is offloaded to a one-agent **haiku** workflow so the plumbing stays uniform and at the minimal model/effort, the same way `/ptp:full-run` offloads apply/review to workflow agents — the main flow keeps its (often `opus`) budget on the change itself rather than on branch bookkeeping. The tradeoff is a background round-trip per cut: launch the prep workflow and wait for its result before any file write.
+The git dance is offloaded to a one-agent **haiku** workflow so the plumbing stays uniform and at the minimal model/effort, the same way `/ptp:full-apply` offloads apply/review to workflow agents — the main flow keeps its (often `opus`) budget on the change itself rather than on branch bookkeeping. The tradeoff is a background round-trip per cut: launch the prep workflow and wait for its result before any file write.
 
 ## Orchestrators run it once; agents only ever no-op
 
-`full`, `full-plan`, and `full-run` run the guard **once up front**, before delegating. The per-step commands and workflow agents they fan out to (`plan`, `apply`, the `ptp-apply` / `ptp-review` workflow agents, …) re-run the guard as a **no-op**, because by then HEAD is already on the feature branch. The guard is idempotent, so this redundancy is harmless and correct.
+`full`, `full-plan`, and `full-apply` run the guard **once up front**, before delegating. The per-step commands and workflow agents they fan out to (`plan`, `apply`, the `ptp-apply` / `ptp-review` workflow agents, …) re-run the guard as a **no-op**, because by then HEAD is already on the feature branch. The guard is idempotent, so this redundancy is harmless and correct.
 
-**Workflow agents must reach only the no-op path — they must never launch `ptp-branch-prep` themselves.** A ptp step running *inside* a workflow (e.g. the `ptp-apply` / `ptp-review` agents under `ptp-full-run`) cannot launch another workflow: nesting is one level only and `Workflow()` inside a workflow throws. The up-front orchestrator guard is what guarantees HEAD is already on the feature branch by the time those agents run, so their guard check sees a non-`master` branch and proceeds without ever calling the prep workflow. If you ever add a write-capable agent inside a workflow, ensure the orchestrator cuts the branch first — never rely on the inner agent to cut it. A workflow agent reaching the no-op branch path **still runs the idempotent Bash heal** (step 0 above) but launches no workflow — the heal is plain Bash in the outer agent context, not a `Workflow()` call, so it does not violate the no-nesting rule.
+**Workflow agents must reach only the no-op path — they must never launch `ptp-branch-prep` themselves.** A ptp step running *inside* a workflow (e.g. the `ptp-apply` / `ptp-review` agents under `ptp-full-apply`) cannot launch another workflow: nesting is one level only and `Workflow()` inside a workflow throws. The up-front orchestrator guard is what guarantees HEAD is already on the feature branch by the time those agents run, so their guard check sees a non-`master` branch and proceeds without ever calling the prep workflow. If you ever add a write-capable agent inside a workflow, ensure the orchestrator cuts the branch first — never rely on the inner agent to cut it. A workflow agent reaching the no-op branch path **still runs the idempotent Bash heal** (step 0 above) but launches no workflow — the heal is plain Bash in the outer agent context, not a `Workflow()` call, so it does not violate the no-nesting rule.
 
 ## Hard rules
 

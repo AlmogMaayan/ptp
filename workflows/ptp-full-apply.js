@@ -1,5 +1,5 @@
 export const meta = {
-  name: 'ptp-full-run',
+  name: 'ptp-full-apply',
   description: 'Sequential apply→review-full per story; each apply agent runs at its effort.md model',
   phases: [
     { title: 'Apply' },

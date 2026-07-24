@@ -13,7 +13,7 @@ This skill is the single source of truth for three things every ptp command need
 2. The **selector grammar** that any command argument resolves through.
 3. The **epic allocation** algorithm producers use to name new changes.
 
-It mirrors how `ptp-full-run` and `ptp-review-loop` already factor shared protocol out of the individual commands. Every ptp command references this skill; none restates the rules.
+It mirrors how `ptp-full-apply` and `ptp-review-loop` already factor shared protocol out of the individual commands. Every ptp command references this skill; none restates the rules.
 
 ## 1. Id format
 
@@ -131,7 +131,7 @@ These **allocate** a fresh epic and **name** the change folder. The pure produce
 
 ### Role B — Set-capable consumers (resolve + iterate)
 
-Commands: `review`, `review-loop`, `review-full`, `codex-review`, `codex-review-loop`, `codex-review-plan`, `codex-review-plan-loop`, `review-plan`, `review-plan-loop`, `review-plan-full`, `review-fix`, `apply`, `effort`, `archive`, `archive-force`, `archive-and-deploy`, `status`, `full-run`
+Commands: `review`, `review-loop`, `review-full`, `codex-review`, `codex-review-loop`, `codex-review-plan`, `codex-review-plan-loop`, `review-plan`, `review-plan-loop`, `review-plan-full`, `review-fix`, `apply`, `effort`, `archive`, `archive-force`, `archive-and-deploy`, `status`, `full-apply`
 
 `epic:all` is immediately available to every consumer in this list the moment it lands — no per-command change is required. Any set-capable consumer that receives `epic:all` resolves it through §3 and operates on all active changes.
 
@@ -139,9 +139,9 @@ These **resolve** the selector via the algorithm in §3 and, if it resolves to m
 
 **Single-context consumer — `/ptp:codex-review-uncommitted`** (not in the set-capable list above): it gains the `argument-hint` update and **resolves** its argument through this skill (satisfying the shared-grammar requirement), but because it grades a single working tree it requires the selector to resolve to **exactly one** change. If the selector resolves to more than one change (e.g. `epic:XXXX`), **STOP** and ask the user for a bare id or `epic:XXXX story:NN`. It never iterates and reviews the working tree once.
 
-**Orchestration command — `/ptp:full-run`**: Set-capable. Selector expansion, per-story ordering, and the apply→review-full loop are delegated to the `ptp-full-run` skill (which launches the `ptp-full-run` workflow); the command is a thin wrapper that accepts a selector (or explicit id list, or empty) and passes it through. (The former `/ptp:full-run-effort` has been collapsed into `/ptp:full-run` — a workflow agent carries its own model, so there is no session-dial effort gate to honor separately.)
+**Orchestration command — `/ptp:full-apply`**: Set-capable. Selector expansion, per-story ordering, and the apply→review-full loop are delegated to the `ptp-full-apply` skill (which launches the `ptp-full-apply` workflow); the command is a thin wrapper that accepts a selector (or explicit id list, or empty) and passes it through. (The former `/ptp:full-apply-effort` has been collapsed into `/ptp:full-apply` — a workflow agent carries its own model, so there is no session-dial effort gate to honor separately.)
 
 **Not set-capable:**
 - `/ptp:full-plan` — a producer-orchestrator; it decomposes via `/ptp:plan-multiple` and plan-reviews each slice it just produced, not a selector over existing changes.
-- `/ptp:full` — an end-to-end producer-orchestrator: it runs the full-plan flow (decompose via `/ptp:plan-multiple` + per-slice plan-review) and, on plan convergence, continues into the full-run flow (apply + review-full per slice) over the slices it just produced. Like `/ptp:full-plan` it takes a request / oversized-change argument, not a selector over existing changes.
+- `/ptp:full` — an end-to-end producer-orchestrator: it runs the full-plan flow (decompose via `/ptp:plan-multiple` + per-slice plan-review) and, on plan convergence, continues into the full-apply flow (apply + review-full per slice) over the slices it just produced. Like `/ptp:full-plan` it takes a request / oversized-change argument, not a selector over existing changes.
 - `/ptp:brainstorm-only` — no change folder, no epic; writes to `openspec/brainstorms/` only.

@@ -5,7 +5,7 @@ argument-hint: "<big-change-id-or-request>"
 
 You are running **`/ptp:full-plan`** — a planning orchestrator that decomposes an oversized change into slices and then runs the full two-phase plan review on every slice, in one invocation. It chains the existing `/ptp:plan-multiple` and `/ptp:review-plan-full` commands so a multi-slice change can be planned-and-plan-reviewed end to end without typing each stage by hand.
 
-This is a **read-only planning** flow. It never applies code and never archives. The next step after it is `/ptp:full-run`.
+This is a **read-only planning** flow. It never applies code and never archives. The next step after it is `/ptp:full-apply`.
 
 ## Inputs
 
@@ -34,7 +34,7 @@ Check before doing any work:
 3. **Report.** After the last slice (or at a convergence STOP), report:
    - The slices created, in order, each with its one-line scope.
    - Per-slice plan-review terminal state (`BOTH PHASES DONE` / `PHASE 1 DONE — CODEX SKIPPED (mode=…)` / `PHASE 2 ITERATION CAP REACHED` / `ITERATION CAP REACHED`); never collapse a mode-skipped slice into a plain both-phases label, so the skip stays visible.
-   - The exact next command: `/ptp:full-run` (which applies each slice at the model from its `effort.md` automatically — the apply runs in a workflow agent that carries that model).
+   - The exact next command: `/ptp:full-apply` (which applies each slice at the model from its `effort.md` automatically — the apply runs in a workflow agent that carries that model).
 
 ## Model/effort posture
 
@@ -42,7 +42,7 @@ Check before doing any work:
 
 ## Hard rules
 
-- Do **not** apply code. This command plans and plan-reviews only; the next command is `/ptp:full-run`.
+- Do **not** apply code. This command plans and plan-reviews only; the next command is `/ptp:full-apply`.
 - Do **not** archive any change. Archiving is always an explicit `/ptp:archive <id>` user action.
 - Do **not** auto-commit any edits made during planning or plan review.
 - Do **not** start a later slice's plan review if an earlier slice did not converge (`PHASE 2 ITERATION CAP REACHED`).

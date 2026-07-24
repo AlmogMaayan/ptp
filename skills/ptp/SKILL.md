@@ -91,9 +91,9 @@ For an **epic-scoped** feature — larger than a single change — an optional P
 
 - `/ptp:full-plan <request>` — `/ptp:plan-multiple` (decompose) then per-slice `/ptp:review-plan-full`;
   read-only planning, never applies code.
-- `/ptp:full-run <selector>` — apply-then-`review-full` every change sequentially; each story's apply
+- `/ptp:full-apply <selector>` — apply-then-`review-full` every change sequentially; each story's apply
   runs at its `effort.md` model.
-- `/ptp:full <request>` — end-to-end: `full-plan` then, on plan convergence, `full-run`. Plans and runs
+- `/ptp:full <request>` — end-to-end: `full-plan` then, on plan convergence, `full-apply`. Plans and runs
   an oversized change in one invocation; never archives.
 
 ### Ship variants (deploy family)

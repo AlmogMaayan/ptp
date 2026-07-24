@@ -20,7 +20,7 @@ It does **not** restate the methodology of the two underlying flows. Phase A **i
 command's flow (its gates, its outer-session confirmations, its `ptp-run-at-model` spawn at
 `sonnet.medium`); Phase B **is** the `ptp-deploy` skill's flow (driven exactly as `/ptp:deploy` drives
 it). This skill owns only the **glue and the archive-convergence gate between the two phases** —
-mirroring how `skills/ptp-full/SKILL.md` owns the gate between `/ptp:full`'s plan and run phases and
+mirroring how `skills/ptp-full/SKILL.md` owns the gate between `/ptp:full`'s plan and apply phases and
 defers each phase's detail to the underlying flow.
 
 ## Inputs
@@ -105,7 +105,7 @@ Phase B (no partial deploy):
 
 The **first** such failure STOPs the command before the deploy phase, and the terminal report **names
 the blocking change and the gate/confirmation it failed**. There is **no** partial deploy after a
-failed archive. This mirrors `/ptp:full`'s plan-convergence gate blocking the run phase — the gate is
+failed archive. This mirrors `/ptp:full`'s plan-convergence gate blocking the apply phase — the gate is
 the whole reason the command exists.
 
 ## Phase B — deploy (the ptp-deploy flow), exactly once, only on convergence
