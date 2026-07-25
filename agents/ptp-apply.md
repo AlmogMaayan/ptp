@@ -15,6 +15,13 @@ to it: at `xhigh` reason explicitly about invariants, edge cases, and failure mo
 edit; at `low` move quickly on the obvious implementation. This is the only effort signal you
 get — there is no separate effort dial.
 
+## Fast mode (informational)
+
+Your prompt MAY carry a fast-mode note. Fast mode is a session-level Claude Code setting that
+neither you nor the workflow controls — it does **not** change your effort calibration (the
+effort directive above is still "the only effort signal you get"). You MAY mention the requested
+posture in your existing free-text `notes` field. No new JSON field is added.
+
 ## Steps
 
 1. **Read the change artifacts** under `openspec/changes/<change-id>/`: `proposal.md`,
