@@ -280,6 +280,33 @@ ptp never fails to start over a config typo.
 
 ---
 
+## Per-invocation switches
+
+Some ptp commands accept optional tokens embedded anywhere in their argument text that apply for that
+single invocation only — nothing persists to config.
+
+- **`fast:on` / `fast:off`** (default off) — declares that the opus agents this invocation spawns
+  should run in Claude Code **fast mode**. Fast mode is a **session-level** Claude Code setting
+  (`/fast` Tab-toggle, `"fastMode": true` in a settings file, or
+  `claude -p --settings '{"fastMode": true}'`), available only on Opus 5 / Opus 4.8, and billed at a
+  higher rate from usage credits. ptp **cannot** enable it per agent spawn — instead `fast:on` runs a
+  read-only preflight that verifies what it can from settings, and either announces that configuration
+  reports fast mode enabled (naming the settings file that supplied it — what configuration says, not a
+  guarantee about the live session) or prints a non-blocking advisory with the remediation that fits
+  why it could not verify — always recording the request and proceeding either way. A resolved
+  non-`opus` target and
+  `main=codex` are both documented no-ops (Codex has no fast mode; fast mode is Opus-only), never
+  errors. The workflow-backed `full` family (`/ptp:full`, `/ptp:full-apply`, `/ptp:full-plan`) now honors
+  the switch too: parsed once in the outer session, one preflight/announcement per invocation, threaded
+  into the workflow's apply and review prompts, Opus-only (so a story whose `effort.md` model is
+  `sonnet`/`haiku` gets no note on its apply agent while its review agent still does). Full contract:
+  `skills/ptp-run-at-model/SKILL.md`.
+- **`model:<model>.<effort>`** — overrides a supporting command's default target model/effort for that
+  single invocation; supported by `/ptp:brainstorm`, `/ptp:prd`, `/ptp:brainstorm-full`, and
+  `/ptp:prd-full` only. Same skill owns the grammar: `skills/ptp-run-at-model/SKILL.md`.
+
+---
+
 ## Change ids and selectors
 
 Every change born through the ptp flow carries a structured id:
@@ -551,6 +578,9 @@ Force-archive (escape hatch — reports bypassed gates)
 Selectors (anywhere a <sel> / change-id is taken)
   epic:all | epic:0021 | epic:0021 story:01 | story:01 | <bare-id> | (omit = all active)
 
+Switches (in the argument text of a ptp-run-at-model-backed command, plus the full family)
+  fast:on | fast:off (default off)          # model:<model>.<effort> — supported commands only
+
 Experimental (no Superpowers layer)
   → /opsx:explore [topic] | /opsx:propose [name]
   → /opsx:apply [name]    | /opsx:archive [name]
@@ -562,6 +592,8 @@ Experimental (no Superpowers layer)
 
 | Version | Changes |
 |---------|---------|
+| **0.2.4** | The workflow-backed `full` family (`/ptp:full`, `/ptp:full-apply`, `/ptp:full-plan`) now honors the per-invocation `fast:` switch — outer-session parse-and-strip after the `codex.mode` abort and before selector/request/branch handling, one preflight+announcement per invocation, resolved boolean handed to the `ptp-full` / `ptp-full-apply` skills without re-parsing, new top-level `fast` workflow arg (absent → off, so old launches are byte-identical), and an Opus-only informational note on the apply/review prompts with both agent JSON schemas unchanged. (0031_02) |
+| **0.2.3** | `ptp-run-at-model` gains an optional per-invocation `fast:on` / `fast:off` switch, recognized generically by every command that references the skill (no per-command enumeration, no new config key). Two-stage detect-then-validate on a lowercase `fast:` prefix (`on`/`off` values, default off); a malformed lowercase-prefixed candidate refuses instead of falling through as absent; parse-and-strip runs before the command's own argument grammar and branch guard, independent of `model:`. Fast mode is session-scoped in Claude Code and cannot be set per spawn, so `fast:on` runs a read-only preflight over layered settings (`fastMode`, `fastModePerSessionOptIn`, `CLAUDE_CODE_DISABLE_FAST_MODE`) and announces exactly one of four outcomes in a fixed precedence order: `main=codex` no-op, non-opus-target no-op, verified-on, or a non-blocking advisory naming the outcome-specific remediation. The workflow-backed `full` family follows in slice `0031_02`. (0031_01) |
 | **0.2.2** | `/ptp:prd-full` accepts the optional `model:<model>.<effort>` override token — both Phase A (author) and Phase B (review) now run at the resolved target instead of a hardcoded `opus.high`, applied uniformly to every targeted epic across both phases. Documented once in `ptp-run-at-model` (its supporting-callers sentence now lists `/ptp:prd-full`); `commands/prd-full.md` owns the outer-session parse-and-strip as precondition 2 (after the `codex.mode` guaranteed-abort, before the epic-selector resolution and the branch guard); `skills/ptp-prd-full/SKILL.md` consumes the resolved `target` without re-parsing. (0030_02) |
 | **0.2.1** | `/ptp:brainstorm-full` accepts the optional `model:<model>.<effort>` override token — both Phase A (brainstorm) and Phase B (review) now run at the resolved target instead of a hardcoded `opus.high`. Documented once in `ptp-run-at-model` (its supporting-callers sentence now lists `/ptp:brainstorm-full`); `commands/brainstorm-full.md` owns the outer-session parse-and-strip as precondition 2 (after the `codex.mode` guaranteed-abort, before change-id allocation and the branch guard); `skills/ptp-brainstorm-full/SKILL.md` consumes the resolved `target` without re-parsing. (0030_01) |
 | **0.2.0** | Rename `/ptp:full-run` to `/ptp:full-apply` (command `commands/{full-run.md => full-apply.md}`, skill/workflow `skills/{ptp-full-run => ptp-full-apply}/SKILL.md`) to align the "full" orchestrator name with the prior run→apply rename; updated references in `agents/ptp-apply.md`, `agents/ptp-review.md`, `commands/apply.md`, `commands/full-plan.md`, `commands/full.md`, `skills/ptp-archive-and-deploy/SKILL.md`, `skills/ptp-branch-guard/SKILL.md`, `skills/ptp-change-selector/SKILL.md`, `skills/ptp-codex-mode/SKILL.md`, `skills/ptp-full/SKILL.md`. |

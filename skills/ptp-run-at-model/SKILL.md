@@ -1,6 +1,6 @@
 ---
 name: ptp-run-at-model
-description: Single source of truth for running a ptp command's work at a deterministic model+effort as the resolved main agent (via ptp-agent-roles). Because the session model cannot be changed in place, this skill owns the contract for running the command's real work either by spawning ONE foreground Claude Agent-tool subagent at a caller-named target model with effort injected as a prompt directive (main=claude, the default, mirroring workflows/ptp-full-apply.js) or by shelling out to a write-capable codex exec with model/effort from codex.model/codex.reasoningEffort (main=codex) — then relaying the main run's terminal result (completed / refused / needs-human-action) back to the session verbatim. The branch guard and abort-preconditions run in the outer session before any main work in both directions. Commands reference this skill instead of restating the run-and-relay, the same way ptp-branch-guard owns branch safety and ptp-codex-mode owns the Codex reviewer gate plus the codex.model/codex.reasoningEffort resolution reused here.
+description: Single source of truth for running a ptp command's work at a deterministic model+effort as the resolved main agent (via ptp-agent-roles). Because the session model cannot be changed in place, this skill owns the contract for running the command's real work either by spawning ONE foreground Claude Agent-tool subagent at a caller-named target model with effort injected as a prompt directive (main=claude, the default, mirroring workflows/ptp-full-apply.js) or by shelling out to a write-capable codex exec with model/effort from codex.model/codex.reasoningEffort (main=codex) — then relaying the main run's terminal result (completed / refused / needs-human-action) back to the session verbatim. The branch guard and abort-preconditions run in the outer session before any main work in both directions. Commands reference this skill instead of restating the run-and-relay, the same way ptp-branch-guard owns branch safety and ptp-codex-mode owns the Codex reviewer gate plus the codex.model/codex.reasoningEffort resolution reused here. Also owns the optional per-invocation `fast:on`/`fast:off` switch contract — fast mode being a session-scoped Claude Code setting that is never set per spawn, honored via a read-only preflight and advisory rather than an enablement mechanism.
 ---
 
 # ptp-run-at-model — run a command's work at a deterministic model+effort
@@ -214,6 +214,174 @@ The override only ever selects among the 4 Claude Agent-tool models — it has n
 to come from `codex.model`/`codex.reasoningEffort` per `ptp-codex-mode`, unaffected by this token
 (documented, not silently ignored).
 
+## Optional caller-side `fast:` switch
+
+Every command that references this skill and accepts free-text or selector arguments recognizes an
+optional **per-invocation** `fast:on` / `fast:off` switch that a user MAY embed anywhere in that
+command's argument text, to declare that the opus agents this invocation spawns should run in Claude
+Code **fast mode**. The switch is opt-in *per invocation* by the user, not opt-in per command: unlike
+the `model:` token above, no command opts in or out, and no supporting-caller list gates it. It
+defaults to **off** when absent — the pre-change behavior, unchanged. This section is the **single source of truth** for the switch's grammar,
+validation, refusal contract, and honoring semantics; a caller references this section rather than
+restating it (see *Caller obligation (generic)* below).
+
+### Grammar
+
+```
+fast:on
+fast:off
+```
+
+A plain boolean switch — `on` | `off` — not a dotted `<a>.<b>` body like `model:`.
+
+### Two-stage detect-then-validate
+
+1. **Detect a candidate.** Scan the argument text for a whitespace-delimited token that **begins with
+   the exact lowercase literal prefix `fast:`** — bounded by start-of-string or whitespace on the
+   left, and whitespace or end-of-string on the right. A `fast:` substring inside a larger word (e.g.
+   `breakfast:on`, `x=fast:on`) is **not** a candidate.
+2. **Validate the value** case-sensitively against exactly `on` or `off`. A candidate that begins with
+   the lowercase `fast:` prefix but whose value is not exactly `on` or `off` (`fast:`, `fast:true`,
+   `fast:ON`, `fast:on.high`) is **recognized-but-invalid** and REFUSES — it must **not** fall through
+   as absent.
+
+**Case is the one deliberate exception**, mirroring `model:`: only the exact lowercase `fast:` prefix
+is scanned for, so a non-lowercase prefix (e.g. `Fast:on`) is **never** a candidate and falls through
+as **absent**.
+
+**At most one candidate is recognized.** Two or more `fast:` candidates in the same argument text is
+**invalid** — never "last one wins" — and the refusal reports **all** detected candidates.
+
+### Resolution outcomes
+
+- **Absent** → **no fast-mode request** — behavior identical to before this section existed: no
+  preflight, no announcement, no prompt note.
+- **`fast:off`** → **no fast-mode request**, stated explicitly; the token is valid and stripped;
+  identical to the absent case.
+- **`fast:on`** → fast mode requested for this invocation only; nothing persisted; no ptp config file
+  read or written.
+- **Invalid** (a recognized-but-invalid candidate, or two or more candidates) → the calling command
+  **refuses and stops** in its outer session, reporting the offending candidate(s) and the two valid
+  values (`on`, `off`), **before** any branch guard, any subagent spawn, and any Codex shell-out. It
+  never silently falls back to OFF.
+
+Throughout this section, "fast off" means *no fast-mode request was made for this invocation* — never
+a claim about the live session's actual mode, which ptp cannot observe or control (see the
+never-enables hard rule below).
+
+### Strip-before-use ordering
+
+The parse-and-strip step runs in the calling command's **outer session**, **before** that command's
+own argument grammar (change-id derivation, selector/free-text classification) and **before** that
+command's own branch-name derivation or branch guard — the same two reasons the `model:` section
+gives: a leftover token could contaminate a derived description, be misread as a selector, or leak
+into a derived branch name; and an invalid token must abort before a branch is cut.
+
+`fast:` and `model:` are **independent**: both MAY appear in the same argument text, both are
+stripped, and an invalid candidate of either kind refuses.
+
+### Fast-mode preflight (how `fast:on` is honored)
+
+Claude Code fast mode is a **session-level** setting — enabled by the interactive `/fast` Tab-toggle,
+by `"fastMode": true` in a settings file, or by `claude -p --settings '{"fastMode": true}'`. It is
+**not** a parameter of the Agent tool, of the workflow `agent()` API, or of subagent frontmatter, and
+it cannot be toggled programmatically mid-session (the toggle is interactive-only; a settings write is
+read at session start). So this skill **never attempts to enable it**.
+
+Instead, when fast is ON, the outer session runs a cheap, **read-only, best-effort** preflight — after
+target resolution (step 3) and role resolution (step 4), and **before** the spawn (step 5). It
+considers the `CLAUDE_CODE_DISABLE_FAST_MODE` environment variable and the `fastMode` /
+`fastModePerSessionOptIn` keys of the layered settings files. It writes nothing. A missing,
+unreadable, or malformed settings layer is **ignored** rather than failing the command — never
+decisive on its own, since the advisory outcome below depends on the **combined** resolution across
+all layers, not on any single layer.
+
+**Resolution semantics.** Both keys are resolved by the same forgiving layered read ptp already uses
+for its own config (see `ptp-review-loop`'s `review.maxIterations` reader), over these ordered layers:
+
+1. `~/.claude/settings.json`
+2. `~/.claude/settings.local.json`
+3. `<repo>/.claude/settings.json`
+4. `<repo>/.claude/settings.local.json`
+
+A later layer's **explicitly present** value overrides an earlier one; any layer that is missing,
+unreadable, unparseable, or carries a non-boolean value is **ignored** (the prior layer's value stays
+in force). Consequences worth stating explicitly: an explicit `"fastMode": false` in a later layer
+beats an earlier `true`; a key absent from every layer resolves as **not set** (advisory); the
+verified-on announcement names the **highest-precedence layer that supplied the winning value**.
+
+The environment predicate is stated **once** and reused verbatim wherever the variable is mentioned:
+`CLAUDE_CODE_DISABLE_FAST_MODE` disables fast mode when its value, **trimmed of leading and trailing
+whitespace and compared case-insensitively**, is non-empty and is neither `0` nor `false` — so
+`1`/`true`/`TRUE` disable, while unset, empty, all-whitespace, `0`, `false`, `False`, and ` FALSE ` do
+not. This predicate **overrides every settings layer**. Never write "if set" — use this exact
+predicate.
+
+The preflight never STOPs or fails the command over a settings typo: a degenerate layer is ignored,
+and — after the no-op checks below — the advisory outcome applies only when the combined surviving
+resolution fails to verify fast mode.
+
+**The four announced outcomes.** Exactly **one** outcome is announced. The outcomes **overlap** — a
+non-opus target may also have `fastMode` set; a `main=codex` invocation may also be unverifiable — so
+they are evaluated in this fixed **precedence order**, first match wins:
+
+1. **No-op — `main=codex`.** `ptp-agent-roles` resolves `main=codex`: one-line note that the `codex
+   exec` main run has no fast mode and its model/effort keep coming from `codex.model` /
+   `codex.reasoningEffort`. Documented, not silently ignored (mirroring the `model:` section's own
+   `main=codex` note).
+2. **No-op — non-opus target.** The resolved target model is not `opus` (a `sonnet.medium` command, or
+   a `model:sonnet.high` override): one-line note that fast mode exists only on Opus (Opus 5 / Opus
+   4.8). Not an error.
+3. **Verified-on.** The layered read resolves `fastMode` to true, `fastModePerSessionOptIn` to
+   anything other than true, and fast mode is not disabled by environment: announce once that fast
+   mode is enabled in configuration (naming the winning file) and that the spawned opus subagent
+   inherits it — phrased as what configuration reports, **not** as a guarantee about the live session —
+   then proceed.
+4. **Advisory (non-blocking).** Fast mode is off, not verifiable, disabled by environment, or gated by
+   `fastModePerSessionOptIn`: emit a non-blocking advisory and **proceed** with the request recorded.
+   Never refuse — an interactive `/fast` toggle leaves no file trace, so a refusal would block an
+   already-correct session. The remediation MUST be **specific to why the preflight did not verify**
+   (the three mechanisms are not interchangeable), and because a configuration can trip several
+   sub-reasons at once, the sub-reasons are themselves **first-match in this order** (exactly one row
+   fires and only that row's remediation is emitted; row 3 legitimately names three interchangeable
+   options — "exactly one" constrains the row, not the option count within it):
+   1. *Disabled by `CLAUDE_CODE_DISABLE_FAST_MODE`* → unset the variable (or set it to `0`) and start a
+      new session — **not** `/fast` and **not** a settings edit, both of which the variable overrides.
+   2. *Gated by `fastModePerSessionOptIn`* → `/fast` in this session, plus a note that a settings-file
+      `fastMode: true` alone will not take effect until the gate is cleared or set to `false`.
+   3. *Not configured / resolved false* → all three, verbatim: `/fast` Tab-toggle in this session,
+      `"fastMode": true` in the user settings file, or `claude -p --settings '{"fastMode": true}'` for
+      a headless run.
+
+   Whichever row fires, the advisory also carries **one clause noting that fast mode is billed at a
+   higher rate from usage credits**.
+
+Outcomes 1 and 2 **short-circuit**: a no-op invocation never emits the advisory's remediation text (it
+could not make that run fast) and may skip the settings read entirely — so outcomes 3 and 4 apply only
+when the resolved model is `opus` and `main=claude`.
+
+### Propagation into the spawn prompt
+
+When fast is ON, the resolved model is `opus`, and `main=claude`, the subagent prompt carries **one
+informational line** next to the effort directive, recording that fast mode was requested and that it
+is a session-level setting the run does not control — so the agent's own report can state the
+requested mode. This note changes neither the `model` parameter nor the effort directive.
+
+### Caller obligation (generic)
+
+Every command that references this skill and accepts free-text or selector arguments recognizes the
+`fast:` switch on that argument text and MUST parse-and-strip it in the outer session per this section
+— stated once, here. No command file restates the grammar and no enumerated supporting-caller list is
+introduced or required. This is deliberately broader than the `model:` section's narrower enumerated
+opt-in list above, which this obligation does **not** change.
+
+### Scope
+
+This section governs the `ptp-run-at-model` spawn surface. The `full`/`full-plan`/`full-apply` family
+runs its agents through `workflows/ptp-full-apply.js` and does **not** use this skill (see *Which
+commands use this skill*) — that family's `fast:` support is covered by slice `0031_02`, so the gap is
+documented rather than implied.
+
 ## Effort as a prompt directive
 
 This section describes the **`main=claude`** direction; the `main=codex` direction maps effort to
@@ -366,3 +534,7 @@ git, and archive-force delegates to the inline `ptp-archive-force` skill.
   main run at a time; that is still no fan-out and no background Workflow.)
 - **Defer the branch-guard run/skip decision to `ptp-branch-guard`** — do not re-decide which commands
   are guard-exempt here (e.g. `/ptp:master` stays exempt).
+- **ptp never enables fast mode** — it never writes `fastMode` (or any other Claude Code setting) to
+  any settings file, never attempts to toggle the session's fast mode, and never reports a *requested*
+  fast mode as an *enabled* one; when fast mode cannot be verified the advisory is non-blocking and the
+  run proceeds.

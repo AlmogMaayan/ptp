@@ -21,8 +21,9 @@ It does not restate the detail of the two underlying flows. The plan phase **is*
 | Input | Values | Source |
 |-------|--------|--------|
 | `big-change-id-or-request` | an existing `openspec/changes/<id>/` folder to re-cut, **or** a fresh request to plan as multiple slices | Passed through from `$ARGUMENTS`. Interpreted both ways exactly as `ptp:plan-multiple` interprets it. |
+| `fast` | `true` \| `false` — the resolved fast-mode posture for this invocation (default `false`) | Resolved once by `commands/full.md`'s outer session (token parsed and stripped, preflight run once); consumed here without re-parsing |
 
-There is no effort/model input. The plan phase runs at the session model (expected `opus.high`); the apply phase reads each slice's `effort.md` for its apply model and reviews at `opus.high`. There is **no effort gate** — see *Model/effort posture*.
+Apart from `fast` above — a session-level posture flag, not a model or effort selector — there is no effort/model input. The plan phase runs at the session model (expected `opus.high`); the apply phase reads each slice's `effort.md` for its apply model and reviews at `opus.high`. There is **no effort gate** — see *Model/effort posture*.
 
 ## Precondition (checked once, up front)
 
@@ -41,6 +42,8 @@ Run the `/ptp:full-plan` flow exactly as that command specifies:
 
 Phase A is read-only: it never applies code and never archives. It always writes each slice's OpenSpec artifacts including `effort.md` (the apply phase depends on `effort.md` existing).
 
+**Fast mode is not threaded into Phase A.** The plan phase delegates **stripped** text to `ptp:plan-multiple` / `ptp:review-plan-full` and threads **no** `fast` input into them — the posture stays with this skill (which needs it for Phase B's workflow launch) — so there is no re-parse and no second preflight, and nothing here claims the informational note reaches those sub-steps' own spawned subagents.
+
 ## Phase B — apply (the `ptp-full-apply` flow), only on full plan convergence
 
 Enter Phase B **only if every** captured slice reached a green plan-convergence state in Phase A (`BOTH PHASES DONE` **or** `PHASE 1 DONE — CODEX SKIPPED (mode=…)` — both are gate-success per `ptp-codex-mode`). Then run the `ptp-full-apply` skill's flow with the captured slice ids treated as an **explicit, ordered id list** (the plan order *is* the apply/dependency order):
@@ -49,9 +52,9 @@ Enter Phase B **only if every** captured slice reached a green plan-convergence 
 2. **Run the `ptp-workflow-cache-heal` step** (see that skill for the canonical Bash command) via the
    Bash tool, then **launch the run workflow** with the slices in plan order:
    ```
-   Workflow({ name: 'ptp:ptp-full-apply', args: { stories } })
+   Workflow({ name: 'ptp:ptp-full-apply', args: { stories, fast } })
    ```
-   where `stories = [{ id, model, effort }, …]`. The workflow loops the slices in order, spawning `agentType:'ptp:ptp-apply'` at each slice's `model` (effort injected as a prompt directive) then `agentType:'ptp:ptp-review'` at `opus`, one slice fully before the next, and returns `{ results, halted, total }`.
+   where `stories = [{ id, model, effort }, …]` and `fast` is the top-level resolved boolean from this skill's `fast` input (not per story) — an omitted `fast` is read as `false` by the script. The workflow loops the slices in order, spawning `agentType:'ptp:ptp-apply'` at each slice's `model` (effort injected as a prompt directive) then `agentType:'ptp:ptp-review'` at `opus`, one slice fully before the next, and returns `{ results, halted, total }`.
 3. **Apply-convergence gate (the workflow's `halted`).** A slice whose apply does not reach `stageReached === 'completed'`, or whose review `terminalState !== 'BOTH_PHASES_DONE'`, halts the **whole run** — the workflow stops the loop. This is the apply phase's own gate, identical to `/ptp:full-apply`; it is independent of the plan-convergence gate.
 
 **No scope-confirmation stop.** Because the captured slice ids are passed as an explicit id list, the apply phase skips the one-time no-arg scope confirmation that `ptp-full-apply` performs only on discovery. This is what makes the handoff seamless — there is no second user invocation between planning and running.
@@ -79,3 +82,4 @@ There is **no effort gate** and no model/effort-switch suggestion. The plan phas
 - **Never re-confirm scope between phases.** The handoff is automatic; the captured slice ids are passed explicitly so the apply phase does not stop.
 - **The apply-convergence gate halts the whole run** — a slice whose review is not `BOTH_PHASES_DONE` stops the loop; do not continue to the next slice.
 - **A missing/unparseable `effort.md` defaults to `opus.high`** and is noted — never crash, never stop on it.
+- **This skill never re-parses the `fast:` token, never re-runs the preflight, and never enables fast mode.** It holds the one resolved boolean across both phases and threads it only into the workflow launch — never into the delegated plan sub-steps, which get stripped text and no `fast` input.

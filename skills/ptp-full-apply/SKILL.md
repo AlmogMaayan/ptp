@@ -14,8 +14,9 @@ This skill is the orchestration contract behind the single `/ptp:full-apply` com
 | Input | Values | Source |
 |-------|--------|--------|
 | `change-ids` | change selector, list of change ids, or empty | Passed through from `$ARGUMENTS`. Resolved via `ptp-change-selector`: a `epic:XXXX` / `story:NN` selector is pre-resolved to its story id(s) before launch; explicit ids are used verbatim; empty → discover via `npx -y openspec list` (see ordering below). |
+| `fast` | `true` \| `false` — the resolved fast-mode posture for this invocation (default `false`) | Resolved once by `commands/full-apply.md`'s outer session (token parsed and stripped, preflight run once); consumed here without re-parsing |
 
-There is no `effort_gate` input. Per-story model/effort comes from each story's `effort.md`, read by the command before launch.
+Besides the `fast` input above there is no `effort_gate` input — and `fast` is not one: it is a session-level posture flag, not a model or effort selector. Per-story model/effort comes from each story's `effort.md`, read by the command before launch.
 
 ## Command → workflow handoff
 
@@ -27,9 +28,9 @@ The command is a thin wrapper that performs four steps, then hands off to the wo
 4. **Run the `ptp-workflow-cache-heal` step** (see that skill for the canonical Bash command) via the
    Bash tool over the whole glob `~/.claude/plugins/cache/ptp/*/*/workflows/*.js`. Then **launch the workflow:**
    ```
-   Workflow({ name: 'ptp:ptp-full-apply', args: { stories } })
+   Workflow({ name: 'ptp:ptp-full-apply', args: { stories, fast } })
    ```
-   where `stories = [{ id, model, effort }, …]` in apply order. (Use the named form — the plugin ships `workflows/ptp-full-apply.js` whose `meta.name` is `ptp-full-apply`. There is no project-relative `scriptPath` under a global plugin install.) The workflow loops the stories in order, spawning `agentType:'ptp:ptp-apply'` at the story's `model` (effort injected as a prompt directive) then `agentType:'ptp:ptp-review'` at `opus`, and returns `{ results, halted, total }`.
+   where `stories = [{ id, model, effort }, …]` in apply order and `fast` is a **top-level**, invocation-level boolean (never per story) resolved by the command's outer session — an omitted `fast` is read as `false` by the script, producing today's exact prompts. (Use the named form — the plugin ships `workflows/ptp-full-apply.js` whose `meta.name` is `ptp-full-apply`. There is no project-relative `scriptPath` under a global plugin install.) The workflow loops the stories in order, spawning `agentType:'ptp:ptp-apply'` at the story's `model` (effort injected as a prompt directive) then `agentType:'ptp:ptp-review'` at `opus`, and returns `{ results, halted, total }`. The Opus-only per-agent note condition: the apply agent gets the fast-mode note only when that story's model is `opus`; the review agent, always `opus`, gets it whenever fast is on.
 
 ## Change discovery and ordering
 
@@ -72,6 +73,8 @@ resume / direct-launch path where branch-guard may not have run in this session.
 Workflow({ name: 'ptp:ptp-full-apply', resumeFromRunId: '<id>', args })
 ```
 
+A resume launch which omits `fast` from `args` simply drops the informational note (`fast` reads as `false`) and never fails — recommend passing `args` including `fast` when resuming a run that was launched with it.
+
 The three-bucket terminal report is the **context-loss recovery contract** for when the run journal is unavailable (new session, journal lost). Context-loss hint:
 
 - Resume an `applied (review pending)` story by running **`/ptp:review-full <id>` directly** (its review runs at `opus.high`) — *not* `/ptp:full-apply`, which would re-apply.
@@ -87,3 +90,4 @@ The three-bucket terminal report is the **context-loss recovery contract** for w
 - **The review convergence gate halts the whole run.** A story whose review is not gate-success sets the workflow's `halted` and stops the loop; do not silently continue to the next story. A mode-skipped review (main-agent phase converged, a Codex reviewer skipped by `codex.mode`) is **gate-success** — the `ptp-review` agent reports it as `terminalState === 'BOTH_PHASES_DONE'` (per `ptp-codex-mode`), so the run continues to the next story rather than halting.
 - **Codex per `codex.mode`** (see the `ptp-codex-mode` skill). The command resolves the mode before launching; only `required` hard-requires Codex (STOP without launching if `codex --version` fails). Under `auto`/`off` it launches, and each story's `review-full` applies its own non-silent Codex skip.
 - **A missing/unparseable `effort.md` defaults to `opus.high`** and is noted — never crash, never stop on it.
+- **When the posture resolves on, the preflight and its announcement happen once per invocation in the outer session.** The workflow and its agents never re-run them, and nothing here enables fast mode.

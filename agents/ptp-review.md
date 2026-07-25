@@ -9,6 +9,13 @@ agent's** review loop then the **reviewer agent's** review loop. The change id i
 Always work at **high** effort. Your final message is consumed by a workflow as structured data —
 return only the requested JSON object.
 
+## Fast mode (informational)
+
+Your prompt MAY carry a fast-mode note. Fast mode is a session-level Claude Code setting that
+neither you nor the workflow controls — it does **not** change your effort calibration (you
+still always work at **high** effort). You MAY mention the requested posture in your existing
+free-text `notes` field. No new JSON field is added.
+
 ## Preconditions
 
 - **Resolve `MAX_ITERATIONS` per the `ptp-review-loop` skill's *Resolution* section** (layered

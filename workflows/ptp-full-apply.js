@@ -19,6 +19,14 @@ function effortDirective(effort) {
   }
 }
 
+// One informational line for a story/agent whose fast-mode posture was requested for this run.
+// Fast mode is a session-level Claude Code setting this run does not control — it changes
+// neither the model passed to agent() nor the effort directive above. Mention it in `notes`
+// only if relevant.
+function fastNote() {
+  return 'Fast mode was requested for this run (a session-level Claude Code setting this run does not control); it changes neither your model nor the effort directive above — mention it in `notes` only if relevant.'
+}
+
 const APPLY_SCHEMA = {
   type: 'object',
   properties: {
@@ -54,6 +62,10 @@ const REVIEW_SCHEMA = {
 // args may arrive as an object or, in some runtimes, as the verbatim JSON string.
 const parsedArgs = typeof args === 'string' ? JSON.parse(args) : args
 const stories = (parsedArgs && parsedArgs.stories) || []
+// Strict boolean identity: anything other than boolean `true` (including absent, undefined,
+// null, or a non-boolean value) means fast mode was not requested, preserving byte-identical
+// pre-change prompts for every launch that omits `fast`.
+const fast = (parsedArgs && parsedArgs.fast) === true
 const results = []
 let halted = null
 
@@ -61,7 +73,7 @@ for (let i = 0; i < stories.length; i++) {
   const s = stories[i]
   const eff = s.effort || 'high'
   const mdl = s.model || 'opus'
-  log(`Story ${i + 1}/${stories.length}: ${s.id} — apply at ${mdl}.${eff}`)
+  log(`Story ${i + 1}/${stories.length}: ${s.id} — apply at ${mdl}.${eff}${fast ? ' (fast requested)' : ''}`)
 
   const applyPrompt = [
     `Implement the OpenSpec change \`${s.id}\` end-to-end, following the apply protocol in your system prompt.`,
@@ -69,6 +81,7 @@ for (let i = 0; i < stories.length; i++) {
     `Work at **${eff}** effort: ${effortDirective(eff)}`,
     `After verifying each task, immediately edit tasks.md to mark it [x] — do this per task as you go, not in a batch at the end. Before returning, re-read tasks.md and confirm every task is [x].`,
     `Do NOT archive. Do NOT commit. Do NOT git add. Return the JSON object when all tasks are [x] and final verification passes.`,
+    ...(fast && mdl === 'opus' ? [fastNote()] : []),
   ].join('\n\n')
 
   const apply = await agent(applyPrompt, {
@@ -90,6 +103,7 @@ for (let i = 0; i < stories.length; i++) {
     `Change folder: openspec/changes/${s.id}/`,
     `Work at **high** effort. Fix only confirmed findings inline. Do NOT commit. Do NOT archive.`,
     `Return the JSON object.`,
+    ...(fast ? [fastNote()] : []),
   ].join('\n\n')
 
   const review = await agent(reviewPrompt, {
