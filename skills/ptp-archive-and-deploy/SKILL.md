@@ -59,9 +59,16 @@ run/skip decision to `ptp-branch-guard`), exactly as `/ptp:deploy` does. Do not 
 
 For each resolved change `c` in `(epic, story)` ascending order, drive the existing `/ptp:archive`
 flow **unweakened** — never weaken, reorder, or remove a gate. Process the changes as a **sequence**,
-one blocking `ptp-run-at-model` invocation per change — **never a parallel fan-out** (`ptp-run-at-model`
-hard rule: one foreground subagent per invocation; a multi-item set invokes it once per item in
-sequence). The branch guard does **not** run in any change (the deploy exemption — see *Outer
+one blocking `ptp-run-at-model` invocation per change — **never a parallel fan-out**. Two independent
+rules put it there. First, `ptp-parallel-fanout` **safety condition 1** (write sets provably disjoint
+by construction), which archiving can never establish because every change merges its delta into the
+shared `openspec/specs/` tree. Second, `ptp-run-at-model` names `/ptp:archive` (and this Phase A)
+**by name** as permanently excluded from its conditional concurrency allowance. So a resolved
+`parallel.mode` of `on` — or a `parallel:on` token — changes nothing here. (`ptp-run-at-model`'s
+unconditional **one main run per invocation** hard rule is *not* one of those two grounds: it governs
+what a single invocation does, not whether N invocations overlap, and citing it as a sequencing rule
+is the misreading the amendment removed.) The
+branch guard does **not** run in any change (the deploy exemption — see *Outer
 preconditions*); HEAD is already on the feature branch and stays there throughout, so no change cuts a
 branch.
 

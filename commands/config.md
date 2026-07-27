@@ -1,5 +1,5 @@
 ---
-description: Interactively set a ptp config value — guides you through target (user/global or project), parameter selection (codex.mode, codex.model, codex.reasoningEffort, review.maxIterations, roles.main, telemetry.mode, telemetry.root, telemetry.port, or telemetry.retentionDays), and value selection, then writes the chosen value into the correct config.json with a safe merge-write that preserves existing keys.
+description: Interactively set a ptp config value — guides you through target (user/global or project), parameter selection (codex.mode, codex.model, codex.reasoningEffort, review.maxIterations, roles.main, telemetry.mode, telemetry.root, telemetry.port, telemetry.retentionDays, parallel.mode, or parallel.maxConcurrency), and value selection, then writes the chosen value into the correct config.json with a safe merge-write that preserves existing keys.
 argument-hint: "(no arguments — fully interactive)"
 ---
 
@@ -7,7 +7,8 @@ You are running **`/ptp:config`** — a guided front door for editing ptp's laye
 files (`~/.claude/ptp/config.json` and `<repo>/.claude/ptp/config.json`). It walks you through
 choosing a target layer, selecting a parameter (`codex.mode`, `codex.model`,
 `codex.reasoningEffort`, `review.maxIterations`, `roles.main`, `telemetry.mode`, `telemetry.root`,
-`telemetry.port`, or `telemetry.retentionDays`), and picking a valid value, then writes only the targeted key while preserving all other existing keys
+`telemetry.port`, `telemetry.retentionDays`, `parallel.mode`, or `parallel.maxConcurrency` — eleven
+in all), and picking a valid value, then writes only the targeted key while preserving all other existing keys
 (including the `deploy` block). A missing file or directory is created automatically. A malformed
 or wrong-shape existing file is never overwritten.
 
@@ -51,3 +52,9 @@ or wrong-shape existing file is never overwritten.
   store-wide `_unattributed/` store. State the consequence when offering it: because
   `/ptp:telemetry export` is always a global re-derivation from the raw store, the **next `export`
   after a prune rewrites `spans.csv` without the pruned rows**.
+- **Enum-only writes for `parallel.mode`.** Only `off` or `on` may be written for `parallel.mode`.
+  No free-form values. `on` is a permission, not a guarantee — a stage that cannot establish all
+  four `ptp-parallel-fanout` safety conditions still runs serially.
+- **Range-bounded integer writes for `parallel.maxConcurrency`.** Only an integer within `1..10` may
+  be written. Non-integer, string-typed, zero, negative, and above-10 input is rejected and
+  re-prompted, never written, so the editor can never disable the fan-out cap.

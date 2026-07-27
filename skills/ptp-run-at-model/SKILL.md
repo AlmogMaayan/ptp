@@ -95,6 +95,35 @@ The skill then runs, **in this order**:
    `{model}.{effort}`. If the file is missing or line 1 is not a parseable `{model}.{effort}`, default
    to `opus.high` and **note the defaulting**. (The read-from-`effort.md` path is used by `/ptp:apply`.)
 
+   **Choosing a target.** Name the **cheapest model that suffices for the work**, not for the
+   command's importance. `ptp-branch-prep` runs at `haiku` because git plumbing is mechanical (see
+   `skills/ptp-branch-guard/SKILL.md`). A step qualifies as **mechanical** — and so a candidate for a
+   cheaper target — only when it is **fully specified**, **leaves no design judgment**, and has a
+   **single verifiable correct outcome**. Conversely, **never downgrade a step that carries
+   judgment** — planning, decomposition, review, or any step whose output another step trusts without
+   re-checking — to a cheaper model in order to save latency or cost; a wrong judgment call is not a
+   latency win.
+
+   **Spawn-site audit (`0034_04`).** The enumeration below is taken from the **sites themselves** —
+   every command and skill file that names a target for a spawned run, plus the spawn sites that do
+   not route through this skill at all — not from *Which commands use this skill* above, which that
+   section explicitly labels **representative documentation** rather than a complete list. Each site
+   carries its own verdict against the mechanical test:
+
+   | Candidate | Assessment | Verdict |
+   |---|---|---|
+   | Every `opus.high` site, named in full: `commands/` — `brainstorm`, `brainstorm-full`, `brainstorm-only`, `plan`, `plan-multiple` (beats 2 and 3), `prd`, `prd-full`, `full`, `full-plan`, `review`, `review-loop`, `review-full`, `review-fix`, `review-plan`, `review-plan-full`, `review-plan-loop`, `review-brainstorm`, `review-brainstorm-full`, `review-prd`, `review-prd-full`, `codex-review`, `codex-review-loop`, `codex-review-plan`, `codex-review-plan-loop`, `codex-review-prd`, `codex-review-prd-loop`, `codex-review-uncommitted`; `skills/` — `ptp-brainstorm-full`, `ptp-prd`, `ptp-prd-full`, `ptp-review-brainstorm-full`, `ptp-review-prd-full`, `ptp-full`, `ptp-full-apply` | Every one of them produces design, decomposition, PRD, or review judgment that a later stage consumes without re-deriving it. The verdict is identical for each, so they share one row rather than being assessed differently. | Judgment-carrying; downgrade forbidden by the rule above. |
+   | Every `sonnet.medium` site, named in full: `commands/` — `archive`, `archive-force`, `master`, `deploy`, `deploy-master`, `deploy-pr-approved`, `merge-to-master`; `skills/` — `ptp-archive-and-deploy`, `ptp-deploy-master` | The git plumbing inside them is mechanical, but the *step* is not, and this holds for each one individually: `/ptp:archive` and `/ptp:archive-force` decide whether the gates pass and merge delta specs into the shared `openspec/specs/` tree; `/ptp:master` must distinguish a clean tree from a dirty one and refuse rather than force; `/ptp:deploy`, `/ptp:deploy-pr-approved`, `/ptp:merge-to-master`, `/ptp:deploy-master` and their two skills autonomously diagnose and repair merge conflicts, CI failures, and deploy failures within a retry budget, and decide when a human approval is required. None has a single verifiable correct outcome fixed in advance, so none meets the mechanical test. | Not mechanical; every one stays at `sonnet.medium`. |
+   | `/ptp:apply` (`effort.md`-derived per-change target) | The target is the change's own recorded recommendation, and implementation is judgment-carrying by definition. | No fixed target to downgrade; judgment-carrying. |
+   | The only `haiku` site: `ptp-branch-prep`, defined in `skills/ptp-branch-guard/SKILL.md` and named by every guarded command that cites it (`brainstorm`, `brainstorm-full`, `plan`, `prd`, `prd-full`, and this skill) | Already runs at `haiku`, and the skill pins it there with a hard no-escalate rule — pure git plumbing (stash/checkout/pull/branch), fully specified, no design judgment, single verifiable outcome. | Already at the cheapest tier; nothing to change. |
+   | The `full` family's workflow agents (`workflows/ptp-full-apply.js`) | Named outside this skill (the family does not use it): the code-review agent is fixed at `opus`, and the apply agent takes the per-story recommendation with `opus` as its default. Both are judgment-carrying stages. | Judgment-carrying; downgrade forbidden. |
+   | `ptp-workflow-cache-heal` | A Bash step invoked directly via the Bash tool, not an agent spawn — it has no `model` parameter to choose at all. | Not a spawn site; no model to name. |
+   | `plan-multiple`'s cross-reference verification (step 5f) | Runs in the **outer session**, after the beat-3 join, not inside any spawned agent — it has no `model` parameter to choose. | Not a spawn site; no model to name. |
+
+   **Result: nil.** No existing spawn site qualifies for a downgrade. This is recorded as a valid,
+   complete audit outcome — the rule's durable value is the stated principle itself, applied to every
+   target named from now on, not a manufactured change here.
+
 4. **Resolve the main agent.** Invoke the **`ptp-agent-roles`** skill to resolve the role pair
    `{ main, reviewer }` from layered config (default `main=claude`). The value of `main` selects
    which of the two branches in step 5 runs the command's real work. This resolution is a pure
@@ -140,7 +169,36 @@ The skill then runs, **in this order**:
        guard does **not** apply and the subagent must **not** run it or launch `ptp-branch-prep`
        (matching the command's own guard-exemption);
      - (d) an instruction to return its final result — including any terminal state — as the relay
-       payload (see *Result relay*).
+       payload (see *Result relay*);
+     - (e) an instruction to **issue independent tool calls in one message**: when several reads,
+       greps, or other tool calls do not depend on one another's results, batch them into a single
+       message rather than serializing them one call per turn. This instruction is scoped strictly to
+       calls that are **independent** of each other's results — it is never phrased as a blanket
+       "batch everything," because batching a call together with the call it depends on is a
+       correctness bug, not a latency win. It concerns the **shape** of tool calls only: it never
+       instructs the subagent to do less work, read fewer files, or truncate investigation to reduce
+       round trips;
+     - (f) **(optional)** when the caller has already derived context in its own outer session that
+       the subagent's work would otherwise re-derive — notably the output of `npx -y openspec list`
+       and `npx -y openspec list --specs` — the caller's captured output, inlined **verbatim**, together
+       with an instruction to use the inlined snapshot rather than re-running the listing command. A
+       caller that has nothing to hand down simply omits part (f); the skill itself **never** runs
+       `openspec list` or any other repository query on the caller's behalf — this pass-down is opt-in
+       per caller, so commands whose work has no use for the listing pay nothing. The subagent MUST
+       re-run the listing when either of exactly two triggers holds: (1) it has itself created, moved,
+       or deleted anything under `openspec/changes/` during this run, so the inlined snapshot is
+       provably stale; or (2) it needs information the snapshot does not carry (e.g. a `--json` shape,
+       or the `--specs` listing when only the plain listing was inlined). Absent either trigger, the
+       inlined snapshot is authoritative for the run — no time-to-live, timestamp, or fingerprint check
+       is used. A snapshot that reports **zero** active changes is a legitimate, authoritative value
+       and MUST NOT be treated as if no snapshot had been supplied. This part carries a matching
+       **supplier-side** obligation on the caller: the consumer's two triggers are self-scoped to
+       writes the consuming run itself performs, so they cannot detect a snapshot invalidated by a
+       *different* run the caller started in the same flow (e.g. `/ptp:plan-multiple` supplying its
+       pre-decompose capture to a per-slice planning run after the decompose run deleted the monolithic
+       change folder). A caller MUST NOT supply a capture that its own flow has already invalidated
+       through any run it started — it MUST re-capture before supplying it, or supply nothing, rather
+       than relying on the consuming run's trigger 1 to catch a staleness the caller itself introduced.
 
      The spawn is **foreground**: the session **blocks** until the subagent returns.
 
@@ -579,9 +637,24 @@ git, and archive-force delegates to the inline `ptp-archive-force` skill.
   `codex.model`/`codex.reasoningEffort`.
 - **One foreground main run per `ptp-run-at-model` invocation** — not a fan-out, not a background
   Workflow. A single invocation runs exactly one blocking main run (one Claude subagent, or one
-  `codex exec` shell-out) and waits for it. (A command that processes a multi-item selector — e.g.
-  `/ptp:archive epic:XXXX` — invokes `ptp-run-at-model` once **per item in sequence**, one blocking
-  main run at a time; that is still no fan-out and no background Workflow.)
+  `codex exec` shell-out) and waits for it. This rule is **unconditional** and is not relaxed by
+  anything below.
+  - A command that processes a multi-item selector — e.g. `/ptp:archive epic:XXXX` — invokes
+    `ptp-run-at-model` once **per item**, and those per-item invocations run **in sequence by
+    default**, one blocking main run at a time. They MAY instead run **concurrently** if and only if
+    `parallel.mode` resolves `on` (or a valid `parallel:on` token overrides it) **and** all four
+    `skills/ptp-parallel-fanout/SKILL.md` safety conditions are established for that item set —
+    see that skill for the conditions, the `parallel.maxConcurrency` cap and its batching, the
+    aggregation rule, and the join-then-gate rule. Concurrency relaxes only the **sequencing of
+    invocations**: each member is still exactly one main run, so this is still no fan-out *within*
+    an invocation and still no background Workflow.
+  - **The relaxation never applies to `/ptp:apply`, `workflows/ptp-full-apply.js`, or
+    `/ptp:archive`** (including `skills/ptp-archive-and-deploy/SKILL.md` Phase A). The first two
+    write shared source files; `/ptp:archive` merges each change's delta into the shared
+    `openspec/specs/` tree. None can establish `ptp-parallel-fanout` safety condition 1
+    (write-disjointness), so all three stay **sequential** no matter what `parallel.mode` resolves
+    to — the `/ptp:archive epic:XXXX` example above is therefore an example of a multi-item
+    selector, **not** a licence to fan it out.
 - **Defer the branch-guard run/skip decision to `ptp-branch-guard`** — do not re-decide which commands
   are guard-exempt here (e.g. `/ptp:master` stays exempt).
 - **Telemetry never delays, blocks, or alters the relayed terminal state** — the ledger open and
