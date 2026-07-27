@@ -74,11 +74,43 @@ parameters = [
       { value: "codex",  desc: "Codex is the main planning/implementation agent; Claude is the reviewer" }
     ],
     default: "claude"
+  },
+  {
+    key:      "telemetry.mode",
+    label:    "Record ptp run telemetry",
+    jsonPath: ["telemetry", "mode"],
+    kind:     "enum",
+    values: [
+      { value: "off", desc: "Record no telemetry; every ptp command behaves exactly as before (default)" },
+      { value: "on",  desc: "Record a run-ledger window per ptp main run under the telemetry store root" }
+    ],
+    default: "off"
+  },
+  {
+    key:      "telemetry.root",
+    label:    "Telemetry store root",
+    jsonPath: ["telemetry", "root"],
+    kind:     "string",
+    default:  "openspec/telemetry"
+  },
+  {
+    key:      "telemetry.port",
+    label:    "Telemetry receiver port",
+    jsonPath: ["telemetry", "port"],
+    kind:     "integer",
+    default:  4318
+  },
+  {
+    key:      "telemetry.retentionDays",
+    label:    "Telemetry raw-store retention (days)",
+    jsonPath: ["telemetry", "retentionDays"],
+    kind:     "integer",
+    default:  30
   }
 ]
 ```
 
-**Parameter menu:** The registry currently holds five entries. Step 2 builds an `AskUserQuestion`
+**Parameter menu:** The registry currently holds nine entries. Step 2 builds an `AskUserQuestion`
 menu from each entry's `label` value and presents it to the user. The flow is data-driven: adding
 a new entry to the registry automatically adds it to the menu with no further edits to this flow.
 
@@ -117,6 +149,10 @@ Build an `AskUserQuestion` menu from the registry entries' `label` values:
 3. **Codex reasoning effort** (`codex.reasoningEffort`)
 4. **Max review-loop iterations** (`review.maxIterations`)
 5. **Main agent** (`roles.main`)
+6. **Record ptp run telemetry** (`telemetry.mode`)
+7. **Telemetry store root** (`telemetry.root`)
+8. **Telemetry receiver port** (`telemetry.port`)
+9. **Telemetry raw-store retention (days)** (`telemetry.retentionDays`)
 
 Use the selected entry's `jsonPath`, `kind`, `values` (for enum entries), and `default` for the
 remaining steps. This is data-driven off the registry — adding a parameter requires only a new
@@ -149,8 +185,12 @@ registry entry, no other edits to this flow.
        or `{"review":null}`), STOP.
      - For `roles.main`: if `roles` exists but is not an object (e.g. `{"roles":"claude"}` or
        `{"roles":null}`), STOP.
-   - Absent parents (`codex`, `review`, or `roles` not present in the root) are fine — they will
-     be created as empty objects on write. This is not clobbering.
+     - For `telemetry.mode`, `telemetry.root`, `telemetry.port`, or `telemetry.retentionDays`
+       (all four share the same `telemetry` parent): if
+       `telemetry` exists but is not an object (e.g. `{"telemetry":"on"}` or
+       `{"telemetry":null}`), STOP.
+   - Absent parents (`codex`, `review`, `roles`, or `telemetry` not present in the root) are fine —
+     they will be created as empty objects on write. This is not clobbering.
 
 4. Show the **current value** of the selected parameter:
    - If the parameter's value is set in the file (at its `jsonPath`), display:
@@ -199,6 +239,44 @@ are:
 These are the only options. **Never write a value that is not in the entry's `values` list.** The
 value written to the file is exactly the selected string (verbatim, lowercase).
 
+#### kind = `enum` (e.g. `telemetry.mode`)
+
+Use `AskUserQuestion` to offer the parameter's `values`. For `telemetry.mode`, the two valid values
+are:
+
+1. **`off`** — Record no telemetry; every ptp command behaves exactly as before (default)
+2. **`on`** — Record a run-ledger window per ptp main run under the telemetry store root
+
+These are the only options. **Never write a value that is not in the entry's `values` list.** The
+value written to the file is exactly the selected string (verbatim, lowercase). Free-form values
+(e.g. `true`, `enabled`) are rejected and re-prompted, never written.
+
+#### kind = `string` (e.g. `telemetry.root`)
+
+Prompt the user for a free-text value (show the entry's `default`, `openspec/telemetry`, as the
+suggested value). Then validate the input:
+
+- **Accept:** a **non-empty** string, after trimming leading/trailing whitespace, that is a
+  **repository-relative** path resolving **strictly below** the repository root. The value is
+  written as a JSON **string**, trimmed.
+- **Reject and re-prompt** on any of the following — do NOT write an invalid value:
+  - empty or whitespace-only input;
+  - an **absolute path** (`/var/telemetry`, `C:\telemetry`, a UNC path, any drive- or root-anchored
+    form);
+  - any value containing a **`..` segment** (`../telemetry`, `a/../../b`);
+  - any value **resolving to the repository root itself** — `""`, `.`, `./`, `/`.
+
+When rejecting, report why (a telemetry root must stay inside the repository, and must not be the
+repository root itself — the store writes its own `.gitignore` / `.gitattributes` into its root and
+would otherwise overwrite the repository's) and ask again. Only proceed to step 5 once a valid
+repository-relative path is in hand.
+
+These are exactly the validity rules the `ptp-telemetry` **reader** applies. As with
+`review.maxIterations`, the two surfaces are complementary: this editor is **STRICT** (reject and
+re-prompt, so an invalid value is never written) while the reader is **FORGIVING** (an invalid
+layer's value is ignored, leaving the prior layer's valid value, ultimately defaulting to
+`openspec/telemetry`, never throwing or STOPping).
+
 #### kind = `string` (e.g. `codex.model`)
 
 Prompt the user for a free-text value (no fixed options; e.g. a Codex model id like `gpt-5.6`). Then
@@ -212,10 +290,10 @@ validate the input:
 When rejecting, report that the value must be non-empty and ask again. Only proceed to step 5 once a
 non-empty, non-whitespace-only string is in hand.
 
-#### kind = `integer` (e.g. `review.maxIterations`)
+#### kind = `integer` (e.g. `review.maxIterations`, `telemetry.port`, `telemetry.retentionDays`)
 
 Prompt the user for an integer value (show the entry's `default` as the suggested value, e.g.
-`default: 5`). Then validate the input:
+`default: 5`, or `default: 4318` for `telemetry.port`). Then validate the input:
 
 - **Accept:** a plain positive integer (`>= 1`). The value is written as a JSON **number**, not
   a string.
@@ -226,8 +304,29 @@ Prompt the user for an integer value (show the entry's `default` as the suggeste
   - Zero (`0`)
   - Any negative integer (e.g. `-1`)
 
-When rejecting, report why the value is invalid (e.g. "must be a positive integer >= 1") and ask
-again. Only proceed to step 5 once a valid positive integer is in hand.
+**`telemetry.port` carries one additional bound**, because it is a TCP port rather than a count: the
+value must also be **within `1..65535`**. Anything above that range (`70000`, `65536`) is rejected and
+re-prompted exactly as a zero or a negative value is. The receiver binds `127.0.0.1` only, so a
+privileged low port is not rejected here — but the suggested default `4318` is the OTLP/HTTP
+convention and is what `/ptp:telemetry setup` writes into the exporter endpoint.
+
+**`telemetry.retentionDays` carries no extra bound** — any positive integer is valid — but it
+**deletes data**, so state plainly at the point of selection what the value governs:
+
+- It prunes the **raw telemetry store only** — files under `<telemetry.root>/<epic>/raw/` — and only
+  when a human runs `/ptp:telemetry report`. No pipeline command ever prunes.
+- The **pruning step itself never deletes** `runs.ndjson`, `runs.csv`, or `spans.csv`, and never
+  touches the store-wide `<telemetry.root>/_unattributed/`.
+- **But that is not the same as the CSV keeping its history.** `/ptp:telemetry export` is always a
+  **global re-derivation from the raw store**, so the **next `export` after a prune rewrites
+  `spans.csv` without the pruned rows**. Saying only "the CSV is never pruned" would leave the user
+  with the exact opposite practical expectation, and they would discover the truth by losing data.
+- A retention of `N` keeps **N days plus today**: only files strictly older than the cutoff are
+  deleted. `ptp-telemetry` §21 holds the full rule.
+
+When rejecting, report why the value is invalid (e.g. "must be a positive integer >= 1", or "must be
+a TCP port in 1..65535") and ask again. Only proceed to step 5 once a valid positive integer is in
+hand.
 
 **Relationship to the slice-01 resolver:** the validity rule used here (`>= 1`, positive integer)
 is the SAME rule the slice-01 `ptp-review-loop` resolver uses to decide whether a stored
@@ -250,7 +349,9 @@ With the resolved path, the base JSON object (from step 3), and the chosen value
 2. **Set the target path:** in the base JSON object, navigate the selected entry's `jsonPath`:
    - If the parent key is absent from the root, create it as an empty object `{}`.
      For `codex.mode`, `codex.model`, or `codex.reasoningEffort`: create `codex` as `{}`; for
-     `review.maxIterations`: create `review` as `{}`; for `roles.main`: create `roles` as `{}`.
+     `review.maxIterations`: create `review` as `{}`; for `roles.main`: create `roles` as `{}`; for
+     `telemetry.mode`, `telemetry.root`, `telemetry.port`, or `telemetry.retentionDays`: create
+     `telemetry` as `{}`.
    - Set the targeted key to the chosen value.
    - Leave **every other key** (e.g. `deploy`, any unknown keys) and every other nested value
      **untouched**.
@@ -301,6 +402,12 @@ Examples:
 | Integer equals current stored value | Report no-op; do not write. |
 | `codex.model` input empty or whitespace-only | Reject, re-prompt; do NOT write. |
 | `codex.reasoningEffort` selection outside `minimal|low|medium|high` | Not offered — the enum menu only presents the four valid values. |
+| `telemetry` present but not an object (`"telemetry":"on"`, `"telemetry":null`) — applies to `telemetry.mode`, `telemetry.root`, `telemetry.port`, and `telemetry.retentionDays` alike | STOP, report, do **not** overwrite. |
+| `telemetry` absent | Created as `{}` on write; not clobbering. |
+| `telemetry.mode` selection outside `off|on` | Not offered — the enum menu only presents the two valid values. |
+| `telemetry.root` input empty, whitespace-only, absolute, containing `..`, or resolving to the repo root (`""`, `.`, `./`, `/`) | Reject, re-prompt; do NOT write. |
+| `telemetry.port` input non-integer (`4318.5`, `"4318"`, `abc`), zero, negative, or outside `1..65535` | Reject, re-prompt; do NOT write. |
+| `telemetry.retentionDays` input non-integer (`30.5`, `"30"`, `abc`), zero, or negative | Reject, re-prompt; do NOT write. |
 | Not in a git repo (project target) | Fall back to `<cwd>/.claude/ptp/config.json`; note the fallback in output. |
 | Chosen value equals current stored value | Report no-op; do not write. |
 
@@ -324,11 +431,31 @@ Examples:
   input.
 - **Never write an out-of-enum value for `roles.main`.** Only `claude` or `codex` may be written.
   The value comes from the step 4 enum menu — never from free-form user input.
+- **Never write an out-of-enum value for `telemetry.mode`.** Only `off` or `on` may be written. The
+  value comes from the step 4 enum menu — never from free-form user input.
+- **Never write an invalid `telemetry.root`.** Only a non-empty, trimmed, repository-relative path
+  resolving strictly below the repository root may be written. Empty/whitespace-only input, an
+  absolute path, any `..` segment, and any value resolving to the repository root itself (`""`, `.`,
+  `./`, `/`) are rejected and re-prompted — never written, so the editor can never produce a
+  configuration that directs telemetry writes outside the repository or points the store at the
+  repository root, where it would overwrite the repository's own `.gitignore` / `.gitattributes`.
 - **Never write an empty or whitespace-only string for `codex.model`.** Only a non-empty, trimmed
   string may be written; empty/whitespace-only input is rejected and re-prompted.
 - **Never write an invalid integer for `review.maxIterations`.** Only a positive integer (`>= 1`)
   may be written. Any non-positive, non-integer, non-numeric, or string-typed input is rejected
   and re-prompted — never written.
+- **Never write an invalid `telemetry.port`.** Only an integer within `1..65535` may be written. Any
+  non-integer, non-numeric, string-typed, zero, negative, or out-of-TCP-range input is rejected and
+  re-prompted — never written, so the editor can never produce a port the receiver could not bind.
+  (Changing this value does **not** update an already-written exporter endpoint: `/ptp:telemetry
+  setup` must be re-run and Claude Code restarted, which `ptp-telemetry` §13.3 documents.)
+- **Never write an invalid `telemetry.retentionDays`.** Only a positive integer (`>= 1`) may be
+  written; zero, negatives, non-integers, non-numerics, and string-typed input are rejected and
+  re-prompted. **Zero matters most:** the runtime reader treats it as invalid and falls back to 30
+  precisely because "retain nothing" is the most destructive reading of a value this editor refuses
+  to write — the editor is the reason a zero can only ever arrive by a hand edit. The value prunes
+  the **raw** store only, on `/ptp:telemetry report` only; the next `export` after a prune
+  nevertheless rewrites `spans.csv` without the pruned rows (`ptp-telemetry` §21).
 - **Never touch keys other than the selected parameter's `jsonPath`.** All other keys (including
   `deploy`, sibling `codex` keys, and any unknown keys) are preserved as data in the serialized
   output.

@@ -17,7 +17,7 @@ Every ptp step that **creates or updates files** — planning artifacts, source 
 
 **Do NOT run the guard — read-only** (they never write working-tree ptp/OpenSpec artifacts, so there is nothing to keep off the base branch):
 
-`review`, `review-plan`, `review-brainstorm`, `review-prd`, `codex-review`, `codex-review-plan`, `codex-review-prd`, `codex-review-uncommitted`, `status`, `version`.
+`review`, `review-plan`, `review-brainstorm`, `review-prd`, `codex-review`, `codex-review-plan`, `codex-review-prd`, `codex-review-uncommitted`, `status`, `version`, `telemetry`.
 
 **Do NOT run the guard — utility writes outside the repo tree** (they change state, but never a ptp/OpenSpec working-tree artifact, so the base-branch guard does not apply): `update` (updates the *installed plugin*, no repo files) and `config` (writes only `.claude/ptp/config.json` tool config, not a ptp artifact). Listed here separately so each category's rationale stays accurate.
 
@@ -55,7 +55,7 @@ branch name, detect it via `git symbolic-ref --quiet --short refs/remotes/origin
 
 0. **CRLF self-heal (unconditional, first action — before the branch check).** Run the
    `ptp-workflow-cache-heal` step (see that skill for the canonical Bash command) via the Bash tool over
-   the whole glob `~/.claude/plugins/cache/ptp/*/*/workflows/*.js`. This runs **unconditionally**,
+   both cached executable globs (`~/.claude/plugins/cache/ptp/*/*/workflows/*.js` and `~/.claude/plugins/cache/ptp/*/*/scripts/*.js`). This runs **unconditionally**,
    regardless of whether HEAD is `master` or a feature branch — the CRLF defect is independent of branch
    state, and healing here ensures every cached workflow script is LF-only before any `Workflow({ name })`
    call. The step is idempotent and a silent no-op when the cache is already LF or absent.

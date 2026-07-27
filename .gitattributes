@@ -2,5 +2,10 @@
 # inject CRLF, which breaks Claude Code's named-workflow script validator.
 workflows/*.js text eol=lf
 
+# Same protection for shipped helper scripts. `scripts/*.js` is not passed through the named-workflow
+# validator, but it is subject to exactly the same CRLF injection — and a `\r` in a shebang line, a
+# template literal, or a regular expression fails at runtime in ways that are hard to diagnose.
+scripts/*.js text eol=lf
+
 # Default: normalize text in the repo to LF in the index.
 * text=auto eol=lf

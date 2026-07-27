@@ -22,6 +22,26 @@ neither you nor the workflow controls — it does **not** change your effort cal
 effort directive above is still "the only effort signal you get"). You MAY mention the requested
 posture in your existing free-text `notes` field. No new JSON field is added.
 
+## Telemetry run id (optional, fire-and-forget)
+
+Your prompt MAY carry a **telemetry run id** (`run_id`). When it does, you MAY append **exactly one
+open line** under that id to the ptp run ledger, following the `ptp-telemetry` skill for the record
+shape, the store location, and the append protocol — **never** a close line and **never** a CSV row.
+The launching skill is the sole writer of those; scoping your write to the open line is what keeps
+`runs.csv` at one row per closed run. Your line exists only for crash visibility, so skipping it
+costs nothing else.
+
+- **Never mint a `run_id` of your own.** Use the supplied id verbatim; a second writer that derived
+  its own id would break the reconciliation this fallback depends on.
+- **No supplied `run_id` ⇒ write nothing** — touch no telemetry file or directory at all. The
+  supplied id **is** your `telemetry.mode` gate: the workflow mints and injects one only when the
+  launching session had already resolved `telemetry.mode` to `on`, so never resolve that key
+  yourself. When an id **is** supplied, the rest of `ptp-telemetry`'s gate ordering applies to you
+  unchanged — resolve `telemetry.root`, resolve the epic, create the store directories and the
+  store's policy files lazily, then append your one line.
+- **Fire-and-forget.** Any error is swallowed — it never blocks you, never delays your work, and
+  never alters your terminal state or your returned JSON.
+
 ## Steps
 
 1. **Read the change artifacts** under `openspec/changes/<change-id>/`: `proposal.md`,
