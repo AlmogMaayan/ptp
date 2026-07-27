@@ -106,11 +106,29 @@ parameters = [
     jsonPath: ["telemetry", "retentionDays"],
     kind:     "integer",
     default:  30
+  },
+  {
+    key:      "parallel.mode",
+    label:    "Run planning stages in parallel",
+    jsonPath: ["parallel", "mode"],
+    kind:     "enum",
+    values: [
+      { value: "off", desc: "Run every per-item unit of work one item at a time (default)" },
+      { value: "on",  desc: "Permit a stage to run its per-item main runs concurrently when all four ptp-parallel-fanout safety conditions hold" }
+    ],
+    default: "off"
+  },
+  {
+    key:      "parallel.maxConcurrency",
+    label:    "Max parallel fan-out members",
+    jsonPath: ["parallel", "maxConcurrency"],
+    kind:     "integer",
+    default:  3
   }
 ]
 ```
 
-**Parameter menu:** The registry currently holds nine entries. Step 2 builds an `AskUserQuestion`
+**Parameter menu:** The registry currently holds eleven entries. Step 2 builds an `AskUserQuestion`
 menu from each entry's `label` value and presents it to the user. The flow is data-driven: adding
 a new entry to the registry automatically adds it to the menu with no further edits to this flow.
 
@@ -153,6 +171,8 @@ Build an `AskUserQuestion` menu from the registry entries' `label` values:
 7. **Telemetry store root** (`telemetry.root`)
 8. **Telemetry receiver port** (`telemetry.port`)
 9. **Telemetry raw-store retention (days)** (`telemetry.retentionDays`)
+10. **Run planning stages in parallel** (`parallel.mode`)
+11. **Max parallel fan-out members** (`parallel.maxConcurrency`)
 
 Use the selected entry's `jsonPath`, `kind`, `values` (for enum entries), and `default` for the
 remaining steps. This is data-driven off the registry — adding a parameter requires only a new
@@ -189,8 +209,11 @@ registry entry, no other edits to this flow.
        (all four share the same `telemetry` parent): if
        `telemetry` exists but is not an object (e.g. `{"telemetry":"on"}` or
        `{"telemetry":null}`), STOP.
-   - Absent parents (`codex`, `review`, `roles`, or `telemetry` not present in the root) are fine —
-     they will be created as empty objects on write. This is not clobbering.
+     - For `parallel.mode` or `parallel.maxConcurrency` (they share the same `parallel` parent): if
+       `parallel` exists but is not an object (e.g. `{"parallel":"on"}` or `{"parallel":null}`),
+       STOP.
+   - Absent parents (`codex`, `review`, `roles`, `telemetry`, or `parallel` not present in the root)
+     are fine — they will be created as empty objects on write. This is not clobbering.
 
 4. Show the **current value** of the selected parameter:
    - If the parameter's value is set in the file (at its `jsonPath`), display:
@@ -251,6 +274,23 @@ These are the only options. **Never write a value that is not in the entry's `va
 value written to the file is exactly the selected string (verbatim, lowercase). Free-form values
 (e.g. `true`, `enabled`) are rejected and re-prompted, never written.
 
+#### kind = `enum` (e.g. `parallel.mode`)
+
+Use `AskUserQuestion` to offer the parameter's `values`. For `parallel.mode`, the two valid values
+are:
+
+1. **`off`** — Run every per-item unit of work one item at a time (default)
+2. **`on`** — Permit a stage to run its per-item main runs concurrently when all four
+   `ptp-parallel-fanout` safety conditions hold
+
+These are the only options. **Never write a value that is not in the entry's `values` list.** The
+value written to the file is exactly the selected string (verbatim, lowercase). Free-form values
+(e.g. `true`, `yes`, `parallel`) are rejected and re-prompted, never written.
+
+Note when offering it: `on` is a **permission**, not a guarantee — a stage that cannot establish all
+four `ptp-parallel-fanout` safety conditions still runs serially, and no ptp command consumes this
+key until the fan-out consumer slices land.
+
 #### kind = `string` (e.g. `telemetry.root`)
 
 Prompt the user for a free-text value (show the entry's `default`, `openspec/telemetry`, as the
@@ -290,7 +330,7 @@ validate the input:
 When rejecting, report that the value must be non-empty and ask again. Only proceed to step 5 once a
 non-empty, non-whitespace-only string is in hand.
 
-#### kind = `integer` (e.g. `review.maxIterations`, `telemetry.port`, `telemetry.retentionDays`)
+#### kind = `integer` (e.g. `review.maxIterations`, `telemetry.port`, `telemetry.retentionDays`, `parallel.maxConcurrency`)
 
 Prompt the user for an integer value (show the entry's `default` as the suggested value, e.g.
 `default: 5`, or `default: 4318` for `telemetry.port`). Then validate the input:
@@ -324,9 +364,15 @@ convention and is what `/ptp:telemetry setup` writes into the exporter endpoint.
 - A retention of `N` keeps **N days plus today**: only files strictly older than the cutoff are
   deleted. `ptp-telemetry` §21 holds the full rule.
 
-When rejecting, report why the value is invalid (e.g. "must be a positive integer >= 1", or "must be
-a TCP port in 1..65535") and ask again. Only proceed to step 5 once a valid positive integer is in
-hand.
+**`parallel.maxConcurrency` carries one additional bound**, because it caps how many main runs may
+overlap: the value must also be **within `1..10`**. Anything above that range (`11`, `50`) is
+rejected and re-prompted exactly as a zero or a negative value is, so the editor can never produce a
+configuration that disables the cap or invites a rate-limit incident. A value of `1` is valid and
+means "effectively serial". The suggested default is `3`.
+
+When rejecting, report why the value is invalid (e.g. "must be a positive integer >= 1", "must be
+a TCP port in 1..65535", or "must be an integer in 1..10") and ask again. Only proceed to step 5 once
+a valid positive integer is in hand.
 
 **Relationship to the slice-01 resolver:** the validity rule used here (`>= 1`, positive integer)
 is the SAME rule the slice-01 `ptp-review-loop` resolver uses to decide whether a stored
@@ -351,7 +397,8 @@ With the resolved path, the base JSON object (from step 3), and the chosen value
      For `codex.mode`, `codex.model`, or `codex.reasoningEffort`: create `codex` as `{}`; for
      `review.maxIterations`: create `review` as `{}`; for `roles.main`: create `roles` as `{}`; for
      `telemetry.mode`, `telemetry.root`, `telemetry.port`, or `telemetry.retentionDays`: create
-     `telemetry` as `{}`.
+     `telemetry` as `{}`; for `parallel.mode` or `parallel.maxConcurrency`: create `parallel` as
+     `{}`.
    - Set the targeted key to the chosen value.
    - Leave **every other key** (e.g. `deploy`, any unknown keys) and every other nested value
      **untouched**.
@@ -408,6 +455,10 @@ Examples:
 | `telemetry.root` input empty, whitespace-only, absolute, containing `..`, or resolving to the repo root (`""`, `.`, `./`, `/`) | Reject, re-prompt; do NOT write. |
 | `telemetry.port` input non-integer (`4318.5`, `"4318"`, `abc`), zero, negative, or outside `1..65535` | Reject, re-prompt; do NOT write. |
 | `telemetry.retentionDays` input non-integer (`30.5`, `"30"`, `abc`), zero, or negative | Reject, re-prompt; do NOT write. |
+| `parallel` present but not an object (`"parallel":"on"`, `"parallel":null`) — applies to `parallel.mode` and `parallel.maxConcurrency` alike | STOP, report, do **not** overwrite. |
+| `parallel` absent | Created as `{}` on write; not clobbering. |
+| `parallel.mode` selection outside `off\|on` | Not offered — the enum menu only presents the two valid values. |
+| `parallel.maxConcurrency` input non-integer (`2.5`, `"3"`, `abc`), zero, negative, or outside `1..10` (`11`) | Reject, re-prompt; do NOT write. |
 | Not in a git repo (project target) | Fall back to `<cwd>/.claude/ptp/config.json`; note the fallback in output. |
 | Chosen value equals current stored value | Report no-op; do not write. |
 
@@ -456,6 +507,12 @@ Examples:
   to write — the editor is the reason a zero can only ever arrive by a hand edit. The value prunes
   the **raw** store only, on `/ptp:telemetry report` only; the next `export` after a prune
   nevertheless rewrites `spans.csv` without the pruned rows (`ptp-telemetry` §21).
+- **Never write an out-of-enum value for `parallel.mode`.** Only `off` or `on` may be written. The
+  value comes from the step 4 enum menu — never from free-form user input.
+- **Never write a `parallel.maxConcurrency` outside `1..10`.** Only an integer within the inclusive
+  range 1 to 10 may be written. Any non-integer, non-numeric, string-typed, zero, negative, or
+  above-10 input is rejected and re-prompted — never written, so the editor can never produce a
+  configuration that disables the cap or invites a rate-limit incident.
 - **Never touch keys other than the selected parameter's `jsonPath`.** All other keys (including
   `deploy`, sibling `codex` keys, and any unknown keys) are preserved as data in the serialized
   output.

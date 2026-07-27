@@ -62,7 +62,17 @@ the subagent must **NOT** attempt to launch the `ptp-branch-prep` Workflow. Its 
 nothing — it invokes `superpowers:brainstorming` as an inline Skill call — so there is no nesting
 concern.
 
-2. **Load context** — read the relevant project files. If `openspec/project.md` exists, read it. Run these to see existing specs and in-flight changes (use Bash):
+2. **Load context** — read the relevant project files. If `openspec/project.md` exists, read it. **If
+   `ptp-run-at-model`'s optional part (f) supplied an inlined `openspec list` / `openspec list --specs`
+   snapshot, use that snapshot in place of running the commands below** — this step still runs
+   unconditionally, only its *source* changes; a supplied-but-empty snapshot is honored as a real "no
+   active changes" answer, not treated as missing. Re-run a listing anyway if you have yourself created,
+   moved, or deleted anything under `openspec/changes/` during this run, or if you need information the
+   snapshot does not carry (e.g. `--specs` when only the plain listing was inlined). **No caller
+   supplies this command a snapshot today** (`/ptp:plan-multiple`'s per-slice members are `/ptp:plan`
+   runs, not `/ptp:brainstorm` runs) — this wiring is uniform-contract groundwork, not a realized
+   saving, so in practice this step still runs both commands below exactly as before. Otherwise run
+   these to see existing specs and in-flight changes (use Bash):
    - `npx -y openspec list` (lists active changes)
    - `npx -y openspec list --specs` (lists existing capabilities/specs)
    - If `openspec` is installed globally, drop the `npx -y` prefix.
