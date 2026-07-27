@@ -102,6 +102,28 @@ The skill then runs, **in this order**:
    file/key or out-of-enum value resolves to `claude`, keeping the default path). Only `main` matters
    here; the derived `reviewer` is not used by this skill.
 
+   **Telemetry auto-start preamble.** In this same slot, and **before** the ledger open below, run
+   the **telemetry auto-start preamble** defined in `skills/ptp-telemetry/SKILL.md` §15 — so the span
+   receiver is listening before the run it observes emits anything. **Reference** it; do **not**
+   restate its mode gate, its env check, its probe, or its lockfile rules here. It resolves
+   `telemetry.mode` **once** and that single resolution is **shared with the ledger open that
+   immediately follows**, never repeated: slice 1 guarantees the off path performs exactly one
+   layered config read, and resolving twice would break that guarantee. With the mode not `on` the
+   preamble returns immediately — no probe, no file touch, no process, no output — and this skill
+   continues unchanged. When it returns a non-empty advisory, emit **that one line** and continue; it
+   never STOPs, never retries, never alters the relayed terminal state, and never writes a Claude
+   Code setting.
+
+   **Ledger open (telemetry).** After step 4 and **before** step 5 — the same slot the `fast:`
+   preflight already occupies — append the telemetry run ledger's **open** line for this main run,
+   per the `ptp-telemetry` skill. This slot is chosen because it is the earliest point at which
+   **both** `agent_role` and `cli` are known (step 4 resolves the main-agent identity), so no field
+   needs back-filling and no read-modify-write is ever required. The resolved *model* is
+   deliberately **not** part of this rationale: step 3 resolves it only for the `main=claude` branch,
+   `main=codex` sources model and effort inside step 5, and `model` is not a ledger field at all.
+   See *Telemetry: bracketing the main run* below for the gate, the never-fail rule, and the
+   role/CLI pairs.
+
 5. **Run the main work** as the resolved main agent. The caller-facing contract (target + work
    description → relayed terminal result) is identical in both branches; only *how* the work runs
    differs.
@@ -135,6 +157,34 @@ The skill then runs, **in this order**:
    shell-out), the session surfaces its final result to the user **verbatim in meaning** — a success
    report, a gate refusal, or a structured "needs human action" state. Never silently swallow a STOP
    and never downgrade a refusal to success.
+
+   **Ledger close (telemetry).** At this same step, append the run's **close** line under the id
+   minted at the open, with `outcome` taken **directly** from the relayed terminal state:
+   `completed` → `completed`, `refused` → `refused`, `needs-human-action` → `needs-human-action`.
+   Closing here — at the **single funnel** both the `main=claude` and `main=codex` branches return
+   through — rather than at the two per-branch return sites is deliberate: one bracket cannot drift
+   the way two would. The close never delays, blocks, or alters the relay itself.
+
+## Telemetry: bracketing the main run
+
+This skill's main run is a telemetry **write point**. The record shape, the `run_id` mint-once-then-
+propagate rule, the append protocol, the store layout, and the CSV rules are defined **once**, in the
+`ptp-telemetry` skill — this section **references** them and lists **no** ledger fields.
+
+- **Gate first.** Resolve `telemetry.mode` per `ptp-telemetry`; if it is not `on`, **abandon the
+  telemetry write and continue this skill's own steps immediately** (never return from the skill,
+  never skip step 5 or the relay) — no directory is created, no file is touched, and nothing about the spawn, the
+  shell-out, the prompt, or the relay changes. With the mode unset (the default) this skill behaves
+  byte-identically to its behavior before telemetry existed.
+- **Fire-and-forget.** When the mode is `on`, both the open and the close append are best-effort:
+  **any** error (unwritable path, permission denial, full disk) is **swallowed** and the command
+  proceeds unchanged. Telemetry is never a precondition here and never alters the relayed state.
+- **Which branch is which.** Do not re-derive the `agent_role`/`cli` pair — take it from
+  `ptp-telemetry`'s write-point-keyed table: the **`main=claude`** foreground subagent spawn is
+  `agent_role=subagent`, `cli=claude`; the **`main=codex`** write-capable shell-out is
+  `agent_role=main`, `cli=codex` — `main`, not `codex`, because that site is the **main implementer**,
+  not a reviewer. (A read-only `codex exec` **reviewer** site, owned by `ptp-codex-mode`, is the
+  `agent_role=codex` row — a different write point.)
 
 ## Optional caller-side `model:` override token
 
@@ -534,7 +584,25 @@ git, and archive-force delegates to the inline `ptp-archive-force` skill.
   main run at a time; that is still no fan-out and no background Workflow.)
 - **Defer the branch-guard run/skip decision to `ptp-branch-guard`** — do not re-decide which commands
   are guard-exempt here (e.g. `/ptp:master` stays exempt).
+- **Telemetry never delays, blocks, or alters the relayed terminal state** — the ledger open and
+  close are gated on `telemetry.mode` and fire-and-forget (see *Telemetry: bracketing the main run*);
+  a swallowed telemetry error never becomes a refusal, a `needs-human-action`, or a STOP, and with
+  the mode off nothing is written at all.
 - **ptp never enables fast mode** — it never writes `fastMode` (or any other Claude Code setting) to
   any settings file, never attempts to toggle the session's fast mode, and never reports a *requested*
   fast mode as an *enabled* one; when fast mode cannot be verified the advisory is non-blocking and the
   run proceeds.
+- **The never-write-a-Claude-Code-setting rule has exactly ONE exception: `/ptp:telemetry setup`.**
+  It writes the telemetry `env` block into `<repo>/.claude/settings.local.json` — the key set is
+  enumerated once, in `skills/ptp-telemetry/SKILL.md` §13.2, and never restated here — it is
+  **manual, interactive, and confirm-first** — it renders the exact diff and writes nothing without
+  explicit confirmation — and it is defined in `skills/ptp-telemetry/SKILL.md` §13. The rule is
+  **not** weakened anywhere else: no other setting, no other command, and no automatic path may write
+  any settings file, and the `fast:` preflight above stays purely advisory and read-only. The §15
+  telemetry **auto-start preamble is not a second exception**: it writes no Claude Code setting at all
+  and **never invokes `setup`** — it only starts a loopback process, and only when the user has
+  already opted in twice (`telemetry.mode=on` **and** a live telemetry environment).
+- **The telemetry auto-start preamble never delays past its bound** — at most two 250 ms pre-launch
+  probes and one bounded readiness window (`ptp-telemetry` §15.4) — **never waits on the receiver
+  outside it, never retries, never alters the relayed terminal state, and writes no setting.** Its
+  entire permitted effect on this skill's output is **one** non-blocking advisory line.

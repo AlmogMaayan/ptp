@@ -1,9 +1,9 @@
 ---
 name: ptp-workflow-cache-heal
-description: Single-source CRLF self-heal for cached ptp workflow scripts. Run this step (via the Bash tool) before any named-workflow invocation to strip carriage-return characters from every file matching ~/.claude/plugins/cache/ptp/*/*/workflows/*.js. Idempotent, safe when the cache is absent, and never nests a Workflow() call.
+description: Single-source CRLF self-heal for cached ptp executable scripts. Run this step (via the Bash tool) before any named-workflow invocation, and before launching the telemetry receiver, to strip carriage-return characters from every file matching ~/.claude/plugins/cache/ptp/*/*/workflows/*.js and ~/.claude/plugins/cache/ptp/*/*/scripts/*.js. Idempotent, safe when the cache is absent, and never nests a Workflow() call.
 ---
 
-# ptp-workflow-cache-heal — CRLF self-heal for cached ptp workflow scripts
+# ptp-workflow-cache-heal — CRLF self-heal for cached ptp executable scripts
 
 ## Why this skill exists
 
@@ -16,13 +16,23 @@ Skills, by contrast, are loaded as plain markdown text and are **not** passed th
 validator, so a skill-documented Bash step does run — in the agent's tool context, immediately before
 the `Workflow({ name: ... })` call. That is the only layer where the heal can live.
 
+**`scripts/*.js` is covered for a related but not identical reason.** A helper run as
+`node scripts/ptp-otel-sink.js` is **not** subject to the named-workflow validator at all — nothing
+rejects it up front. It is nonetheless subject to exactly the same carriage-return injection: a
+Windows checkout with `core.autocrlf=true` rewrites the file on the way out of git, and a `\r` at the
+end of a shebang line, inside a template literal, or inside a regular expression fails at runtime in
+ways that are genuinely hard to diagnose — a syntax error pointing at a line that looks correct, or a
+silently wrong string. So the glob covers both directories rather than relying on the file happening
+to work. The `.gitattributes` pin (`workflows/*.js text eol=lf` **and** `scripts/*.js text eol=lf`)
+is the first protection; this heal is the second, for a cache that was already written with `\r`.
+
 ## The canonical heal step
 
 Run the following via the **Bash tool** (Git Bash on Windows, bash on macOS/Linux — the `$'\r'` gate
 is bash ANSI-C quoting, which the Bash tool provides on every platform):
 
 ```sh
-for f in ~/.claude/plugins/cache/ptp/*/*/workflows/*.js; do
+for f in ~/.claude/plugins/cache/ptp/*/*/workflows/*.js ~/.claude/plugins/cache/ptp/*/*/scripts/*.js; do
   [ -f "$f" ] || continue
   if LC_ALL=C grep -q $'\r' "$f"; then
     if command -v perl >/dev/null 2>&1; then
@@ -42,11 +52,15 @@ done
 - **Safe when cache is absent** — `[ -f "$f" ] || continue` turns an unmatched glob (no cache
   directory, or no `*.js` files) into a silent no-op. The step exits `0` with no output and no error.
 
-- **Whole-glob** — the glob `~/.claude/plugins/cache/ptp/*/*/workflows/*.js` covers every cached version
-  directory and both workflow script files in one pass, so stale versions are healed too. The two `*`
+- **Whole-glob** — the two globs `~/.claude/plugins/cache/ptp/*/*/workflows/*.js` and
+  `~/.claude/plugins/cache/ptp/*/*/scripts/*.js` cover every cached version directory and every
+  shipped executable — both workflow scripts and every `scripts/*.js` helper (today
+  `ptp-otel-sink.js`) — in one pass, so stale versions are healed too. The two `*`
   segments are the **marketplace/plugin-name** directory (`ptp/`) and the **version** directory: the real
   installed layout is `~/.claude/plugins/cache/ptp/ptp/<version>/workflows/*.js`, so a single-`*` glob
   (`cache/ptp/*/workflows/*.js`) reaches one level too shallow and silently matches **zero** files.
+  A `scripts/` directory absent from an older cached version is handled by the same
+  `[ -f "$f" ] || continue` no-op.
 
 - **Auto-selected fallback** — the rewrite auto-selects `perl -i -pe 's/\r//g'` when `perl` is
   present (typical on all platforms with Git Bash), and automatically falls back to `tr -d '\r'` (via a
@@ -71,3 +85,5 @@ rather than inlining the command body, so the logic lives in exactly one place:
 - `skills/ptp-full/SKILL.md` — before the `Workflow({ name: 'ptp:ptp-full-apply' })` launch
 - `commands/full-apply.md` — before the `Workflow({ name: 'ptp:ptp-full-apply' })` launch
 - `commands/full.md` — before the `Workflow({ name: 'ptp:ptp-full-apply' })` launch
+- `skills/ptp-telemetry/SKILL.md` — before `start` launches `scripts/ptp-otel-sink.js` from the
+  installed plugin directory (the `scripts/*.js` half of the glob)

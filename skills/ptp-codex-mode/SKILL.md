@@ -119,6 +119,32 @@ codex exec -s read-only [ -m <model> ] [ -c model_reasoning_effort=<effort> ] -
 - **Both keys unset** (the default) yields exactly `codex exec -s read-only -` — byte-identical to the
   invocation before this change.
 
+**The one telemetry relaxation (`0032_06_codex-telemetry`).** Historically this rule added **nothing**
+for telemetry, so a constructed command line was byte-identical with telemetry on or off.
+`0032_05_codex-telemetry-scope-spike`'s decision record **explicitly decided** one narrow relaxation, and
+it is inherited here as a decided trade rather than a silent exception: repeated **`-c` arguments
+confined to the `otel.*` key space** MAY be appended — **no environment variable, no configuration file,
+and no key outside `otel.*`** — and **only when telemetry is on**. Concretely, they are appended only
+when **both** hold:
+
+1. `telemetry.mode` resolves to `on` (per `ptp-telemetry` §1); **and**
+2. the repository-scoped ptp telemetry-consent record records consent (per `ptp-telemetry` §22.3).
+
+With either condition unmet the appended set is **empty** and the command line is **byte-identical** to
+the pre-change one — which is the property the invariant was really protecting. The exact rendering is
+pinned once in `ptp-telemetry` §22.2 and is **not** restated here; the arguments go **before** the
+trailing stdin marker `-`, alongside the model/effort flags. Nothing else about the invocation changes:
+no model, no prompt, no sandbox, no approval policy, no tool surface. The recorded case *against* the
+relaxation is on the record too — those arguments are visible in any process listing and in Codex's own
+session record — and `ptp-telemetry` §22.3 requires that exposure be disclosed in the consent text.
+
+**Both `codex exec` call sites, one rule.** Like the `codex.model` / `codex.reasoningEffort` resolution
+owned here, this telemetry-wiring appendix is **reused by the write-capable main-implementer invocation**
+that `ptp-run-at-model` owns (`roles.main = codex`), not only by the read-only reviewer. The *Scope
+fence* below is unchanged — this skill still never assembles or governs that invocation — but the
+appendix is defined **once**, here, so the two sites cannot drift into two renderings. Telemetry adds no
+authority over **whether** either site runs.
+
 **Orthogonality note.** This rule applies to **every read-only** `codex exec` invocation, independent of
 `codex.mode`: both the mode-gated dual-reviewer commands (which first ask this skill's decision
 contract *whether* to run Codex, then — if running — assemble the invocation via this rule) and the
@@ -126,6 +152,38 @@ always-Codex `/ptp:codex-*` explicit-override commands (which skip the mode gate
 their invocation via this rule). `codex.mode` decides **whether** Codex runs; `codex.model` /
 `codex.reasoningEffort` decide **how** it runs once invoked — the two are orthogonal and both apply
 together when relevant.
+
+## Telemetry: bracketing a read-only `codex exec` window
+
+Each read-only `codex exec` call site governed by the flag-append rule above is a telemetry **write
+point**. The **shelling-out Claude session** brackets the process window with a ledger run carrying
+`cli=codex` and `agent_role=codex` (the reviewer row of `ptp-telemetry`'s write-point-keyed table —
+distinct from the `agent_role=main` write-capable main-implementer site owned by `ptp-run-at-model`).
+That session already knows the epic, the change id, the command, and the exact process window, so
+Codex attribution is exact **with zero Codex-side metadata**. Refer to the `ptp-telemetry` skill for
+the record shape, the `run_id` rule, and the append protocol; this section lists no ledger fields.
+
+- **Gate first, never fail.** Resolve `telemetry.mode` per `ptp-telemetry`; if it is not `on`,
+  **abandon the telemetry bracketing and proceed with the unchanged `codex exec` invocation**
+  (`telemetry.mode` never decides whether Codex runs — only `codex.mode` does) — no directory is
+  created and no file is touched. When it is `on`, both the
+  open (before the process starts) and the close (after it returns) appends are **fire-and-forget**:
+  any error is swallowed and the reviewing command proceeds and reports exactly as it would have with
+  telemetry off. No write point reads the ledger before writing to it.
+- **The canonical flag-append rule above changes only by the one decided relaxation.** The **ledger**
+  row is still written by the bracketing session *around* the call, never by altering the call. What
+  `0032_06_codex-telemetry` adds is exactly the `-c otel.*` appendix documented with that rule above —
+  nothing else — and it is appended only when telemetry is **on** *and* consent is recorded, so the
+  constructed command line stays **byte-identical** to the pre-change one in every other state. Both
+  keys unset with telemetry off still yields exactly `codex exec -s read-only -`.
+- **A mode-skipped Codex phase opens no ledger run and produces no Codex span rows.** When the decision
+  contract below resolves to skip Codex (`off`, or `auto` with `codex` absent), no process runs, so no
+  run is opened or closed — there is nothing to bracket — and no span is emitted, so the store gains no
+  `cli=codex` row either. The *non-silent-skip rule* is unchanged: the skip is still reported as
+  `Codex phase skipped (mode=…)`, and telemetry neither adds to nor suppresses that reporting. This is
+  rung 1 of `ptp-telemetry` §22.7's degradation ladder; refer to that skill for the record shape and for
+  the other rungs (unconfigured, credential-rejected, `required`-with-CLI-absent, `codex mcp-server`)
+  rather than restating them here.
 
 ## Decision contract (consumed by the four orchestrators)
 
@@ -285,3 +343,7 @@ in `ptp-full-apply`, no pre-run stop in `/ptp:full`), with the skip always named
   `codex exec -s read-only -`. (The write-capable main-implementer invocation owned by
   `ptp-run-at-model` is the one exception — a distinct `workspace-write` call site, not governed by
   this read-only rule.)
+- The **one telemetry relaxation**: `-c` arguments confined to the `otel.*` key space MAY be appended,
+  at **both** `codex exec` call sites, and **only** when `telemetry.mode` is `on` **and** the
+  repository-scoped telemetry-consent record records consent. In every other state the command line is
+  byte-identical to the pre-change one. The rendering is pinned in `ptp-telemetry` §22.2.

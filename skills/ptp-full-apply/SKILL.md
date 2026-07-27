@@ -15,6 +15,7 @@ This skill is the orchestration contract behind the single `/ptp:full-apply` com
 |-------|--------|--------|
 | `change-ids` | change selector, list of change ids, or empty | Passed through from `$ARGUMENTS`. Resolved via `ptp-change-selector`: a `epic:XXXX` / `story:NN` selector is pre-resolved to its story id(s) before launch; explicit ids are used verbatim; empty → discover via `npx -y openspec list` (see ordering below). |
 | `fast` | `true` \| `false` — the resolved fast-mode posture for this invocation (default `false`) | Resolved once by `commands/full-apply.md`'s outer session (token parsed and stripped, preflight run once); consumed here without re-parsing |
+| `telemetry` | `true` — added to the workflow's `args` **only** when `telemetry.mode` resolves to `on`; **omitted entirely** otherwise | Resolved once here per the `ptp-telemetry` skill's layered, forgiving config read, before the launch (see *Telemetry: the launcher owns the gate and the append*) |
 
 Besides the `fast` input above there is no `effort_gate` input — and `fast` is not one: it is a session-level posture flag, not a model or effort selector. Per-story model/effort comes from each story's `effort.md`, read by the command before launch.
 
@@ -26,9 +27,12 @@ The command is a thin wrapper that performs four steps, then hands off to the wo
 2. **Read each story's effort.** For each id, `Read` `openspec/changes/<id>/effort.md` and parse line 1 as `{model}.{effort}`. If the file is missing or line 1 is not a parseable `{model}.{effort}`, default to `opus.high` and **note the defaulting** (never crash). This yields `{ id, model, effort }` per story.
 3. **Precondition: resolve `codex.mode` (per the `ptp-codex-mode` skill).** The per-story review agents run `review-full`, whose Codex phase is governed by `codex.mode`. Apply the decision contract: under **`required`** run `codex --version`, and if it is missing → **STOP** with the install-or-change-mode message and **do not launch the workflow**; under **`auto`** or **`off`** **launch** the workflow — each story's `review-full` applies the per-story reviewer skip itself (main-agent-only when a Codex reviewer is skipped, non-silent) and reports a mode-skipped review as gate-success, so the run does not halt. A Claude reviewer is never gated and always runs. The full resolution + decision rule lives in the `ptp-codex-mode` skill — do not restate it here.
 4. **Run the `ptp-workflow-cache-heal` step** (see that skill for the canonical Bash command) via the
-   Bash tool over the whole glob `~/.claude/plugins/cache/ptp/*/*/workflows/*.js`. Then **launch the workflow:**
+   Bash tool over both cached executable globs (`~/.claude/plugins/cache/ptp/*/*/workflows/*.js` and `~/.claude/plugins/cache/ptp/*/*/scripts/*.js`). Then **launch the workflow:**
    ```
-   Workflow({ name: 'ptp:ptp-full-apply', args: { stories, fast } })
+   // Launch the workflow EXACTLY ONCE. The two forms below are mutually exclusive —
+   // pick the one matching the resolved telemetry.mode; never issue both.
+   Workflow({ name: 'ptp:ptp-full-apply', args: { stories, fast } })                   // telemetry.mode !== 'on' (property omitted entirely)
+   Workflow({ name: 'ptp:ptp-full-apply', args: { stories, fast, telemetry: true } })  // telemetry.mode === 'on'
    ```
    where `stories = [{ id, model, effort }, …]` in apply order and `fast` is a **top-level**, invocation-level boolean (never per story) resolved by the command's outer session — an omitted `fast` is read as `false` by the script, producing today's exact prompts. (Use the named form — the plugin ships `workflows/ptp-full-apply.js` whose `meta.name` is `ptp-full-apply`. There is no project-relative `scriptPath` under a global plugin install.) The workflow loops the stories in order, spawning `agentType:'ptp:ptp-apply'` at the story's `model` (effort injected as a prompt directive) then `agentType:'ptp:ptp-review'` at `opus`, and returns `{ results, halted, total }`. The Opus-only per-agent note condition: the apply agent gets the fast-mode note only when that story's model is `opus`; the review agent, always `opus`, gets it whenever fast is on.
 
@@ -50,6 +54,62 @@ One story is fully processed (`apply → review-full`) before the next begins �
 
 **Mode-skip is gate-success (per `ptp-codex-mode`).** When a story's `review-full` converges its main-agent phase and skips a Codex reviewer phase because `codex.mode` resolved to `off` (or `auto` with `codex` absent), that is the mode-skip terminal state `PHASE 1 DONE — CODEX SKIPPED (mode=…)` — a **converged**, gate-success outcome, not a halt. (Only a Codex reviewer can be mode-skipped; a Claude reviewer always runs.) So `workflows/ptp-full-apply.js` needs no logic change, the `ptp-review` agent reports a mode-skipped review with `terminalState === 'BOTH_PHASES_DONE'` (the human-facing report still names the skip); the existing `terminalState === 'BOTH_PHASES_DONE'` gate then continues to the next story. The run halts only on a genuinely non-converged review (an iteration cap), never on a legitimate mode-skip.
 
+## Telemetry: the launcher owns the gate and the append
+
+The workflow sandbox can neither read config nor write files, so **this skill** — which has `Bash` —
+owns both halves of the fan-out write point. The record shape, the `run_id` mint-once-then-propagate
+rule, the store layout, the append protocol, and the CSV rules are defined **once**, in the
+`ptp-telemetry` skill; this section **references** them and lists no ledger fields.
+
+**Before the launch — resolve the gate.** Resolve `telemetry.mode` per `ptp-telemetry`'s layered,
+forgiving reader (global then project, key-by-key; any missing file / missing key / parse error /
+out-of-enum value leaves the prior value; never crash, never STOP). Add a **top-level**
+`telemetry: true` to the workflow's `args` **only when it resolves to `on`** — by the same
+strict-boolean-identity convention the existing `fast` argument uses. When it does not resolve to
+`on`, **omit the property entirely**, so `args` is byte-identical to today's, the workflow captures no
+timestamp, mints and injects no `run_id`, emits no `timings`, and returns today's exact prompts and
+per-story records.
+
+**After the workflow returns — append the rows.** For each entry of a story's returned `timings`
+array, append **one ledger run per measured agent** with `agent_role=workflow-agent`, using the
+`run_id` the workflow **minted** and the `t_start` / `t_end` / `agent_label` it measured. These rows
+are the ledger's one **post-hoc** case: **both** the open and the close line are appended after the
+fact, because the launcher never sees the run while it is running — it receives the measured window
+only once the workflow returns. `ptp-telemetry` names this as the single exception to "the open line
+is written before the observed work begins"; no other write point may use it.
+
+The append is gated and fire-and-forget exactly like every other write point: nothing is written when
+the mode is not `on`, and **any** error is swallowed — telemetry never halts the run, never changes a
+story's bucket, and never alters the terminal report.
+
+**Outcome mapping (no case left unmapped).** The workflow's agents speak their own enums, so this
+skill maps every one of them onto a writable `outcome`:
+
+| Agent result | `outcome` |
+|---|---|
+| apply `stageReached: completed` | `completed` |
+| review `terminalState: BOTH_PHASES_DONE` (including a mode-skipped review) | `completed` |
+| apply `stageReached: blocked` | `needs-human-action` |
+| review `terminalState: PHASE1_CAP` / `PHASE2_CAP` | `needs-human-action` |
+| apply `stageReached: failed` | `refused` |
+| a `null` or unparseable agent result (the `null` the workflow already tolerates) | `needs-human-action` |
+
+**No workflow-derived close line may carry an empty `outcome`.**
+
+**Belt-and-braces fallback.** The spawned `ptp:ptp-apply` / `ptp:ptp-review` agents *do* have `Bash`,
+and each MAY append **exactly one open line** under the `run_id` the workflow injected into its
+prompt — never a close line, never a CSV row (see `agents/ptp-apply.md` / `agents/ptp-review.md`).
+That buys crash visibility for a workflow killed before this skill can append anything. Rows sharing
+a `run_id` **reconcile to one run** rather than duplicating, per `ptp-telemetry`'s reduction rule.
+
+This only works because the workflow **mints** the `run_id` at `t_start` and **injects** it into the
+spawned agent's prompt: an id each writer derived independently from its own clock reading would
+differ between the two writers and make the reconciliation impossible, whereas a **single minted id**
+— derived or random — handed to both writers works. Because the agent writes only the open line, this
+skill remains the **sole** writer of the close line and of the CSV row for workflow runs, so
+`runs.csv` holds exactly one row per closed run even when a run has two ledger writers. The fallback
+is therefore optional: an agent that writes nothing costs only crash visibility.
+
 ## Terminal report
 
 After the workflow returns `{ results, halted, total }`, the command renders a report derived from that result.
@@ -66,7 +126,7 @@ After the workflow returns `{ results, halted, total }`, the command renders a r
 
 The workflow's run journal is the **primary resume mechanism**. Before re-launching, run the
 `ptp-workflow-cache-heal` step (see that skill for the canonical Bash command) via the Bash tool over
-the whole glob `~/.claude/plugins/cache/ptp/*/*/workflows/*.js` — this is the defensive cover for the
+both cached executable globs (`~/.claude/plugins/cache/ptp/*/*/workflows/*.js` and `~/.claude/plugins/cache/ptp/*/*/scripts/*.js`) — this is the defensive cover for the
 resume / direct-launch path where branch-guard may not have run in this session. Then re-launch:
 
 ```

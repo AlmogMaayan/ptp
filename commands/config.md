@@ -1,12 +1,13 @@
 ---
-description: Interactively set a ptp config value — guides you through target (user/global or project), parameter selection (codex.mode, review.maxIterations, or roles.main), and value selection, then writes the chosen value into the correct config.json with a safe merge-write that preserves existing keys.
+description: Interactively set a ptp config value — guides you through target (user/global or project), parameter selection (codex.mode, codex.model, codex.reasoningEffort, review.maxIterations, roles.main, telemetry.mode, telemetry.root, telemetry.port, or telemetry.retentionDays), and value selection, then writes the chosen value into the correct config.json with a safe merge-write that preserves existing keys.
 argument-hint: "(no arguments — fully interactive)"
 ---
 
 You are running **`/ptp:config`** — a guided front door for editing ptp's layered configuration
 files (`~/.claude/ptp/config.json` and `<repo>/.claude/ptp/config.json`). It walks you through
-choosing a target layer, selecting a parameter (`codex.mode`, `review.maxIterations`, or
-`roles.main`), and picking a valid value, then writes only the targeted key while preserving all other existing keys
+choosing a target layer, selecting a parameter (`codex.mode`, `codex.model`,
+`codex.reasoningEffort`, `review.maxIterations`, `roles.main`, `telemetry.mode`, `telemetry.root`,
+`telemetry.port`, or `telemetry.retentionDays`), and picking a valid value, then writes only the targeted key while preserving all other existing keys
 (including the `deploy` block). A missing file or directory is created automatically. A malformed
 or wrong-shape existing file is never overwritten.
 
@@ -33,3 +34,20 @@ or wrong-shape existing file is never overwritten.
   rejected and re-prompted, never written.
 - **Enum-only writes for `roles.main`.** Only `claude` or `codex` may be written for `roles.main`.
   No free-form values.
+- **Enum-only writes for `telemetry.mode`.** Only `off` or `on` may be written for
+  `telemetry.mode`. No free-form values.
+- **Validated writes for `telemetry.root`.** Only a non-empty, trimmed, repository-relative path
+  resolving strictly below the repository root may be written. Absolute paths, any `..` segment, and
+  values resolving to the repository root itself (`""`, `.`, `./`, `/`) are rejected and
+  re-prompted, never written.
+- **TCP-port writes for `telemetry.port`.** Only an integer within `1..65535` may be written.
+  Non-integer, zero, negative, and out-of-range input is rejected and re-prompted, never written.
+  Changing it does not update an already-written exporter endpoint — `/ptp:telemetry setup` must be
+  re-run and Claude Code restarted.
+- **Positive-integer writes for `telemetry.retentionDays`.** Only a positive integer (`>= 1`) may be
+  written; zero, negatives, non-integers, and string-typed input are rejected and re-prompted, never
+  written. The value prunes the **raw** telemetry store only (`<telemetry.root>/<epic>/raw/`), only
+  when a human runs `/ptp:telemetry report`, and never the run ledger, the CSV exports, or the
+  store-wide `_unattributed/` store. State the consequence when offering it: because
+  `/ptp:telemetry export` is always a global re-derivation from the raw store, the **next `export`
+  after a prune rewrites `spans.csv` without the pruned rows**.
