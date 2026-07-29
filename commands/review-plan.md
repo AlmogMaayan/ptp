@@ -62,16 +62,42 @@ one subagent handles the whole per-change pass.)
    - **Medium** — shallow content: only one alternative, vague/uncheckable success criteria, missing `design.md` where decisions are non-obvious.
    - **Low** — nits: wording, formatting, ordering.
 
+   Classification is **threshold-independent**: every finding is classified by this unchanged rubric
+   and listed regardless of the configured severity threshold. The threshold applies only at step 5,
+   and only to what **blocks**.
+
 5. **Assign a verdict** per change:
-   - **PASS** — no Critical or High findings.
-   - **WARN** — High present, no Critical.
-   - **FAIL** — any Critical.
+
+   **Severity threshold.** Resolve `review.minSeverity` from layered ptp config **once**, at the
+   start of this pass, and hold it fixed for the pass — global `~/.claude/ptp/config.json`, then
+   project `<repo>/.claude/ptp/config.json` overriding, default `low`; a missing file, missing key,
+   unparseable JSON, or unrecognized value falls back to the prior valid value (ultimately `low`)
+   rather than erroring, and **never** STOPs the review. The `/ptp:config` parameter registry
+   (`commands/config.md`, `skills/ptp-config/`) owns the key, its domain, and its validation — this
+   is a pointer to that contract, not a second reader definition. Severity order is
+   `low < medium < high < critical`. A finding is **actionable** when its severity is **at or above**
+   the resolved threshold. Findings **below** the threshold are still classified and still listed
+   under their own severity, marked *(below the configured `review.minSeverity` — reported,
+   non-blocking)*; they never by themselves produce a `WARN` or a `FAIL`. Because this verdict never
+   counted Medium or Low toward its outcome, `low`, `medium`, and `high` behave identically here;
+   only `critical` changes a verdict, by demoting High to reported-only — do **not** "repair" that
+   apparent no-op by making Medium findings `WARN`. State the resolved threshold **and the layer it
+   resolved from** (default / global / project) in the report, and when the threshold demoted at
+   least one finding out of the blocking set, say so beside the verdict.
+
+   One threshold governs the **whole pass**: for a multi-change or empty-argument review-all run it
+   is resolved once, before the first change, and applied uniformly, so the summary table can never
+   mix thresholds across rows.
+
+   - **PASS** — no **actionable** Critical or High findings.
+   - **WARN** — **actionable** High present, no actionable Critical.
+   - **FAIL** — any **actionable** Critical.
 
 6. **Report.**
-   - **Single change:** findings grouped by severity, then the verdict, then the next step:
+   - **Single change:** the resolved threshold and its source layer, then findings grouped by severity (below-threshold findings still listed under their own severity, marked non-blocking — a report in which every finding is below the threshold still enumerates them and is never rendered as "no findings"), then the verdict, then the next step:
      - PASS → `/ptp:apply <change-id>`
      - WARN/FAIL → `/ptp:plan` to revise the artifacts (do not hand-edit them here).
-   - **All changes:** a summary table first (`change-id → PASS/WARN/FAIL` + finding counts), then a detail block for **each non-PASS change**. PASS changes need no detail.
+   - **All changes:** the resolved threshold and its source layer stated **once for the pass** alongside the summary table (`change-id → PASS/WARN/FAIL` + finding counts), then a detail block for **each non-PASS change**. PASS changes need no detail — except a PASS carrying **any** below-threshold finding: it gets a detail block listing those findings under their own severity, marked non-blocking, so the threshold never makes a finding invisible; and a PASS that only passes because the threshold **demoted** a finding additionally says so on its row. (At the default `low` no finding is ever below the threshold, so this exception never fires and the table reads exactly as today.)
 
 ## Hard rules
 

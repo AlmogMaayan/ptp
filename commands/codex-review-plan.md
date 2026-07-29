@@ -55,7 +55,30 @@ selector, the one subagent handles the whole per-change pass.)
    - This is what lets Codex verify line-reference accuracy without shelling out. If a cited file/line is missing, that is itself a finding worth surfacing — include what you found (or "NOT FOUND") so Codex can flag the drift.
    - Keep it proportionate: inline the excerpts the artifacts actually cite, not entire large files.
 
-4. **Build ONE closed-book prompt** containing, in order:
+4. **Build ONE closed-book prompt.**
+
+   **Severity threshold (resolved caller-side, inlined as a literal).** Resolve `review.minSeverity`
+   from layered ptp config **once**, at the start of this pass, and hold it fixed for the pass —
+   global `~/.claude/ptp/config.json`, then project `<repo>/.claude/ptp/config.json` overriding,
+   default `low`; a missing file, missing key, unparseable JSON, or unrecognized value falls back to
+   the prior valid value (ultimately `low`) rather than erroring, and **never** STOPs the review. The
+   `/ptp:config` parameter registry (`commands/config.md`, `skills/ptp-config/`) owns the key, its
+   domain, and its validation — this is a pointer to that contract, not a second reader definition.
+   **You** read the config, exactly as you run the validation and read the artifacts; **Codex is
+   never asked to read `config.json`, to resolve the threshold, or to run any command** — the prompt
+   is closed-book by design. Severity order is `low < medium < high < critical`. A finding is
+   **actionable** when its severity is **at or above** the resolved threshold. Findings **below** the
+   threshold are still classified and still listed under their own severity, marked *(below the
+   configured `review.minSeverity` — reported, non-blocking)*; they never by themselves produce a
+   `WARN` or a `FAIL`. Because this verdict never counted Medium or Low toward its outcome, `low`,
+   `medium`, and `high` behave identically here; only `critical` changes a verdict, by demoting High
+   to reported-only — do **not** "repair" that apparent no-op by making Medium findings `WARN`. State
+   the resolved threshold **and the layer it resolved from** (default / global / project) in your
+   step-6 summary, and when the threshold demoted at least one finding out of the blocking set, say
+   so beside the verdict. One threshold governs the whole pass, including an empty-argument
+   audit-all run, so the per-change verdicts can never mix thresholds.
+
+   The prompt contains, in order:
    - The audit instructions (below).
    - The **authoritative** `openspec validate --strict` result from step 2.
    - The full text of every artifact, under clear `=== <filename> ===` delimiters.
@@ -68,7 +91,15 @@ selector, the one subagent handles the whole per-change pass.)
    - Check **spec-delta format**: `## ADDED/MODIFIED/REMOVED/RENAMED Requirements` → `### Requirement:` with SHALL/MUST → ≥1 `#### Scenario:` each.
    - Check **line-reference accuracy** against the inlined source excerpts (flag stale/ambiguous `path:line` citations).
    - Classify findings **Critical / High / Medium / Low**, each with the artifact + section and a concrete fix.
-   - End with exactly one line: `VERDICT: PASS` | `VERDICT: WARN` | `VERDICT: FAIL`.
+   - Honor the inlined severity threshold, stated as a literal line in the prompt:
+     *"Severity threshold: `<T>`. Classify every finding Critical/High/Medium/Low as usual and list
+     them all. Findings below `<T>` MUST be marked non-blocking and MUST NOT affect the verdict
+     line. Do not read any config file and do not run any command to determine the threshold — the
+     value above is authoritative."*
+   - End with exactly one line: `VERDICT: PASS` | `VERDICT: WARN` | `VERDICT: FAIL`, computed as
+     `FAIL` = any **actionable** Critical; `WARN` = any **actionable** High with no actionable
+     Critical; `PASS` otherwise. The `VERDICT:` line's shape is **byte-identical** to today (this
+     command polls the output file for it); only which findings count toward it is qualified.
 
 5. **Run Codex closed-book over stdin (you, via Bash from the repo root):**
    ```bash
@@ -82,15 +113,15 @@ selector, the one subagent handles the whole per-change pass.)
    - `codex exec` may take a while; running it in the background and polling the output file for the `VERDICT:` line is fine.
    - If the run still emits sandbox noise (`blocked by policy`, `spawn setup refresh`), it does **not** matter: Codex needs no commands here, so those lines are harmless — proceed to relay the verdict and findings. The closed-book prompt means a clean audit even if Codex's shell is fully unavailable.
 
-6. **Relay Codex's output** to the user, then add your own one-line summary with the verdict and finding counts. If you supplied the validate result and/or source excerpts, say so (the audit is only as current as what you inlined).
+6. **Relay Codex's output** to the user, then add your own one-line summary with the resolved threshold and the layer it came from, the verdict, and finding counts by severity (below-threshold findings still counted and listed, marked non-blocking; an all-below-threshold report still enumerates them and is never rendered as "no findings"). If you supplied the validate result and/or source excerpts, say so (the audit is only as current as what you inlined). **Apply the threshold rule yourself** rather than trusting Codex's line blindly: if Codex's emitted `VERDICT:` line disagrees with the threshold-correct verdict (for example `VERDICT: WARN` for a High the resolved threshold demoted), **say so explicitly** and report the threshold-correct verdict.
 
-7. **Guidance, not a hard block**: a `WARN`/`FAIL` verdict means the user should re-run `/ptp:plan` (or `/ptp:review-fix` for targeted fixes) before `/ptp:apply`. It does **not** auto-block apply.
+7. **Guidance, not a hard block**: a threshold-correct `WARN`/`FAIL` verdict (per step 6) means the user should re-run `/ptp:plan` (or `/ptp:review-fix` for targeted fixes) before `/ptp:apply`. It does **not** auto-block apply. The threshold changes which findings produce that verdict; it does not make this gate any more or less blocking than it is today.
 
 ## Hard rules
 
 - **This command only reviews and displays findings. It NEVER fixes anything.** Do not edit the artifacts, the code, or anything else — not even if findings are obvious. Report the findings and stop. To fix, the user runs `/ptp:review-fix` or re-runs `/ptp:plan`.
 - This command reviews **artifacts only** — never code logic, never the implementation diff. That's `/ptp:codex-review`'s job. (Inlining source excerpts here is solely to verify the artifacts' line references, not to review the code.)
-- The **caller** runs `openspec validate` and all file reads; **Codex runs no commands**. Pass the prompt over stdin.
+- The **caller** runs `openspec validate`, all file reads, **and the `review.minSeverity` resolution**, inlining the resolved value as a literal; **Codex runs no commands** and is never asked to read `config.json` or resolve the threshold itself. Pass the prompt over stdin.
 - Assemble the `codex exec` invocation per the `ptp-codex-mode` flag-append rule (append resolved `-m`/`-c` flags before the trailing `-` when `codex.model`/`codex.reasoningEffort` are configured).
 - Do **not** run Codex with a writable or bypassed sandbox.
 - Do **not** invoke `/ptp:apply` from here under any circumstance.

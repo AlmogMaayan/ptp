@@ -85,6 +85,11 @@ const REVIEW_SCHEMA = {
     superpowersFixes: { type: 'integer' },
     codexFixes: { type: 'integer' },
     openFindings: { type: 'integer' },
+    // The effective review.minSeverity floor the review actually ran at (lowercase canonical:
+    // low | medium | high | critical). Reporting-only — no gate keys on it — so it is a plain
+    // string rather than an enum: the load-bearing enum is terminalState, and a malformed value
+    // here must never fail an otherwise converged story. Optional; absence reads as "low".
+    minSeverity: { type: 'string' },
     notes: { type: 'string' },
   },
   required: ['terminalState'],

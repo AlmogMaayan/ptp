@@ -72,7 +72,34 @@ multi-epic or empty-argument audit-all selector, the one subagent handles the wh
    - If the PRD cites source files or other docs, read a small window around each citation so Codex can
      judge them without shelling out. Keep it proportionate.
 
-3. **Build ONE closed-book prompt** containing, in order:
+3. **Build ONE closed-book prompt.**
+
+   **Severity threshold (resolved caller-side, inlined as a literal).** Resolve `review.minSeverity`
+   from layered ptp config **once**, at the start of this pass, and hold it fixed for the pass —
+   global `~/.claude/ptp/config.json`, then project `<repo>/.claude/ptp/config.json` overriding,
+   default `low`; a missing file, missing key, unparseable JSON, or unrecognized value falls back to
+   the prior valid value (ultimately `low`) rather than erroring, and **never** STOPs the review. The
+   `/ptp:config` parameter registry (`commands/config.md`, `skills/ptp-config/`) owns the key, its
+   domain, and its validation — this is a pointer to that contract, not a second reader definition.
+   **You** read the config, exactly as you read the PRD; **Codex is never asked to read
+   `config.json`, to resolve the threshold, or to run any command** — the prompt is closed-book by
+   design. Severity order is `low < medium < high < critical`. A finding is **actionable** when its
+   severity is **at or above** the resolved threshold. Findings **below** the threshold are still
+   classified and still listed under their own severity, marked *(below the configured
+   `review.minSeverity` — reported, non-blocking)*; they never by themselves produce a `WARN` or a
+   `FAIL`. Because this verdict never counted Medium or Low toward its outcome, `low`, `medium`, and
+   `high` behave identically here; only `critical` changes a verdict, by demoting High to
+   reported-only — do **not** "repair" that apparent no-op by making Medium findings `WARN`. State
+   the resolved threshold **and the layer it resolved from** (default / global / project) in your
+   step-5 summary, and when the threshold demoted at least one finding out of the blocking set, say
+   so beside the verdict. One threshold governs the whole pass, including an empty-argument
+   audit-all-epics run, so the per-epic verdicts can never mix thresholds.
+
+   **The missing-PRD Critical is never threshold-able away.** "No PRD to review" is **Critical**, the
+   top of the order, so it is actionable at **every** threshold — including `critical` — and still
+   forces `VERDICT: FAIL`.
+
+   The prompt contains, in order:
    - The audit instructions (below).
    - The full text of the PRD under a clear `=== prd.md (<epic> epic) ===` delimiter (or the missing-PRD
      note from step 1).
@@ -92,7 +119,15 @@ multi-epic or empty-argument audit-all selector, the one subagent handles the wh
      headings).
    - Treat a **missing PRD** as a Critical "no PRD to review" finding.
    - Classify findings **Critical / High / Medium / Low**, each with the section and a concrete fix.
-   - End with exactly one line: `VERDICT: PASS` | `VERDICT: WARN` | `VERDICT: FAIL`.
+   - Honor the inlined severity threshold, stated as a literal line in the prompt:
+     *"Severity threshold: `<T>`. Classify every finding Critical/High/Medium/Low as usual and list
+     them all. Findings below `<T>` MUST be marked non-blocking and MUST NOT affect the verdict
+     line. Do not read any config file and do not run any command to determine the threshold — the
+     value above is authoritative."*
+   - End with exactly one line: `VERDICT: PASS` | `VERDICT: WARN` | `VERDICT: FAIL`, computed as
+     `FAIL` = any **actionable** Critical; `WARN` = any **actionable** High with no actionable
+     Critical; `PASS` otherwise. The `VERDICT:` line's shape is **byte-identical** to today; only
+     which findings count toward it is qualified.
 
 4. **Run Codex closed-book over stdin (you, via Bash from the repo root):**
    ```bash
@@ -107,10 +142,14 @@ multi-epic or empty-argument audit-all selector, the one subagent handles the wh
    - If the run emits sandbox noise (`blocked by policy`, `spawn setup refresh`), it does **not** matter:
      Codex needs no commands here, so those lines are harmless — proceed to relay the verdict.
 
-5. **Relay Codex's output** to the user, then add your own one-line summary with the verdict and finding
-   counts per epic.
+5. **Relay Codex's output** to the user, then add your own one-line summary with the resolved
+   threshold and the layer it came from, the verdict, and finding counts per epic (below-threshold
+   findings still counted and listed, marked non-blocking; an all-below-threshold report still
+   enumerates them and is never rendered as "no findings"). **Apply the threshold rule yourself**
+   rather than trusting Codex's line blindly: if Codex's emitted `VERDICT:` line disagrees with the
+   threshold-correct verdict, **say so explicitly** and report the threshold-correct verdict.
 
-6. **Guidance, not a hard block:** a `WARN`/`FAIL` verdict means the user should re-run `/ptp:prd
+6. **Guidance, not a hard block:** a threshold-correct `WARN`/`FAIL` verdict (per step 5) means the user should re-run `/ptp:prd
    <epic>` (or `/ptp:codex-review-prd-loop` for targeted inline fixes) before `/ptp:plan`. It does
    **not** auto-block `/ptp:plan`.
 
@@ -120,8 +159,10 @@ multi-epic or empty-argument audit-all selector, the one subagent handles the wh
   any other file — not even if findings are obvious. Report the findings and stop. To fix, the user
   runs `/ptp:codex-review-prd-loop` or re-runs `/ptp:prd`.
 - This command reviews the **PRD only** — never the OpenSpec artifacts, never code.
-- The **caller** does all file reads; **Codex runs no commands** (no `npx`, no `openspec validate`, no
-  network, no installs). Pass the prompt over stdin.
+- The **caller** does all file reads **and resolves `review.minSeverity`**, inlining the resolved
+  value as a literal; **Codex runs no commands** (no `npx`, no `openspec validate`, no network, no
+  installs) and is never asked to read `config.json` or resolve the threshold itself. Pass the prompt
+  over stdin.
 - Do **not** run `openspec validate` — a PRD precedes any proposal/spec (the one divergence from
   `/ptp:codex-review-plan`).
 - Do **not** run Codex with a writable or bypassed sandbox.

@@ -66,6 +66,7 @@ Reviews in this workflow are **displayed in the conversation, not persisted to a
    - **`reviewers`** — the frozen review's reviewer(s): `["superpowers"]` for a Superpowers review, `["codex"]` for a Codex review. `/ptp:review-fix` runs no second reviewer, so it **never** synthesizes a combined set.
    - **`terminalState`** — `"converged"` **only** when the post-fix verification is **fully clean** (every CONFIRMED finding fixed AND `npx -y openspec validate <id> --strict` / the re-check passes), **including the all-`REJECTED` no-op** outcome (nothing to fix, artifact clean as-reviewed). `"cap-reached"` in **every** non-clean post-fix outcome — whether CONFIRMED findings remain unfixed (`CONFIRMED but could not fix`) OR all findings were applied but the post-fix verification is still not clean (e.g. a fix introduced a validation error).
    - **`iterations`** — `1` (the single pass; there is no loop count).
+   - **`minSeverity`** — always the constant `"low"`, because `/ptp:review-fix` fixes every CONFIRMED finding in its frozen set without applying a severity floor. It resolves no threshold and reads no `review.minSeverity` config.
    - **`timestamp`** — now (UTC ISO-8601).
 
    Write via the atomic write-temp-then-rename protocol; a write failure is **reported, not fatal** (the fix pass already happened), and on a re-review a failed overwrite leaves the prior marker intact.

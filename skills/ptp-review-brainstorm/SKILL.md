@@ -77,15 +77,42 @@ fixed artifact folder:
   scope/blast-radius unaddressed; spec-interaction not considered; a usable-but-gappy handoff.
 - **Low** — nits: wording, formatting, ordering.
 
+The rubric above and this classification are **unchanged** by the severity threshold: every finding
+is classified and listed exactly as before regardless of the configured threshold. The threshold
+applies only at the **Verdict** step, and only to what **blocks**.
+
 ---
 
 ## Verdict
 
-- **PASS** — no Critical and no High findings.
-- **WARN** — a High is present, but no Critical.
-- **FAIL** — any Critical is present.
+**Severity threshold.** Resolve `review.minSeverity` from layered ptp config **once**, at the start
+of this pass, and hold it fixed for the pass — global `~/.claude/ptp/config.json`, then project
+`<repo>/.claude/ptp/config.json` overriding, default `low`; a missing file, missing key, unparseable
+JSON, or unrecognized value falls back to the prior valid value (ultimately `low`) rather than
+erroring, and **never** STOPs the review. The `/ptp:config` parameter registry (`commands/config.md`,
+`skills/ptp-config/`) owns the key, its domain, and its validation — this is a pointer to that
+contract, not a second reader definition. Severity order is `low < medium < high < critical`. A
+finding is **actionable** when its severity is **at or above** the resolved threshold. Findings
+**below** the threshold are still classified and still listed under their own severity, marked
+*(below the configured `review.minSeverity` — reported, non-blocking)*; they never by themselves
+produce a `WARN` or a `FAIL`. Because this verdict never counted Medium or Low toward its outcome,
+`low`, `medium`, and `high` behave identically here; only `critical` changes a verdict, by demoting
+High to reported-only — do **not** "repair" that apparent no-op by making Medium findings `WARN`.
+State the resolved threshold **and the layer it resolved from** (default / global / project) in the
+report, and when the threshold demoted at least one finding out of the blocking set, say so beside
+the verdict. For an empty-argument review-all run, one threshold governs the whole pass, so the
+summary table can never mix thresholds across rows.
+
+- **PASS** — no **actionable** Critical and no **actionable** High findings.
+- **WARN** — an **actionable** High is present, but no actionable Critical.
+- **FAIL** — any **actionable** Critical is present.
 
 Same vocabulary as `/ptp:review-plan`.
+
+**The missing-brainstorm Critical is never threshold-able away.** The "no brainstorm to review"
+finding is **Critical**, and Critical is the top of the order, so it is actionable at **every**
+threshold — including `critical`. The *FAIL due to a missing brainstorm* branch of *Report + next
+step* below is therefore unchanged by this section.
 
 ---
 
@@ -101,7 +128,10 @@ call would error.
 
 ## Report + next step
 
-- **Single change/file:** findings **grouped by severity** → the **verdict** → the **next step**:
+- **Single change/file:** the **resolved threshold and its source layer** → findings **grouped by
+  severity** (below-threshold findings still listed under their own severity, marked non-blocking; a
+  report in which every finding is below the threshold still enumerates them and is never rendered as
+  "no findings") → the **verdict** → the **next step**:
   - **PASS** → recommend `/ptp:plan <change-id>`.
   - **FAIL due to a missing brainstorm** (the Critical "no brainstorm to review" finding) → recommend
     running **`/ptp:brainstorm <change-id>`** *first* (there is nothing to revise yet — the brainstorm
@@ -111,8 +141,14 @@ call would error.
     this mirrors `/ptp:review-plan`'s "report, don't silently fix" rule. The user revises by re-running
     the brainstorm-author step.
 
-- **All changes (empty argument):** a **summary table** first (`change-id → PASS/WARN/FAIL` + finding
-  counts), then a **detail block for each non-PASS change**. PASS changes need no detail.
+- **All changes (empty argument):** the resolved threshold and its source layer stated **once for the
+  pass**, a **summary table** first (`change-id → PASS/WARN/FAIL` + finding counts), then a **detail
+  block for each non-PASS change**. PASS changes need no detail — except a PASS carrying **any**
+  below-threshold finding: it gets a detail block listing those findings under their own severity,
+  marked non-blocking, so the threshold never makes a finding invisible; and a PASS that only passes
+  because the threshold **demoted** a finding additionally says so on its row. (At the default `low`
+  no finding is ever below the threshold, so this exception never fires and the table reads exactly
+  as today.)
 
 ---
 

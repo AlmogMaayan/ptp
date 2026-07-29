@@ -39,7 +39,37 @@ the outer session**, in this exact order:
    - **Validation passes** — run `npx -y openspec validate <change-id> --strict`. If it fails, **STOP** and surface the error without spawning; do not archive a failing change.
    - **Spec-delta path** — determine whether `openspec/changes/<change-id>/specs/` contains at least one delta `<capability>/spec.md` (so the confirmation can state whether the archive will use `--skip-specs`).
 
-4. **Review-clean confirmation** (outer session — interactive). `/ptp:review <change-id>` must have been run with no unresolved **Critical** or **High** findings. OpenSpec does not track review state, so **ask the user to confirm** review is done and Critical/High are resolved before continuing. If they haven't reviewed, redirect them to `/ptp:review <change-id>` first. This confirmation must happen in the outer session — the subagent is non-interactive and cannot ask the user.
+4. **Review-clean confirmation** (outer session — interactive).
+
+   **Severity threshold.** Resolve `review.minSeverity` from layered ptp config **once**, here in the
+   **outer session** (the confirmation is interactive and must display it), and hold it fixed —
+   global `~/.claude/ptp/config.json`, then project `<repo>/.claude/ptp/config.json` overriding,
+   default `low`; a missing file, missing key, unparseable JSON, or unrecognized value falls back to
+   the prior valid value (ultimately `low`) rather than erroring, and **never** STOPs the archive.
+   The `/ptp:config` parameter registry (`commands/config.md`, `skills/ptp-config/`) owns the key,
+   its domain, and its validation — this is a pointer to that contract, not a second reader
+   definition. Severity order is `low < medium < high < critical`. A finding is **actionable** when
+   its severity is **at or above** the resolved threshold; a Critical or High finding **below** the
+   resolved threshold does not block the archive. Because this gate never counted Medium or Low
+   toward a refusal, `low`, `medium`, and `high` behave identically here; only `critical` changes an
+   outcome, by demoting High to non-blocking — do **not** "repair" that apparent no-op by making
+   Medium findings block. **Never** reword this gate as "unresolved findings at or above the resolved
+   `review.minSeverity`": at the default `low` that admits *every* severity and would make an
+   unresolved **Low** nit block the archive. The *actionable* qualifier only ever **narrows** the
+   pre-existing Critical/High test, never widens it. State the resolved threshold **and the layer it
+   resolved from** (default / global / project) **in the confirmation prompt**, and when it is not
+   the default, name which severities it is no longer blocking on, so the user confirms with that in
+   view.
+
+   `/ptp:review <change-id>` must have been run with no unresolved **actionable** Critical or High findings — Critical or High findings whose severity is at or above the resolved `review.minSeverity` (at the default `low`, that is Critical and High, exactly as today). OpenSpec does not track review state, so **ask the user to confirm** review is done and the actionable Critical/High findings are resolved before continuing. If they haven't reviewed, redirect them to `/ptp:review <change-id>` first. This confirmation must happen in the outer session — the subagent is non-interactive and cannot ask the user.
+
+   **The other two gates are unaffected by the threshold.** `review.minSeverity` governs **only** this
+   review-clean confirmation. The **tasks-complete** gate (step 3) and the
+   `npx -y openspec validate <change-id> --strict` gate (step 3, re-enforced in step 6) are not
+   severity-based: they remain **absolute** at every threshold, and no threshold value can soften
+   them. The `sonnet.medium` subagent likewise gains **no new refusal** — it re-enforces exactly the
+   tasks-complete and validation refusals it enforces today, and review-clean stays an outer human
+   confirmation as it always was.
 
 5. **Confirm the action** (outer session — interactive) — show the user exactly what will happen (which change moves to `openspec/changes/archive/`, that delta specs under `specs/` will be merged into `openspec/specs/`, and whether `--skip-specs` will be used per the step-3 inspection). Proceed once confirmed (the user invoking this command counts as intent, but show the summary first).
 
@@ -62,7 +92,7 @@ fan-out (the branch guard is a no-op after the first cut).
 
 ## Hard rules
 
-- **Never** archive a change with unchecked tasks or unresolved Critical/High review findings. Refuse and redirect.
+- **Never** archive a change with unchecked tasks or unresolved **actionable** Critical/High review findings (Critical/High at or above the resolved `review.minSeverity`; default `low` ⇒ Critical/High, exactly as today). Refuse and redirect. The unchecked-tasks half of this rule is absolute and unaffected by the threshold.
 - **Never** silently skip the spec sync. Use `--skip-specs` only for changes that genuinely have no spec deltas, and say so in the report.
 - Do **not** edit the spec deltas to make validation pass — if validation fails, bounce back to `/ptp:plan`.
 - Prefer the `openspec` CLI; only fall back to a manual move when the CLI cannot handle the change name.

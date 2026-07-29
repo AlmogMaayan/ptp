@@ -1,9 +1,9 @@
 ---
-description: Loop Codex artifact review + inline fixes until zero open findings at all severities or configured iteration cap reached (default 5; reviews proposal/design/tasks/spec-deltas, not code; requires codex CLI on PATH)
+description: Loop Codex artifact review + inline fixes until zero open findings at or above the configured `review.minSeverity` floor (default `low` = every severity) or configured iteration cap reached (default 5; reviews proposal/design/tasks/spec-deltas, not code; requires codex CLI on PATH)
 argument-hint: "<change-selector> — id, epic:XXXX, story:NN, or epic:XXXX story:NN"
 ---
 
-You are running the **Codex-powered loop variant of `/ptp:codex-review-plan`** — an external Codex CLI artifact-quality loop that alternates closed-book planning-artifact review, confirmation, and fix passes automatically until every finding at all severities in `proposal.md`, `design.md`, `tasks.md`, and spec deltas is resolved or the configured iteration cap (default 5) is reached.
+You are running the **Codex-powered loop variant of `/ptp:codex-review-plan`** — an external Codex CLI artifact-quality loop that alternates closed-book planning-artifact review, confirmation, and fix passes automatically until every finding at or above the configured `review.minSeverity` floor (default `low` — Critical, High, Medium, Low) in `proposal.md`, `design.md`, `tasks.md`, and spec deltas is resolved or the configured iteration cap (default 5) is reached. Findings below the floor are reported but never auto-fixed.
 
 This is **not** a code-review loop. It reviews the *planning artifacts*, not source code. Use `/ptp:codex-review-loop` to review implemented code.
 

@@ -109,6 +109,9 @@ marker once per epic (per the `ptp-review-prd-full` skill's single-combined-writ
   state — Phase 1's rejected set does not carry into Phase 2.
 - Do **not** count findings whose only suggested remediation is a manual check or a missing test against
   convergence in either phase.
+- A phase converges on findings **at or above the configured severity threshold**; findings below it are
+  **reported**, not fixed, and do not block convergence. The threshold, its resolution, and the
+  partition rule live in `ptp-review-loop` — this command does not restate them.
 - Iteration cap per phase is `review.maxIterations` in ptp config; default 5. Each phase has its own
   independent cap.
 - Run Codex only under `codex exec -s read-only` with the prompt piped over **stdin** (`-`), assembled

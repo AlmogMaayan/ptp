@@ -83,7 +83,29 @@ For each `c`, in order:
    the blocking change and the gate it failed; do **not** deploy). Only once tasks-complete and
    validation pass, perform the two interactive confirmations:
    - **review-clean confirmation** (`/ptp:archive` step 4) — confirm `/ptp:review <c>` ran with no
-     unresolved Critical/High findings.
+     unresolved **actionable** Critical/High findings — Critical or High findings whose severity is
+     at or above the resolved `review.minSeverity`.
+
+     **Severity threshold.** Resolve `review.minSeverity` from layered ptp config **once**, here in
+     the **outer session** (this confirmation is interactive and must display it), and hold it fixed
+     — global `~/.claude/ptp/config.json`, then project `<repo>/.claude/ptp/config.json` overriding,
+     default `low`; a missing file, missing key, unparseable JSON, or unrecognized value falls back
+     to the prior valid value (ultimately `low`) rather than erroring, and **never** STOPs the
+     command. The `/ptp:config` parameter registry (`commands/config.md`, `skills/ptp-config/`) owns
+     the key, its domain, and its validation — this is a pointer to that contract, not a second
+     reader definition. Severity order is `low < medium < high < critical`. A finding is
+     **actionable** when its severity is **at or above** the resolved threshold; a Critical or High
+     finding **below** the resolved threshold does not block the archive. Because this gate never
+     counted Medium or Low toward a refusal, `low`, `medium`, and `high` behave identically here;
+     only `critical` changes an outcome, by demoting High to non-blocking. **Never** reword this gate
+     as "unresolved findings at or above the resolved `review.minSeverity`": at the default `low`
+     that admits *every* severity and would make an unresolved **Low** nit block the archive — the
+     *actionable* qualifier only ever **narrows** the pre-existing Critical/High test, never widens
+     it. State the resolved threshold **and the layer it resolved from** (default / global /
+     project) **in the confirmation prompt**, and when it is not the default, name which severities
+     it is no longer blocking on. This mirrors `/ptp:archive` step 4 exactly — Phase A **is** that
+     flow and never diverges from it. The threshold governs **only** this confirmation: the
+     tasks-complete and validation gates above are not severity-based and stay absolute.
    - **confirm-action confirmation** (`/ptp:archive` step 5) — show exactly what will move and whether
      `--skip-specs` applies.
    If either confirmation is **not given**, **STOP the whole command before this change's archive
@@ -160,7 +182,12 @@ Report at whichever terminal point is reached:
   `ptp-branch-guard` as the single source of truth — referenced, not restated.
 - **Archive gates reused unweakened.** Phase A drives `/ptp:archive`'s existing gates (tasks-complete,
   validation-passes, review-clean) — never weakened, reordered, or removed; never archive a change with
-  unchecked tasks or a failing validation.
+  unchecked tasks or a failing validation. The review-clean gate's consulting the resolved
+  `review.minSeverity` is **not** a weakening: the gate is structurally unchanged and still refuses on
+  unresolved **actionable** Critical/High findings — its severity cutoff is now *configured* rather
+  than hardcoded, and at the default `low` it blocks on Critical and High exactly as today.
+  **tasks-complete** and **validation-passes** remain absolute and unconditional, entirely unaffected
+  by `review.minSeverity`.
 - **Interactive confirmations stay outer.** The review-clean and confirm-action confirmations are
   performed in the outer session **before** each change's archive subagent is spawned, because the
   subagent is non-interactive.

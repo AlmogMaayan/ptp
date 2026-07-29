@@ -140,6 +140,10 @@ default — PtP never fails to start over a config typo.
   "roles": {
     "main": "claude"
   },
+  "review": {
+    "maxIterations": 5,
+    "minSeverity": "low"
+  },
   "telemetry": {
     "mode": "off",
     "root": "openspec/telemetry",
@@ -227,6 +231,49 @@ var is the only detection input.
 With `roles.main` unset, no `PTP_MAIN_AGENT` set, every existing ptp flow is byte-identical to
 today: Claude is the main agent working in-session and Codex is the gated reviewer. Settable via
 `/ptp:config` (see below).
+
+### `review.maxIterations` and `review.minSeverity`
+
+Two keys sharing the `review` parent object. `review.maxIterations` caps how many iterations a
+review loop may run; `review.minSeverity` names the **lowest finding severity that is in scope for
+handling**.
+
+| Key | Type | Default | Meaning |
+|-----|------|---------|---------|
+| `review.maxIterations` | positive integer (`>= 1`) | `5` | Caps the number of iterations a review loop may run before stopping and reporting — the `/ptp:*-loop` commands (`/ptp:review-loop`, `/ptp:codex-review-loop`, `/ptp:review-plan-loop`, `/ptp:codex-review-plan-loop`, `/ptp:codex-review-prd-loop`) and the `-full` review orchestrators that drive the same loop, each phase getting its own cap. |
+| `review.minSeverity` | enum: `low`\|`medium`\|`high`\|`critical` | `low` | The lowest finding severity in scope for handling — a **threshold**, not an equality test. |
+
+The four `review.minSeverity` values are **ranked**:
+
+| Value | Rank | In-scope severities |
+|---|---|---|
+| `low` *(default)* | 1 | Low, Medium, High, Critical |
+| `medium` | 2 | Medium, High, Critical |
+| `high` | 3 | High, Critical |
+| `critical` | 4 | Critical |
+
+A finding is in scope when `rank(finding.severity) >= rank(minSeverity)`. `low` (the default)
+admits every severity — today's behavior.
+
+Both keys resolve from the same two layered files as `codex.mode` (global then project, project
+overriding key-by-key), with the same forgiving reader: a missing file, missing key, unparseable
+JSON, or invalid value (for `review.minSeverity`, a value outside the set or a wrong type) leaves
+the prior layer's valid value in place — never a crash or a STOP. `review.minSeverity` is matched
+**case-insensitively** on read and canonicalized to lowercase, so `"High"` resolves to `high`;
+`/ptp:config` still only ever *writes* the four lowercase values. Precedence, highest to lowest:
+
+1. The key in the **project** config (`<repo>/.claude/ptp/config.json`).
+2. The key in the **global** config (`~/.claude/ptp/config.json`).
+3. Ultimate fallback: `5` and `low`.
+
+**`review.minSeverity` is consumed by the shared review loop** (`skills/ptp-review-loop/SKILL.md`),
+which resolves it once at loop start and partitions each review pass's findings against it: findings
+at or above the floor are confirmed, fixed, and counted toward convergence, while findings below it
+are **reported** — a per-iteration count plus an itemized, explicitly `unconfirmed`
+`Below threshold — not blocking convergence` section in the terminal report — but never auto-fixed
+and never counted toward convergence. The effective threshold is also recorded in the durable
+review-convergence marker. At the default `low` every severity is in scope, so convergence behavior
+is unchanged. Both keys are settable via `/ptp:config` (see below).
 
 ### `telemetry.mode`, `telemetry.root`, `telemetry.port`, and `telemetry.retentionDays`
 
@@ -334,15 +381,17 @@ hand-editing JSON, it walks you through:
 
 1. **Target** — choose *User / global* (`~/.claude/ptp/config.json`) or *Project*
    (`<repo>/.claude/ptp/config.json`).
-2. **Parameter** — one of the **eleven** registered parameters: `codex.mode` ("Use Codex for
+2. **Parameter** — one of the **twelve** registered parameters: `codex.mode` ("Use Codex for
    review"), `codex.model` ("Codex model override"), `codex.reasoningEffort` ("Codex reasoning
-   effort"), `review.maxIterations` ("Max review-loop iterations"), `roles.main` ("Main agent"),
+   effort"), `review.maxIterations` ("Max review-loop iterations"), `review.minSeverity` ("Lowest
+   severity to handle"), `roles.main` ("Main agent"),
    `telemetry.mode` ("Record ptp run telemetry"), `telemetry.root` ("Telemetry store root"),
    `telemetry.port` ("Telemetry receiver port"), `telemetry.retentionDays` ("Telemetry raw-store
    retention (days)"), `parallel.mode` ("Run planning stages in parallel"), or
    `parallel.maxConcurrency` ("Max parallel fan-out members"); the menu grows as the registry grows.
 3. **Value** — select from the valid enum values with one-line descriptions (`codex.mode`,
-   `codex.reasoningEffort`, `roles.main`, `telemetry.mode`, `parallel.mode`), enter a free-text value
+   `codex.reasoningEffort`, `review.minSeverity`, `roles.main`, `telemetry.mode`, `parallel.mode`),
+   enter a free-text value
    (`codex.model`, `telemetry.root` — validated to stay inside the repository), or enter an integer
    (`review.maxIterations`, `telemetry.retentionDays`, `telemetry.port` — validated as a TCP port in
    `1..65535` — and `parallel.maxConcurrency` — validated as `1..10`).
@@ -535,7 +584,7 @@ delegates to the `ptp-prd-full` skill.
 
 **`/ptp:review <selector>`** — Superpowers code review of the implementation diff against proposal/design/spec deltas/tasks. Findings classified Critical / High / Medium / Low.
 
-**`/ptp:review-loop <selector>`** — loops `/ptp:review` + inline fixes automatically until zero open findings at all severities or the iteration cap (5). Replaces the manual review → fix → review cycle.
+**`/ptp:review-loop <selector>`** — loops `/ptp:review` + inline fixes automatically until zero open findings at or above the configured `review.minSeverity` floor (default `low` = every severity; below-threshold findings are reported, not fixed) or the iteration cap (5). Replaces the manual review → fix → review cycle.
 
 **`/ptp:review-full <selector>`** — **dual-reviewer** code loop: Superpowers loop to convergence, then Codex loop to convergence. Both must sign off before archive. Uses Codex per `codex.mode` (default `auto`; with `auto`/`off` and no Codex it runs the Superpowers loop only and reports the skip).
 
@@ -1038,6 +1087,7 @@ Experimental (no Superpowers layer)
 
 | Version | Changes |
 |---------|---------|
+| **0.2.18** | Make the "lowest severity worth fixing" **configurable** for plan and code reviews. A new layered parameter **`review.minSeverity`** (`low`\|`medium`\|`high`\|`critical`, default `low` — today's behavior, matched case-insensitively) sits alongside `review.maxIterations` in the `/ptp:config` registry and its resolver. The shared `ptp-review-loop` (every `-loop` command plus the `-full` orchestrators) now converges only on findings **at or above** the threshold — below-threshold findings are still reported, labelled "below threshold — not blocking convergence," but never confirmed, fixed, or counted toward the iteration cap, and the effective threshold is recorded in the loop's `reviews/*.json` marker. The `/ptp:full-apply` workflow's embedded reviewer agent (`agents/ptp-review.md`, which restates the loop inline rather than delegating) was brought to parity and now surfaces the resolved `minSeverity` in its terminal payload. Every standalone one-shot reviewer and verdict surface (`/ptp:review`, `/ptp:review-plan`, `/ptp:review-brainstorm`, `/ptp:review-prd`, the `codex-review*` commands) and the `/ptp:archive` Critical/High gate now read the same threshold — a `FAIL`/`WARN`/refusal fires only on an **actionable** Critical or High, so at the default `low` every one of those ten surfaces stays byte-identical to today. Shipped as four dependency-ordered slices under epic `0040` (config schema → loop consumption → full-apply agent parity → standalone verdicts), each independently planned, dual-reviewed, applied, and code-reviewed. (0040_01–0040_04) |
 | **0.2.17** | Close the one gap `/ptp:backlog-run` + `/ptp:backlog-edit` left open: a **`blocked`** epic whose halted change has since been manually verified had no way back to `done` short of a full reset-and-replan. A new **`/ptp:backlog-continue [issue text]`** identifies the single backlog entry that is `blocked` with a non-empty `changeEpics` (refusing on zero or on more than one candidate, never guessing) and drives it one of two ways. **Bare invocation** ("I checked it, it's fine"): for every recorded change-epic prefix, in order, it checks off any remaining `tasks.md` boxes (the user's own invocation *is* the manual sign-off), re-verifies (`openspec validate --strict` plus the project's build/test suite, so a stale automated failure still surfaces rather than being waved through), drives `/ptp:review-full` to convergence, and drives `/ptp:archive` — only once **every** prefix has archived does it perform the new **guard-4** `blocked` → `done` transition, in the same invocation, as the direct proof of that review-full → archive sequence having just succeeded. **Issue-text invocation** ("I found problems"): spawns a fix-pass agent (reusing `agents/ptp-apply.md`'s TDD discipline and its no-invented-tasks rule) scoped to the same change and issue text, re-verifies, and leaves the entry `blocked` for another manual check — never touching status. `ptp-backlog`'s status transition table gains **row 8** (`blocked` → `done`, performer `/ptp:backlog-continue` only) and **guard 4**, which is never a standalone disposition independent of that same-invocation proof — `/ptp:backlog-edit` continues to refuse `blocked` → `done` unconditionally, since it has no review-full/archive machinery of its own to satisfy the guard. The command never chains into `/ptp:backlog-run` — finishing one epic is one invocation; resuming the rest of the ready set stays a separate, explicit call. (0038_01) |
 | **0.2.15** | Make the epic backlog **runnable**. A new **`/ptp:backlog-run [rounds:{count}]`** takes ready backlog epics one at a time, in `ptp-backlog`'s dependency order, and runs each through **`/ptp:full`** — five per invocation by default. It is deliberately **UNWRAPPED**: it starts no `ptp-run-at-model` main run of its own or per epic and drives the `ptp-full` **skill inline**, because `ptp-run-at-model`'s *Nesting caveat* forbids naively wrapping a command whose work spawns a subagent or a Workflow and `/ptp:full` does both — a wrapped runner would make the first epic's Workflow launch throw. The new `ptp-backlog-run` skill owns the **`rounds:{count}`** token (positive-integer body, leading zeros accepted, absent → **5**, persisting nothing and adding **no** config key; one round = one epic **started**, so a halt consumes it) with every grammar mechanic defined **by reference** to `ptp-run-at-model`'s `fast:` section, and a **residual-argument refusal** that declines `model:` as structurally impossible while declining `fast:`/`parallel:` as a v1 scope decision — `fast` fixed to `false` with no config key, `parallel` resolved once from `parallel.mode` and passed through. Preconditions run in a fixed order — `codex.mode` as a **fail-fast gate, not a hand-off** (an environment failure aborts before any entry is marked `in-progress`), the `rounds:`/residual refusals, the one-per-run `parallel` posture resolution, then **one** branch guard for the whole run — after which the file is loaded through `ptp-backlog` and the runner **declines the writer eligibility it is granted**, STOPping on every writer-eligible structural defect because it *consumes* the `dependsOn` graph rather than repairing it. The loop **re-reads and re-validates before every iteration** (no in-memory model; the detection claim scoped honestly to edits present at that read, since the IO protocol has no locking) and classifies its end into **six** loop-terminal states with `halted` taking control-flow priority — rounds exhausted, under-supply (never called clean exhaustion while an `in-progress` entry lingers), blocked-predecessor starvation (transitive, **not** a file defect), structural starvation (its exact complement, unreachable on a validated file and kept as defence in depth), halted, and the mid-run **file-defect halt**. Per epic: **WRITE 0** takes the entry with `in-progress` + a `runBaseline` snapshot cited from `ptp-backlog`'s single change-prefix definition, **WRITE 1** merges `changeEpics`/`attributionWarnings` while still `in-progress` — report-authoritative, diff-corroborating, with *absent* and *empty* reports resolved differently and provenance only ever raised — and **WRITE 2** persists `done` or `blocked`, appends one line to `notes`, and performs the runner's **only** `runBaseline` clear; the two are **never coalesced**, because the crash window between them is exactly what `/ptp:backlog-edit`'s reconciliation gate reads. The terminal report uses backlog-level buckets `processed` / `halted` / `never-started` (never reusing `applied (review pending)`), nests each epic's `ptp-full-apply` per-slice report **verbatim**, and gives its own label to the four rows that have no buckets to nest — never-started, absent report, empty report, and a plan-convergence STOP (which nests `/ptp:full`'s own report instead). Fan-out **across** backlog epics is forbidden structurally while `/ptp:full`'s per-slice fan-out inside an epic is untouched, and the v2 **inter-epic seam** after WRITE 2 is named as documentation-only with branch-per-epic explicitly rejected on the `ptp-branch-prep` stash hazard. The runner never commits, pushes, merges, archives, or deploys, and announces that blast radius before the first epic runs. (0036_04) |
 | **0.2.14** | Make the epic backlog **editable and recoverable**. A new **`/ptp:backlog-edit <BK-NNNN> "<what to change>"`** takes exactly one backlog id plus a free-text instruction — counting **positional** target ids only, so an edge edit may name a second id as an operand — STOPs in the outer session (before the branch guard and before any spawn) when the id or the instruction is missing, then runs one `ptp-run-at-model` main run at `opus.high`, exactly the shape `/ptp:backlog-add` established. One invocation runs a fixed eight-step order (validate → resolve → classify → **status legality, then the recovery gate** → the user's edits → re-detection → **one** whole-file write → report) and lands **every** mutation, including every `runBaseline` clear, in that single write; a refusal at any step leaves `openspec/backlog.json` byte-unchanged (a guarantee scoped to the backlog file, since the outer guard may already have cut a branch). Validation STOPs exactly where the writer-eligibility rule obliges — any fatal problem, `duplicate-id`, a `malformed-entry` on an `id` — and **proceeds** over the five **writer-eligible structural defects**, because this is the command that repairs them; their presence in the file **as loaded** inherits the detection contract's **suppression** (the user's edit still lands, no detected edge is written, the defect is reported, and the invocation that repairs the last defect is itself detection-free), and the contract's **already-present-edge precedence** is honoured here — the only place it is reachable — so such an edge on a `done`/`in-progress` target is a silent no-op ahead of the target-status check, never a refusal. Re-detection runs **after** the user's own edge edits (so a just-rejected edge cannot be resurrected) and only when `title`, `description`, `dependsOn`, or `dependencyRejected` changed. `ptp-backlog` gains, additively, the two bodies of methodology the runner will read as well: the **seven-row status transition table with a performer column** — every runner-only row, every row absent from the table, and every no-op status write refused by name, with `done → cancelled` permitted and unconditional — with its three guards (a `blocked` reset that **retains** the prior attempt's `changeEpics` and requires a report-time-only acknowledgement; `any → cancelled`, carrying that same acknowledgement from `blocked` and from a stale `in-progress` where it also clears `runBaseline`, with the disposition governing the ids while the cancellation governs the status and `rerun anyway` not offered; and the `cancelled → pending` **inversion refusal** with exactly two bypasses and no third path) — and the **recovery and reconciliation** machinery: the stale definition worded **conditionally** because a live run is indistinguishable on disk, the single **change-prefix-set definition** (active **and** archived, mirroring `ptp-change-selector` §4) both the snapshot and the diff cite, an **additive-only** reconciliation that skips warned prefixes and never downgrades provenance, a gate keyed on **"ids exist"** rather than "unconfirmed ids exist", the **availability table** that withholds `disown` the moment a confirmed id exists, the per-attribution outcomes of `claim`/`disown`/`rerun anyway` and the per-prefix `promote`/`dismiss`, their combination rules (`disown` + `promote` refused as self-contradictory), the rule that **every** settling edit — the ungated reset included — clears `runBaseline` in the same write, and the **never-yields-`done`** rule justified by `ptp-review-loop` writing no marker for `kind = code`, with that durable marker named as the v2 seam. Ambiguity is answered with a **refusal printing the offered dispositions**, never a question. (0036_03) |
