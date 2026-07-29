@@ -803,7 +803,7 @@ the spike observed:
 | `success` | attribute `success` (`true`/`false`, string or boolean); else the span status (`OK` → `true`, `ERROR` → `false`); else empty |
 | `error` | attribute `error`, `error.message`, or `exception.message`; else the span status message |
 | `start_ts` / `end_ts` / `duration_ms` | the timestamp rule below |
-| the Bash command text (raw-only) | attribute `command`, else `tool.command`, `tool_input.command`, `bash.command` |
+| the Bash command text (raw-only) | the JSON payload in attribute `tool_parameters`, field `full_command`; else the JSON payload in `tool_input`, field `command`; else `tool_parameters`'s `bash_command` field (the command's **first token only** — a degraded last resort, not a synonym for this record's `bash_command` extra); else the flat attributes `command`, `tool.command`, `tool_input.command`, `bash.command`. The first **three** read fields out of **JSON strings** rather than flat scalars — `tool_parameters` and `tool_input` are each one attribute holding a JSON-encoded payload — and all three are emitted **only when `OTEL_LOG_TOOL_DETAILS` is set** (§13.2), the gate being on the whole attribute and not on any single field — without that key the text is absent from the wire and every Bash row's retained command is empty |
 
 **The Codex source paths**, appended to the rows above rather than replacing them, so a record carrying
 both keeps the baseline answer. Availability was recorded **per column** by the decision record (§7c),
@@ -1202,7 +1202,7 @@ Because ignoring a path does not untrack a file git already tracks, `setup` **re
 writing nothing**, when `.claude/settings.local.json` is already tracked, saying it must be untracked
 first. A secret written into a tracked file while claiming it is ignored is a false guarantee.
 
-### 13.2 The block — exactly seven keys
+### 13.2 The block — exactly eight keys
 
 | Key | Value |
 |---|---|
@@ -1213,6 +1213,7 @@ first. A secret written into a tracked file while claiming it is ignored is a fa
 | `OTEL_EXPORTER_OTLP_HEADERS` | `"x-ptp-store-token=<the per-store credential>"` |
 | `OTEL_LOGS_EXPORTER` | `"otlp"` |
 | `OTEL_TRACES_EXPORTER` | `"otlp"` |
+| `OTEL_LOG_TOOL_DETAILS` | `"1"` |
 
 The delay is present because the ~60 s default **silently discards the tail of a short run**, which
 looks like present-but-incomplete data rather than missing data — the worse failure of the two.
@@ -1228,6 +1229,28 @@ and recorded zero rows. `OTEL_METRICS_EXPORTER` is deliberately **left unset**: 
 They are exporter *selection*, not telemetry *enablement*, so nothing about the confirm-first posture
 changes: still one confirmed write, still only these keys, still every other key preserved.
 
+**Why eight and not seven.** `OTEL_LOG_TOOL_DETAILS` was added on **measured evidence**, in the same
+way and for the same class of reason as the two exporter keys. With the block as it stood just before
+this key (the seven entries above) in force, Claude Code 2.1.220 emits **no** `tool_parameters` and
+**no** `tool_input` attribute on any tool event — so §10.4's Bash command text is not merely unread by
+the sink, it never reaches it. Paired control runs (identical but for this one key) confirmed both
+directions. The visible cost of its absence was a store in which **every** `bash_command.text` was
+empty and **every** Bash row classified `other`, silently emptying the `git` / `build_test` /
+`search` buckets §10.6 exists to produce — a block that looks complete, passes every gate, and
+records a column of blanks.
+
+It is **non-gating**, like the delay and the two exporter keys: its absence costs one raw-only field,
+not emission, so the auto-start preamble's gate stays exactly **four** keys. A user whose block
+predates this key keeps collecting spans and simply keeps getting an empty command — re-running
+`setup` and restarting is the whole remedy.
+
+**Scope, stated because it is a privacy decision and not a formatting one.** This key makes Claude
+Code emit tool *parameters*, which for `Bash` is the full command line — and a command line can
+carry a secret in an argument. That is why it is written through the same confirm-first diff as the
+credential and never silently. It does **not** enable `OTEL_LOG_USER_PROMPTS`,
+`OTEL_LOG_TOOL_CONTENT`, or `OTEL_LOG_RAW_API_BODIES`, which stay unset; the store remains
+loopback-only, per-repository, and gitignored.
+
 The credential is read from `<telemetry.root>/.ptp-telemetry-credential`, **reused** when present
 and, when absent, generated **provisionally in memory** and persisted only after confirmation
 (§13.4).
@@ -1242,7 +1265,7 @@ shows its literal old and new value.
 
 ### 13.3 Merge semantics
 
-Touch **only those seven keys**. Every other `env` key and every key outside `env` is left untouched.
+Touch **only those eight keys**. Every other `env` key and every key outside `env` is left untouched.
 A key already present with a different value is shown **old and new** in the diff and changed only on
 confirmation. A **higher-precedence layer that already defines one** is called out rather than
 silently shadowed. Refuse — **without overwriting** — a settings file that does not parse as JSON or
