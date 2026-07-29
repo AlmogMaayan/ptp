@@ -1,6 +1,6 @@
 ---
 name: ptp-review-loop
-description: Shared loop protocol for /ptp:review-loop, /ptp:codex-review-loop, /ptp:review-plan-loop, /ptp:codex-review-plan-loop, the /ptp:review-brainstorm-full brainstorm loop, and /ptp:codex-review-prd-loop. Takes kind∈{code,artifact,brainstorm,prd} and reviewer∈{superpowers,codex} and iterates review→confirm→fix until zero open findings or the configured iteration cap (default 5) is reached. Handles rejection carry-over so rejected findings do not cause infinite loops, and filters manual-check/tests-required suggestions from the convergence count. At its terminal states the loop also writes a small durable per-kind review-convergence marker (for kind∈{brainstorm, artifact, prd} under openspec/changes/<id>/reviews/; kind=code writes none), unless invoked with deferMarker=true by a -full orchestrator.
+description: Shared loop protocol for /ptp:review-loop, /ptp:codex-review-loop, /ptp:review-plan-loop, /ptp:codex-review-plan-loop, the /ptp:review-brainstorm-full brainstorm loop, and /ptp:codex-review-prd-loop. Takes kind∈{code,artifact,brainstorm,prd} and reviewer∈{superpowers,codex} and iterates review→confirm→fix until zero open findings at or above the configured review.minSeverity floor (default low = all four severities) or the configured iteration cap (default 5) is reached; findings below the floor are reported but not fixed. Handles rejection carry-over so rejected findings do not cause infinite loops, and filters manual-check/tests-required suggestions from the convergence count. At its terminal states the loop also writes a small durable per-kind review-convergence marker (for kind∈{brainstorm, artifact, prd} under openspec/changes/<id>/reviews/; kind=code writes none), unless invoked with deferMarker=true by a -full orchestrator.
 ---
 
 # ptp-review-loop — shared loop protocol
@@ -69,6 +69,93 @@ value. A valid value is a positive integer (`>= 1`); no upper bound is enforced.
 
 The resolved `maxIterations` becomes `MAX_ITERATIONS` — the constant it is today for that run.
 
+**`review.minSeverity` — the convergence severity floor.** A sibling parameter, resolved from the
+**same two files with the same precedence**, naming the **lowest finding severity that is in scope
+for handling**:
+
+```
+minSeverity = "low"                                  # default
+for path in [ ~/.claude/ptp/config.json,             # global first
+              <repo>/.claude/ptp/config.json ]:      # then project (overrides)
+    if file exists and parses as JSON
+       and obj.review?.minSeverity is a string whose lowercased value is
+           exactly one of "low" | "medium" | "high" | "critical":
+        minSeverity = that lowercased value
+# any missing file / missing key / parse error / out-of-domain value → leave the prior value
+# (ultimately "low" if nothing valid is found) — never throw, never STOP
+```
+
+The resolved `minSeverity` becomes `MIN_SEVERITY`, resolved **once at the start of a loop run** and
+held fixed for the duration — no mid-loop re-read, exactly like `MAX_ITERATIONS`. Its meaning as a
+rank floor is defined under **## Severity threshold** below.
+
+**Case rule: matched case-insensitively, canonicalized to lowercase.** The value is lowercased
+before comparison, so `"High"` and `"HIGH"` both resolve to `high`. Case is the **only** leniency:
+the lowercased value must equal one of the four literals exactly, so a padded value such as
+`" high "` is out of domain and its layer is ignored like any other invalid value — never silently
+promoted to a higher (finding-suppressing) threshold. The lowercase canonical form is what the loop
+reports and what the marker records — never the raw config text.
+
+**Reader posture, matching `maxIterations`:** each layer is evaluated independently and a layer
+whose file is missing, is unparseable, lacks the key, or carries an invalid value (a non-string such
+as `2`, `true`, `null`, an array or an object; or an out-of-domain string such as `"none"`, `"all"`,
+`"blocker"`, or `""`) is ignored, leaving the prior valid layer (ultimately the `low` default) in
+force. Resolution falls back to the default `low` only when no layer supplies a valid value. Never
+throw, never STOP over a config typo.
+
+**Parameter ownership.** `review.minSeverity` is **defined** by the `/ptp:config` parameter registry
+(`0040_01` — `commands/config.md`, `skills/ptp-config/`), which owns its domain, its default, and
+the editor behavior that writes it. This skill is a **consumer**: it resolves and applies the value;
+it does not own the parameter.
+
+**Strict/forgiving complementarity:** as with `maxIterations`, the `/ptp:config` editor's writable
+set (the four canonical lowercase strings) is a subset of what this resolver accepts — the editor is
+**STRICT** (rejects an invalid value and re-prompts, so an invalid value is never written), while
+this resolver is **FORGIVING** (ignores an invalid layer and continues rather than stopping).
+
+**Loop-start line (emitted once, before iteration 1).** Immediately after resolution and before the
+first iteration, the loop states the effective threshold:
+
+```
+Convergence threshold: minSeverity = high (findings below High are reported but do not block convergence).
+```
+
+This line is rendered on **every** run, **including** runs at the default `low` — where it names
+`low` and notes that every severity is in scope — so a reader always knows which mode the run is in.
+
+## Severity threshold
+
+Severity is ordered:
+
+```
+Low  <  Medium  <  High  <  Critical
+rank:  1        2         3          4
+```
+
+`MIN_SEVERITY` is a **floor**, never an equality test: a finding is **in scope** when
+`rank(finding.severity) >= rank(MIN_SEVERITY)`, and **below threshold** otherwise.
+
+| `MIN_SEVERITY` | floor rank | in-scope severities |
+|---|---|---|
+| `low` (default) | 1 | Low, Medium, High, Critical — everything (the loop's pre-existing behavior) |
+| `medium` | 2 | Medium, High, Critical |
+| `high` | 3 | High, Critical |
+| `critical` | 4 | Critical only |
+
+**Fail-safe: an absent or unrecognized severity is treated as IN SCOPE.** A reviewer that emits no
+severity label, or one outside the four (`Blocker`, `Info`, …), yields a finding the loop cannot
+rank. Such a finding is handled exactly as it is today — confirmed, fixed if CONFIRMED, and counted
+toward convergence — rather than being classified below threshold. The opposite choice would let a
+mislabeled Critical vanish, violating the never-silently-drop rule.
+
+**Stable key for an unrankable finding.** Because such a finding is in scope, it reaches step (d)
+and needs a stable key. Only the `kind = code` key carries a `severity` field (the `artifact` /
+`brainstorm` / `prd` keys do not), so only it needs a rule: record the reviewer's raw label
+verbatim when one was emitted (e.g. `Blocker`), and the sentinel `<unlabeled>` when none was. The
+four-value schema is unchanged for the labeled findings it already covers; this only names the
+value to use in the fail-safe case, so carry-over deduplication works on unrankable findings too
+instead of being undefined for them.
+
 ## In-conversation state
 
 All state lives in the current conversation context. **This state is NEVER persisted to disk.** No files are written to track iteration count, rejected findings, or summaries.
@@ -77,6 +164,7 @@ All state lives in the current conversation context. **This state is NEVER persi
 |----------|--------------|------|
 | `iteration` | 0 | integer |
 | `MAX_ITERATIONS` | resolved from `review.maxIterations` (layered config) at loop start; default 5; held fixed for the run | integer |
+| `MIN_SEVERITY` | resolved from `review.minSeverity` (layered config) at loop start; default `low`; held fixed for the run | string (`low` \| `medium` \| `high` \| `critical`) |
 | `rejected_findings` | `[]` | list of stable finding keys (see below) |
 | `per_iteration_summary` | `[]` | list of per-iteration result objects |
 
@@ -97,6 +185,7 @@ writes NONE** (the `/ptp:status` table has no code-review column to feed).
   "terminalState": "converged | cap-reached",
   "reviewers": ["superpowers", "codex"],
   "iterations": 2,
+  "minSeverity": "high",
   "timestamp": "2026-06-23T12:34:56Z"
 }
 ```
@@ -107,7 +196,15 @@ writes NONE** (the `/ptp:status` table has no code-review column to feed).
 | `terminalState` | string | `"converged"` (loop reached `DONE`) or `"cap-reached"` (loop reached `ITERATION CAP REACHED`). |
 | `reviewers` | string[] | The reviewer(s) that actually ran: `["superpowers"]`, `["codex"]`, or `["superpowers","codex"]` (both). A single `ptp-review-loop` invocation runs one reviewer, so a standalone `-loop` run writes a single-element array; the combined set is assembled by the `-full` orchestrator. |
 | `iterations` | integer | The iteration count of the last phase that ran (≥ 1). |
+| `minSeverity` | string | The **effective resolved** severity threshold of the run that produced this marker: `"low"`, `"medium"`, `"high"`, or `"critical"` — always the lowercase canonical form, never the raw config text. Under a `-full` orchestrator's single combined write this is the threshold used by the **last phase that ran**, the same rule already applied to `iterations`. |
 | `timestamp` | string | ISO-8601 UTC instant the marker was written. |
+
+**`minSeverity` is purely additive — absent means `low`.** Markers written before this field existed
+carry no `minSeverity`; **any** reader that consumes the field reads an absent value as `"low"`. No
+migration, no rewrite, no marker version bump. No reader is *required* to start consuming it: the
+sole marker reader today — the `/ptp:status` review columns — keys only on `kind` / `terminalState` /
+`reviewers` / `iterations`, and its existing optional-field tolerance already ignores fields it does
+not key on, so old and new markers both render exactly as they do today.
 
 **Per-kind file naming** (one file per `/ptp:status` review column):
 
@@ -151,9 +248,13 @@ orchestrator and review-fix write the marker independently of the shared loop's 
   single-reviewer marker directly at its terminal state.
 - `deferMarker = true` (passed by a `-full` orchestrator) → the loop does **all** its normal work and
   produces its normal terminal report but **does NOT write the marker itself**. It instead returns its
-  terminal outcome (`terminalState`, `reviewer`, `iterations`) to the orchestrator, which performs
+  terminal outcome (`terminalState`, `reviewer`, `iterations`, `minSeverity`) to the orchestrator,
+  which performs
   **exactly one** combined marker write after the whole `-full` run resolves (see
-  `ptp-review-brainstorm-full` / `review-plan-full`). This guarantees a `-full` run produces exactly one
+  `ptp-review-brainstorm-full` / `review-plan-full`). The combined write records the **last phase
+  that ran**'s `minSeverity`, the same rule already applied to `iterations`; in the normal case both
+  phases resolve the same value and the rule is a no-op, and each phase's own report names the
+  threshold it used. This guarantees a `-full` run produces exactly one
   authoritative marker write with **no** provisional per-phase marker that could survive a later failed
   write.
 
@@ -187,7 +288,12 @@ assembled per the `ptp-codex-mode` canonical flag-append rule (append resolved `
 
 Collect the full list of findings (severity, location, description, suggested fix) from the review output.
 
-### (c) Filter manual-check / tests-required findings
+### (c) Filter out-of-convergence-scope findings
+
+Two sub-filters, applied **in this order**. (c1) runs **first**, so a pure "check this by hand" /
+"add a test" suggestion is dropped there and is never *additionally* reported as below threshold.
+
+#### (c1) Manual-check / tests-required drop
 
 Before the convergence check, drop any finding whose suggested fix consists **only** of:
 
@@ -198,9 +304,27 @@ A finding that names a concrete code or artifact defect **AND** additionally men
 
 Filtered findings do NOT count against convergence and do NOT trigger a fix pass.
 
+#### (c2) Severity-threshold partition
+
+Partition every finding that survived (c1) against `MIN_SEVERITY`, per **## Severity threshold**:
+
+- **In scope** (`rank(severity) >= rank(MIN_SEVERITY)`, or severity absent/unrecognized — the
+  fail-safe) → continues to steps (d)–(h) unchanged.
+- **Below threshold** → moved out of the in-scope stream into the `below_threshold` bucket for this
+  iteration.
+
+A finding in the `below_threshold` bucket is **not** confirmed (step (e) is never run on it), **not**
+fixed (step (g) never edits on its account), **not** counted toward the step (f) exit check, **not**
+appended to `rejected_findings` (nobody examined it — asserting "not a defect" would be a
+fabrication), and gets **no stable key** (carry-over dedup does not apply).
+
+The bucket is **re-derived from each iteration's fresh review pass** — never carried across
+iterations and never persisted, the same in-conversation-only rule as all loop control state. It is
+reported per **(h)** and in both terminal states; it is never silently dropped.
+
 ### (d) Carry-over rejection check
 
-For each remaining finding, compute its **stable key** (see section below) and check it against `rejected_findings`.
+For each remaining **in-scope** finding, compute its **stable key** (see section below) and check it against `rejected_findings`.
 
 - If it matches an entry in `rejected_findings`, mark it `REJECTED (carry-over)`. Do NOT re-confirm it. It does NOT count against convergence.
 - If it does not match, it is a **candidate finding** for confirmation in step (e).
@@ -214,7 +338,10 @@ Invoke `superpowers:receiving-code-review` and apply its rigor: for every candid
 
 ### (f) Exit check
 
-If there are zero `CONFIRMED` findings this iteration → proceed to the **DONE** terminal state.
+If there are zero `CONFIRMED` **in-scope** findings this iteration → proceed to the **DONE** terminal
+state. Below-threshold findings never enter this count, so a review pass that returns nothing at or
+above `MIN_SEVERITY` converges immediately (having fixed nothing) — with the below-threshold list
+rendered in the terminal report.
 
 ### (g) Fix pass
 
@@ -236,7 +363,7 @@ Run a cheap, fast verification appropriate to `kind`:
 
 A failing verification is **reported in `per_iteration_summary`** but does NOT abort the loop — the next review iteration will pick up regressions. The iteration cap is the backstop.
 
-Append a summary entry to `per_iteration_summary`: iteration number, findings-confirmed count, findings-rejected count, carry-over count, fixes applied, verification result.
+Append a summary entry to `per_iteration_summary`: iteration number, findings-confirmed count, findings-rejected count, carry-over count, **below-threshold count** (the size of this iteration's `below_threshold` bucket from (c2) — `0` on every run at the default `low`), fixes applied, verification result.
 
 ### (i) Loop
 
@@ -253,6 +380,9 @@ key = {
   normalized_repo_path: path with backslashes normalised to forward slashes,
   line_range_bucket:    round(first_cited_line / 5) * 5,   // tolerates small drift
   severity:             Critical | High | Medium | Low,
+                        // fail-safe case only: an unrankable finding records the reviewer's raw
+                        // label verbatim, or `<unlabeled>` when none was emitted
+                        // (see ## Severity threshold)
   summary:              finding_one_line_description[:60]
 }
 ```
@@ -279,14 +409,31 @@ Artifact keys do not use line numbers because section headings renumber after ed
 
 ### DONE
 
-Reached when step (f) finds zero CONFIRMED findings for the current iteration.
+Reached when step (f) finds zero CONFIRMED **in-scope** findings for the current iteration.
 
 Report:
 
-1. **Per-iteration summary table** — one row per iteration: iteration number, confirmed, rejected, carry-over, fixes applied, verification result.
+1. **Per-iteration summary table** — one row per iteration: iteration number, confirmed, rejected, carry-over, **below-threshold**, fixes applied, verification result.
 2. **Total findings fixed** across all iterations.
 3. **Rejected / carry-over set** — list every stable key that was rejected or carried over, with the rejection reason from step (e) or `(carry-over)`.
-4. **Next command**:
+4. **Below threshold — not blocking convergence (minSeverity = `<value>`)** — the below-threshold
+   findings of the **last completed review pass** (the same snapshot the `ITERATION CAP REACHED`
+   "Open findings" section uses), each carrying its severity label and the literal `(unconfirmed)`
+   marker:
+
+   ```
+   Below threshold — not blocking convergence (minSeverity = high)
+     - [Medium] design.md § Data flow — "cache invalidation order is implied, not stated"  (unconfirmed)
+     - [Low]    tasks.md § 3 — "task 3 wording is ambiguous"                               (unconfirmed)
+   ```
+
+   The `(unconfirmed)` marker is mandatory: these findings never passed
+   `superpowers:receiving-code-review`, so presenting them as verified defects would misrepresent
+   them. When the bucket is empty — which is every run at the default `low` — render the literal
+   word `None`, so a reader can distinguish "nothing below threshold" from an author omission. This
+   section is rendered **before** the next-command recommendation, so a `DONE` with a non-empty
+   bucket is never misread as "the reviewer found nothing".
+5. **Next command**:
    - `kind=code`     → `/ptp:archive <change-id>` (or `/ptp:status` first).
    - `kind=artifact` → `/ptp:apply <change-id>` if not yet implemented; `/ptp:review-plan <change-id>` for a post-apply artifact check. (Recommend these to the user — do not invoke them.)
    - `kind=brainstorm` → `/ptp:plan <change-id>` (the brainstorm is sound; proceed to author the OpenSpec artifacts). (Recommend it to the user — do not invoke it.)
@@ -296,10 +443,11 @@ Report:
 marker (`brainstorm`→`reviews/brainstorm.json`, `artifact`→`reviews/plan.json`,
 `prd`→`openspec/changes/<id>/reviews/prd.json`) per the **## Review-convergence marker** section, with
 `terminalState: "converged"`, `reviewers` = the reviewer(s) that ran this loop run, `iterations` = the
-final `iteration` value, and `timestamp` = now (UTC ISO-8601). Use the atomic write-temp-then-rename
+final `iteration` value, `minSeverity` = the effective resolved `MIN_SEVERITY` for this run
+(lowercase canonical), and `timestamp` = now (UTC ISO-8601). Use the atomic write-temp-then-rename
 protocol. **Skip the write entirely for `kind = code`.** **Skip the write when invoked with
 `deferMarker = true`** (a `-full` phase) — instead return the terminal outcome
-(`terminalState = converged`, `reviewer`, `iterations`) to the orchestrator, which performs the single
+(`terminalState = converged`, `reviewer`, `iterations`, `minSeverity`) to the orchestrator, which performs the single
 combined write. A marker-write failure is reported but does NOT change the terminal state (the review
 already happened).
 
@@ -311,17 +459,21 @@ Report:
 
 1. **Open findings** — every finding from the last completed review that is still CONFIRMED and unfixed.
 2. **Rejected / carry-over set** — same as DONE.
-3. **Per-iteration summary table**.
-4. Explicit statement: "Do not archive. Do not run `/ptp:apply`. Inspect the open findings manually and decide next steps."
+3. **Below threshold — not blocking convergence (minSeverity = `<value>`)** — same section, same
+   format, and the same `(unconfirmed)` marker and `None`-when-empty rule as DONE, sourced from the
+   **same snapshot** as the "Open findings" section above (the last completed review pass).
+4. **Per-iteration summary table** — including the **below-threshold** column.
+5. Explicit statement: "Do not archive. Do not run `/ptp:apply`. Inspect the open findings manually and decide next steps."
 
 **Marker write (after the report above).** For `kind ∈ {brainstorm, artifact, prd}`, write the per-kind
 marker (`brainstorm`→`reviews/brainstorm.json`, `artifact`→`reviews/plan.json`,
 `prd`→`openspec/changes/<id>/reviews/prd.json`) per the **## Review-convergence marker** section, with
 `terminalState: "cap-reached"` and the same `kind` / `reviewers` (the reviewer that ran) / `iterations`
-(the cap value) / `timestamp` (now, UTC ISO-8601) fields. Use the atomic write-temp-then-rename protocol.
+(the cap value) / `minSeverity` (the effective resolved `MIN_SEVERITY` for this run, lowercase
+canonical) / `timestamp` (now, UTC ISO-8601) fields. Use the atomic write-temp-then-rename protocol.
 **Skip the write entirely for `kind = code`.** **Skip the write when invoked with `deferMarker = true`**
 (a `-full` phase) — instead return the terminal outcome (`terminalState = cap-reached`, `reviewer`,
-`iterations`) to the orchestrator, which performs the single combined write. A marker-write failure is
+`iterations`, `minSeverity`) to the orchestrator, which performs the single combined write. A marker-write failure is
 reported but does NOT change the terminal state.
 
 ## Hard rules
@@ -330,6 +482,7 @@ reported but does NOT change the terminal state.
 - **Never invoke `/ptp:apply`** — not in the fix pass, not in the terminal report.
 - **Never auto-commit** any edits made during the loop.
 - **Never fix an unconfirmed finding.** If step (e) marks a finding `REJECTED`, leave the code/artifact alone.
+- **Never auto-fix a below-threshold finding, and never silently drop one.** A finding ranked under `MIN_SEVERITY` by step (c2) is reported — in the per-iteration below-threshold count and, for the last completed review pass, individually in both terminal reports — but is never confirmed, never edited, and never counted toward convergence. Reporting it is mandatory: omitting it is a violation of this rule, not an optimization.
 - **Never persist loop control state to disk.** `iteration`, `rejected_findings`, and `per_iteration_summary` live only in conversation context. This rule does NOT forbid the durable terminal review-convergence marker below — that marker is a deliberate exception and is the loop's only on-disk side effect beyond the artifact edits it already makes.
 - **Write the per-kind review-convergence marker on terminal states for `kind ∈ {brainstorm, artifact, prd}` only** (`brainstorm`→`reviews/brainstorm.json`, `artifact`→`reviews/plan.json`, `prd`→`openspec/changes/<id>/reviews/prd.json`), per the **## Review-convergence marker** section. **Never** write a marker for `kind = code`, and **never** write a marker when invoked with `deferMarker = true` (the `-full` orchestrator performs the single combined write). The marker is written via the atomic write-temp-then-rename protocol; a marker-write failure is reported but does not change the terminal state.
 - **Iteration cap is resolved from `review.maxIterations` (layered config, default 5).** There is no `--max-iterations` CLI flag. If the cap is hit, report and stop — do not silently increment past it.

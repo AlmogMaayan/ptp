@@ -44,9 +44,31 @@ per-change pass, reporting per change.)
    - **High** — should fix before merge (clear bug, missing test for a stated behavior).
    - **Medium** — fix soon, doesn't block.
    - **Low** — nit / suggestion.
+
+   Classification is **threshold-independent**: every finding is classified by this unchanged rubric
+   and listed regardless of the configured severity threshold. The threshold applies only at step 6,
+   and only to what **blocks**.
 6. **Decide outcome**:
-   - If Critical or High findings exist: list them, suggest fixes, and tell the user to address them. Do **not** archive.
-   - If only Medium / Low: report them and tell the user the change is ready to archive via `/ptp:archive <change-id>` (or `/ptp:status` to double-check first).
+
+   **Severity threshold.** Resolve `review.minSeverity` from layered ptp config **once**, at the
+   start of this pass, and hold it fixed for the pass — global `~/.claude/ptp/config.json`, then
+   project `<repo>/.claude/ptp/config.json` overriding, default `low`; a missing file, missing key,
+   unparseable JSON, or unrecognized value falls back to the prior valid value (ultimately `low`)
+   rather than erroring, and **never** STOPs the review. The `/ptp:config` parameter registry
+   (`commands/config.md`, `skills/ptp-config/`) owns the key, its domain, and its validation — this
+   is a pointer to that contract, not a second reader definition. Severity order is
+   `low < medium < high < critical`. A finding is **actionable** when its severity is **at or above**
+   the resolved threshold. Findings **below** the threshold are still classified and still listed
+   under their own severity, marked *(below the configured `review.minSeverity` — reported,
+   non-blocking)*; they never by themselves produce a do-not-archive outcome. Because this outcome
+   never counted Medium or Low toward itself, `low`, `medium`, and `high` behave identically here;
+   only `critical` changes an outcome, by demoting High to reported-only — do **not** "repair" that
+   apparent no-op by making Medium findings block. State the resolved threshold **and the layer it
+   resolved from** (default / global / project) in the report, and when the threshold demoted at
+   least one finding out of the blocking set, say so beside the outcome.
+
+   - If **actionable** Critical or High findings exist: list them, suggest fixes, and tell the user to address them. Do **not** archive.
+   - Otherwise (only Medium / Low, or a High demoted below the threshold — Critical is actionable at every threshold): report every finding — including the below-threshold ones, under their own severity and marked non-blocking — and tell the user the change is ready to archive via `/ptp:archive <change-id>` (or `/ptp:status` to double-check first). A report in which every finding is below the threshold still enumerates those findings; it is never rendered as "no findings".
 
 ## Hard rules
 

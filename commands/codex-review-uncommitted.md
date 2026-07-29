@@ -44,7 +44,29 @@ config), and relaying the verdict — **fixing nothing**, and the subagent's out
    - Untracked files (lines starting with `??`): read their contents directly (they have no diff yet).
    - If a change-id was given, also read the contract: `openspec/changes/<change-id>/{proposal,design,tasks}.md` + `specs/**/spec.md`.
    - If the change has cheap, relevant checks (typecheck/lint/tests), run them yourself and capture the results to inline as authoritative — do not make Codex run them.
-3. **Build ONE prompt over stdin** containing, in order:
+3. **Build ONE prompt over stdin.**
+
+   **Severity threshold (resolved caller-side, inlined as a literal).** Resolve `review.minSeverity`
+   from layered ptp config **once**, at the start of this pass, and hold it fixed for the pass —
+   global `~/.claude/ptp/config.json`, then project `<repo>/.claude/ptp/config.json` overriding,
+   default `low`; a missing file, missing key, unparseable JSON, or unrecognized value falls back to
+   the prior valid value (ultimately `low`) rather than erroring, and **never** STOPs the review. The
+   `/ptp:config` parameter registry (`commands/config.md`, `skills/ptp-config/`) owns the key, its
+   domain, and its validation — this is a pointer to that contract, not a second reader definition.
+   **You** read the config, exactly as you capture the diff; **Codex is never asked to read
+   `config.json`, to resolve the threshold, or to run any additional command** — the prompt is
+   closed-book by design. Severity order is `low < medium < high < critical`. A finding is
+   **actionable** when its severity is **at or above** the resolved threshold. Findings **below** the
+   threshold are still classified and still listed under their own severity, marked *(below the
+   configured `review.minSeverity` — reported, non-blocking)*; they never by themselves produce
+   `FIX BEFORE COMMIT`. Because this verdict never counted Medium or Low toward its outcome, `low`,
+   `medium`, and `high` behave identically here; only `critical` changes a verdict, by demoting High
+   to reported-only — do **not** "repair" that apparent no-op by making Medium findings block. State
+   the resolved threshold **and the layer it resolved from** (default / global / project) in your
+   step-5 summary, and when the threshold demoted at least one finding out of the blocking set, say
+   so beside the verdict.
+
+   The prompt contains, in order:
    - The review instructions (below).
    - The captured `git diff HEAD` (and staged diff if used), under a `=== UNCOMMITTED DIFF ===` delimiter.
    - The untracked files' contents, under `=== UNTRACKED <path> ===` delimiters.
@@ -55,7 +77,12 @@ config), and relaying the verdict — **fixing nothing**, and the subagent's out
    - If a change-id was given, grade the uncommitted work against the contract (proposal intent, spec deltas, tasks); otherwise review for general correctness, security, error handling, conventions, and missing tests.
    - Classify findings **Critical / High / Medium / Low**, each with file:line and a concrete suggested fix.
    - NOT classify required manual tests that have not yet been performed as findings — they are a future verification step, not a code defect.
-   - End with exactly one line: `SAFE TO COMMIT` (only Medium/Low) or `FIX BEFORE COMMIT` (any Critical/High).
+   - Honor the inlined severity threshold, stated as a literal line in the prompt:
+     *"Severity threshold: `<T>`. Classify every finding Critical/High/Medium/Low as usual and list
+     them all. Findings below `<T>` MUST be marked non-blocking and MUST NOT affect the verdict
+     line. Do not read any config file and do not run any command to determine the threshold — the
+     value above is authoritative."*
+   - End with exactly one line: `SAFE TO COMMIT` (no **actionable** Critical/High) or `FIX BEFORE COMMIT` (any **actionable** Critical/High). The single-line-at-the-end format is unchanged — the verdict tokens and their placement are byte-identical to today; only which findings count toward them is qualified.
 4. **Run Codex over stdin (you, via Bash from the repo root):**
    ```bash
    printf '%s' "$PROMPT" | codex exec -s read-only -
@@ -66,13 +93,13 @@ config), and relaying the verdict — **fixing nothing**, and the subagent's out
    - Always pipe via **stdin** (`-`); keep `-s read-only`. Do **not** pass `--full-auto`, `--sandbox workspace-write`, or `--dangerously-bypass-approvals-and-sandbox`.
    - Running it in the background and polling the output file for the verdict line is fine.
    - Sandbox noise (`blocked by policy`, `spawn setup refresh`) is harmless here — the diff is inlined, so Codex needs no commands. Proceed to relay the verdict.
-5. **Relay Codex's output** to the user, then add a one-line summary with the verdict and finding counts. Note that the review covers the diff you inlined.
+5. **Relay Codex's output** to the user, then add a one-line summary with the resolved threshold and the layer it came from, the verdict, and finding counts by severity (below-threshold findings still counted and listed, marked non-blocking; an all-below-threshold report still enumerates them and is never rendered as "no findings"). Note that the review covers the diff you inlined. **Apply the threshold rule yourself** rather than trusting Codex's line blindly: if Codex's emitted verdict line disagrees with the threshold-correct verdict (for example `FIX BEFORE COMMIT` for a High the resolved threshold demoted), **say so explicitly** and report the threshold-correct verdict.
 
 ## Hard rules
 
 - Do **not** count required manual tests that have not yet been performed as findings. Manual tests are a future verification step; their absence is not a code defect.
 - **This command only reviews and displays findings. It NEVER fixes anything.** Do not edit the working tree, do not stage, do not commit — not even if findings are obvious. Report the findings and stop. Fixing is a separate, explicit user action (`/ptp:review-fix`).
-- The **caller** captures the diff and runs any checks; **Codex runs no `npx`/network/install commands**. Pass the prompt over stdin.
+- The **caller** captures the diff, runs any checks, **and resolves `review.minSeverity`**, inlining the resolved value as a literal; **Codex runs no `npx`/network/install commands** and is never asked to read `config.json` or resolve the threshold itself. Pass the prompt over stdin.
 - Scope is **uncommitted changes only** — do not review committed history or the full merge-base diff (that's `/ptp:codex-review`).
 - Do **not** run Codex with a writable or bypassed sandbox — review must not modify the working tree.
 - Do **not** invoke `/ptp:apply` from here under any circumstance.

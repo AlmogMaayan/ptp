@@ -1,9 +1,9 @@
 ---
-description: Loop Superpowers artifact review + inline fixes until zero open findings at all severities or iteration cap reached (reviews proposal/design/tasks/spec-deltas, not code)
+description: Loop Superpowers artifact review + inline fixes until zero open findings at or above the configured `review.minSeverity` floor (default `low` = every severity) or iteration cap reached (reviews proposal/design/tasks/spec-deltas, not code)
 argument-hint: "<change-selector> — id, epic:XXXX, story:NN, or epic:XXXX story:NN"
 ---
 
-You are running the **loop variant of `/ptp:review-plan`** — a Superpowers artifact-quality loop that alternates planning-artifact review, confirmation, and fix passes automatically until every finding at all severities (Critical, High, Medium, Low) in `proposal.md`, `design.md`, `tasks.md`, and spec deltas is resolved or the configured iteration cap (default 5) is reached. This replaces the manual alternation of `/ptp:review-plan` → `/ptp:review-fix` → `/ptp:review-plan` → … that a non-trivial set of artifact findings otherwise requires.
+You are running the **loop variant of `/ptp:review-plan`** — a Superpowers artifact-quality loop that alternates planning-artifact review, confirmation, and fix passes automatically until every finding at or above the configured `review.minSeverity` floor (default `low` — Critical, High, Medium, Low) in `proposal.md`, `design.md`, `tasks.md`, and spec deltas is resolved or the configured iteration cap (default 5) is reached. This replaces the manual alternation of `/ptp:review-plan` → `/ptp:review-fix` → `/ptp:review-plan` → … that a non-trivial set of artifact findings otherwise requires.
 
 This is **not** a code-review loop. It reviews the *planning artifacts*, not source code. Use `/ptp:review-loop` or `/ptp:codex-review-loop` to review implemented code.
 

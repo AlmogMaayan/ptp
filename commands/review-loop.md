@@ -1,9 +1,9 @@
 ---
-description: Loop Superpowers code review + inline fixes until zero open findings at all severities or iteration cap reached
+description: Loop Superpowers code review + inline fixes until zero open findings at or above the configured `review.minSeverity` floor (default `low` = every severity) or iteration cap reached
 argument-hint: "<change-selector> — id, epic:XXXX, story:NN, or epic:XXXX story:NN"
 ---
 
-You are running the **loop variant of `/ptp:review`** — a Superpowers code-review loop that alternates review, confirmation, and fix passes automatically until every finding at all severities (Critical, High, Medium, Low) is resolved or the configured iteration cap (default 5) is reached. This replaces the manual alternation of `/ptp:review` → `/ptp:review-fix` → `/ptp:review` → … that a non-trivial change otherwise requires.
+You are running the **loop variant of `/ptp:review`** — a Superpowers code-review loop that alternates review, confirmation, and fix passes automatically until every finding at or above the configured `review.minSeverity` floor (default `low` — Critical, High, Medium, Low) is resolved or the configured iteration cap (default 5) is reached. Findings below the floor are reported but never auto-fixed. This replaces the manual alternation of `/ptp:review` → `/ptp:review-fix` → `/ptp:review` → … that a non-trivial change otherwise requires.
 
 ## Inputs
 

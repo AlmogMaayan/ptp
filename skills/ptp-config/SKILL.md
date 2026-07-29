@@ -65,6 +65,19 @@ parameters = [
     default:  5
   },
   {
+    key:      "review.minSeverity",
+    label:    "Lowest severity to handle",
+    jsonPath: ["review", "minSeverity"],
+    kind:     "enum",
+    values: [
+      { value: "low",      desc: "Handle low and above — every severity (default; today's behavior)" },
+      { value: "medium",   desc: "Handle medium and above; low findings are out of scope" },
+      { value: "high",     desc: "Handle high and above" },
+      { value: "critical", desc: "Handle critical findings only" }
+    ],
+    default: "low"
+  },
+  {
     key:      "roles.main",
     label:    "Main agent",
     jsonPath: ["roles", "main"],
@@ -128,7 +141,7 @@ parameters = [
 ]
 ```
 
-**Parameter menu:** The registry currently holds eleven entries. Step 2 builds an `AskUserQuestion`
+**Parameter menu:** The registry currently holds twelve entries. Step 2 builds an `AskUserQuestion`
 menu from each entry's `label` value and presents it to the user. The flow is data-driven: adding
 a new entry to the registry automatically adds it to the menu with no further edits to this flow.
 
@@ -166,13 +179,14 @@ Build an `AskUserQuestion` menu from the registry entries' `label` values:
 2. **Codex model override** (`codex.model`)
 3. **Codex reasoning effort** (`codex.reasoningEffort`)
 4. **Max review-loop iterations** (`review.maxIterations`)
-5. **Main agent** (`roles.main`)
-6. **Record ptp run telemetry** (`telemetry.mode`)
-7. **Telemetry store root** (`telemetry.root`)
-8. **Telemetry receiver port** (`telemetry.port`)
-9. **Telemetry raw-store retention (days)** (`telemetry.retentionDays`)
-10. **Run planning stages in parallel** (`parallel.mode`)
-11. **Max parallel fan-out members** (`parallel.maxConcurrency`)
+5. **Lowest severity to handle** (`review.minSeverity`)
+6. **Main agent** (`roles.main`)
+7. **Record ptp run telemetry** (`telemetry.mode`)
+8. **Telemetry store root** (`telemetry.root`)
+9. **Telemetry receiver port** (`telemetry.port`)
+10. **Telemetry raw-store retention (days)** (`telemetry.retentionDays`)
+11. **Run planning stages in parallel** (`parallel.mode`)
+12. **Max parallel fan-out members** (`parallel.maxConcurrency`)
 
 Use the selected entry's `jsonPath`, `kind`, `values` (for enum entries), and `default` for the
 remaining steps. This is data-driven off the registry — adding a parameter requires only a new
@@ -201,8 +215,8 @@ registry entry, no other edits to this flow.
      - For `codex.mode`, `codex.model`, or `codex.reasoningEffort` (they share the same `codex`
        parent): if `codex` exists but is not an object (e.g. `{"codex":"auto"}` or
        `{"codex":null}`), STOP.
-     - For `review.maxIterations`: if `review` exists but is not an object (e.g. `{"review":"x"}`
-       or `{"review":null}`), STOP.
+     - For `review.maxIterations` or `review.minSeverity` (they share the same `review` parent): if
+       `review` exists but is not an object (e.g. `{"review":"x"}` or `{"review":null}`), STOP.
      - For `roles.main`: if `roles` exists but is not an object (e.g. `{"roles":"claude"}` or
        `{"roles":null}`), STOP.
      - For `telemetry.mode`, `telemetry.root`, `telemetry.port`, or `telemetry.retentionDays`
@@ -250,6 +264,30 @@ values are:
 
 These are the only options. **Never write a value that is not in the entry's `values` list.** The
 value written to the file is exactly the selected string (verbatim, lowercase).
+
+#### kind = `enum` (e.g. `review.minSeverity`)
+
+Use `AskUserQuestion` to offer the parameter's `values`. For `review.minSeverity`, the four valid
+values are:
+
+1. **`low`** — Handle low and above — every severity (default; today's behavior)
+2. **`medium`** — Handle medium and above; low findings are out of scope
+3. **`high`** — Handle high and above
+4. **`critical`** — Handle critical findings only
+
+These are the only options. **Never write a value that is not in the entry's `values` list.** The
+value written to the file is exactly the selected string (verbatim, lowercase). Free-form input
+(e.g. `none`, `all`, `blocker`, `High`, `2`) is rejected and re-prompted, never written.
+
+`review.minSeverity` is a **threshold, not an equality test**: the configured value is the lowest
+severity that is in scope, and every severity ranked at or above it is also in scope
+(`low` = 1 < `medium` = 2 < `high` = 3 < `critical` = 4; a finding is in scope when
+`rank(finding) >= rank(minSeverity)`). Selecting `medium`, for example, puts medium, high, and
+critical findings in scope and leaves only low findings out of scope.
+
+State plainly at the point of selection: **the shared review loop (`ptp-review-loop`) reads this
+key** — findings below the chosen floor are reported but never auto-fixed and never counted toward
+convergence. At the default `low` every severity is in scope, so review behavior is unchanged.
 
 #### kind = `enum` (e.g. `roles.main`)
 
@@ -395,7 +433,8 @@ With the resolved path, the base JSON object (from step 3), and the chosen value
 2. **Set the target path:** in the base JSON object, navigate the selected entry's `jsonPath`:
    - If the parent key is absent from the root, create it as an empty object `{}`.
      For `codex.mode`, `codex.model`, or `codex.reasoningEffort`: create `codex` as `{}`; for
-     `review.maxIterations`: create `review` as `{}`; for `roles.main`: create `roles` as `{}`; for
+     `review.maxIterations` or `review.minSeverity`: create `review` as `{}`; for `roles.main`:
+     create `roles` as `{}`; for
      `telemetry.mode`, `telemetry.root`, `telemetry.port`, or `telemetry.retentionDays`: create
      `telemetry` as `{}`; for `parallel.mode` or `parallel.maxConcurrency`: create `parallel` as
      `{}`.
@@ -440,8 +479,9 @@ Examples:
 | Target file present but invalid JSON | STOP, report parse failure, do **not** overwrite. |
 | Root parses to non-object (`[]`, string, number, `null`) | STOP, report, do **not** overwrite. |
 | `codex` present but not an object (`"codex":"auto"`, `"codex":null`) — applies to `codex.mode`, `codex.model`, and `codex.reasoningEffort` alike | STOP, report, do **not** overwrite. |
-| `review` present but not an object (`"review":"x"`, `"review":null`) | STOP, report, do **not** overwrite. |
-| `review` absent | Created as `{}` on write; not clobbering. |
+| `review` present but not an object (`"review":"x"`, `"review":null`) — applies to `review.maxIterations` and `review.minSeverity` alike | STOP, report, do **not** overwrite. |
+| `review` absent | Created as `{}` on write; not clobbering — applies to `review.maxIterations` and `review.minSeverity` alike. |
+| `review.minSeverity` selection outside `low|medium|high|critical` | Not offered — the enum menu only presents the four valid values. |
 | `roles` present but not an object (`"roles":"claude"`, `"roles":null`) | STOP, report, do **not** overwrite. |
 | `roles` absent | Created as `{}` on write; not clobbering. |
 | `roles.main` selection outside `claude|codex` | Not offered — the enum menu only presents the two valid values. |
@@ -495,6 +535,9 @@ Examples:
 - **Never write an invalid integer for `review.maxIterations`.** Only a positive integer (`>= 1`)
   may be written. Any non-positive, non-integer, non-numeric, or string-typed input is rejected
   and re-prompted — never written.
+- **Never write an out-of-enum value for `review.minSeverity`.** Only `low`, `medium`, `high`, or
+  `critical` may be written. The value comes from the step 4 enum menu — never from free-form user
+  input.
 - **Never write an invalid `telemetry.port`.** Only an integer within `1..65535` may be written. Any
   non-integer, non-numeric, string-typed, zero, negative, or out-of-TCP-range input is rejected and
   re-prompted — never written, so the editor can never produce a port the receiver could not bind.

@@ -70,6 +70,11 @@ Phase 2 starts **only if Phase 1 terminates `DONE`** — the convergence-based g
   **not** start Phase 2. The user should resolve the remaining brainstorm issues (e.g. by re-running
   `/ptp:brainstorm` or hand-revising) and then re-run `/ptp:review-brainstorm-full`.
 
+**What "converges" means here.** A phase converges on findings **at or above the configured
+severity threshold**; findings below it are **reported**, not fixed, and do not block
+convergence. The threshold, its resolution, and the partition rule live in `ptp-review-loop`,
+which this skill delegates the whole loop protocol to — they are deliberately not restated here.
+
 **Missing-brainstorm case.** A `brainstorm.md` that does not exist surfaces inside Phase 1 as the
 Critical "no brainstorm to review" finding. The loop **cannot fix it** — there is nothing to edit and
 nothing to validate — so convergence to zero confirmed findings is impossible and Phase 1 terminates
@@ -160,7 +165,7 @@ not a halt. The `Codex phase skipped (mode=…)` line is always reported (never 
 
 This orchestrator drives **both** phase loops with **`deferMarker = true`** (per `ptp-review-loop`'s
 **## Review-convergence marker** section), so **no phase writes the marker itself** — each phase instead
-returns its terminal outcome (`terminalState`, `reviewer`, `iterations`) to this orchestrator. After the
+returns its terminal outcome (`terminalState`, `reviewer`, `iterations`, `minSeverity`) to this orchestrator. After the
 run resolves (after Phase 2, or after Phase 1 if Phase 2 is gated off), the orchestrator performs
 **exactly ONE** combined `reviews/brainstorm.json` write per the combined-outcome rule:
 
@@ -172,6 +177,7 @@ run resolves (after Phase 2, or after Phase 1 if Phase 2 is gated off), the orch
 - `terminalState` = that of the **last phase that ran** (`converged` if the last phase that ran reached
   `DONE`, else `cap-reached`).
 - `iterations` = the **last phase's** iteration count.
+- `minSeverity` = the **last phase that ran**'s severity threshold (lowercase canonical), the same last-phase rule as `iterations`. In the normal case both phases resolve the same value and the rule is a no-op.
 
 The combined write uses the **same atomic write-temp-then-rename protocol** as `ptp-review-loop`
 (serialize to a uniquely named temp file in `reviews/`, then replace `reviews/brainstorm.json` via a

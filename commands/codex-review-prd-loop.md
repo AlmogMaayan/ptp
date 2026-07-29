@@ -1,13 +1,14 @@
 ---
-description: Loop Codex PRD review + inline fixes until zero open findings at all severities or configured iteration cap reached (default 5; reviews the epic PRD openspec/changes/<id>/prd.md, not artifacts or code; requires codex CLI on PATH)
+description: Loop Codex PRD review + inline fixes until zero open findings at or above the configured `review.minSeverity` floor (default `low` = every severity) or configured iteration cap reached (default 5; reviews the epic PRD openspec/changes/<id>/prd.md, not artifacts or code; requires codex CLI on PATH)
 argument-hint: "<epic-selector> — id, epic:XXXX, story:NN, or epic:XXXX story:NN (omit to loop over all active epics' PRDs)"
 ---
 
 You are running the **Codex-powered loop variant of `/ptp:codex-review-prd`** — an external Codex CLI
 PRD-quality loop that alternates closed-book PRD review, confirmation, and inline-fix passes
-automatically until every finding at all severities in the epic PRD `openspec/changes/<id>/prd.md`
+automatically until every finding at or above the configured `review.minSeverity` floor (default
+`low` — Critical, High, Medium, Low) in the epic PRD `openspec/changes/<id>/prd.md`
 (where `<id>` is the epic's lowest-numbered story) is resolved or the configured iteration cap
-(default 5) is reached.
+(default 5) is reached. Findings below the floor are reported but never auto-fixed.
 
 This is **not** a code- or artifact-review loop. It reviews the *epic PRD*, which precedes any
 proposal/spec. Use `/ptp:codex-review-plan-loop` for the OpenSpec artifacts and `/ptp:codex-review-loop`

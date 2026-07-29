@@ -81,11 +81,12 @@ After both phases complete, report:
 
 ### Review-convergence marker (single combined write)
 
-This orchestrator drives **both** phase loops with **`deferMarker = true`** (per `ptp-review-loop`'s **## Review-convergence marker** section), so **no phase writes the marker itself** — each phase returns its terminal outcome (`terminalState`, `reviewer`, `iterations`) to this orchestrator. After the run resolves (after Phase 2, or after Phase 1 if Phase 2 is gated off), the orchestrator performs **exactly ONE** combined `reviews/plan.json` write per the combined-outcome rule:
+This orchestrator drives **both** phase loops with **`deferMarker = true`** (per `ptp-review-loop`'s **## Review-convergence marker** section), so **no phase writes the marker itself** — each phase returns its terminal outcome (`terminalState`, `reviewer`, `iterations`, `minSeverity`) to this orchestrator. After the run resolves (after Phase 2, or after Phase 1 if Phase 2 is gated off), the orchestrator performs **exactly ONE** combined `reviews/plan.json` write per the combined-outcome rule:
 
 - `reviewers` = the **union of phases that actually ran**, each named by the agent that ran it — the main agent alone (`["superpowers"]` at the default `roles.main=claude`) if Phase 1 capped (Phase 2 never ran) or a Codex reviewer was mode-skipped, else both agents that ran (`["superpowers","codex"]` at the default). When `roles.main=codex` these are named for the actual agents (main=codex, reviewer=superpowers).
 - `terminalState` = that of the **last phase that ran** (`converged` if the last phase that ran reached `DONE`, else `cap-reached`).
 - `iterations` = the **last phase's** iteration count.
+- `minSeverity` = the **last phase that ran**'s severity threshold (lowercase canonical), the same last-phase rule as `iterations`. In the normal case both phases resolve the same value and the rule is a no-op.
 
 The combined write uses the **same atomic write-temp-then-rename protocol** as `ptp-review-loop`: serialize to a uniquely named temp file in `reviews/`, then replace `reviews/plan.json` via a replace-if-exists rename only after the complete write succeeds; on any failure clean up the temp file and leave the live marker untouched — so a failed overwrite cannot truncate or corrupt the prior marker. Because every phase defers, there is **never a provisional per-phase marker** on disk: on a **first** review a failed single write leaves **no** marker (status falls back) — never a fabricated single-reviewer marker; on a **re-review** a failed overwrite leaves the **prior run's real marker** (the accepted staleness case; no freshness/expiry mechanism). A marker-write failure is reported but does not change the terminal state. The `/ptp:status` plan-review column reads this `reviews/plan.json`.
 
@@ -97,6 +98,7 @@ The combined write uses the **same atomic write-temp-then-rename protocol** as `
 - Do **not** auto-commit any edits made during either phase.
 - Do **not** fix any finding — especially a Codex finding — that was not independently CONFIRMED against the actual artifact text. Rejected findings stay in the artifacts; their stable keys are carried over within each phase to prevent re-confirmation in subsequent iterations of that phase.
 - Do **not** count findings whose only suggested remediation is a manual check or a missing test against convergence in either phase.
+- A phase converges on findings **at or above the configured severity threshold**; findings below it are **reported**, not fixed, and do not block convergence. The threshold, its resolution, and the partition rule live in `ptp-review-loop` — this command does not restate them.
 - Do **not** review source code in this command. If findings about source code appear, note them as out-of-scope and do not fix them here. Use `/ptp:review-full` for code.
 - Do **not** regenerate artifacts via `/ptp:plan`. All artifact fixes are minimal targeted hand-edits only — correct a thin section, add a missing scenario, fill a spec-delta gap.
 - Per-iteration verification is `npx -y openspec validate <change-id> --strict`. A failing run is reported in the iteration summary but does NOT abort the loop.

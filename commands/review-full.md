@@ -85,6 +85,7 @@ After both phases complete, report:
 - Do **not** auto-commit any edits made during either phase.
 - Do **not** fix any finding that was not independently CONFIRMED during the confirmation step. Rejected findings stay in the code; their stable keys are carried over within each phase to prevent re-confirmation in subsequent iterations of that phase.
 - Do **not** count findings whose only suggested remediation is a manual check or a missing test against convergence in either phase.
+- A phase converges on findings **at or above the configured severity threshold**; findings below it are **reported**, not fixed, and do not block convergence. The threshold, its resolution, and the partition rule live in `ptp-review-loop` — this command does not restate them.
 - Do **not** edit spec deltas or planning artifacts (`proposal.md`, `design.md`, `tasks.md`) in this command — this is a code-review loop. Use `/ptp:review-plan-full` for artifact fixes.
 - Iteration cap per phase is configurable via `review.maxIterations` in ptp config; default 5. Each phase has its own independent cap.
 - Run Codex under `codex exec -s read-only` with the prompt piped over **stdin** (`-`), assembled per the `ptp-codex-mode` flag-append rule (resolved `-m`/`-c` flags before the trailing `-` when configured). Never pass `--full-auto`, `--sandbox workspace-write`, or `--dangerously-bypass-approvals-and-sandbox`.
