@@ -464,6 +464,39 @@ function firstDefined(map, keys) {
   return undefined;
 }
 
+/**
+ * Read one field out of a JSON-stringified attribute payload.
+ *
+ * Claude Code carries a tool's inputs as a JSON **string** in a single flat attribute, not as flat
+ * scalar attributes — so `firstDefined`, which does a literal flat property lookup on the flattened map,
+ * can never reach them however many key names it is given. Measured against Claude Code 2.1.220:
+ * `tool_parameters` = `{"bash_command":"git","full_command":"git status --porcelain",…}`.
+ *
+ * Parsing is defensive by contract, not by taste: §12's "telemetry writes are fire-and-forget and
+ * never fail a ptp command" means a malformed payload from a future CLI version may cost this one
+ * record its command text and NOTHING else. Every failure — absent attribute, non-string attribute,
+ * unparseable JSON, a parsed value that is not a plain object, a field that is absent or not a
+ * non-empty string — yields `undefined` so the caller falls through to its next source. It never
+ * throws.
+ *
+ * `isPlainObject` rather than `typeof === 'object'`: `typeof [] === 'object'` and
+ * `typeof null === 'object'`, and the same trap is already guarded this way at `handleBatch` and in
+ * the raw-store reader. The `typeof v === 'string'` field guard also keeps `Object.prototype` names
+ * (`constructor`, `toString`) from resolving to a function.
+ */
+function jsonAttrField(map, attrKey, fields) {
+  const raw = map[attrKey];
+  if (typeof raw !== 'string' || raw === '') return undefined;
+  let obj = null;
+  try { obj = JSON.parse(raw); } catch (_) { return undefined; }
+  if (!isPlainObject(obj)) return undefined;
+  for (const f of fields) {
+    const v = obj[f];
+    if (typeof v === 'string' && v !== '') return v;
+  }
+  return undefined;
+}
+
 function spanKindFor(rawName) {
   const name = String(rawName || '');
   const short = name.startsWith('claude_code.') ? name.slice('claude_code.'.length) : name;
@@ -612,7 +645,39 @@ function projectSource(source) {
   rec.model = str(firstDefined(attrs, ['model', 'gen_ai.request.model', 'gen_ai.response.model']));
   rec.tool_name = str(firstDefined(attrs, ['tool_name', 'tool.name']));
 
-  const command = firstDefined(attrs, ['command', 'tool.command', 'tool_input.command', 'bash.command']);
+  // The Bash command text is NOT a flat attribute. Claude Code carries it JSON-stringified inside
+  // `tool_parameters` (on BOTH `tool_decision` and `tool_result`) and inside `tool_input`
+  // (`tool_result` only) — and emits NEITHER unless `OTEL_LOG_TOOL_DETAILS` is truthy, which is why
+  // §13.2's block writes it. Measured against Claude Code 2.1.220 with a captured live payload; the
+  // four flat keys below were read for the life of this file and never once matched, which is why
+  // every `bash_command.text` written before this change is empty.
+  //
+  // MIND THE NAME COLLISION: the payload's own `bash_command` field is the command's FIRST TOKEN
+  // only ("cd" for `cd . && git status`), NOT this record's `bash_command` extra. Reading it would
+  // silently defeat §10.6's ordered sub-rules, which split on `&&`/`||`/`;`/`|` and need the whole
+  // line. `full_command` is the whole line and is therefore preferred; the head token is kept only
+  // as a third-choice degradation, since a `git` or `rg` head still buys the right bucket.
+  //
+  // SCOPED TO `Bash`, and the scoping is load-bearing rather than tidiness. The resolved value has
+  // exactly one consumer — `retained` below, which is already `null` for every other tool — so off
+  // the Bash path the whole chain is work whose result is discarded. It would not be FREE work:
+  // unlike `tool_parameters`, whose command fields the emitter writes only on the Bash branch,
+  // `tool_input` is emitted on EVERY `tool_result` and carries the whole serialized tool input (the
+  // captured `tool_result` carries a sibling `tool_input_size_bytes` measuring exactly that payload),
+  // so a `Write`/`Edit` result carries the entire file content. Running rung 2 over that would
+  // `JSON.parse` a payload proportional to the file — allocating the whole object graph on the
+  // receiver's synchronous ingest path and then dropping it — once per non-Bash tool event in every
+  // batch; measured at ~8 ms for a 12 MB input. What this replaced was four flat property lookups
+  // that cost nothing; the guard is what keeps that true everywhere the command text is not wanted.
+  let command;
+  if (rec.tool_name === 'Bash') {
+    command = jsonAttrField(attrs, 'tool_parameters', ['full_command']);
+    if (command === undefined) command = jsonAttrField(attrs, 'tool_input', ['command']);
+    if (command === undefined) command = jsonAttrField(attrs, 'tool_parameters', ['bash_command']);
+    // Retained last, not removed: an emitter that does supply a flat key still works, and nothing
+    // that reads today can regress.
+    if (command === undefined) command = firstDefined(attrs, ['command', 'tool.command', 'tool_input.command', 'bash.command']);
+  }
   const retained = rec.tool_name === 'Bash' ? retainCommand(command === undefined ? '' : command) : null;
   rec.tool_class = deriveToolClass(rec.tool_name, retained ? retained.text : '');
 
@@ -2302,7 +2367,7 @@ function setupPlan(argv, reveal) {
     if (!settings || typeof settings !== 'object' || Array.isArray(settings)) {
       return { action: 'refused', reason: 'wrong-shape-settings', message: 'ptp telemetry: ' + settingsFile + ' is not a JSON object — refusing to overwrite it.' };
     }
-    // §13.3 preserves every key outside the seven. An `env` that is present but not an object
+    // §13.3 preserves every key outside the eight. An `env` that is present but not an object
     // cannot be merged into without discarding whatever it holds, so refuse rather than replace —
     // the same posture the whole-file shape check above takes.
     if (Object.prototype.hasOwnProperty.call(settings, 'env')
@@ -2343,6 +2408,16 @@ function setupPlan(argv, reveal) {
     // unset so the receiver is never sent `/v1/metrics`.
     OTEL_LOGS_EXPORTER: 'otlp',
     OTEL_TRACES_EXPORTER: 'otlp',
+    // The eighth key, added on MEASURED evidence exactly as the two exporter keys above were.
+    // Without it Claude Code emits neither `tool_parameters` nor `tool_input` on any tool event, so
+    // §10.4's Bash command text is not merely unread but ABSENT FROM THE WIRE — every
+    // `bash_command.text` in the store was empty for this reason, and no sink-side change alone can
+    // populate it. Paired control runs against 2.1.220 confirmed both directions.
+    // Non-gating, like the delay and the two exporter keys: its absence costs one raw-only field,
+    // not emission, so the auto-start preamble's gate stays exactly FOUR keys.
+    // Scope note: this turns on tool PARAMETERS only. `OTEL_LOG_USER_PROMPTS`,
+    // `OTEL_LOG_TOOL_CONTENT`, and `OTEL_LOG_RAW_API_BODIES` remain deliberately unset.
+    OTEL_LOG_TOOL_DETAILS: '1',
   };
   const currentEnv = settings.env && typeof settings.env === 'object' && !Array.isArray(settings.env) ? settings.env : {};
   const REDACTED = CREDENTIAL_HEADER + '=<'
@@ -2376,7 +2451,7 @@ function setupPlan(argv, reveal) {
     // already use, and required here for the same reason. `desired` is a plain object literal, so `in`
     // also answers true for every `Object.prototype` name: an `env` key called `toString`,
     // `constructor`, or `hasOwnProperty` would be filtered out of this list as though it were one of
-    // the seven managed keys. §13.3's write preserves it — `setupApply` assigns only `plan.env_diff`'s
+    // the eight managed keys. §13.3's write preserves it — `setupApply` assigns only `plan.env_diff`'s
     // keys — so `in` makes the plan the user CONFIRMS describe a different write than the one that runs.
     other_env_keys_preserved: Object.keys(currentEnv)
       .filter((k) => !Object.prototype.hasOwnProperty.call(desired, k)),
@@ -2965,7 +3040,7 @@ if (require.main === module) {
 }
 
 module.exports = {
-  CSV_COLUMNS, deriveToolClass, projectSource, flattenTraces, flattenLogs,
+  CSV_COLUMNS, deriveToolClass, jsonAttrField, projectSource, flattenTraces, flattenLogs,
   attributeRecords, buildLedgerIndex, resolveConfig, IDENTITY_PATH,
   // Codex telemetry (0032_06)
   CODEX_SERVICE_NAME, CODEX_CORRELATION_ATTR, CODEX_CONSENT_NAME, CODEX_CONSENT_MANAGED_KEYS,

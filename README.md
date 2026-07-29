@@ -721,10 +721,13 @@ Node is required (you already have it — `npx openspec` is a prerequisite). The
 
 1. **Configure** — `/ptp:config` → *Record ptp run telemetry* → `on` (optionally set
    *Telemetry receiver port* if `4318` is taken).
-2. **`/ptp:telemetry setup`, once.** It renders the exact seven-key `env` block plus both
-   `.gitignore` reconciliations as a diff and **writes nothing until you confirm**. (Seven, not five:
+2. **`/ptp:telemetry setup`, once.** It renders the exact eight-key `env` block plus both
+   `.gitignore` reconciliations as a diff and **writes nothing until you confirm**. (The block has
+   grown twice, both times on measured evidence: from five keys to seven because
    `CLAUDE_CODE_ENABLE_TELEMETRY=1` turns collection on, but the OTel SDK still has to be told to use
-   OTLP — measured, and recorded in the change's spike outcome.) On confirmation it writes
+   OTLP — recorded in the change's spike outcome; then to eight because `OTEL_LOG_TOOL_DETAILS` is
+   what makes the Bash command text available for `tool_class` bucketing — without it the CLI emits
+   no tool-parameter attribute at all.) On confirmation it writes
    `<repo>/.claude/settings.local.json` (never the shared `settings.json`, never your user-global
    settings), preserving every other key.
 3. **Restart Claude Code.** `settings.local.json`'s `env` is applied at process start, so the session
