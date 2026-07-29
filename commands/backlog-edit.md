@@ -224,8 +224,10 @@ Applied within step 4.5, landing in the same single write:
 
 ## Delegated methodology — do not restate it here
 
-The **status transition table**, the **three guards** (`blocked` → `pending`; any → `cancelled`;
-`cancelled` → `pending` and its two bypasses), and the whole **recovery and reconciliation machinery**
+The **status transition table**, **guards 1–3** — the guards this command is subject to (`blocked` →
+`pending`; any → `cancelled`; `cancelled` → `pending` and its two bypasses); **guard 4** (`blocked` →
+`done`) belongs to `/ptp:backlog-continue` alone and this command refuses that transition
+unconditionally — and the whole **recovery and reconciliation machinery**
 (the stale definition and its conditional wording, the prefix-set definition, the reconciliation
 algorithm, the gate, the **availability table**, the **disposition outcomes**, the combination rules, the
 `runBaseline`-clear rule, the never-`done` rule, and the refuse-don't-ask rule for an ambiguous
