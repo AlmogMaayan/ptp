@@ -1,6 +1,6 @@
 ---
 name: ptp-backlog
-description: Own the epic backlog file contract — the location of openspec/backlog.json, its v1 schema and version gate, the tolerant-read / canonical-write serialization with unknown-key preservation, the whole-file read-modify-write IO protocol including on-demand creation, BK-NNNN id allocation and the numeric-ordering rule, the validator and its fixed nine-code problem vocabulary with the fatal/structural split and the narrower writer-eligibility rule, and the ready-set definition with its deterministic order. A pure prose contract in the single-source-of-truth pattern of ptp-branch-guard (branch safety), ptp-codex-mode (the reviewer gate), ptp-agent-roles (role resolution), and ptp-parallel-fanout (fan-out safety) — it reads nothing on its own, writes nothing, and edits nothing. Also owns the dependency-detection contract every detection-invoking backlog writer runs unchanged — the bounded names-only input set, mandatory both-direction candidate proposal and its decision criterion, the write-target filter with its refusal grounds, the atomic whole-candidate-set cycle check, the additive-only prohibitions, evidence as a provenance convention, and the non-silent report obligation. Also owns the status transition table — seven rows, each naming its performer — with its three guards (the gated blocked-to-pending reset that retains the prior attempt's changeEpics, the any-to-cancelled guard, and the cancelled-to-pending inversion refusal and its two bypasses), and the recovery-and-reconciliation machinery every writer that settles a stale in-progress entry runs: the stale definition and its deliberately conditional wording, the single change-prefix-set definition both the runBaseline snapshot and the reconciliation diff cite, the additive-only reconciliation, the gate, the availability table and the disposition outcomes (claim / disown / rerun anyway, and per-prefix promote / dismiss) with their combination rules, the every-settling-edit-clears-runBaseline rule, and the never-yields-done rule. The file contract is defined by 0036_01, which ships no writer; detection is added by 0036_02 alongside /ptp:backlog-add, the transitions and recovery machinery by 0036_03 alongside /ptp:backlog-edit, the runner in 0036_04.
+description: Own the epic backlog file contract — the location of openspec/backlog.json, its v1 schema and version gate, the tolerant-read / canonical-write serialization with unknown-key preservation, the whole-file read-modify-write IO protocol including on-demand creation, BK-NNNN id allocation and the numeric-ordering rule, the validator and its fixed nine-code problem vocabulary with the fatal/structural split and the narrower writer-eligibility rule, and the ready-set definition with its deterministic order. A pure prose contract in the single-source-of-truth pattern of ptp-branch-guard (branch safety), ptp-codex-mode (the reviewer gate), ptp-agent-roles (role resolution), and ptp-parallel-fanout (fan-out safety) — it reads nothing on its own, writes nothing, and edits nothing. Also owns the dependency-detection contract every detection-invoking backlog writer runs unchanged — the bounded names-only input set, mandatory both-direction candidate proposal and its decision criterion, the write-target filter with its refusal grounds, the atomic whole-candidate-set cycle check, the additive-only prohibitions, evidence as a provenance convention, and the non-silent report obligation. Also owns the status transition table — eight rows, each naming its performer — with its four guards (the gated blocked-to-pending reset that retains the prior attempt's changeEpics, the any-to-cancelled guard, the cancelled-to-pending inversion refusal and its two bypasses, and the blocked-to-done resume row available only as the same-invocation result of /ptp:backlog-continue's own review-full-then-archive sequence), and the recovery-and-reconciliation machinery every writer that settles a stale in-progress entry runs: the stale definition and its deliberately conditional wording, the single change-prefix-set definition both the runBaseline snapshot and the reconciliation diff cite, the additive-only reconciliation, the gate, the availability table and the disposition outcomes (claim / disown / rerun anyway, and per-prefix promote / dismiss) with their combination rules, the every-settling-edit-clears-runBaseline rule, and the never-yields-done rule. The file contract is defined by 0036_01, which ships no writer; detection is added by 0036_02 alongside /ptp:backlog-add, the transitions and recovery machinery by 0036_03 alongside /ptp:backlog-edit, the runner in 0036_04.
 ---
 
 # ptp-backlog — the epic backlog file and everything that defines it
@@ -462,7 +462,8 @@ contract has to live in exactly one place, like every other rule in this file. E
 
 The contract does **not** extend to writers that infer no dependencies. `/ptp:backlog-run`
 (`0036_04`) writes execution state — statuses, `changeEpics`, `attributionWarnings`, `runBaseline` —
-and runs **no** detection at all.
+and runs **no** detection at all. Neither does `/ptp:backlog-continue` (`0038_01`), whose only write is
+row 8's status transition: it changes none of the four fields detection reads, so its trigger is unmet.
 
 Detection presupposes that the loaded document passed the *Writer eligibility* rule above. When the
 file carries one of the **five writer-eligible structural defects** (`unknown-id`, `self-edge`,
@@ -735,10 +736,11 @@ detector noticed and declined to record.
 ## Status transitions and their guards
 
 **This skill owns the status transition table.** `status` is a field of the schema above, so its legal
-transitions are a property of the same schema and belong in the same place. Two commands perform rows
+transitions are a property of the same schema and belong in the same place. Three commands perform rows
 of this table — `/ptp:backlog-edit` (`0036_03`) performs the four **user** rows, `/ptp:backlog-run`
-(`0036_04`) performs the three **runner** rows — and both **reference** the table rather than restating
-any part of it. (`0036_01` deliberately defined no transition table; this section is where it lands.)
+(`0036_04`) performs the three **runner** rows, and `/ptp:backlog-continue` (`0038_01`) performs the
+single **resume** row 8 — and all three **reference** the table rather than restating any part of it.
+(`0036_01` deliberately defined no transition table; this section is where it lands.)
 
 The complete table. Every row names its **performer**; there are no other rows:
 
@@ -751,6 +753,7 @@ The complete table. Every row names its **performer**; there are no other rows:
 | 5 | `blocked` → `pending` | explicit user reset, gated (**guard 1**) | `/ptp:backlog-edit` |
 | 6 | any → `cancelled` | the user abandons the epic; from `blocked` or a stale `in-progress` it carries guard 1's acknowledgement (**guard 2**) | `/ptp:backlog-edit` |
 | 7 | `cancelled` → `pending` | explicit user revival, subject to the inversion refusal (**guard 3**) | `/ptp:backlog-edit` |
+| 8 | `blocked` → `done` | **only** as the direct, same-invocation result of `/ptp:backlog-continue`'s own bare-flow review-full → archive sequence settling **every** prefix recorded in `changeEpics` (**guard 4**) | `/ptp:backlog-continue` |
 
 ### Refusals
 
@@ -758,8 +761,11 @@ The complete table. Every row names its **performer**; there are no other rows:
   the row and its performer**: row 1 (`pending` → `in-progress`), row 2 (`in-progress` → `done`), and
   row 3 (`in-progress` → `blocked`) other than as row 4's recovery disposition.
 - **Every transition absent from this table is refused** — in particular `done` → `pending`, `done` →
-  `in-progress`, `blocked` → `done`, `cancelled` → `done`, `cancelled` → `blocked`, and `pending` →
-  `done`.
+  `in-progress`, `cancelled` → `done`, `cancelled` → `blocked`, and `pending` → `done`.
+- **`blocked` → `done` is refused except via row 8's guarded path.** It is **not** absent from the
+  table, but it is reachable **only** by row 8's performer under **guard 4** below; requested through
+  any other command — `/ptp:backlog-edit` in particular — it is refused exactly as it was before row 8
+  existed, naming the row and its performer.
 - **A status write that changes nothing is refused as a no-op**, never reported as success.
 
 **`done` → `cancelled` is permitted and unconditional.** Row 6 is written "any → `cancelled`", and its
@@ -898,6 +904,45 @@ section's restriction of write-targets to `pending`, `blocked`, or `cancelled` b
 automatic writes only**. This is stated rather than left to be inferred because **guard 3's bypass 1
 necessarily edits a `done` or `in-progress` dependent**, and reading that restriction as binding user
 edits would make bypass 1 unreachable.
+
+### Guard 4 — `blocked` → `done` (the resume row)
+
+Row 8 exists for one situation and no other: `/ptp:backlog-run` halted an epic (row 3) whose work was
+in fact finished, most often because the apply agent correctly refused to check off a **manual-only**
+verification task. Once a human performs that verification, the work is done — but nothing in the file
+proves it, and `done` unblocks dependents, so the row is available **only** when this invocation
+itself produces the proof:
+
+- the entry's `status` is **`blocked`** and its `changeEpics` is **non-empty** — the same predicate
+  that made it `/ptp:backlog-continue`'s target; **and**
+- the write happens **in the same `/ptp:backlog-continue` invocation** whose bare flow has just
+  settled **every** prefix in `changeEpics` — each one run through `/ptp:review-full` to convergence
+  (`BOTH PHASES DONE`, or `ptp-codex-mode`'s mode-skip terminal state) and then `/ptp:archive`
+  successfully, or found already absent from `openspec/changes/`.
+
+**It is never available as a standalone disposition.** There is no "mark this done" free action on an
+already-`blocked` entry from a prior session, and no recovery path, disposition, or combination of
+dispositions may produce it. This is the load-bearing difference from a hypothetical
+`/ptp:backlog-edit` disposition: a recovery disposition reasons about a **stranded, possibly-crashed**
+run with no durable proof of review convergence — which is exactly why *Recovery and reconciliation*
+below never yields `done` — whereas row 8's proof is **this invocation's own successful review-full
+report**, not an assertion about the past. `/ptp:backlog-edit` has no review-full/archive machinery of
+its own and therefore can never satisfy this guard; its refusal of `blocked` → `done` is unchanged.
+
+**Write shape**, mirroring row 2's (the runner's own convergence write):
+
+1. set `status: done`;
+2. **clear `runBaseline`** — already `null` on an entry reached through row 3, so a no-op in the common
+   case, stated for completeness in case a hand edit left it non-null, and consistent with *every
+   settling edit clears `runBaseline`*;
+3. **retain `changeEpics` exactly as-is** — it already records every prefix now archived, so unlike
+   `runBaseline` there is nothing to add and nothing to clear;
+4. bump `updatedAt`.
+
+One single durable write, through the same whole-file read-modify-write IO protocol as every other
+writer, touching no other entry. If **any** prefix fails to settle, **no** transition occurs: the
+entry stays `blocked` with its `changeEpics` unchanged, and the partial progress lives in the archived
+change folders alone.
 
 ## Recovery and reconciliation
 
@@ -1076,6 +1121,13 @@ unreviewed code — the exact hazard the runner halts on.
 
 **A durable code-review-convergence marker is the named v2 seam** that would make an evidence-based
 `accept` disposition possible. It is not a v1 gap.
+
+**Row 8 does not weaken this rule — it sidesteps it.** `/ptp:backlog-continue` reaches `done` from
+`blocked` **not** by accepting evidence about a past run but by **performing** `/ptp:review-full` and
+`/ptp:archive` itself, in the same invocation, so the convergence it relies on is observed in-session
+rather than inferred from disk (see **guard 4**). Nothing here becomes reachable from recovery: a
+disposition still lands on `blocked` or `pending`, and a stale `in-progress` entry still has no path to
+`done` at all.
 
 ### An ambiguous instruction against a gated entry is refused
 
