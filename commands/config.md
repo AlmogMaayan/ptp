@@ -1,5 +1,5 @@
 ---
-description: Interactively set a ptp config value — guides you through target (user/global or project), parameter selection (codex.mode, codex.model, codex.reasoningEffort, review.maxIterations, review.minSeverity, roles.main, telemetry.mode, telemetry.root, telemetry.port, telemetry.retentionDays, parallel.mode, or parallel.maxConcurrency), and value selection, then writes the chosen value into the correct config.json with a safe merge-write that preserves existing keys.
+description: Interactively set a ptp config value — guides you through target (user/global or project), parameter selection (codex.mode, codex.model, codex.reasoningEffort, review.maxIterations, review.minSeverity, roles.main, telemetry.mode, telemetry.root, telemetry.port, telemetry.retentionDays, parallel.mode, parallel.maxConcurrency, backlog.mcpServer, backlog.projectOwner, or backlog.projectNumber), and value selection, then writes the chosen value into the correct config.json with a safe merge-write that preserves existing keys.
 argument-hint: "(no arguments — fully interactive)"
 ---
 
@@ -7,8 +7,9 @@ You are running **`/ptp:config`** — a guided front door for editing ptp's laye
 files (`~/.claude/ptp/config.json` and `<repo>/.claude/ptp/config.json`). It walks you through
 choosing a target layer, selecting a parameter (`codex.mode`, `codex.model`,
 `codex.reasoningEffort`, `review.maxIterations`, `review.minSeverity`, `roles.main`,
-`telemetry.mode`, `telemetry.root`, `telemetry.port`, `telemetry.retentionDays`, `parallel.mode`, or
-`parallel.maxConcurrency` — twelve in all), and picking a valid value, then writes only the targeted
+`telemetry.mode`, `telemetry.root`, `telemetry.port`, `telemetry.retentionDays`, `parallel.mode`,
+`parallel.maxConcurrency`, `backlog.mcpServer`, `backlog.projectOwner`, or
+`backlog.projectNumber` — fifteen in all), and picking a valid value, then writes only the targeted
 key while preserving all other existing keys
 (including the `deploy` block). A missing file or directory is created automatically. A malformed
 or wrong-shape existing file is never overwritten.
@@ -31,6 +32,10 @@ or wrong-shape existing file is never overwritten.
   parameter's path exists but is not an object, STOP and report — do not overwrite.
 - **Enum-only writes for `codex.mode`.** Only `auto`, `required`, or `off` may be written for
   `codex.mode`. No free-form values.
+- **Non-empty string writes for `codex.model`.** Only a non-empty, trimmed string may be written for
+  `codex.model`. Empty and whitespace-only input is rejected and re-prompted, never written.
+- **Enum-only writes for `codex.reasoningEffort`.** Only `minimal`, `low`, `medium`, or `high` may be
+  written for `codex.reasoningEffort`. No free-form values.
 - **Positive-integer writes for `review.maxIterations`.** Only a positive integer (`>= 1`) may be
   written for `review.maxIterations`. Invalid input (non-numeric, non-integer, zero, negative) is
   rejected and re-prompted, never written.
@@ -61,3 +66,15 @@ or wrong-shape existing file is never overwritten.
 - **Range-bounded integer writes for `parallel.maxConcurrency`.** Only an integer within `1..10` may
   be written. Non-integer, string-typed, zero, negative, and above-10 input is rejected and
   re-prompted, never written, so the editor can never disable the fan-out cap.
+- **Non-empty string writes for `backlog.mcpServer`.** Only a non-empty, trimmed string may be
+  written. Empty and whitespace-only input is rejected and re-prompted, never written. Leaving the key
+  **unset** means the fixed official GitHub-plugin MCP server; returning to it means deleting the key
+  by hand, because this editor writes values and never removes them.
+- **Login-shaped writes for `backlog.projectOwner`.** Only a non-empty, trimmed GitHub org or user
+  login may be written. Empty or whitespace-only input, and any value containing `/`, internal
+  whitespace, or `://`, is rejected and re-prompted, never written — a login is expected here, not a
+  board URL.
+- **Positive-integer writes for `backlog.projectNumber`.** Only a positive integer (`>= 1`), written
+  as a JSON number, may be written. Non-numeric, non-integer, string-typed, zero, and negative input
+  is rejected and re-prompted, never written. There is no upper bound — project numbers are unbounded
+  per owner.

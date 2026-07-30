@@ -1,55 +1,67 @@
 ---
 name: ptp-backlog
-description: Own the epic backlog file contract — the location of openspec/backlog.json, its v1 schema and version gate, the tolerant-read / canonical-write serialization with unknown-key preservation, the whole-file read-modify-write IO protocol including on-demand creation, BK-NNNN id allocation and the numeric-ordering rule, the validator and its fixed nine-code problem vocabulary with the fatal/structural split and the narrower writer-eligibility rule, and the ready-set definition with its deterministic order. A pure prose contract in the single-source-of-truth pattern of ptp-branch-guard (branch safety), ptp-codex-mode (the reviewer gate), ptp-agent-roles (role resolution), and ptp-parallel-fanout (fan-out safety) — it reads nothing on its own, writes nothing, and edits nothing. Also owns the dependency-detection contract every detection-invoking backlog writer runs unchanged — the bounded names-only input set, mandatory both-direction candidate proposal and its decision criterion, the write-target filter with its refusal grounds, the atomic whole-candidate-set cycle check, the additive-only prohibitions, evidence as a provenance convention, and the non-silent report obligation. Also owns the status transition table — eight rows, each naming its performer — with its four guards (the gated blocked-to-pending reset that retains the prior attempt's changeEpics, the any-to-cancelled guard, the cancelled-to-pending inversion refusal and its two bypasses, and the blocked-to-done resume row available only as the same-invocation result of /ptp:backlog-continue's own review-full-then-archive sequence), and the recovery-and-reconciliation machinery every writer that settles a stale in-progress entry runs: the stale definition and its deliberately conditional wording, the single change-prefix-set definition both the runBaseline snapshot and the reconciliation diff cite, the additive-only reconciliation, the gate, the availability table and the disposition outcomes (claim / disown / rerun anyway, and per-prefix promote / dismiss) with their combination rules, the every-settling-edit-clears-runBaseline rule, and the never-yields-done rule. The file contract is defined by 0036_01, which ships no writer; detection is added by 0036_02 alongside /ptp:backlog-add, the transitions and recovery machinery by 0036_03 alongside /ptp:backlog-edit, the runner in 0036_04.
+description: Own the epic backlog board contract — the store being one GitHub Projects v2 board per repository, resolved through ptp-github-projects-mcp's configuration and capability preflight with no local backlog file, no second store and no fallback; the membership rule (an item is an entry iff its Backlog ID is non-empty after trimming); the ten-field entry model and its tolerant read; the field mapping of those ten slots onto six board carriers — the two required custom fields Backlog ID (TEXT) and Status (SINGLE_SELECT), the item's title and body, and the board's own stamps — with the status option table, the sentinel-fenced metadata block and its malformed-body boundaries, and unknown-key preservation in both scopes; the ptp-backlog-version: marker and its gate, whose absent-marker-reads-as-v1 divergence is justified in place; the read-only read protocol with its configuration-completeness-then-preflight precondition, its returned handle table and its degraded scope; board-derived BK-NNNN id allocation with its complete-fetch precondition and the numeric-ordering rule; the validator and its fixed five-code problem vocabulary with the fatal/structural split, the narrower writer-eligibility rule and the distinct unreachable-store outcome; and the ready-set definition — the pending entries in ascending backlog-id order — with its order deterministic over the produced document. A pure prose contract in the single-source-of-truth pattern of ptp-branch-guard (branch safety), ptp-codex-mode (the reviewer gate), ptp-agent-roles (role resolution), and ptp-parallel-fanout (fan-out safety) — it reads nothing on its own, writes nothing, and edits nothing. Also owns the status transition table — eight rows, each naming its performer — with its three guards (the gated blocked-to-pending reset that retains the prior attempt's changeEpics, the any-to-cancelled guard, and the blocked-to-done resume row available only as the same-invocation result of /ptp:backlog-continue's own review-full-then-archive sequence), and the recovery-and-reconciliation machinery every writer that settles a stale in-progress entry runs: the stale definition and its deliberately conditional wording, the single change-prefix-set definition both the runBaseline snapshot and the reconciliation diff cite, the additive-only reconciliation, the gate, the availability table and the disposition outcomes (claim / disown / rerun anyway, and per-prefix promote / dismiss) with their combination rules, the every-settling-edit-clears-runBaseline rule, and the never-yields-done rule. The contract was defined over a local file by 0036_01, which ships no writer; the transitions and recovery machinery by 0036_03 alongside /ptp:backlog-edit, the runner in 0036_04; the store became a GitHub Projects board in 0042_03, which ships the read half and leaves every writer refusing.
 ---
 
-# ptp-backlog — the epic backlog file and everything that defines it
+# ptp-backlog — the epic backlog board and everything that defines it
 
 ## Purpose
 
 ptp has no durable place to record the epics a user intends to build *before* they become change
-folders. The epic backlog is that place, and it is a single JSON file. Because a detector, an editor,
-a recovery gate, and a runner will all read and write that one document, classify the same defects,
-and need the same ready-set answer, the document's contract has to live in **exactly one** place.
+folders. The epic backlog is that place, and it is a **GitHub Projects v2 board**. Because a view, an
+editor, a recovery gate, and a runner will all read and write that one store, classify the same
+defects, and need the same ready-set answer, the store's contract has to live in **exactly one** place.
 
-This skill is that place. It is the single source of truth for the epic backlog's file: its location,
-its schema and version gate, its serialization, its IO protocol, its id allocation, its validation
-vocabulary, and its ready-set definition. It is the backlog analog of `ptp-branch-guard` (branch
-safety), `ptp-codex-mode` (the reviewer gate), `ptp-agent-roles` (role resolution), and
-`ptp-parallel-fanout` (fan-out safety): **commands reference this contract rather than restating any
-part of it.** A command that needs the field list, the problem codes, the id rule, or the ready-set
-rule cites this skill; it does not copy them, because four commands each carrying their own copy of a
-thirteen-field schema and a nine-code validator *is* the enumeration drift ptp's config contract
-already forbids.
+This skill is that place. It is the single source of truth for the epic backlog's store: its identity,
+its entry model, the mapping of that model onto board carriers, its version marker and gate, its read
+protocol, its id allocation, its validation vocabulary, and its ready-set definition. It is the backlog
+analog of `ptp-branch-guard` (branch safety), `ptp-codex-mode` (the reviewer gate), `ptp-agent-roles`
+(role resolution), and `ptp-parallel-fanout` (fan-out safety): **commands reference this contract rather
+than restating any part of it.** A command that needs the field list, the problem codes, the id rule, or
+the ready-set rule cites this skill; it does not copy them, because four commands each carrying their
+own copy of a ten-field schema and a five-code validator *is* the enumeration drift ptp's config
+contract already forbids.
+
+The **transport** — which board, through which MCP server, under which namespace, and whether its tools
+are callable — is `ptp-github-projects-mcp`'s, not this skill's. This contract **cites** it and restates
+none of it: not the `backlog.*` keys, not the namespace rule, not the tool set, not the preflight, not
+its record, and not its STOP message.
 
 This skill is a **pure prose contract**. It states obligations; it performs none of them. It reads no
 file on its own, writes no file, runs no git command, and edits nothing.
 
-## The file
+## The store
 
-**Location:** `openspec/backlog.json`, project-scoped — one backlog per repository, alongside the
-existing ptp-only siblings `openspec/brainstorms/` and `openspec/analysis/`.
+**The backlog is one GitHub Projects v2 board per repository**, resolved through
+`ptp-github-projects-mcp`'s `backlog.*` configuration and admitted by its capability preflight.
 
-**It is a plain data file, not an OpenSpec artifact.** The OpenSpec CLI **does not read it**, does not
-validate it, and never mentions it in `openspec list` or `openspec list --specs`. Nothing about the
-backlog participates in `openspec archive`. No ptp command treats it as a change artifact.
+**There is no local backlog file, no second store, and no fallback.** No ptp command reads, creates,
+modifies, or deletes a local backlog file. No failure path — not an incomplete configuration, not a
+failed preflight, not an unreachable board, not a fatal problem — may fall back to a local file or to
+any other store. A fallback would split one backlog across two stores, which is the one unrecoverable
+outcome this contract exists to prevent.
 
-**Whether it is tracked is the host repository's decision.** The file is *intended* as durable project
-data rather than scratch, but ptp cannot guarantee that and never claims it: whether the path is
-committed is decided by the host repository's `.gitignore`. ptp's own repository, for instance,
-ignores `/openspec/` wholesale, so a backlog file created here would be untracked. **ptp SHALL NOT
-add, modify, or remove any ignore or attribute rule covering the backlog file, in either direction** —
-silently un-ignoring a path the user chose to ignore is a worse failure than an untracked backlog.
-The consequence is stated once here and inherited everywhere below: **version control is not a
-guaranteed recovery mechanism for a lost backlog write**, so no rule in this contract may rely on it.
-(Line endings need no new rule either: the repository's `.gitattributes` default `* text=auto eol=lf`
-already covers the path.)
+**A backlog file left on disk by an earlier ptp — `openspec/backlog.json`, the deleted legacy store — is
+legacy data and is left exactly as found.** It is
+never read, parsed, validated, migrated, moved, or deleted, and ptp adds, modifies, and removes no
+ignore or attribute rule covering it. `/ptp:backlog` performs a **presence check only** on the path and
+says so in one scope-note line; that is the whole of ptp's remaining relationship with it.
 
-**This change does not create the file.** The repository ships without it. It appears the **first time
-a writer runs** — and this change ships no writer, so after `0036_01` lands `openspec/backlog.json`
-still does not exist. `/ptp:backlog` never creates it.
+**Nothing assumes the board is backed up.** The file contract never assumed version control could
+recover a lost write, and a board inherits the weaker position: there is no snapshot, no history a
+reader can consult, and one click deletes a card. So **no rule in this contract may rely on recovering a
+lost or overwritten backlog write** — every safeguard has to be a refusal *before* the write, never a
+repair after it.
+
+**This contract creates nothing.** The read creates no project, no custom field, no `Status` option, no
+board item and no version marker; a missing required carrier is **reported, never created**. Only two
+custom fields must pre-exist for a board to be usable, and how a user creates them is a one-time setup
+documented in the README, not an operation ptp performs.
 
 ## Schema (v1)
+
+The schema is the shape of the **in-memory document a read produces**. It is not a file format: the
+board's carriers are specified under *The board mapping* below, and nothing here is serialized to disk.
 
 ### Top level
 
@@ -62,14 +74,23 @@ Exactly two recognized keys:
 }
 ```
 
-| Key | Type | Required | Notes |
+| Key | Type | Source | Notes |
 |---|---|---|---|
-| `version` | integer | **yes** | Exactly `1` in v1. Governs the *Version gate* below. |
-| `epics` | array of entry objects | **yes** | May be empty. Canonically sorted by ascending **numeric** id. |
+| `version` | integer | the board's version marker (*Version marker and gate* below) | Exactly `1` in v1. No candidate anywhere ⇒ `1`, synthesized in memory. |
+| `epics` | array of entry objects | the board's **entries** (*Membership* below) | May be empty. Ordered by ascending **numeric** id — never board order, never column order. |
+
+**The `epics` order is total, which a file's array position made free and a board does not.** A
+malformed id orders **after** every well-formed one; two malformed ids order **between themselves** by
+the **raw id value** as read, ascending by Unicode code point of its canonical JSON serialization. Two
+entries sharing one id — a `duplicate-id` board, which still renders — are ordered **between
+themselves** by their **board item node ids**, ascending by Unicode code point of the node id's
+canonical JSON serialization, the same total key the problem sort key falls back to. The node id is the
+**last** tie-break in every case, which is what makes the order total: two entries can share a raw id
+value, but never a node id.
 
 ### Entry object
 
-Thirteen recognized fields. This is the **canonical key order** — writers emit exactly this order:
+**Ten** recognized fields. This is the **canonical key order** — writers emit exactly this order:
 
 | # | Field | Type | Required on read | Empty value | Written by |
 |---|---|---|---|---|---|
@@ -77,23 +98,16 @@ Thirteen recognized fields. This is the **canonical key order** — writers emit
 | 2 | `title` | string, non-empty | **yes** | — | add / edit |
 | 3 | `description` | string | no | `""` | add / edit |
 | 4 | `status` | enum | **yes** | — | add sets `pending`; transitions in `0036_03` / `0036_04` |
-| 5 | `dependsOn` | array of `BK-NNNN` ids | no | `[]` | detection + user edit (`0036_02` / `0036_03`) |
-| 6 | `dependencyEvidence` | object, `BK-NNNN` → one-line string | no | `{}` | detection (`0036_02`) |
-| 7 | `dependencyRejected` | array of `BK-NNNN` ids | no | `[]` | user edit (`0036_03`) |
-| 8 | `changeEpics` | array of `{ id, attribution }` | no | `[]` | runner (`0036_04`), reconciliation (`0036_03`) |
-| 9 | `attributionWarnings` | array of 4-digit change-epic prefixes | no | `[]` | runner (`0036_04`) |
-| 10 | `runBaseline` | `null` or array of 4-digit change-epic prefixes | no | `null` | runner (`0036_04`), cleared by `0036_03` / `0036_04` |
-| 11 | `createdAt` | `null` or ISO-8601 UTC instant string | no | `null` | add |
-| 12 | `updatedAt` | `null` or ISO-8601 UTC instant string | no | `null` | every writer that changes the entry |
-| 13 | `notes` | string | no | `""` | user edit |
+| 5 | `changeEpics` | array of `{ id, attribution }` | no | `[]` | runner (`0036_04`), reconciliation (`0036_03`) |
+| 6 | `attributionWarnings` | array of 4-digit change-epic prefixes | no | `[]` | runner (`0036_04`) |
+| 7 | `runBaseline` | `null` or array of 4-digit change-epic prefixes | no | `null` | runner (`0036_04`), cleared by `0036_03` / `0036_04` |
+| 8 | `createdAt` | `null` or ISO-8601 UTC instant string | no | `null` | **nobody — board-maintained** (*Timestamps* below) |
+| 9 | `updatedAt` | `null` or ISO-8601 UTC instant string | no | `null` | **nobody — board-maintained** (*Timestamps* below) |
+| 10 | `notes` | string | no | `""` | user edit |
 
 **`status`** is exactly one of `pending`, `in-progress`, `done`, `blocked`, `cancelled`. This change
 treats status as **data**: it reads it, renders it, and uses it in the ready-set rule. It performs no
 transition and defines no transition table — that is `0036_03` / `0036_04`.
-
-**`dependencyEvidence`** maps a `BK-NNNN` id to a **one-line** rationale string, *one-line* meaning
-the value contains **no carriage return and no line feed**. A value with a line break is a
-`malformed-entry` problem, never silently joined.
 
 **`changeEpics` element** — an object, never a bare string:
 
@@ -120,7 +134,7 @@ it and never clears it; it only reads it for the stale-`in-progress` flag.
 ### Why every field is defined now
 
 The schema is defined **in full here, including fields no command in this change writes** —
-`dependencyEvidence`, `dependencyRejected`, `changeEpics`, `attributionWarnings`, and `runBaseline`.
+`changeEpics`, `attributionWarnings`, and `runBaseline`.
 The alternative, each later change widening the schema as it needs a field, would mean **this
 change's validator rejects its own siblings' output**: a validator that rejects the files its sibling
 changes produce is worse than useless. Defining them now also costs nothing — their shape is already
@@ -128,11 +142,12 @@ settled — and avoids a `version: 2` migration for a field whose shape was know
 
 ### Tolerant read
 
-Reading is tolerant, so the file stays **hand-editable**.
+Reading is tolerant, so the board stays **hand-editable** — which on a board is not a nicety but the
+normal case: a human drags cards, renames a column, and types in a body.
 
 - Exactly **three** fields are required: **`id`, `title`, `status`**.
-- Every other recognized field **may be absent**; the reader supplies its empty value (`""`, `[]`,
-  `{}`, `null` per the table above) **in memory only** — nothing is written back to disk to
+- Every other recognized field **may have no value on the board**; the reader supplies its empty value
+  (`""`, `[]`, `null` per the table above) **in memory only** — nothing is written back to the board to
   materialize a default.
 - An **absent required field is a `malformed-entry` problem and is never defaulted.** Inventing a
   `status` would silently place an entry in the ready set, which is exactly the failure a tolerant
@@ -141,149 +156,419 @@ Reading is tolerant, so the file stays **hand-editable**.
   `attribution`, or change-epic prefix is a **reported** `malformed-entry` problem and is **never
   coerced** to a valid value.
 
-### Canonical write
+## The board mapping
 
-Writing is canonical, so **the same logical state always serializes to identical bytes** and a diff
-shows only real change.
+Ten entry field slots onto **six** carriers. Everything in this section is true of the backlog *because
+it is a board*; everything above it would survive a change of store.
 
-1. **Every** recognized field emitted, in the canonical key order above, **including empty ones**.
-2. `epics` sorted by **ascending numeric** id.
-3. `dependsOn`, `dependencyRejected`, `attributionWarnings`, a **non-null** `runBaseline`, and
-   `changeEpics` (by its elements' `id`) sorted **ascending numerically**.
-4. `dependencyEvidence` keys emitted in **`dependsOn` order**, with any remaining key — one naming a
-   known entry that is not a `dependsOn` target, which the schema permits — following them in
-   **ascending numeric id order**, so the ordering is **total**.
-5. **Malformed identifiers still sort deterministically.** Because a writer may legally proceed past a
-   `malformed-entry` on a non-`id` field (see *Writer eligibility*), an identifier with no numeric part
-   (`"bk-1"`, `""`) can reach serialization in **every** identifier-bearing collection: the id arrays
-   (`dependsOn`, `dependencyRejected`, `attributionWarnings`, `runBaseline`), the
-   `dependencyEvidence` **keys**, and the `changeEpics` elements' **`id`**. In every one of them,
-   numeric ordering applies to the **well-formed** values only; each malformed value is **preserved
-   as-is** and emitted **after** them, ordered **ascending by Unicode code point of its canonical JSON
-   serialization** — phrased over the serialization, not over the value, so the order is defined for a
-   malformed value that is not a string at all (a number, a boolean, `null`, an array, an object), not
-   only for a string with no numeric part. A `changeEpics` **element that carries no usable identifier
-   at all** — an element that is not an object, or an object with no `id` key — is ordered the same
-   way, by the code point of **the element's own** canonical JSON serialization, and is likewise
-   emitted after every well-formed element: the sort key falls back from the element's `id` to the
-   element itself, so an element with nothing to sort on is still placed deterministically rather than
-   dropped or given an invented `id`. And when the **container itself** is malformed — a
-   `dependsOn`, `dependencyRejected`, `attributionWarnings`, `runBaseline`, `changeEpics`, or
-   `dependencyEvidence` whose value is not the array or object the schema expects — the value is
-   emitted **verbatim, unsorted**: there is no collection to order, and re-shaping it would be the
-   coercion this contract forbids. The rule is therefore total over **every** value that can reach
-   serialization, so the write stays byte-stable and the offending value survives for the user to fix
-   rather than being dropped or coerced.
-6. **Two-space indent**, a **single trailing newline**, **LF** line endings, **UTF-8 without a BOM**.
-7. `updatedAt` is bumped **only on entries the operation actually changed**. A whole-file write must
-   **not** restamp untouched entries — otherwise every write looks like it touched everything, and the
-   diff stops being evidence of what happened. The bump is **not** an exception to the never-coerce
-   rule, which scopes to the **read**: on an entry the operation genuinely changed, replacing a
-   malformed `updatedAt` with the new timestamp is that authorized write recording itself, not the
-   reader silently repairing a value. On an entry the operation did **not** change, a malformed
-   `updatedAt` is left exactly as it was and stays reported as a `malformed-entry` problem.
+### Membership — decided before any field is read
 
-### Unrecognized keys are preserved
+**A board item is a backlog entry if and only if its `Backlog ID` field carries a value that is
+non-empty after trimming surrounding whitespace.** Membership is decided **before** any required-field
+check.
 
-A key this schema does not recognize — **at the top level or inside an entry** — survives a
-read-modify-write with **its name and its complete value (nested structure included) intact**. It is
-emitted **after** the recognized keys, and when there is more than one they are ordered **ascending
-lexicographically by key name**, so the output stays byte-stable. Unrecognized keys are **never
-dropped** and are **not a validation problem** — they are data this version does not interpret.
+Three consequences, all of them load-bearing:
 
-The rule applies at **every recognized object scope**, not only those two — in particular inside a
-`changeEpics` element, where `{ "id": "0041", "attribution": "terminal-report", "future": true }`
-keeps `future` under the same placement and ordering rule (recognized keys in their canonical order,
-then the unrecognized ones ascending lexicographically by key name). A nested element is exactly
-where a whole-file rewriter is most likely to drop a key while believing it copied the entry, so the
-scope is stated rather than left to be inferred from "inside an entry".
+- An item with **no** `Backlog ID` value, or one that is empty after trimming, is an **unmanaged item**:
+  not an entry, excluded from `epics`, excluded from id allocation, **reported** by the view, and **not
+  a defect**. A human dragging a card onto the board, or an ordinary issue tracked there, produces
+  exactly this.
+- An item **with** one is an entry whatever its content type — **draft issue, issue, or pull request**,
+  all three exposing a title and a body — and **whether or not it is archived**.
+- A value that is non-empty **after trimming** but is not a well-formed `BK-NNNN` (`bk-1`, `BK-x`,
+  `BK-123`) is a `malformed-entry` on `id`.
 
-**Inside** an unknown value the structure is emitted exactly as read: nested object keys keep their
-**original order** and are **never re-sorted**, since reordering data whose semantics this version
-does not know is itself a mutation. The byte-identity guarantee therefore ranges over the recognized
-schema plus the unknown keys' **placement**; an unknown value's internal ordering is inherited from
-the file rather than imposed.
+**The trim is part of the membership test, and that is not a detail.** A field holding `"   "` is
+non-empty raw and empty trimmed. Read as an entry it is a `malformed-entry` on `id`, which under *Writer
+eligibility* makes the **whole store writer-ineligible** — a full lockout produced by someone typing a
+space. Read as unmanaged it is a harmless reported card. So membership tests the **trimmed** value, and
+`""`-after-trimming is **not** in the malformed-id set: a malformed id is a **non-empty trimmed** value
+that is not a well-formed `BK-NNNN`.
 
-**Preservation is of the *data*, not of the file's lexical form.** The document is reserialized
-canonically, so the original whitespace, indentation, and key placement are **not** retained — only
-that every unrecognized key and the complete value it carried are still there.
+**The trimmed value is also the value that maps.** The entry's `id` is the `Backlog ID` **trimmed** —
+`"  BK-0001  "` yields the entry `BK-0001`, well-formed — and that one trimmed value is what every
+downstream rule reads: the well-formedness test, `duplicate-id`, the ascending-numeric order, and
+allocation's `max + 1`. Surrounding whitespace is therefore never *data*, and the same card cannot be
+well-formed for membership and malformed for validation. The **raw**, untrimmed value survives in one
+place only — the handle table's `backlogId` (*What a read returns*) — because a future writer needs to
+know what the board actually holds. Trimming here is not a coercion: it changes no character of the
+identifier, whereas inventing or repairing one would.
 
-Rationale: whole-file rewriting is exactly where fields go missing, and silently dropping a key
-written by a newer ptp (or by a user) is **unrecoverable** — the more so because version control is
-not assumed to be tracking this file at all.
+Deciding membership first is also what keeps the mapping consistent with *an absent required field is a
+`malformed-entry` and is never defaulted*: an unmanaged item never became an entry, so no required field
+of it was absent.
 
-### Version gate
+### Field-name matching, and the collision that is fatal
 
-| `version` value | Read | Write |
+Board field names are matched **case-insensitively** with **surrounding whitespace trimmed** —
+`Backlog ID`, `backlog id`, `  Status  ` all match. **Nothing further is inferred:** a differently-named
+field (`Backlog Id #`, `State`) is a **missing** field, not a fuzzy match.
+
+**A normalized-name collision on a required carrier is `malformed-file` and fatal**, and the problem
+**names both colliding field names**. It is never resolved by picking one — first-declared,
+last-declared, and the non-empty one are all silent guesses at which value is the entry's, which is the
+coercion this whole section forbids.
+
+### The carrier table
+
+| # | Field | Required on read | Carrier |
+|---|---|---|---|
+| 1 | `id` | **yes** | the **`Backlog ID`** TEXT custom field — its presence is what makes the item an entry |
+| 2 | `title` | **yes** | the item content's **title** |
+| 3 | `description` | no | the item **body**, everything before the `begin` sentinel |
+| 4 | `status` | **yes** | the board's **`Status`** SINGLE_SELECT, through the option table below |
+| 5 | `changeEpics` | no | block key `changeEpics` |
+| 6 | `attributionWarnings` | no | block key `attributionWarnings` |
+| 7 | `runBaseline` | no | block key `runBaseline` |
+| 8 | `createdAt` | no | the board item's own `createdAt`, normalized |
+| 9 | `updatedAt` | no | the board item's own `updatedAt`, normalized |
+| 10 | `notes` | no | block key `notes` |
+
+**Six carriers in three groups:** two **required custom fields** (`Backlog ID`, `Status`); two
+**positional carriers on the item itself** (its title, and its body — whose prose is `description` and
+whose sentinel block carries the four block keys); and two **board stamps**.
+
+No entry field is read from more than one carrier, and no board state causes a field to be inferred from
+a carrier other than its own.
+
+### Required and optional carriers — a floor of two, never a cap
+
+**Exactly two custom fields must pre-exist:** `Backlog ID` (TEXT) and `Status` (SINGLE_SELECT). That is
+a **floor, never a cap**. A board carrying `Priority`, `Iteration`, `Assignees` and a team's own field
+alongside them is fully usable: their presence neither makes the board unusable nor raises a problem,
+and they are preserved by construction (below).
+
+- A **required** carrier that is **missing**, **or present with the wrong type**, is `malformed-file`
+  and **fatal**. No item on that board can yield a required entry field, and guessing a value out of a
+  differently-typed field would be the coercion this mapping forbids. The problem names the carrier and
+  the type it must have.
+- A missing **optional** carrier is **not a defect**: the tolerant read supplies the entry model's empty
+  value **in memory only**.
+
+**A board carrying both required fields and zero items with a non-empty trimmed `Backlog ID` is a
+successfully-read, genuinely empty backlog** — not a defect, not an error. It is the **only** state that
+may render as "no entries yet".
+
+### The `status` option table
+
+Matched on the selected option's **name**, case-insensitively and whitespace-trimmed:
+
+| Entry `status` | Accepted option names |
+|---|---|
+| `pending` | `pending`, `Todo` |
+| `in-progress` | `in-progress`, `In Progress` |
+| `done` | `done`, `Done` |
+| `blocked` | `blocked`, `Blocked` |
+| `cancelled` | `cancelled`, `Cancelled`, `Canceled` |
+
+Four situations, deliberately landing in four different places:
+
+| Situation | Outcome |
+|---|---|
+| the selected option's name is **outside the table** (`Needs review`) | `malformed-entry` on `status`, **never coerced** to a nearby value |
+| the item has **no `Status` value set** (a real Projects state) | `malformed-entry` on `status` — `status` is required on read and is **never invented** |
+| the board **has no `Status` field**, or it is not a SINGLE_SELECT | `malformed-file`, **fatal** (above) |
+| the board's `Status` field **lacks an option** for one of the five values | **not a read defect at all** — no item can carry an option that does not exist. It becomes the write path's problem when it needs to *write* that value |
+
+Because `status` is the **whole** of the readiness predicate, this refusal to coerce carries weight it
+did not carry when a dependency graph shared the load: misreading `status` is the only way a board
+defect could widen the ready set.
+
+### The item body — prose, then a sentinel block
+
+````text
+<free prose — this is `description`>
+
+<!-- ptp-backlog:begin -->
+```json
+{ "changeEpics": [{ "id": "0042", "attribution": "terminal-report" }], "notes": "…" }
+```
+<!-- ptp-backlog:end -->
+````
+
+The sentinels are exactly `<!-- ptp-backlog:begin -->` and `<!-- ptp-backlog:end -->`, matched literally
+and case-sensitively, each on its own line with that line's leading and trailing whitespace ignored.
+They are pinned here because they are a **storage format**: a body written under one spelling and read
+under another loses its metadata silently, and HTML comments are what keep the block invisible in the
+GitHub UI.
+
+- `description` is the body **before** the `begin` sentinel, with **trailing blank lines trimmed**.
+- **A body with no sentinel is entirely `description`**, under the same trim, and every block-carried
+  field reads as its empty value.
+- Only the **first** sentinel pair is the block. A second `begin` is ordinary text.
+- Text **after** the `end` sentinel is **preserved verbatim** and is **not** part of `description`.
+
+**Region grammar.** Exactly **one** fenced code block is accepted inside the region; its language tag
+must be `json` or **empty**. Prose around the fence **inside** the region is **allowed**, is **not** part
+of `description`, and is preserved verbatim for a future writer.
+
+#### The malformed-body table
+
+Every row is a body a human can produce by hand, and in each the wrong answer is a *silent* one —
+metadata quietly becoming prose, or a broken block quietly reading as "no metadata".
+
+| Body shape | `description` | Block-carried fields | Problem |
+|---|---|---|---|
+| no `begin` sentinel anywhere | the whole body | their **empty values** | none — a card with no metadata is ordinary |
+| `begin` … `end`, fence holds a JSON **object** | text before `begin` | read from the object | none |
+| `begin` with **no matching `end`** | text before `begin` | **unavailable** | `malformed-entry` on `description` |
+| an `end` with **no preceding `begin`** | the whole body, the `end` line **included** | their **empty values** | **none** — a stray line announces nothing |
+| region holds **no fence**, or its only fence carries a tag other than `json`/empty | text before `begin` | **unavailable** | `malformed-entry` on `description` |
+| region holds **two or more** fences | text before `begin` | **unavailable** | `malformed-entry` on `description` — never "take the first" |
+| fence contents **not valid JSON** | text before `begin` | **unavailable** | `malformed-entry` on `description` |
+| valid JSON that is **not an object** (`[…]`, `"s"`, `7`, `null`) | text before `begin` | **unavailable** | `malformed-entry` on `description` |
+| object with a **duplicate member name**, top level or inside a `changeEpics` element | text before `begin` | **unavailable** | `malformed-entry` on `description` — never "last member wins" |
+
+In **every** unavailable row the region is preserved **byte-for-byte**, which is what makes a future
+writer's never-destroy-the-user's-text obligation satisfiable.
+
+Two governing reasons, stated so the rows are not re-derived case by case:
+
+1. **`description` carries the problem** because the body is the offending carrier — so one broken body
+   yields **one** problem rather than four.
+2. **A body that announces metadata and fails to deliver it is a defect, never a default.** A stray
+   `end` is deliberately benign by the same reasoning: unlike a `begin`, it announces nothing. And a
+   **duplicate member name** is decided here rather than deferred to a parser — it is *valid* JSON
+   (RFC 8259 leaves the behavior to the implementation), so it reaches neither the not-valid-JSON row nor
+   the not-an-object row, and leaving it to the parser is exactly the "silently picks a value" outcome
+   the field-name collision rule refuses.
+
+#### `unavailable` is not empty
+
+The four block-carried fields of a broken block are **unavailable**, never defaulted. Defaulting them
+would make the entry *assert* that it holds no undispositioned `attributionWarnings` prefix and links to
+no change epic — two claims a card whose block failed to parse does not support, and exactly what the
+attention section exists to prevent.
+
+`unavailable` is a **rendering** state carried **out of the read** as a **mask naming the affected
+entries and fields**. It is **never** a substituted value in the document, and **nothing the validator
+computes reads one of the four**, so nothing has to be excluded from a derivation.
+
+### Unrecognized data survives, in two scopes
+
+1. **Inside the block** — at its top level **and inside a `changeEpics` element** — an unrecognized key
+   survives with **its name and its complete nested value**, is **not** a validation problem, and is
+   **reported as ignored** by the view.
+2. **Board custom fields the mapping does not recognize** (`Priority`, `Iteration`, `Assignees`, a
+   team's own field) are preserved **by construction**: never read into the entry model, never written,
+   never removed.
+
+**The block's recognized keys are exactly four** — `changeEpics`, `attributionWarnings`, `runBaseline`,
+`notes`. A name outside that set is unrecognized whatever the entry model calls it, so a hand-written
+`createdAt`, `updatedAt`, `dependsOn`, `dependencyEvidence`, or `dependencyRejected` block key is
+**retained, reported as ignored, and read into nothing**. They are deliberately **not**
+`malformed-entry`: refusing a card over a harmless key would break a board over a hand edit.
+
+#### The block's canonical form — defined here, performed by the write path
+
+The four recognized keys in the entry model's order (`changeEpics`, `attributionWarnings`,
+`runBaseline`, `notes`), then unrecognized keys **ascending lexicographically by key name**; within a
+`changeEpics` element, `id`, then `attribution`, then its unrecognized keys under the same rule;
+`changeEpics` elements keep their **array order as read**, array position being data; and inside an
+**unknown** value the structure is emitted exactly as read and **never re-sorted**.
+
+**The sentinel pair is written when at least one block-carried field is non-empty, *or* an unrecognized
+key exists, *or* the region carries preserved text bound to it.** The third condition is necessary
+rather than a hedge: in-region prose and post-`end` text are anchored by the sentinels and by nothing
+else, so dropping the pair would leave a user's trailing note **indistinguishable from `description`**
+and the very next read would swallow it.
+
+## Version marker and gate
+
+A board has no `version` key, so the version lives in a **marker line** on the project itself.
+
+**Candidate detection and value parsing are two steps, deliberately separated.**
+
+1. A **marker candidate** is any line matching `^\s*ptp-backlog-version:` — the key present after any
+   amount of leading whitespace, **whatever follows**. An indented marker is a **present** marker.
+2. The **value** is whatever follows the colon, **trimmed**.
+
+A single regex conflating them leaves a silent hole: `^\s*ptp-backlog-version:\s*(\S+)\s*$` does not
+match `ptp-backlog-version:` with nothing after it, so such a line would fall through to "absent" and
+read as v1 — a silent coercion in the one section written to forbid them. An **empty** value is a
+present-but-**invalid** marker, exactly like `abc` or `0`, never "absent".
+
+**Precedence.** The **first candidate in the project's `shortDescription`** wins; its `readme` is
+consulted **only when `shortDescription` carries no candidate at all**, and there the **first
+candidate wins** by the same rule — *first* meaning first in reading order of that string, so two
+candidates in either string never leave the marker undecided. A malformed candidate in
+`shortDescription` is therefore fatal even when `readme` holds a well-formed one — the alternative lets
+a stale description be quietly overridden, and "search on until something parses" is how a version gate
+stops gating.
+
+### The gate
+
+| Marker | Read | Write |
 |---|---|---|
-| `1` | **read** normally | **write** normally |
+| integer `1` | **read** normally | write normally |
 | integer **> 1** | **refuse** — `unsupported-version`, naming the found version and the supported one | **refuse** |
-| absent, non-integer, or **< 1** | **refuse** — `malformed-file` | **refuse** |
+| present, non-integer, **empty**, or **< 1** | **refuse** — `malformed-file` | **refuse** |
+| **no candidate in either string** | **read as `version: 1`**, synthesized in memory | permitted |
 
 **Why the *write* direction refuses too**, rather than reading tolerantly and writing back: a greater
-version means the file was written by a newer ptp whose fields this version cannot interpret. A
+version means the board was written by a newer ptp whose fields this version cannot interpret. A
 tolerant read followed by a canonical write would **discard every field the newer version added** —
-precisely the data loss the unknown-key rule exists to prevent — and unknown-key preservation
-**cannot be relied on** to survive a *shape* change: a renamed or restructured field is not merely an
-added one. Refusing both directions is therefore required, not merely prudent.
+precisely the data loss the unknown-key rule exists to prevent — and unknown-key preservation **cannot
+be relied on** to survive a *shape* change: a renamed or restructured field is not merely an added one.
 
-## IO protocol
+**The last row is a deliberate divergence from the file gate, where an absent `version` was
+`malformed-file`. Do not "fix" it.** On a board the marker is a convention on a **human-edited
+description string**, not a document key a writer controls, so its absence cannot distinguish "written
+by ptp" from "a board a human made" — and `1` is the only version that exists. Treating it as fatal
+would make **every pre-existing board unviewable**, which is this contract's purpose negated. The view
+renders it honestly as `1 (assumed — no version marker on the board)`.
 
-Whole-file read-modify-write. No locking, no partial writes.
+Rejected: strict parity (unviewable boards); a sentinel *item* carrying the version (a fake card needing
+exclusion from the entry set, from allocation, and from the view — three special cases for one integer).
+
+## Timestamps
+
+| Question | Answer |
+|---|---|
+| Where do `createdAt` / `updatedAt` come from? | the **board item's own stamps**, normalized to an ISO-8601 **UTC instant** (any offset converted) |
+| A stamp that will not normalize? | `malformed-entry` on that field, **never coerced** |
+| A stamp the transport omits? | the field reads `null` — its empty value. Both are optional on read, so this is **not** a defect |
+| `createdAt` / `updatedAt` keys **inside the block**? | **not recognized carriers** — retained as unrecognized keys, reported as ignored, playing no part in the entry model |
+
+**Both stamps are board-maintained.** Projects v2 exposes **no setter**, so **ptp sends no value for
+either**. This is what became of the file contract's *"`updatedAt` is bumped only on entries the
+operation actually changed"* rule: a writer's in-memory bump is **not persisted**, the board's own stamp
+is authoritative again on the very next read, and the rule is impossible to violate because no bump
+reaches the board at all. The consequence is stated rather than hidden: **a caller must not treat a
+post-write in-memory `updatedAt` as the stored value.** A human's UI edit moving a stamp is a third
+party touching the store, and the read reports it as exactly that.
+
+**Why the churn is harmless where it matters:** nothing computed reads a timestamp. The ready set reads
+`status` alone, the canonical order reads `id`, and the problem sort key reads id / field / value. A card
+touched in the UI changes what the view *displays* about it and **nothing about what the view
+computes**.
+
+The obvious alternative — mapping `updatedAt` to a writable carrier so a committed value persists — is
+**not available**: the API exposes no setter, and inventing a second, ptp-owned `updatedAt` custom field
+would give the board two disagreeing timestamps for one entry and put the read back in the business of
+choosing between them.
+
+## Read protocol
+
+Read-only. **There is no write protocol here**: how a write is dispatched onto the board — the ordered
+write sequence, the two re-reads, the journal and its verdicts — is **`ptp-backlog-write`'s**, and its
+absence from this contract is deliberate rather than an omission.
 
 ```
 READ:
-  1. Does openspec/backlog.json exist?
-       no  → use the in-memory empty backlog { "version": 1, "epics": [] }
-             — NOTHING is created on disk. Readers report "no backlog yet".
-       yes → continue
-  2. Read the WHOLE file.
-  3. Parse as JSON.
-       fails → STOP with `unparseable-file`. NEVER overwrite, NEVER truncate,
-               NEVER "repair". The user's bytes are the authority; a rewriter
-               that fixes a syntax error by discarding the content is the worst
-               possible outcome.
-  4. Apply the version gate.
-  5. Normalize in memory (tolerant read), preserving unrecognized keys.
-  6. Validate. Readers report the problems. Writers refuse past any FATAL
-     problem, and additionally past the two structural problems that leave the
-     ID SPACE untrustworthy — a `malformed-entry` on an entry's `id`, and
-     `duplicate-id` — per the writer-eligibility rule below.
-
-WRITE (no command reached this path in `0036_01`; `/ptp:backlog-add` is the
-       first writer, added by `0036_02`):
-  7.  Modify the in-memory document.
-  8.  Serialize the COMPLETE document canonically.
-  9.  Write it in ONE operation. A write is never partial: the full byte
-      sequence is assembled in memory before anything is written.
-  10. On-demand creation: if the file was absent at step 1, this same write
-      creates it, containing { "version": 1, "epics": [ <the new content> ] }.
-      An empty backlog file is NEVER created as a separate step, and no read
-      ever creates it.
+  0. CONFIGURATION COMPLETENESS FIRST — resolve `backlog.*` through
+     `ptp-github-projects-mcp` and read its verdict. Incomplete (or
+     `mcpServerInvalid`) → REFUSE non-silently, naming the missing or
+     invalid keys. NO Projects tool is called. This is NOT the preflight.
+  1. Run `ptp-github-projects-mcp`'s capability preflight.
+       a verdict that does not admit the read → terminate through THAT
+       skill's non-silent STOP, cited and never restated here.
+       a verdict that admits the read → continue.
+  2. Fetch the PROJECT itself — its title, its URL, and the two strings the
+     version marker may live on (its `shortDescription` and its `readme`).
+     This is the only source of those four values; none of them is inferred
+     from the items.
+       not obtained → the `unreachable-store` outcome. STOP.
+  2b. Fetch EVERY item page to cursor exhaustion.
+       not pagination-complete → the `unreachable-store` outcome. STOP.
+  3. Apply MEMBERSHIP (entries vs unmanaged items).
+  4. Map the carriers: the two custom fields, the title, the body and its
+     block, the two stamps.
+  5. Apply the VERSION GATE.
+  6. VALIDATE. Readers report the problems; writers apply writer
+     eligibility below.
+  7. Return the document, the problem list, the unavailable mask, and the
+     handle table.
 ```
 
-Two absolutes, stated as absolutes:
+**Three absolutes.**
 
-- **An unparseable file is never overwritten** — not repaired, not truncated, not rewritten in any
-  way, under any operation.
-- **No read ever creates the file, and an empty backlog file is never created as a separate
-  initialization step.** Creation happens only as part of a write that has content to record — never
-  as a preparatory "touch the file first" step, which is the failure this rule exists to prevent.
+- **The read creates nothing** — no project, no custom field, no `Status` option, no item, no version
+  marker. This is the board analog of the file contract's *no read ever creates the file*.
+- **The read writes nothing**, modifies nothing, and deletes nothing.
+- **A missing required field is reported, never created**, and a defect is reported, never repaired,
+  never overwritten, never worked around.
 
-### No locking, no blind writes
+### Why the completeness verdict is step 0 and not part of the preflight
 
-**No locking.** Backlog edits are user-driven and sequential; concurrent writers are out of scope, and
-the future backlog runner is **forbidden from fanning out** — a constraint the parent brainstorm
-imposes on the runner itself (assumption 3), not a fan-out rule restated here. (`ptp-parallel-fanout`
-owns fan-out rules; this contract only notes that the runner is not permitted to use them.)
+`ptp-github-projects-mcp` is explicit that a `ready` verdict means *the required tools are callable* and
+says nothing about whether a board was **named** — board identity is the configuration contract's
+separate completeness verdict. So an unset `projectOwner` / `projectNumber` passes the preflight
+untouched, reaches the transport, and comes back as project-not-found: a transport error standing in for
+a one-line config fix. Folding the two together loses that distinction, which is why the refusal is
+**this** contract's obligation — a resolver that never stops cannot itself refuse.
 
-**The mitigation for a lost update is the never-a-blind-write rule below — not a lockfile, and not
-git.** As stated under *The file*, whether the path is tracked at all is the host repository's
-decision, so version-control recovery is never assumed.
+### What a read returns
 
-**Never a blind write.** Every writer **re-reads the file immediately before modifying it**. A writer
-must not carry an in-memory document across an operation that could have been interleaved with
-another edit.
+Two things, deliberately separate:
+
+1. the **document** `{ version, epics }` in the in-memory shape the validator and the ready set consume
+   unchanged, plus the ordered **problem list** and the **unavailable mask**;
+2. a **handle table keyed by the board item's node id** —
+   `nodeId → { itemId, backlogId, contentType, isArchived }` — where `backlogId` is the **raw** value as
+   read, possibly malformed and possibly shared with another row.
+
+The handles stay **outside** the entry objects, so the entry model gains no store-specific field for
+unknown-key preservation to reason about.
+
+**Why the node id keys the table, and not `BK-NNNN`.** Keying by backlog id looks natural and is wrong
+in two cases this contract admits. A **duplicated** valid id is a supported structural read
+(`duplicate-id` leaves both entries renderable), so a `BK-NNNN`-keyed table would silently lose one
+item's handle — a silent drop, in the one contract that forbids them. And a **malformed** id is still an
+entry, so it has no well-formed key at all, while the problem sort key needs exactly that entry's node
+id. The node id is present, unique and total over every item.
+
+The `BK-NNNN` → handle lookup a writer needs is a **derived** view, well-defined precisely when the
+store is **writer-eligible** — no `duplicate-id`, no `malformed-entry` on an `id` — which is exactly the
+condition under which a write may proceed at all.
+
+### Degraded scope — when archived items are unreachable
+
+The state: the resolved transport can enumerate items but **cannot return archived ones**. That is a
+**transport capability limit, not a document defect**: it raises **no problem code**, and the read still
+proceeds, because a view that refuses over a limit it can describe is useless.
+
+Two things are withheld, and the view says why:
+
+1. **Allocation is `unavailable`, not "computed over the non-archived items".** An unreachable archived
+   tier **is** a partial id space, so the same rule as an incomplete fetch applies — the next id renders
+   `unavailable (archived items unreachable)` — reached **without** calling it a document defect.
+2. **The ready set is withheld.** An incomplete `pending` set can put the **wrong entry at the head** of
+   the ascending-id order, and the head is exactly what a runner consumes. This is an **additional**
+   withholding condition standing alongside the problem-based one, not a re-derivation of it: the
+   inherited suppression rule is one-directional (*display a ready set only when free of fatal and
+   structural problems*), so it bounds when a ready set **may** be shown and never obliges showing one.
+
+Everything else is still reported. The criterion is **soundness over a subset**: each surviving code can
+only ever be *missed* when an entry is unreturnable, never manufactured. The one residual false negative
+is stated rather than hidden — **an archived entry sharing an id with a visible one yields no
+`duplicate-id` under degraded scope** — and what bounds it is the **withheld allocation**: the miss's
+only consequence is on the id space, and nothing may derive an id from a degraded read.
+
+**Deliberately not claimed: that degraded scope makes the store writer-ineligible.** It raises no problem
+code, and writer eligibility refuses only past a fatal problem, a `duplicate-id`, or a `malformed-entry`
+on an `id` — none of which this state produces. What *is* established is narrower and sufficient: **no id
+may be allocated**, so any write needing one cannot proceed. Whether a write needing **no** new id may
+proceed under degraded scope is the write path's question and is left open here.
+
+**How the read knows.** Archive reachability is read from `ptp-github-projects-mcp`'s preflight record —
+its `archiveReachable` fact — and is **never inferred from the result set**: a complete fetch of a board
+with no archived cards returns exactly what an archive-limited transport returns, so "zero archived items
+came back" establishes nothing. Per that skill's own consumer rule, **only `true` establishes full
+scope**; `false` and `"unknown"` are treated **identically** as *not established* and both degrade, the
+two being distinguished only so the reported reason is honest. Where the record publishes no such fact at
+all, the read degrades rather than claiming a scope it cannot establish — withholding costs a user a
+ready set, whereas wrongly assuming full scope costs them a reused id.
+
+### Concurrency
+
+**No locking.** Backlog edits are user-driven and sequential; concurrent writers are out of scope, and a
+backlog runner is **forbidden from fanning out** across epics. (`ptp-parallel-fanout` owns fan-out rules;
+this contract only notes that the runner is not permitted to use them.)
+
+**Never a blind write.** Every future writer **re-reads the board immediately before modifying it**, and
+must not carry an in-memory document across an operation that could have been interleaved with a human's
+edit in the GitHub UI. There is no lockfile and no version control to fall back on — see *The store*.
 
 ## Id allocation
 
@@ -291,13 +576,47 @@ another edit.
 bound: `BK-0001`, `BK-0042`, `BK-9999`, `BK-10000`. The prefix is **fixed and uppercase**, and ids are
 **case-sensitive** — `bk-0001` is a `malformed-entry`.
 
-**Allocation.** `next = max(numeric part of every id in the file) + 1`, formatted to at least four
+**Allocation.** `next = max(numeric part of every id in the store) + 1`, formatted to at least four
 digits. **Every entry counts regardless of status** — `done` and `cancelled` entries **included**. An
-absent or empty backlog allocates `BK-0001`.
+empty backlog allocates `BK-0001`.
 
-Allocation is a **pure function of the file's current contents**: **no persisted counter, no manifest,
-no other persisted state**. This mirrors `ptp-change-selector` § 4's filesystem-derived epic
-allocation, which likewise derives the next number from current state alone.
+Allocation is a **pure function of the store's current contents**: **no persisted counter, no manifest,
+no sentinel item, no other persisted state**. This mirrors `ptp-change-selector` § 4's
+filesystem-derived epic allocation, which likewise derives the next number from current state alone.
+
+### The board-derived input, and its precondition
+
+The formula, the zero-padding, the every-status-counted rule and the no-persisted-counter posture are
+**unchanged**. What changes is the *input* the formula runs over, and the precondition without which it
+is unsafe:
+
+```
+PREPARE-FOR-ALLOCATE(board):
+  1. Require a COMPLETE item fetch — every page retrieved, the cursor exhausted.
+     Incomplete → the `unreachable-store` outcome. NO id is allocated.
+  2. entries := items carrying a non-empty trimmed `Backlog ID`
+                -- archived items INCLUDED, unmanaged items EXCLUDED
+  3. If any entry's id is malformed, or two entries share an id
+       → writer-ineligible. NO allocation.
+  4. next := max(numeric part) + 1, formatted to at least four digits.
+     An empty entry set allocates BK-0001.
+```
+
+**"Complete" means pagination-complete** — every page retrieved, the cursor exhausted, no page erroring.
+A fetch failing *that* test is `unreachable-store`. A pagination-complete fetch whose **archive coverage
+is unestablished** is **not** an incomplete fetch: it is *Degraded scope* above, which withholds
+allocation without claiming the board was not obtained. Keeping the two apart is what stops the rules
+colliding over an archive-limited board.
+
+Four properties, each of which is a way to get this wrong:
+
+- **Step 1 is fatal rather than a warning** because `max + 1` over a partially-fetched board **silently
+  reuses a live id** and collides two epics.
+- **Archived items count.** They are ordinary entries — in `epics`, in the max scan, flagged in the view
+  as board-archived. This mirrors the rule that `done` entries keep counting forever; excluding them
+  would reallocate their ids.
+- **Unmanaged items contribute nothing**, having no id to contribute.
+- **Allocation is never derived from the item count.** Deleting a card would then collide immediately.
 
 **All id ordering is numeric, never lexicographic.** `BK-10000` sorts **after** `BK-0002`. This
 applies everywhere ordering appears: the canonical `epics` sort, the ready-set tie-break, and every id
@@ -305,17 +624,17 @@ array and identifier-bearing collection.
 
 **No interaction with the change selector.** `BK-NNNN` ids are **not** added to the `epic:` / `story:`
 selector grammar, `ptp-change-selector` is **not modified** by this contract and **does not read** the
-backlog file, and backlog ids **reserve no ptp change-epic numbers**. `epic:BK-0001` would mean
+backlog, and backlog ids **reserve no ptp change-epic numbers**. `epic:BK-0001` would mean
 something different from `epic:0041`, which is exactly the ambiguity being avoided.
 
-**Stated limitation — ids can be reused after a hand-deletion.** Because allocation derives from the
-file, deleting the highest-numbered entry by hand makes the next allocation reuse its number. v1
-accepts this **deliberately**, rather than persisting a counter that would reintroduce exactly the
-persisted state this rule avoids. v1 ships **no delete operation**, so the only path to it is a manual
-edit.
+**Stated limitation — ids can be reused after a hand-deletion, and it is worse on a board than it was in
+a file.** Deleting a card is **one click and leaves no trace** ptp can read, so hand-deleting the
+highest-numbered entry makes the next allocation reuse its number. Accepted for the same reason v1
+accepted it for the file — a persisted counter reintroduces exactly the persisted state this rule avoids
+— and mitigated by `done`, `cancelled` **and archived** cards all continuing to count.
 
-**Nothing in `0036_01` allocates an id** — that change shipped no writer. The rule is defined here and
-**first consumed by `0036_02`**, whose `/ptp:backlog-add` allocates the id for each entry it creates.
+**The read path allocates nothing.** The rule is defined here and consumed by the write path, whose
+first act on taking an epic is to allocate an id under the precondition above.
 
 ## Validation
 
@@ -325,50 +644,113 @@ nothing**, **writes nothing**, and **never mutates** what it inspects.
 **The order is specified, not incidental** — "pure function" would be an empty claim if the same
 document could yield the same problems in two different sequences. Problems are emitted in the
 **table order below** (the row order of *Problem codes*: `unparseable-file`, `unsupported-version`,
-`malformed-file`, `duplicate-id`, `malformed-entry`, `unknown-id`, `self-edge`, `cycle`,
-`depends-and-rejected`), and **within one code** by this total key, compared left to right:
+`malformed-file`, `duplicate-id`, `malformed-entry`), and **within one code** by this total key,
+compared left to right:
 
-1. ascending **numeric** id of the entry the problem names — falling back to ascending entry **index**
-   when the id itself is unusable (an unusable id always sorts after every usable one);
+1. ascending **numeric** id of the entry the problem names — falling back, when the id itself is
+   unusable, to the **board item's node id** ascending by Unicode code point of its canonical JSON
+   serialization (an unusable id always sorts after every usable one). The file contract fell back to
+   the entry's array **index**; a board has none, and the node id is present, unique and total over
+   every item, so the substitute is total for the same reason the original was;
 2. the **offending field name**, ascending lexicographically, when one entry raises the same code on
    more than one field;
-3. the **offending value** — the dangling or duplicated identifier, the `dependencyEvidence` key, the
-   `changeEpics` element's `id`, or for `cycle` the full canonical cycle path — ascending by Unicode
-   code point of its canonical JSON serialization, which settles the case of one entry raising the
-   same code on the same field more than once (two dangling `dependsOn` ids, two cycles sharing a
-   lowest id) and is defined for a non-string offending value as well.
+3. the **offending value** — the duplicated identifier, or the `changeEpics` element's `id` —
+   ascending by Unicode code point of its canonical JSON serialization, which settles the case of one
+   entry raising the same code on the same field more than once (two malformed `changeEpics`
+   elements' ids) and is defined for a non-string offending value as well;
+4. the **board item's node id** of the item the problem came from, ascending by Unicode code point of
+   its canonical JSON serialization. This last component settles the one case the first three cannot —
+   **two entries sharing an id** (a `duplicate-id` board) raising the **same** code on the **same**
+   field with the **same** value, where components 1–3 are identical by construction. It is the same
+   node id component 1 falls back to, applied here as the final tie-break rather than as a substitute.
 
-The key is total — no two problems can tie on all three — so a given file always produces a
+**Board-level problems name no entry, and they sort first.** `unparseable-file` and `malformed-file`
+are properties of the **board**, not of an item — a missing or mistyped required carrier, a
+normalized-name collision, a present-but-invalid version marker — so they have neither an id nor a node
+id, and components 1 and 4 do not reach them. Within their code they are emitted **ahead of** every
+entry-scoped problem of that same code, ordered between themselves by the **offending carrier or field
+name** ascending lexicographically and then by the **offending value** ascending by Unicode code point
+of its canonical JSON serialization. A board cannot raise two board-level problems of one code naming
+the same carrier and the same value, so that pair is total over them.
+
+The key is total — no two problems can tie, because no two items share a node id and no two board-level
+problems of one code share a carrier and a value — so a given **produced document** always yields a
 byte-identical problem list.
+
+**Purity, narrowed honestly.** The file contract guaranteed determinism *"for any given saved file"*. A
+board is not a snapshot: the read is not transactional and two reads may legitimately differ. The
+guarantee is therefore that **the validator, the entry order, the ready set and the problem list are
+pure functions of the produced document** — not of the board over time.
 
 ### Problem codes
 
-| Code | Class | Condition | Reported detail |
+| Code | Class | Condition, over board-shaped defects | Reported detail |
 |---|---|---|---|
-| `unparseable-file` | fatal | the file is not valid JSON | the parser's message and, when available, the line |
-| `unsupported-version` | fatal | `version` is an integer greater than the supported version | the found version and the supported one |
-| `malformed-file` | fatal | the document parses but is not an object, or `version` is absent / non-integer / less than 1, or `epics` is absent or not an array | which top-level expectation failed |
-| `duplicate-id` | structural | the same `id` appears on more than one entry | the id and how many entries carry it |
-| `malformed-entry` | structural | a required field is absent, a field has the wrong type, `title` is present but empty, `status` is out of enum, an `id` / `attribution` / change-epic prefix is malformed, a `dependencyEvidence` value contains a line break, a non-null `createdAt` / `updatedAt` is not an ISO-8601 UTC instant, or a `changeEpics` `id` is duplicated within the entry | the entry id (or its index when the id itself is unusable) and the offending field |
-| `unknown-id` | structural | an id in `dependsOn`, `dependencyRejected`, or a `dependencyEvidence` key names no entry in the file | the referring entry and the dangling id |
-| `self-edge` | structural | an entry's `dependsOn` contains its own id | the entry id |
-| `cycle` | structural | the `dependsOn` graph contains a cycle | the cycle as an ordered id path, e.g. `BK-0002 → BK-0004 → BK-0002` |
-| `depends-and-rejected` | structural | an id appears in **both** `dependsOn` and `dependencyRejected` on the same entry | the entry id and the id in both fields |
+| `unparseable-file` | fatal | the board **was obtained** and its content could not be turned into the in-memory document — a field response of an unexpected shape, an item payload not interpretable at all. It is **not** the code for failing to *reach* the board; that is the `unreachable-store` outcome below | what could not be interpreted |
+| `unsupported-version` | fatal | the version marker parses to an integer greater than the supported version | the found version and the supported one |
+| `malformed-file` | fatal | a **required carrier is missing** (`Backlog ID`, `Status`); a required carrier is present with the **wrong type**; two board fields **normalize to the same** required carrier name; or a **present** version marker is non-integer, empty, or < 1 | the carrier and the type it must have, or both colliding field names, or the marker value found |
+| `duplicate-id` | structural | the same `id` appears on more than one entry — a pure function of the produced document, with no board-specific narrowing | the id and how many entries carry it |
+| `malformed-entry` | structural | everything the entry model already lists — a required field absent, a field of the wrong type, an empty `title`, an out-of-enum `status`, a malformed `attribution` or change-epic prefix, a `changeEpics` `id` duplicated within the entry — **plus**: a `Backlog ID` present and non-empty-trimmed but malformed; a `Status` unset or naming an option outside the option table; a **sentinel block that does not parse**; and a board timestamp that will not normalize to a UTC instant | the entry id (or its board item node id when the id itself is unusable) and the offending field |
 
-These nine codes are the **shared vocabulary for the whole epic**. `0036_02`, `0036_03`, and `0036_04`
-reuse the spellings **verbatim** rather than inventing per-command names.
+These **five** codes are the **shared vocabulary for the whole epic**, reused **verbatim** by every
+command rather than renamed per command. The four graph-shaped codes this vocabulary once carried were
+removed in `0042_01` because their only inputs — the epic-dependency fields and the **keys** of their
+evidence map — are no longer recognized fields, so no document can raise them.
+
+**No sixth code is added for the board, and the two file-shaped spellings are kept.** A consumer must
+classify a defect the same way whatever produced it; `unparseable-file` and `malformed-file` are opaque
+identifiers reused verbatim by four commands, renaming them would touch every site for zero behavior
+change, and **report prose is free to say "board"**. The rename is a defensible cosmetic follow-up, not
+a correctness matter.
+
+### The `unreachable-store` outcome — not a problem code
+
+**Failing to reach the board is not a validation problem.** A validation problem is by definition a
+statement about a document that *was* read, so a failure to obtain one is not a member of the vocabulary
+above: `unreachable-store` is **not a sixth code**, is never emitted as a problem row, and is returned
+**in place of a document**.
+
+Its conditions, once the preflight has **already admitted** the read: the resolved tool call failed; the
+project does not exist or is not visible; authentication or authorization failed; or **the paged fetch
+did not complete**. It carries the **tool name and the transport error** in place of a parser message,
+and it is **distinct from "no entries yet" at the level of the value returned**, not merely in wording —
+which is what makes the honest-failure rule structurally true rather than only phrased.
+
+It is **fatal-equivalent**: nothing is computed, no entries, no ready set, no id allocated, and the view
+renders the short fatal form.
+
+### The honest-failure rule
+
+**An unreadable board may never render as "no entries yet."** A user *acts* on an empty backlog, and
+with no local file left there is no second store whose emptiness could be the honest answer.
+
+Three **read** exits, **two** rendering shapes — the incomplete-configuration refusal of *Read protocol*
+step 0 is **not** one of them, being a refusal issued before a read is attempted rather than a read that
+failed:
+
+| Exit | Rendering |
+|---|---|
+| the preflight did not admit the read | the **full STOP message** in `ptp-github-projects-mcp`'s specified shape — its seven labels in order — **alongside** the header verdict line |
+| post-preflight failure to obtain the board | the **short fatal form** naming the `unreachable-store` outcome and its transport detail |
+| obtained but uninterpretable | the **same short fatal form**, naming an `unparseable-file` problem row instead |
+
+**Alongside, never instead of.** Substituting one rendering for the other — or letting either stand in
+for the STOP message — is the error this rule exists to prevent.
 
 ### Fatal vs. structural
 
 - **Fatal** — **nothing further is computed**: no entries are rendered, no ready set is produced, and
   no id is allocated. The document is not usable at all. A reader reports the problem alone; a writer
   refuses.
-- **Structural** — the document parses and its entries **still render individually**, but the
-  dependency graph or the id space is not trustworthy, so the **ready set is withheld**.
+- **Structural** — the document parses and its entries **still render individually**, but the **id
+  space** or an **individual entry's own data** is not trustworthy, so the **ready set is withheld**.
 
-The split matters because a read-only view that shows **nothing** because one edge dangles is useless
-exactly when the user most needs to see the file. Structural is therefore defined by what it still
-*permits* (rendering the entries), not merely by its name.
+Withholding is **more** load-bearing now, not less. `duplicate-id` leaves undefined which entry heads
+the ascending-id order that is now the whole ready-set order. And a `malformed-entry` on an
+out-of-enum `status` leaves unreadable the very `status` that is now the whole readiness predicate.
+Structural is nevertheless not fatal, because a read-only view that shows **nothing** because one
+entry carries one bad field is useless exactly when the user most needs to see the board. Structural
+is therefore defined by what it still *permits* (rendering the entries), not merely by its name.
 
 ### Writer eligibility
 
@@ -378,66 +760,51 @@ may proceed. That is a third, narrower rule:
 > A writer refuses past **any fatal problem**, and past **exactly two** structural ones — a
 > `malformed-entry` on an entry's **`id`**, and **`duplicate-id`**.
 
-Those two, and only those two, leave the **id space** untrustworthy, and both canonical write (`epics`
-sorted by ascending *numeric* id) and allocation (`max(numeric part) + 1`) are **undefined** over an id
-that will not parse or that names two entries.
+Those two, and only those two, leave the **id space** untrustworthy, and both the canonical entry order
+(ascending *numeric* id) and allocation (`max(numeric part) + 1`) are **undefined** over an id that will
+not parse or that names two entries.
 
-A writer does **not** refuse over `unknown-id`, `self-edge`, `cycle`, `depends-and-rejected`, or a
-`malformed-entry` on any **non-`id`** field. Those describe the dependency **graph**, which a write
-neither reorders nor resolves, and refusing there would leave a defective backlog **unrepairable
-through ptp** — the user could not use the editor to remove the very edge causing the cycle. Refusing
-there would be a lockout, not a safeguard.
+*Degraded scope* is deliberately **not** on this list: it raises no problem code at all, so this rule
+does not reach it. What it establishes instead is narrower — no id may be allocated.
+
+A writer does **not** refuse over a `malformed-entry` on any **non-`id`** field. That one case is
+**the writer-eligible structural defect** — the set has exactly one member. Refusing there would
+leave a defective backlog **unrepairable through ptp**: such a defect is most often an **out-of-enum
+`status`**, and `/ptp:backlog-edit` is the only tool that can repair it, so a writer that refused
+would strand the backlog. Refusing there would be a lockout, not a safeguard.
 
 This rule is defined here and **first consumed by `0036_02`**.
 
-### Cycle detection
-
-Cycles are evaluated over the **whole file's `dependsOn` edge set at once**. **Every distinct cycle**
-found is reported, each as an **ordered id path that begins and ends at the same id** (e.g.
-`BK-0002 → BK-0004 → BK-0002`).
-
-**Distinct** is defined so a rotation is not a second cycle: each simple directed cycle is reported
-**once**, written starting at its **lowest numeric id** and following the `dependsOn` edges from
-there. Without that, `BK-0002 → BK-0004 → BK-0002` and `BK-0004 → BK-0002 → BK-0004` would be two
-reports of one defect and the problem list would stop being a function of the file.
-
-**Edges pointing at unknown ids are excluded from the search** — they are already reported as
-`unknown-id` — so **one dangling edge cannot mask a real cycle** elsewhere in the graph.
-
-### The `depends-and-rejected` invariant
-
-An id may **never** appear in both `dependsOn` and `dependencyRejected` on the same entry.
-
-**This validator is the single place that invariant is enforced.** The dependency detector in
-`0036_02` and the runner in `0036_04` **reference** it rather than restating it — and neither field is
-treated as "winning" when the invariant is broken; the problem is reported and the user resolves it.
-
 ## Ready set
 
-An entry is **ready** when **both** hold:
+An entry is **ready** when its `status` is **`pending`**. The ready set is the `pending` entries in
+**ascending numeric `BK-NNNN` order**. **No topological pass is performed.**
 
-1. its `status` is **`pending`**, **and**
-2. **every** id in its `dependsOn` names an entry whose status is **`done`** or **`cancelled`**.
+Two readings are wrong, and both are ruled out here:
 
-Status by status:
-
-| Status | Satisfies a `dependsOn` edge? | Why |
-|---|---|---|
-| `done` | **yes** | the work happened |
-| `cancelled` | **yes** | a **decision** that the work will not happen, not an obstacle — treating it as unsatisfied would strand every dependent permanently |
-| `blocked` | **no** | a real failure a human must resolve |
-| `in-progress` | **no** | simply unfinished |
-| `pending` | **no** | not started |
+- It is **not** a relaxed dependency filter. There is no filter to relax — the clause was deleted in
+  `0042_01`, not weakened.
+- It is **not** a second conjunct that is still evaluated and *vacuously satisfied over an empty edge
+  set*. Nothing of the kind is materialized, so the predicate has no such input at all and `status`
+  is the whole of it.
 
 ### Order
 
-**Topological over `dependsOn`, tie-broken by ascending numeric backlog id** — mirroring ptp's
-existing `(epic, story)` ascending rule. There is **no `priority` field**; the ids supply the stable
-order.
+**Ascending numeric backlog id** — mirroring ptp's existing `(epic, story)` ascending rule. There is
+**no `priority` field**; the ids supply the stable order.
 
-**Determinism.** Ordering reads **only materialized fields**, so **for any given saved file the ready
-set and its order are fully deterministic** — computing them twice over an unchanged file yields the
-same entries in the same order.
+**The order *within* a ready set is unchanged** by the deletion: the topological pass never
+constrained it (every member of a ready set already had its predecessors settled), so the ascending-id
+tie-break was always the whole visible order. Removing the pass removed **ordering** machinery, not
+ordering behavior. **Ready-set *membership* is a different matter and did change** — a backlog that
+carried edges now admits every `pending` entry at once, so one that used to run in a dependency-derived
+order now runs in id order. That is a deliberate behavior change, recorded as such in the release notes.
+
+**Determinism, over the produced document.** Ordering reads **only materialized fields**, so **for any
+given produced document the ready set and its order are fully deterministic** — computing them twice
+over one document yields the same entries in the same order. The claim is deliberately **not** made over
+the store over time: a board is not a snapshot and the read is not transactional, so two reads may
+legitimately differ (see *Purity, narrowed honestly* under *Validation*).
 
 **Ownership note.** This rule lives **here**, in `ptp-backlog`, and **not** in the future
 `ptp-backlog-run` skill, for one reason: the read-only view needs the identical rule and ships in
@@ -447,291 +814,12 @@ this repository forbids. `ptp-backlog-run` (`0036_04`) owns only what is genuine
 gate, the status write-back, and the terminal report — and **references this definition** for what
 "ready" means and in what order. The runner is the referencing consumer; the definition does not move.
 
-`/ptp:backlog` computes the ready set **once**, over the file as it stands. Recomputing after every
-epic is a property of the runner's loop, not of a view, which has no loop to recompute in.
+`/ptp:backlog` computes the ready set **once**, over the document one read produced. Recomputing after
+every epic is a property of the runner's loop, not of a view, which has no loop to recompute in.
 
-## Dependency detection
-
-**This skill owns the dependency-detection contract.** Detection is the inference that turns two
-entries' prose into a `dependsOn` edge, and because the edge set it produces is the sole input to the
-*Ready set* rule above — and therefore to what a backlog runner executes against the repository — the
-contract has to live in exactly one place, like every other rule in this file. Every
-**detection-invoking** backlog writer runs the five phases below **unchanged**: `/ptp:backlog-add`
-(`0036_02`) today, `/ptp:backlog-edit` (`0036_03`) next. A command references this section; it does
-**not** restate any part of it.
-
-The contract does **not** extend to writers that infer no dependencies. `/ptp:backlog-run`
-(`0036_04`) writes execution state — statuses, `changeEpics`, `attributionWarnings`, `runBaseline` —
-and runs **no** detection at all. Neither does `/ptp:backlog-continue` (`0038_01`), whose only write is
-row 8's status transition: it changes none of the four fields detection reads, so its trigger is unmet.
-
-Detection presupposes that the loaded document passed the *Writer eligibility* rule above. When the
-file carries one of the **five writer-eligible structural defects** (`unknown-id`, `self-edge`,
-`cycle`, `depends-and-rejected`, or a `malformed-entry` on a non-`id` field) the invoking writer
-**suppresses detection entirely** — the writer's own primary write still proceeds, no candidate is
-proposed in either direction, no edge is written that operation, and the defect is reported with
-`/ptp:backlog-edit` named as the repair path. (An id-space defect never reaches this point at all: a
-writer refuses past it outright.)
-
-### Phase 1 — the bounded input set
-
-Detection SHALL assemble **exactly three** sources and no others:
-
-1. **every backlog entry's `title` and `description`** — including the subject entry's;
-2. **the capability-name list from `npx -y openspec list --specs`**;
-3. **the active change-folder ids under `openspec/changes/`**.
-
-Source 1 — the backlog's own prose — is read **in full**, because it carries almost all of the
-detection signal. Sources 2 and 3 are **names only**. "Names only" scopes sources 2 and 3; it does
-**not** restrict source 1, whose descriptions are exactly what detection is reading.
-
-The never-list is explicit. Detection SHALL NOT read:
-
-- **never a full capability spec body** (`openspec/specs/**/spec.md`);
-- **never a change artifact body** — `proposal.md`, `design.md`, `tasks.md`, or a spec delta under
-  `openspec/changes/**`;
-- **never a source file** — no command, skill, workflow, script, or README.
-
-**The bound is fixed, not a judgment call.** It SHALL NOT be widened to obtain more signal ("just this
-once, read the proposal") and SHALL NOT be narrowed by dropping a source. In particular the
-`--specs` name list is **kept deliberately**: it is one CLI call returning a small number of short
-strings, negligible next to the backlog prose already being read, and capability overlap between two
-epics is the **highest-signal edge available**.
-
-### Phase 2 — candidate proposal in both directions
-
-For the invocation's **subject entry** `E` and **every other entry** `T`, detection SHALL consider
-**two** candidates:
-
-- **forward** — `E depends on T` (write-target `E`);
-- **reverse** — `T depends on E` (write-target `T`).
-
-Evaluating both directions is **mandatory** on every add and every edit on which detection runs —
-never conditional, never narrowed to the forward direction, never skipped for cost. The **single**
-exception is the suppression case stated above: a writer-eligible structural defect in the loaded file
-means detection does not run at all, so no candidate is proposed in either direction. There is **no
-other** ground for skipping or narrowing the analysis. Permission to write onto another entry governs
-only whether such a write is allowed at all; it MUST NOT be read as making the analysis optional.
-
-**The decision criterion.** A candidate `A depends on B` holds when **the work `B` describes must land
-before the work `A` describes can proceed** — because `A` builds on, extends, or modifies an artifact,
-capability, schema, skill, or command that `B` introduces. Detection SHALL propose the edge whenever
-the bounded inputs **plainly** establish that ordering, and SHALL NOT propose one merely because two
-entries are topically related or touch the same area with no ordering constraint between them.
-Judgment is reserved for relationships the bounded inputs leave **genuinely ambiguous** — it is not a
-licence to decline the plain cases. "Evaluate every pair, propose nothing" is **not** a conformant
-reading of this phase.
-
-**What mandating both directions buys, stated without overclaiming.** It fixes the candidate
-**scope**, not the **outcome**. Detection is LLM judgment and is **not reproducible**: the same add run
-twice may legitimately propose different edges. What the rule guarantees is that a missing edge always
-reflects a judgment call rather than a direction that was never examined. The determinism this design
-does guarantee is **downstream**: given a saved backlog file, the ready set and its order are pure
-functions of that file, because they read only materialized fields.
-
-### Phase 3 — the write-target filter
-
-For a candidate `A depends on B`, the **write-target is `A`** — the entry whose `dependsOn` array
-would gain `B`. **Every check below is evaluated against `A`**, whichever entry the invocation
-nominally targets.
-
-**"An existing entry" means an entry of the in-memory document detection is running over** — the
-entries loaded from the file **plus the invocation's own subject entry**, which under
-`/ptp:backlog-add` has been composed in memory with its allocated id but is not yet persisted (the
-single write in *Phase 5* persists it). A reverse candidate `T depends on E` whose `B` is that
-composed subject is therefore **not** an `unknown-id` refusal: reading "existing" as "already on disk"
-would refuse **every** reverse edge an add can produce, which is exactly the analysis Phase 2 makes
-mandatory.
-
-The rows are **ordered**, and the already-present row is **first**:
-
-| # | Condition on candidate `A → B` | Outcome |
-|---|---|---|
-| 1 | `B ∈ A.dependsOn` already | **no-op** — an ordinary skip, **not** a refusal; settles the candidate outright |
-| 2 | `B` names no entry of the in-memory document (subject entry included) | **refuse**, ground `unknown-id` |
-| 3 | `A` and `B` are the same entry | **refuse**, ground `self-edge` |
-| 4 | `B ∈ A.dependencyRejected` | **refuse**, ground `rejected-by-target` |
-| 5 | `A.status` ∈ { `done`, `in-progress` } | **refuse**, ground `target-status`, naming `A`'s status |
-
-**Row 1 runs first and settles the candidate ahead of every refusal check.** Without that precedence an
-already-present edge on a `done` or `in-progress` write-target would match two rows at once — no-op and
-`target-status` refusal — and the outcome would be undefined. Precedence resolves it in the only
-coherent direction: detection is attempting **no write** there, and the refusal checks govern
-**attempted writes only**. The case is reachable under `/ptp:backlog-edit`, which re-runs this contract
-over entries that already carry edges.
-
-**These are detection-refusal grounds, not validation problem codes.** Three names — `unknown-id`,
-`self-edge`, and `cycle` — are shared with the *Problem codes* vocabulary above, and the two
-vocabularies MUST NOT be conflated. A **validation problem** is a defect **already in the file**, which
-under *Writer eligibility* either stops the write outright (any fatal problem, plus the two id-space
-ones) or suppresses detection while the write proceeds (the five writer-eligible structural defects). A
-**refusal ground** is a **candidate edge detection declined to write** to a file whose graph was sound
-enough for detection to run at all. Detection SHALL NOT report a refusal as a validation problem and
-SHALL NOT raise validation problems of its own.
-
-**Rows 2 and 3 are backstops, not routine outcomes.** They are unreachable from detection-proposed
-candidates: Phase 2 draws every endpoint from that same entry set and never pairs the subject with
-itself, and a file already holding a dangling or self edge is a writer-eligible structural defect that
-suppresses detection entirely while the writer's own primary write still proceeds. They are retained
-because `/ptp:backlog-edit` (`0036_03`) reuses this contract with **user-supplied** candidate edges. If
-either fires against a detection-proposed candidate it signals an **upstream contract violation**, and
-is reported as such rather than as an ordinary refusal.
-
-**`dependencyRejected` is consulted on the entry being written to.** Row 4 is keyed on `A` — the
-write-target — and not on whichever entry the invocation nominally targets. This is the precise failure
-the field exists to prevent: a user editing `Y` removes the `Y → X` edge, which lands `X` in
-`Y.dependencyRejected`; later an unrelated `/ptp:backlog-add` or `/ptp:backlog-edit` of `X` proposes
-the **reverse** candidate `Y depends on X`. Keyed on the write-target it is refused, as it must be.
-Keyed on the invocation's own entry it would be written, resurrecting a rejection from the other end of
-the edge — and the user could never win, because every subsequent add of the other endpoint would
-restore the edge they deliberately removed.
-
-**Automatic writes go only to `pending`, `blocked`, or `cancelled` write-targets.** Row 5 is what stops
-two concrete failures. An edge onto a **`done`** entry asserts an ordering that has **already been
-violated** — the work shipped without the prerequisite — and is unenforceable by construction, since
-only `pending` entries enter the ready set; writing it would record a constraint nothing can ever act
-on. An edge onto an **`in-progress`** entry is worse: that epic is executing right now and the runner
-is mid-write on it, so an automatic edge would land on a record another operation is actively
-changing. Neither is silently dropped — **both refusals are reported with the target's status**, so a
-real dependency noticed too late reaches the user, who may still record it deliberately through
-`/ptp:backlog-edit` (a status-aware human act; on a `done` target it documents history rather than
-schedules work). The restriction applies to **automatic detection writes only**.
-
-`cancelled` stays on the **permissive** side of that line even though it, like `done`, is a status no
-work runs from. The difference is **reversibility**: a cancelled entry can be revived to `pending`
-(`/ptp:backlog-edit`, `0036_03`), at which point an edge written onto it becomes live and enforceable,
-so recording it now is useful rather than inert. A `done` entry has **no corresponding revival** — the
-work already shipped — so an edge onto it could only ever document a violated ordering. `blocked` is
-permissive for the same reason as `cancelled`, one step nearer to running.
-
-### Phase 4 — one atomic cycle check over the complete candidate set
-
-Let `G` be the directed graph of every existing `dependsOn` edge, and `C` the set of candidates that
-survived Phase 3. Detection SHALL test `G ∪ C` for cycles **once**, as a single evaluation:
-
-- **acyclic** → **every** candidate in `C` is accepted;
-- **cyclic** → **every** candidate in `C` is discarded **together**, and the report names the candidate
-  cycle.
-
-**Per-edge validation is forbidden.** Detection SHALL NOT test candidates one at a time and SHALL NOT
-write the subset that happened to validate first. The worked reason: bidirectional detection can
-propose `X → Y` and `Y → X` in one operation. Each is individually acyclic against the pre-existing
-graph; **together they are a cycle**. Validating them one at a time would accept whichever was examined
-first and reject the other, making the written file a function of **evaluation order** rather than of
-the analysis.
-
-This phase **presumes `G` is sound**. When the loaded file already carries a writer-eligible structural
-defect, detection was suppressed before this point, so `C` is empty and the check never has to separate
-a pre-existing cycle from one the candidates introduced.
-
-**The all-or-nothing unit is `C`, not the invocation.** The invoking writer's own primary write — entry
-creation under `/ptp:backlog-add`, the user's explicit field edit under `/ptp:backlog-edit` — is a
-separate write that **still proceeds**. A cycle among candidates therefore never discards the user's
-request: a cycle-refusing add still yields the new entry, with `dependsOn: []`, plus a report naming
-the cycle.
-
-### Phase 5 — apply and persist
-
-For each accepted candidate `A → B`, detection SHALL:
-
-1. append `B` to `A.dependsOn`;
-2. set `A.dependencyEvidence[B]` to a **one-line** rationale citing **which bounded input grounded it**;
-3. bump `A.updatedAt`.
-
-Then persist through this skill's *IO protocol* — the whole-file read-modify-write above. **Every
-accepted edge, every evidence line, and the invoking writer's own primary write land in ONE write.**
-There is no intermediate state in which a new entry exists without its detected edges, and no
-operation writes the file twice.
-
-Worked example — the first rationale is grounded in a capability name, the second in another entry's
-description:
-
-```jsonc
-"dependencyEvidence": {
-  "BK-0002": "both target the telemetry capability (openspec list --specs)",
-  "BK-0005": "BK-0005's description introduces the backlog schema this epic extends"
-}
-```
-
-### Additive only
-
-Detection **MAY**:
-
-- add an id `B` to `A.dependsOn` when `B` is absent from **both** `A.dependsOn` and
-  `A.dependencyRejected`;
-- write `A.dependencyEvidence[B]` for an edge it **just added in this operation**;
-- bump `updatedAt` on the entries it modified.
-
-Detection **MUST NOT**:
-
-- **remove** any id from any `dependsOn`;
-- **rewrite** an edge it added in an earlier operation;
-- **overwrite** the `dependencyEvidence` entry of an edge **already present** in `dependsOn` — with one
-  narrow exception: a **residual** entry, whose key names an edge **absent** from `dependsOn` (as a hand
-  edit can leave behind), is replaced by the current rationale when detection adds **that very edge** in
-  this operation. Without the exception, adding an edge whose stale evidence a hand edit left behind
-  would have to both write a current input-citing rationale and preserve the old value, which no
-  behavior can satisfy. A residual entry whose edge detection is **not** adding is left **exactly as
-  found** — repairing it is a user act;
-- write an **evidence entry for an edge it did not add** in this operation;
-- write to **`dependencyRejected`**;
-- modify **`status`**, **`changeEpics`**, **`attributionWarnings`**, **`runBaseline`**, **`id`**, or
-  **`createdAt`** on any entry;
-- modify **`title`**, **`description`**, or **`notes`** on **any** entry, **the subject included** —
-  detection's only writes are edges, evidence, and `updatedAt`. Composing or editing those content
-  fields on the subject is the **invoking command's own primary write**, governed by that command's
-  contract, never an act of detection.
-
-**Removal of an edge is only ever a user act**, performed through `/ptp:backlog-edit`, which moves the
-edge into `dependencyRejected`. The consequence is accepted **explicitly** rather than worked around:
-**an edge detected on flawed reasoning persists until a human removes it.** The asymmetry is
-deliberate — a stale extra edge only **over-serializes** the run, so the work still happens in a more
-conservative order, whereas a detector empowered to delete edges could silently **un-order genuinely
-dependent work**, on the same non-reproducible judgment that created the edge.
-
-### Evidence as provenance
-
-Because detection writes an evidence entry for **exactly** the edges it adds and for **no others**, an
-edge detection added carries an entry in `dependencyEvidence` and an edge it did not add is left
-without one.
-
-**This is a convention detection maintains over its own writes — not a file invariant.** The backlog is
-hand-editable, and this skill's validator constrains a `dependencyEvidence` key only to naming an
-**existing entry**; it does **not** require the key to correspond to an edge in `dependsOn`. A
-hand-written file may therefore carry evidence for a **user-entered** edge, or a **residual** entry for
-an edge that has been removed. Detection **neither repairs** such an entry (the additive-only
-prohibitions forbid it) **nor relies** on the marker for anything beyond audit — a hand edit can leave
-an edge marked or unmarked either way, so the marker is **not** proof of authorship a later pass may
-depend on.
-
-**Run ordering ignores the distinction entirely**: `dependsOn` is the single authoritative edge set.
-The marker exists so a reader can audit **why** an edge exists, and for nothing else.
-
-The evidence **lifecycle on removal and re-add** — deleting an edge's evidence in the same write that
-removes the edge, and leaving evidence absent when a user re-adds a previously-detected edge — is
-`/ptp:backlog-edit`'s obligation in **`0036_03`**, and is deliberately **not** defined here. This
-section owns the **write** side only.
-
-### The report obligation
-
-Non-silence is the point: the failure mode this rule exists to prevent is **editing a record the user
-did not ask about**, or **dropping a refused edge**, without saying so. An operation that runs
-detection SHALL report:
-
-- the entry it **created or edited**, by id — and, when the operation **created** it, its `title` and
-  `status` as well, so the new record is identifiable from the report alone;
-- **every entry it modified, named individually** — including reverse-edge targets the user never
-  mentioned — with the edges written to each and the evidence line recorded for each;
-- **every refused candidate**, with its ground: `unknown-id`, `self-edge`, `rejected-by-target`,
-  `target-status` (**naming the target's status**), or `cycle` (**naming the cycle**, with the whole
-  candidate set discarded);
-- when **no other entries existed** to compare against, that fact **explicitly**, rather than silence;
-- when detection was **suppressed** by a writer-eligible structural defect, that fact and the defect,
-  with `/ptp:backlog-edit` named as the repair path.
-
-**A silently-written reverse edge and a dropped refusal are both contract violations**, not cosmetic
-omissions — the first makes an unrequested write invisible, and the second hides a dependency the
-detector noticed and declined to record.
+**A second, store-shaped withholding condition applies:** under *Degraded scope* the ready set is
+withheld even on a board carrying no problem at all, because an unreachable archived tier can put the
+wrong entry at the **head** of the order.
 
 ## Status transitions and their guards
 
@@ -752,8 +840,11 @@ The complete table. Every row names its **performer**; there are no other rows:
 | 4 | `in-progress` → `blocked` \| `pending` | **recovery only**, via the reconciliation gate below (`claim` → `blocked`; `disown` / `rerun anyway` → `pending`). **Never `done`.** | `/ptp:backlog-edit` |
 | 5 | `blocked` → `pending` | explicit user reset, gated (**guard 1**) | `/ptp:backlog-edit` |
 | 6 | any → `cancelled` | the user abandons the epic; from `blocked` or a stale `in-progress` it carries guard 1's acknowledgement (**guard 2**) | `/ptp:backlog-edit` |
-| 7 | `cancelled` → `pending` | explicit user revival, subject to the inversion refusal (**guard 3**) | `/ptp:backlog-edit` |
-| 8 | `blocked` → `done` | **only** as the direct, same-invocation result of `/ptp:backlog-continue`'s own bare-flow review-full → archive sequence settling **every** prefix recorded in `changeEpics` (**guard 4**) | `/ptp:backlog-continue` |
+| 7 | `cancelled` → `pending` | explicit user revival | `/ptp:backlog-edit` |
+| 8 | `blocked` → `done` | **only** as the direct, same-invocation result of `/ptp:backlog-continue`'s own bare-flow review-full → archive sequence settling **every** prefix recorded in `changeEpics` (**guard 3**) | `/ptp:backlog-continue` |
+
+**Explicit user edits may target an entry in any status**, `done` and `in-progress` included — on a
+`done` target such an edit documents history rather than schedules work.
 
 ### Refusals
 
@@ -763,7 +854,7 @@ The complete table. Every row names its **performer**; there are no other rows:
 - **Every transition absent from this table is refused** — in particular `done` → `pending`, `done` →
   `in-progress`, `cancelled` → `done`, `cancelled` → `blocked`, and `pending` → `done`.
 - **`blocked` → `done` is refused except via row 8's guarded path.** It is **not** absent from the
-  table, but it is reachable **only** by row 8's performer under **guard 4** below; requested through
+  table, but it is reachable **only** by row 8's performer under **guard 3** below; requested through
   any other command — `/ptp:backlog-edit` in particular — it is refused exactly as it was before row 8
   existed, naming the row and its performer.
 - **A status write that changes nothing is refused as a no-op**, never reported as success.
@@ -772,14 +863,13 @@ The complete table. Every row names its **performer**; there are no other rows:
 two **gated** sources are named exhaustively as `blocked` and a stale `in-progress`; `done` is neither,
 so no guard applies. This does not contradict the refusal list above: that list names `cancelled` →
 `done`, the opposite direction, which stays refused. Cancelling a `done` epic documents abandonment of
-shipped work — it unblocks nothing (`done` already satisfied dependents' edges) and discards no link
-(`changeEpics` survives).
+shipped work — and discards no link (`changeEpics` survives).
 
 ### Repairing an out-of-enum `status` — a repair, not a transition
 
 Every row of the table above is defined over the **five enum values**, so an entry whose stored `status`
 is **out of enum** has **no *from* row at all**. That state is a `malformed-entry` on a **non-`id`**
-field — one of the five **writer-eligible structural defects** — so *Writer eligibility* deliberately
+field — **the writer-eligible structural defect** — so *Writer eligibility* deliberately
 lets a writer proceed over it, and `/ptp:backlog-edit` is the tool that repairs it. Refusing the repair
 as "a row absent from the table" would make that defect **unrepairable through ptp**, which is exactly
 the lockout writer eligibility exists to prevent.
@@ -822,15 +912,14 @@ Its bounds:
   and never takes a `cancelled` one — and a baseline left behind would strand exactly the phantom the
   invariant forbids. There is deliberately **no** separate baseline-only edit: `runBaseline` is written
   by the runner and cleared by a settling or repairing edit, and by nothing else.
-- Every other rule of this file is unchanged by the repair — in particular the defect **still suppresses
-  detection** for that invocation, and it is **still named in the report** as an outstanding structural
-  problem until the repairing write lands.
+- Every other rule of this contract is unchanged by the repair — in particular the defect is **still named
+  in the report** as an outstanding structural problem until the repairing write lands.
 
 ### Guard 1 — `blocked` → `pending`
 
 A `blocked` entry is the residue of a halted `/ptp:full` whose slices sat in
 `applied (review pending)` — applied but unreviewed code. A bare reset would let a *later* attempt reach
-`done` while that unreviewed code is still on the branch, and `done` unblocks dependents. So the reset:
+`done` while that unreviewed code is still on the branch. So the reset:
 
 1. **Retains the prior attempt's `changeEpics` in full** — it never clears them, never prunes them, and
    never relabels them. `/ptp:backlog` goes on listing them.
@@ -840,7 +929,7 @@ A `blocked` entry is the residue of a halted `/ptp:full` whose slices sat in
    `changeEpics` ids** so the user knows exactly which folders to go check.
 4. The acknowledgement is **report-time only**. v1 persists **no** "prior attempt resolved" field,
    **no attempt id, no attempt boundary, and no per-attempt grouping** of `changeEpics`: once
-   `runBaseline` is cleared nothing in the file says which attempt minted which id. What is durable is
+   `runBaseline` is cleared nothing in the store says which attempt minted which id. What is durable is
    the retained ids themselves, and the report names them so a reset is never mistaken for a clean
    slate.
 5. **No `runBaseline` step is performed.** A `blocked` entry's baseline was already cleared by the
@@ -848,8 +937,10 @@ A `blocked` entry is the residue of a halted `/ptp:full` whose slices sat in
 
 ### Guard 2 — any → `cancelled`
 
-`cancelled` **satisfies** dependents' edges while `blocked` does not, so cancelling a failed epic
-unblocks every dependent in one step — guard 1's hazard reached by a shorter path. Per source status:
+A `blocked` entry's retained `changeEpics` ids are the only record of which change folders hold
+applied-but-unreviewed code, so abandoning the epic without acknowledging that those slices were
+resolved discards that record's only reader — guard 1's hazard reached by a shorter path. Per source
+status:
 
 - From **`pending`** — no attempt, nothing applied: **unconditional**.
 - From **`done`** — **unconditional**, per the rule above.
@@ -878,40 +969,12 @@ Two rules this contract pins for a cancellation edit:
   each other. `claim`, `disown` (subject to the availability table), `promote`, and `dismiss` are all
   offered.
 
-### Guard 3 — `cancelled` → `pending` (the inversion refusal)
-
-Because `cancelled` satisfies dependents' edges, dependents may already have run while this epic was
-cancelled. Reviving it would schedule a prerequisite *after* the work that depended on it.
-
-**Revival is refused while any entry listing this id in `dependsOn` is `in-progress` or `done`**, and
-the refusal **names those dependents and their statuses**. There are exactly **two** ways past it:
-
-1. **Drop the stale edge.** The user removes this id from the dependent's `dependsOn` in a separate
-   `/ptp:backlog-edit` against *that* dependent, which lands it in the dependent's `dependencyRejected`
-   (so detection cannot resurrect it) and deletes its `dependencyEvidence` entry. The refusal then no
-   longer applies, because the dependency no longer exists.
-2. **Accept the inversion explicitly.** A single `/ptp:backlog-edit` revives the entry *and* carries the
-   acknowledgement, recording in the **revived entry's `notes`** which already-`in-progress` / `done`
-   dependents were built before their prerequisite. The written acknowledgement **is** the bypass: it is
-   durable, so a later reader can see the ordering was violated deliberately.
-
-**There is no third path — no flag, no force switch, no silent route.** Revival is **unconditional** only
-when every entry listing this id in `dependsOn` is `pending`, `blocked`, or `cancelled`.
-
-**Explicit user edits may target an entry in any status**, `done` and `in-progress` included — on a
-`done` target such an edit documents history rather than schedules work. The *Dependency detection*
-section's restriction of write-targets to `pending`, `blocked`, or `cancelled` binds **detection's
-automatic writes only**. This is stated rather than left to be inferred because **guard 3's bypass 1
-necessarily edits a `done` or `in-progress` dependent**, and reading that restriction as binding user
-edits would make bypass 1 unreachable.
-
-### Guard 4 — `blocked` → `done` (the resume row)
+### Guard 3 — `blocked` → `done` (the resume row)
 
 Row 8 exists for one situation and no other: `/ptp:backlog-run` halted an epic (row 3) whose work was
 in fact finished, most often because the apply agent correctly refused to check off a **manual-only**
-verification task. Once a human performs that verification, the work is done — but nothing in the file
-proves it, and `done` unblocks dependents, so the row is available **only** when this invocation
-itself produces the proof:
+verification task. Once a human performs that verification, the work is done — but nothing in the store
+proves it, so the row is available **only** when this invocation itself produces the proof:
 
 - the entry's `status` is **`blocked`** and its `changeEpics` is **non-empty** — the same predicate
   that made it `/ptp:backlog-continue`'s target; **and**
@@ -937,10 +1000,12 @@ its own and therefore can never satisfy this guard; its refusal of `blocked` →
    settling edit clears `runBaseline`*;
 3. **retain `changeEpics` exactly as-is** — it already records every prefix now archived, so unlike
    `runBaseline` there is nothing to add and nothing to clear;
-4. bump `updatedAt`.
+4. **send no `updatedAt`** — the stamp is **board-maintained** (*Timestamps* above): the store exposes
+   no setter, so the write carries no value for it and the board's own stamp stands. A writer that
+   "bumps" it in memory has changed nothing durable, and no caller may read that bump back as stored.
 
-One single durable write, through the same whole-file read-modify-write IO protocol as every other
-writer, touching no other entry. If **any** prefix fails to settle, **no** transition occurs: the
+One single write **group**, dispatched through `ptp-backlog-write`'s ordered sequence exactly as every
+other writer's is — the clear a payload row, `done` the commit — touching no other entry. If **any** prefix fails to settle, **no** transition occurs: the
 entry stays `blocked` with its `changeEpics` unchanged, and the partial progress lives in the archived
 change folders alone.
 
@@ -952,8 +1017,8 @@ change folders alone.
 and on `blocked` alike, and every settling edit below clears it too.
 
 **A live run presents the identical on-disk state, and nothing here claims otherwise.** The runner
-writes `in-progress` and `runBaseline` in a **single** write **before** its work begins, so a file read
-**cannot distinguish** a running epic from a crashed one, and `/ptp:backlog` therefore words its
+writes `in-progress` and `runBaseline` in a **single** write **before** its work begins, so a read of
+the store **cannot distinguish** a running epic from a crashed one, and `/ptp:backlog` therefore words its
 stale flag **conditionally** rather than asserting a crash. v1 has **no multi-writer locking** (a
 non-goal), so `/ptp:backlog-edit` cannot detect a live run either — and unlike the view its writes are
 destructive, since settling clears the baseline a live run would itself have consumed. The rule:
@@ -961,7 +1026,7 @@ destructive, since settling clears the baseline a live run would itself have con
 live for it**, and the command's wording — in its report and in **every** gate refusal below — matches
 `/ptp:backlog`'s: *un-reconciled from a crashed run only if no backlog run is currently live*. **No
 sentence of this contract asserts that a crash occurred.** The invariant above states what a lingering
-baseline *means* once no run is live; it is not a claim that the file can tell.
+baseline *means* once no run is live; it is not a claim that the store can tell.
 
 ### The change-prefix set (defined here, used by both the snapshot and the diff)
 
@@ -1010,7 +1075,7 @@ never told a diff was run that was not.
 It follows that **the gate's trigger is `in-progress` with a status-changing instruction — not
 *stale*.** Only the reconciliation step is conditioned on a non-null baseline. Keying the gate on
 staleness instead would let the null-baseline entry slip past it entirely. (An edit that touches only
-fields or edges of an `in-progress` entry changes no status and is therefore not gated at all.)
+fields of an `in-progress` entry changes no status and is therefore not gated at all.)
 
 There is exactly **one** further trigger, in the mirror-image case: an entry whose stored `status` is
 **out of enum** but whose `runBaseline` is **non-null**. Its status cannot be read as `in-progress`, yet
@@ -1116,8 +1181,9 @@ therefore leaves **no on-disk trace**, and no inspection of the recovered folder
 fact. Rather than invent an evidence rule that cannot be satisfied, v1 forbids the outcome: `claim` —
 the only disposition that *keeps* the recovered work — lands on `blocked`, and the user re-runs
 explicitly; the other two land on `pending` precisely because they discard the claim that the work is
-finished. A wrongly-`done` epic would **satisfy its dependents' edges** and let the next epic build on
-unreviewed code — the exact hazard the runner halts on.
+finished. A wrongly-`done` epic would **record shipped work that was never reviewed**, and both
+`/ptp:backlog` and `/ptp:backlog-continue` would stop offering it as work a human still needs to
+finish.
 
 **A durable code-review-convergence marker is the named v2 seam** that would make an evidence-based
 `accept` disposition possible. It is not a v1 gap.
@@ -1125,7 +1191,7 @@ unreviewed code — the exact hazard the runner halts on.
 **Row 8 does not weaken this rule — it sidesteps it.** `/ptp:backlog-continue` reaches `done` from
 `blocked` **not** by accepting evidence about a past run but by **performing** `/ptp:review-full` and
 `/ptp:archive` itself, in the same invocation, so the convergence it relies on is observed in-session
-rather than inferred from disk (see **guard 4**). Nothing here becomes reachable from recovery: a
+rather than inferred from disk (see **guard 3**). Nothing here becomes reachable from recovery: a
 disposition still lands on `blocked` or `pending`, and a stale `in-progress` entry still has no path to
 `done` at all.
 
@@ -1139,19 +1205,18 @@ ambiguity is to **refuse** and show what is available, never to **ask** and neve
 ## What `0036_01` did not ship
 
 This section is a **historical scope note about slice `0036_01`**, not a live prohibition on the
-commands that exist today. Where it says "no writer", read "no writer *in `0036_01`*": `0036_02`
-shipped `/ptp:backlog-add`, which does reach the WRITE path above and is governed by the *Dependency
-detection* section above.
+commands that exist today. It describes the contract as it stood when the backlog was a local JSON file;
+that store was replaced by the board in `0042_03`, which is also why no path described below still
+exists.
 
 **No consumer wiring, and above all no writer, landed in `0036_01`.**
 
-- **No writer of any kind.** Nothing in `0036_01` created, modified, or deleted
-  `openspec/backlog.json`. The write path above was *specified* for later changes; nothing in that
-  slice performed it, and the repository still contained no backlog file after it landed.
-- **No dependency detection in `0036_01`** — the detector, its input bound, its additive-only merge semantics, its
-  bidirectional analysis, and its reverse-edge rules are **`0036_02`**, which is also the first
-  consumer of the id-allocation and writer-eligibility rules above and which adds them to this skill
-  as the *Dependency detection* section above.
+- **No writer of any kind.** Nothing in `0036_01` created, modified, or deleted the backlog. The write
+  path of the day was *specified* for later changes; nothing in that slice performed it.
+- **No epic-dependency inference in `0036_01`** — that feature landed in **`0036_02`**, which was also
+  the first consumer of the id-allocation and writer-eligibility rules above. It was **removed
+  entirely in `0042_01`**, so nothing of it remains in this contract and no section of it
+  describes it.
 - **No entry edit, no status transition, no crash recovery, and no disposition gate** —
   the transition table, the `runBaseline` reconciliation, and the `claim` / `disown` / `rerun anyway`
   availability rules are **`0036_03`**. (Entry **add** landed in `0036_02`.)

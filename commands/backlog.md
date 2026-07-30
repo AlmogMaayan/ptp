@@ -1,25 +1,29 @@
 ---
-description: Read-only view of the epic backlog — renders the entries table, the computed ready set in run order, stale in-progress and provisional-attribution flags, and any validation problems. Delegates the schema, IO, validation, and ready-set rules to the shared ptp-backlog skill. Creates no file, not even the backlog file.
+description: Read-only view of the epic backlog — renders the board's entries table, the computed ready set in run order (or the stated reason it is withheld), stale in-progress and provisional-attribution flags, a scope note, and any validation problems. Delegates the store contract, the field mapping, validation, and the ready-set rules to the shared ptp-backlog skill, and the board coordinates, the namespace and the capability preflight to ptp-github-projects-mcp. Creates nothing — not on the board, not on disk.
 argument-hint: "(no arguments — read-only)"
 ---
 
-You are running **`/ptp:backlog`** — a **read-only** view of the epic backlog
-(`openspec/backlog.json`). It renders what the file says and what the `ptp-backlog` skill computes
-from it, and it writes nothing at all. It is a thin front door: the schema, the IO protocol, the
-validation vocabulary, the id rules, and the ready-set definition all live in the `ptp-backlog` skill.
+You are running **`/ptp:backlog`** — a **read-only** view of the epic backlog, which lives on a
+**GitHub Projects v2 board**. It renders what the board says and what the `ptp-backlog` skill computes
+from it, and it writes nothing at all — not on the board, not on disk. It is a thin front door: the
+store contract, the field mapping, the validation vocabulary, the id rules, and the ready-set
+definition all live in the `ptp-backlog` skill; the board coordinates, the tool namespace, the
+capability preflight and its STOP message all live in `ptp-github-projects-mcp`.
 
 ## Steps
 
 1. **Invoke / consult the `ptp-backlog` skill** via the Skill tool. The skill holds the complete
-   contract: the file location, the v1 schema and its `version` gate, the tolerant read, the
-   whole-file read protocol, the validation problem codes with their fatal / structural
-   classification, and the ready-set definition with its deterministic order. **Do not restate any of
-   it here** — not the field list, not the IO protocol,
-   not the problem-code table, not the id-allocation rule, and not the ready-set rule.
+   contract: the store identity, the entry model and its tolerant read, the field mapping onto board
+   carriers, the version marker and its gate, the read protocol with its configuration-completeness
+   and preflight preconditions, the validation problem codes with their fatal / structural
+   classification and the `unreachable-store` outcome, and the ready-set definition with its
+   deterministic order. **Do not restate any of it here** — not the field list, not the mapping table,
+   not the read protocol, not the problem-code table, not the id-allocation rule, and not the
+   ready-set rule.
 2. **Read** the backlog through the skill's read protocol and **compute** the validation problems and
    (subject to the suppression rule below) the ready set.
 3. **Render the output sections** below.
-4. **STOP** with the rendered view. Write no file.
+4. **STOP** with the rendered view. Write nothing, and create nothing on the board.
 
 ## Output
 
@@ -27,29 +31,116 @@ When the backlog carries **no fatal** validation problem, render these six secti
 
 | # | Section | Contents |
 |---|---|---|
-| 1 | **Header** | the resolved file path, the `version`, and the entry count — or, when the file is absent, a plain "no backlog yet" statement naming `/ptp:backlog-add` as the way entries are added |
-| 2 | **Entries** | one row per entry, in **canonical ascending-numeric-id order**: id, title, status, `dependsOn`, the **unsatisfied** subset of `dependsOn` with each blocker's status, the entry's `changeEpics` links **counted by `attribution`**, and a flags cell |
+| 1 | **Header** | the resolved **board** — owner, project number, project title, and URL — the `version`, and the entry count, **alongside** the preflight verdict line (below) |
+| 2 | **Entries** | one row per entry, in **canonical ascending-numeric-id order**: id, title, status, the entry's `changeEpics` links **counted by `attribution`**, and a flags cell |
 | 3 | **Ready set** | the ready entries **in run order** — or the reason it is withheld (see *The ready-set suppression rule*) |
 | 4 | **Attention** | stale `in-progress` entries, entries holding a `folder-diff-unconfirmed` change-epic link, entries holding an undispositioned `attributionWarnings` prefix |
 | 5 | **Validation** | one row per problem — code, affected entries, message — or an explicit "no problems found" |
 | 6 | **Recommendation** | the next ptp command, in `/ptp:status`'s style |
 
 The entries table renders in **canonical order, not ready order**, so section 2 is a stable picture of
-the file and section 3 is the derived answer.
+the board and section 3 is the derived answer. A **scope note** (below) is rendered above the
+recommendation whenever it has anything to say.
 
-**The empty-state wording must not imply `/ptp:backlog-add` is installed.** Name it as the way entries
-*are added*, not as a command to run right now — until a later change ships it, it does not exist.
+### The header's board identity and verdict line
+
+- **The version renders per the skill's gate**, including the assumed case: a board with no marker
+  renders `1 (assumed — no version marker on the board)` rather than a bare `1`.
+- **The preflight verdict line is rendered here, and this command installs it.**
+  `ptp-github-projects-mcp` defines the preflight and its record but installs **no rendering of its
+  own**, so the verdict line is this view's to place — **alongside**, never instead of, the board
+  identity. Take the **verdict** and the **namespace** from the preflight record; **compose no
+  `mcp__` literal** of your own.
+- **The board identity's parts differ in where they come from, and the rendering must respect that.**
+  The **owner** and the **project number** come from the resolved configuration, so on every path
+  **past the configuration-completeness gate** — which is every read exit, the failing ones included —
+  both have resolved and are **always shown**. The one path where they have not is the pre-read
+  refusal below, which is precisely the case of one of them not resolving: that refusal renders **no
+  board header at all**, only the non-silent refusal naming the missing or invalid keys, because a
+  header identifying a board no configuration named would be an invention. The **project title** and the
+  **URL** require a board call, so on any path that never retrieved the project — a preflight that did
+  not admit the read, or a post-preflight failure to obtain it — they render as `unavailable`.
+  Rendering them `unavailable` satisfies the always-show-the-store-identity rule; guessing or omitting
+  them does not.
+
+### The scope note
+
+Render a **scope note** section listing, **when each is non-empty**:
+
+- **Unmanaged items** — the count and the titles of every item the skill's membership rule leaves
+  unmanaged, which is every item whose `Backlog ID` is **absent or empty after trimming** (a
+  whitespace-only value included) — with the explicit statement that they are **not a defect**;
+- entries that are **board-archived**;
+- **metadata-block keys ignored** — **every** key the skill's block grammar does not recognize,
+  wherever it sits (the block's top level, or inside a `changeEpics` element), each retained and read
+  into nothing. `createdAt` / `updatedAt` and any `dependsOn` / `dependencyEvidence` /
+  `dependencyRejected` are the ones a hand-edited or pre-`0042_01` board most often carries — they are
+  **examples, not the whole list**, and a key outside them is reported exactly the same way;
+- the **degraded-scope** state and exactly what it withholds (the ready set, and the next id);
+- the **legacy-file line** below.
+
+### The legacy `openspec/backlog.json` notice
+
+Perform a **presence check only** on `openspec/backlog.json` — does the path exist. When it does, emit
+**one** scope-note line stating that the file is **legacy**, is **no longer read**, has **not been
+migrated**, and that its entries must be **re-created on the board**.
+
+Its bounds are stated here so it can never grow back into a store: **zero bytes are read**. There is
+**no parse, no entry count, no schema, no version gate, no validation problem, no effect on any
+computation, and no blocking.** The file is never modified and never deleted.
+
+**It is board-independent, so it renders on every path.** The check reads the filesystem and nothing
+else, so it is unaffected by the configuration, the preflight and the board alike: emit the line
+whenever the path exists — under a successful read, under the short fatal form, under
+`unreachable-store`, under a preflight that did not admit the read, and under the pre-read
+configuration refusal, where it is appended below the refusal. The migration warning is most needed
+exactly when the board could not be reached, so no failure path suppresses it.
+
+### The empty state
+
+"**No entries yet**" names the **board** — its owner, number and title — and how entries are added. It
+**never** names `openspec/backlog.json` or any other local file.
+
+**Hard rule: this wording is reachable only from a successfully-read board that carries both required
+custom fields and no entries.** It is **never** rendered from a failed preflight, **never** from the
+`unreachable-store` outcome, and **never** from an `unparseable-file` problem. An unreadable board that
+rendered as an empty backlog is the single worst outcome this command can produce.
 
 ### Under a fatal problem the output is shorter
 
 The six-section output above is **conditional on the absence of a fatal problem**. When a **fatal**
-problem is present, render **only** section 1 (header), section 5 (validation, naming the problem),
-and section 6 (recommendation) — no entries table, no ready set, no attention section — because a
-fatal problem means **nothing further is computable**.
+problem — or the `unreachable-store` outcome — is present, render **only** section 1 (header),
+section 5 (validation, naming the problem or the outcome), and section 6 (recommendation) — no entries
+table, no ready set, no attention section — because nothing further is computable.
 
-In that header the **file path is always shown**, and any value that is uncomputable under the problem
-— the `version` and/or the entry count, neither of which an unparseable file has — is rendered as
-`unavailable` rather than guessed. Still nothing is written.
+In that header the **board identity is always shown** (per the rendering rule above), and any value
+that is uncomputable under the problem — the `version` and/or the entry count — is rendered as
+`unavailable` rather than guessed. **The same applies to the failed-preflight path**, where no board
+call ran at all: the `version` and the entry count render as `unavailable` there too, so no read exit
+leaves a header value undefined. Still nothing is written.
+
+**The legacy-file line survives the short output; every other scope-note item does not.** The legacy
+line is a **presence check on disk**, computed without reading the board, so it is unaffected by any
+board-side problem: when the path exists it is rendered **alongside** the three sections above. Every
+other scope-note item — unmanaged items, archived entries, ignored block keys, degraded scope — is a
+**board-derived** fact, and under a fatal problem or the `unreachable-store` outcome nothing board-derived
+is computed at all (that is what *fatal* means in the `ptp-backlog` skill). Those items are therefore
+**withheld, not emptied**: the short output never asserts that a board carries no unmanaged item.
+
+### The three read exits and their two renderings
+
+| Exit | Rendering |
+|---|---|
+| the **preflight did not admit the read** | the **full STOP message** in `ptp-github-projects-mcp`'s specified shape — its seven labels in order — **alongside**, never instead of, the header verdict line |
+| a **post-preflight failure to obtain the board** | the **short fatal form** naming the `unreachable-store` outcome, the tool, and the transport error |
+| the board was **obtained but is uninterpretable** | the **same short fatal form**, naming an `unparseable-file` problem row instead |
+
+**Alongside, never instead of** — substituting one of these renderings for another is the error.
+
+A fourth case is deliberately **not** in that table: an **incomplete `backlog.*` configuration** is
+refused **before any read is attempted**, naming the missing (or invalid) keys and calling **no**
+Projects tool. It is a pre-read refusal, not a read exit, and it must never surface as an
+`unreachable-store` or a project-not-found error.
 
 ### The attention section
 
@@ -60,7 +151,14 @@ The attention section is a **requirement, not a nicety**. It MUST:
 - surface **every** entry holding an **undispositioned** `attributionWarnings` prefix;
 - **distinguish all three `attribution` values** — `terminal-report` (authoritative),
   `folder-diff-unconfirmed` (provisional), and `user-confirmed-reconciliation` (a human vouched for
-  it) — so a provisional or human-vouched link is **never** presented as an authoritative one.
+  it) — so a provisional or human-vouched link is **never** presented as an authoritative one;
+- report an entry whose block-carried fields are **unavailable** as exactly that — never as an entry
+  with no warnings and no links.
+
+**The entries table obeys the same rule.** For an entry the unavailable mask covers, the
+`changeEpics` cell renders **`unavailable`**, never a count and never `0` — a count of zero would be
+the very assertion (*this entry links to no change epic*) the skill's *unavailable is not empty* rule
+forbids. Its id, title and status still render normally; only the mask-covered cell degrades.
 
 ### The ready-set suppression rule
 
@@ -68,22 +166,19 @@ The attention section is a **requirement, not a nicety**. It MUST:
 problem.** When any such problem is present the ready set is **withheld** and the defect is named in
 its place, so the view can **never** show a ready set that a backlog runner would refuse to consume.
 
-Two conditions of an **otherwise valid** file are **not** defects and are reported as such rather than
-as problems:
+**A second, store-shaped withholding condition stands alongside it:** under **degraded scope** — the
+transport cannot return archived items — the ready set is withheld and the **next id renders
+`unavailable`**, with the reason named in the scope note, even though no problem code is raised.
 
-- **An empty backlog** (no entries at all) — a **no-op**, not a defect. Report it as such, naming how
-  entries are added.
-- **Zero ready entries while `pending` entries remain** — **blocked-predecessor starvation**. Name the
-  unmet dependencies and their **blocking entries**: every remaining `pending` entry transitively
-  depends on a `blocked` or `in-progress` target. This is the expected consequence of a previous halt,
-  not a file defect, and it points the user at unblocking those entries.
+One condition of an **otherwise valid** board is **not** a defect and is reported as such rather than
+as a problem:
 
-**Structural starvation is deliberately not routed through this path.** Every structural cause of
-starvation — a residual `cycle`, `unknown-id`, `self-edge`, or `depends-and-rejected` — is *already* a
-structural validation problem, so the suppression rule above has already withheld the ready set and
-named the defect before starvation would ever be computed. That is precisely why the "not a defect"
-claim here can never contradict the suppression rule: on a file free of fatal and structural problems,
-**all** starvation is blocked-predecessor starvation.
+- **An empty backlog** (no entries at all) — a **no-op**, not a defect. Report it as such, naming the
+  board and how entries are added.
+
+**No dependency cell is rendered in any entry row**, and **an empty ready set means no `pending` entry
+remains** — readiness is `status` alone, per the `ptp-backlog` skill's ready-set definition, so there
+is nothing else for the view to explain in its place.
 
 ### The stale `in-progress` flag
 
@@ -93,19 +188,22 @@ Word the flag **conditionally**, e.g. *"in-progress with a pending run baseline 
 crashed run **if no backlog run is currently live**."*
 
 The conditional wording is required, and the **reason** is that a **live** run sets both fields in one
-write *before* its work begins, so a running epic and a crashed one look **identical** in the file.
+write *before* its work begins, so a running epic and a crashed one look **identical** in the store.
 The command **never asserts a crash** and performs **no process inspection** — it reports honestly,
 the same posture `/ptp:telemetry status` uses for its Codex preflight ("configured; delivery not
 verified") rather than overclaiming.
 
 ## Hard rules
 
-- **Read-only in the strongest sense.** It creates **no** file — **including `openspec/backlog.json`
-  itself** — modifies nothing, and deletes nothing.
+- **Read-only in the strongest sense.** It creates **nothing on the board** — no project, no custom
+  field, no `Status` option, no item, no version marker — and **nothing on disk**. It modifies nothing
+  and deletes nothing. A missing required custom field is **reported, never created**.
+- **No fallback, ever.** No failure path reads, creates, or writes a local backlog file or any other
+  store.
 - **No branch guard, no `openspec validate`, no git command.** `/ptp:backlog` is exempt from the
   branch guard exactly as `/ptp:status` and `/ptp:version` are.
 - **Not wrapped in `ptp-run-at-model`.** Like `/ptp:status`, it does no work that needs a deterministic
-  model, and wrapping it would start a main run (and a telemetry window) for a file read.
+  model, and wrapping it would start a main run (and a telemetry window) for a read.
 - **Takes no argument and no change selector.** Backlog ids are outside the `epic:` / `story:` selector
   grammar. An argument is reported as **unsupported** in a **single diagnostic line above the header**,
   and the backlog view below that line is **identical to the no-argument rendering** — the argument
@@ -114,5 +212,7 @@ verified") rather than overclaiming.
   affordance would either make a read-only command write or make it invoke a write command. It names
   `/ptp:backlog-edit` in the **recommendation only**, exactly as `/ptp:status` recommends a next
   command without running it.
-- **Never restate the skill's contract here** — the schema, the IO protocol, the problem codes, the
-  id-allocation rule, and the ready-set definition are defined once, in `ptp-backlog`.
+- **Never restate the skill's contract here** — the entry model, the field mapping, the read protocol,
+  the problem codes, the id-allocation rule, and the ready-set definition are defined once, in
+  `ptp-backlog`; the namespace, the tool set, the preflight and its STOP message once, in
+  `ptp-github-projects-mcp`. **Compose no `mcp__` literal.**

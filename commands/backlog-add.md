@@ -1,17 +1,36 @@
 ---
-description: Add one epic to the backlog from a free-text request — allocates a backlog id, writes a single pending entry, and runs dependency detection in both directions, reporting every entry it modified and every candidate edge it refused. Autonomous: asks no clarifying questions. Delegates the schema, IO, id allocation, validation, and detection rules to the shared ptp-backlog skill.
+description: Add one epic to the backlog from a free-text request — allocates a backlog id and writes a single pending entry, modifying no other entry. Autonomous: asks no clarifying questions. Delegates the schema, IO, id allocation, and validation rules to the shared ptp-backlog skill.
 argument-hint: "<free-text description of the epic to add> [model:<model>.<effort>]"
 ---
 
-You are running **`/ptp:backlog-add`** — the writer that puts an epic **into** the epic backlog
-(`openspec/backlog.json`). It takes a free-text epic request, creates **exactly one** new entry, runs
-dependency detection over the backlog, and reports. It is a thin front door: the file location, the
-schema, the IO protocol, the id allocation, the validation vocabulary and its writer-eligibility rule,
-and the **dependency-detection contract** all live in the **`ptp-backlog`** skill.
+You are running **`/ptp:backlog-add`** — the writer that puts an epic **into** the epic backlog,
+which lives on a **GitHub Projects v2 board**. It takes a free-text epic request, creates **exactly
+one** new entry, and reports. It is a thin front door: the store identity, the entry model, the read
+protocol, the id allocation, and the validation vocabulary with its writer-eligibility rule all live in
+the **`ptp-backlog`** skill.
 
-> **Contrast with its siblings:** `/ptp:backlog` is the read-only view — it writes nothing, not even
-> the backlog file. This command is the first writer. It never plans, never implements, and never
+> **Contrast with its siblings:** `/ptp:backlog` is the read-only view — it writes nothing, and
+> creates nothing on the board. This command is the first writer. It never plans, never implements, and never
 > runs an epic.
+
+## The refusal contract — exactly one, and it names its own cause
+
+**The board write path has shipped**, so this command writes. What survives from the refusal that stood
+while it had not is the **shape** of the refusal, not its wording:
+
+- **Exactly one refusal exists in this file**, and it is issued **non-silently and up front**, naming
+  the **specific** reason it cannot write. No second, divergently-worded refusal is added beside it.
+- The grounds are their owning contracts' and are **cited, never restated**: the `ptp-backlog` skill's
+  **writer-eligibility** rule; `ptp-github-projects-mcp`'s **`read-only`** and **`unavailable`**
+  preflight verdicts; the read path's **degraded-scope** withholding, which this command consumes
+  because it **allocates an id** (see `ptp-backlog-write`'s degraded-scope dispositions); and an entry
+  whose **content type offers no path to update a carrier** a planned field rides. Each is a
+  **condition within this one refusal contract**, and each names its own cause when it fires.
+- **No ground is worded over the write path being unshipped**, that antecedent having lapsed.
+- **No fallback of any kind.** No local backlog file is read, created, or written, and no other store
+  is substituted — under any verdict, any problem, any refusal, and **any write outcome**, the error
+  path included. A failed, partial, or unresolved write is never compensated, mirrored, or recorded
+  anywhere but the board and this command's own report.
 
 ## Inputs
 
@@ -61,21 +80,35 @@ proceed as-is. The full rule (branch naming, the workflow contract, the hard rul
    so it must **not** attempt to launch the `ptp-branch-prep` Workflow.
 4. **Inside the main run**, in this order — the methodology for every step below lives in the
    `ptp-backlog` skill; name the step, do not restate the rule:
-   1. **Read and validate** the backlog file **through the skill**, following its read protocol
-      (an absent file reads as the in-memory empty backlog and is **not** created here) and its
+   1. **Read and validate** the backlog store **through the skill**, following its read protocol
+      (a board carrying no entry reads as the empty backlog, and nothing is created here) and its
       **writer-eligibility rule**. That rule decides the outcome: either **STOP and report** the
-      defect, having allocated no id and written nothing to the backlog file, or **proceed with
-      detection suppressed** — creating the entry, reporting the defect, writing no detected edge in
-      this operation, and naming `/ptp:backlog-edit` as the repair path. Do **not** enumerate the
-      problem codes or restate which class falls where.
+      defect, having allocated no id and written nothing to the backlog store, or — over **the
+      writer-eligible structural defect** — **proceed**, creating the entry, reporting the defect, and
+      naming `/ptp:backlog-edit` as the repair path. Do **not** enumerate the problem codes or restate
+      which class falls where.
    2. **Allocate the id** via the skill's id allocation — only after validation has settled.
    3. **Compose the entry** in memory, per *Entry composition* below.
-   4. **Run dependency detection** per the skill's *Dependency detection* contract, with the composed
-      entry as the subject.
-   5. **Persist one whole-file write** carrying the new entry, every accepted edge, every evidence
-      line, and every touched entry's bumped `updatedAt`. This single write is what creates the file
-      on demand when it was absent — **no earlier step creates it**.
-   6. **Report** per the skill's report obligation.
+   4. **Persist the new entry alone**, by running the **ordered write sequence** with both re-reads and
+      the write journal, per **`skills/ptp-backlog-write/SKILL.md`** — cited, not restated. **No earlier
+      step writes anything**, and nothing is created on disk, at any step.
+
+      The subject entry's **`status: pending` is the commit**, not part of *Entry composition*'s write;
+      *Entry composition* below is otherwise unchanged.
+
+      **The actual dispatch count, from the skill's carrier record:** the create call carries **title
+      and body**, so it writes `title`, `description`, `changeEpics`, `attributionWarnings`,
+      `runBaseline`, and `notes` **at once**; `id` is the identity write; `status` is the commit. **The
+      payload stage is therefore empty**, and a creation is **three dispatches** — not one per field.
+
+      **Refusals and failures are different, and both statements stand.** If any step **refuses**,
+      nothing was written to the store — that guarantee is unchanged. A **failure** mid-sequence is
+      governed by the skill's journal and its terminal verdicts, and this command **may not** claim that
+      such a failure leaves the store byte-unchanged.
+   5. **Report** the entry it created, naming its `id`, its `title`, and its `status`, so the new
+      record is identifiable from the report alone — and, when the load reported the
+      writer-eligible structural defect, that defect too, with `/ptp:backlog-edit` named as the repair
+      path.
 5. **STOP** with the report.
 
 ## Entry composition
@@ -92,24 +125,29 @@ This is the **only** methodology this command owns — everything else is the sk
   the request into your own words: that text is what `/ptp:full` later receives as its free-text
   request, so paraphrasing here silently degrades the input to every downstream planning run.
 - Every recognized field **other than** the four above takes the **empty value the skill's schema gives
-  it**, with **one exception**: `createdAt` and `updatedAt` are both set to the **same current UTC
-  ISO-8601 instant** rather than to their schema empty value.
+  it** — including `createdAt` and `updatedAt`, which are **board-maintained**: the skill's timestamp
+  rule states that the store exposes no setter and that **ptp sends no value for either**, so this
+  command composes neither and the store's own stamps are authoritative from the first read onward.
 
-Composition happens **before** detection runs, so the entry's **persisted** edges and evidence are
-whatever detection accepted.
+The composed entry is exactly what the single write persists.
 
 ## Hard rules
 
 - **Autonomous.** Ask **no** clarifying questions, do **not** use AskUserQuestion, and do **not** pause
   for approval. Where the request is ambiguous, pick the most reasonable interpretation and proceed.
 - **Never restate the skill's contract here** — not the schema or field list, not the IO protocol, not
-  the id-allocation rule, not the validation problem codes or the writer-eligibility rule, and above
-  all **not the dependency-detection contract**. The `ptp-backlog` skill owns them; cite it.
+  the id-allocation rule, and not the validation problem codes or the writer-eligibility rule. The
+  `ptp-backlog` skill owns them; cite it. The **ordered write sequence**, both **re-reads**, the
+  **journal** with its outcomes and verdicts, the **backstop refusal**, and the **creation scan** are
+  `ptp-backlog-write`'s; cite that skill and restate none of them here either.
 - **Beyond initializing the new entry under the composition policy above**, do **not** write to
-  `dependencyRejected`, `status`, `changeEpics`, `attributionWarnings`, or `runBaseline` — on the new
+  `status`, `changeEpics`, `attributionWarnings`, or `runBaseline` — on the new
   entry those fields are set once at composition, and on **every** pre-existing entry they are never
   touched.
-- Do **not** remove any existing edge from any entry's `dependsOn`.
+- **This command modifies no entry other than the one it creates.** Every pre-existing entry is
+  written back with **no field value changed and no `updatedAt` bumped**; its serialization is
+  whatever the store holds for that unchanged state, which is a **data** guarantee, not a byte-level
+  one about how the store previously rendered it.
 - **Exactly one** entry is created per invocation.
 - Do **not** chain `/ptp:backlog-run`, `/ptp:plan`, `/ptp:full`, or any implementation step. Recommend
   a next command (`/ptp:backlog` to view, `/ptp:backlog-edit` to adjust) rather than running it.
