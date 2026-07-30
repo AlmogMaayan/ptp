@@ -627,7 +627,7 @@ delegates to the `ptp-prd-full` skill.
 
 ### Telemetry
 
-**`/ptp:telemetry <status | report | setup | start | stop | export>`**. See `telemetry.mode` /
+**`/ptp:telemetry <status | report | analyze | setup | start | stop | export>`**. See `telemetry.mode` /
 `telemetry.root` / `telemetry.port` / `telemetry.retentionDays` under
 [Configuration](#configuration).
 
@@ -640,6 +640,15 @@ delegates to the `ptp-prd-full` skill.
 - **`report [write] [selector]`** — the timing analysis. **Creates no file, modifies no existing
   file, and deletes only aged raw files.** That third clause is not decoration — a default run
   prunes irreversibly (see [Retention](#retention)). Detailed below.
+- **`analyze`** — **read-only**, and the only telemetry subcommand that *analyses* the **raw** store
+  (`export` reads it too, to re-derive the CSVs; `report` may never read it at all). Runs
+  the bundled analysis engine over the whole store (`_unattributed` included) and prints the
+  de-nested work breakdown: leaf work split LLM-vs-tools, inside-subagent vs main-agent, token burn
+  by model, tool work by `tool_name`, bash work by command, and a mandatory data-quality footer.
+  **Takes no selector** — and no day/session narrowing flag exists yet; any narrowing ever offered
+  would be an explicit engine flag, never the change grammar. It **creates no file, modifies no
+  existing file, and deletes nothing**. Not to be confused with **`/ptp:analyze`**, the unrelated
+  read-only investigation command.
 - **`setup`** — the **one-time**, interactive, **confirm-first** opt-in described in the walkthrough
   below. The single exception to ptp's never-write-a-Claude-Code-setting rule.
 - **`start` / `stop`** — the manual receiver lifecycle. `start` is idempotent (a second `start`
@@ -739,6 +748,52 @@ review-loop runs or group that likely spans more than one loop invocation.
 It exists because **a report that silently hides a broken join is worse than no report**: it converts
 "I have no data" into "I have wrong conclusions". Every number in the body is only as trustworthy as
 the footer says it is.
+
+#### `/ptp:telemetry analyze` — the de-nested work breakdown
+
+```
+/ptp:telemetry analyze                     # the whole store, every day it holds
+```
+
+`analyze` answers a different question from `report`. `report` asks *"where did this epic's time
+go?"*; `analyze` asks *"across everything recorded, how does de-nested leaf work divide between the
+model thinking and tools running?"* Note what that is **not**: it is **not** a share of the wall
+clock. Why LLM time and tool time cannot be read as a partition of elapsed time is the report layer's
+**never-conflate** invariant, which `analyze` inherits **by reference** (below) and which this
+section deliberately does not restate. It runs the bundled analysis engine and prints six things:
+the **leaf-work split** (LLM versus tools, with wrapper spans excluded so a
+parent's duration is never counted alongside its children's), the **inside-subagent versus
+main-agent** split, **token burn by model**, **tool work by `tool_name`**, **bash work by command**,
+and a **mandatory data-quality footer**.
+
+**It is a subcommand, not a `report` mode**, for three reasons that are structural rather than
+stylistic:
+
+1. **It reads the raw store.** The bash-by-command table needs the raw-only `bash_command` field,
+   which has no `spans.csv` column at all — and `report` is barred from ever reading `raw/`, because
+   pruning bounds the raw store immediately while the CSV only catches up at the next `export`.
+2. **It deletes nothing**, whereas a default `report` prunes irreversibly.
+3. **It is store-wide and includes `_unattributed`**, whereas `report` is per-epic and keeps every
+   `_unattributed` row out of every body figure. On a store where the ledger join has attributed
+   nothing — every row `_unattributed` — an epic-scoped analysis would return nothing at all.
+
+**Posture:** *creates no file, modifies no existing file, and **deletes nothing***. The third clause
+is deliberately the opposite of `report`'s. `analyze` **may** be called read-only; `report` may not.
+It takes **no selector**, resolves none, and adds nothing to the change grammar — `report` remains
+the only `/ptp:telemetry` subcommand that resolves a selector. There is **no `write` keyword and no
+`analyze.md`**: `report`'s file path is keyed on a resolved epic and `analyze` resolves none, so the
+write is deliberately deferred rather than given an invented path.
+
+It inherits the report layer's invariants **by reference** — work time and elapsed time are never
+conflated, `wall − llm − tool` remains banned, and the data-quality footer is never suppressed —
+rather than restating them, so a correction there applies here automatically.
+
+**Not `/ptp:analyze`.** The two collide by name and by nothing else. `/ptp:analyze` is the unrelated
+read-only *investigation* command: its own front door, its input is the codebase or a question, its
+output is an analysis doc **written into a change folder**, and it is specified by the **`analyze`**
+capability. `/ptp:telemetry analyze` is a subcommand of `/ptp:telemetry`, its input is the telemetry
+raw store, its output is a breakdown **printed to the session** and it writes nothing, and it is
+specified by the **`telemetry`** capability.
 
 #### Retention
 
@@ -1087,6 +1142,7 @@ Experimental (no Superpowers layer)
 
 | Version | Changes |
 |---------|---------|
+| **0.2.19** | Give the telemetry analysis engine a **front door**: `/ptp:telemetry` now accepts a **seventh** subcommand, **`analyze`**, dispatched exactly as the existing six are (`commands/telemetry.md` Step 1) rather than falling through the unsupported-subcommand path. `analyze` is deliberately **not** a `report` mode — it reads the **raw** span store (the bash-by-command table needs the raw-only `bash_command` field, which has no `spans.csv` column), is **store-wide including `_unattributed`** (unlike `report`'s per-epic scoping), and **creates no file, modifies no existing file, and deletes nothing** (unlike `report`'s default irreversible pruning) — so `analyze` **may** be called read-only while `report` still never is. It takes **no selector** of any kind — no grammar, no day/session narrowing flag defined yet (any ever added would be the engine's own non-selector flag), and **never** delegated to `ptp-change-selector` — so `report` remains the one and only `/ptp:telemetry` subcommand that resolves a change selector. `analyze` inherits the report layer's never-conflate-work-with-elapsed rule, the banned `wall − Σllm − Σtool` subtraction, and the mandatory never-suppressed data-quality footer **by reference**, restating none of them. No `write` keyword and no `analyze.md` exist yet — deferred, because `report`'s file path is keyed on a resolved epic and `analyze` resolves none. `/ptp:telemetry analyze` is explicitly **not** `/ptp:analyze` — the two collide only by name; the former is specced by the `telemetry` capability, the latter by the unrelated `analyze` capability. `skills/ptp-telemetry/SKILL.md` gains one appended *Dispatch and selector posture* subsection inside its `analyze` methodology section plus two appended `## Hard rules` bullets; `report`'s argument parsing, output, and invariants are byte-unchanged. (0039_01–0039_02) |
 | **0.2.18** | Make the "lowest severity worth fixing" **configurable** for plan and code reviews. A new layered parameter **`review.minSeverity`** (`low`\|`medium`\|`high`\|`critical`, default `low` — today's behavior, matched case-insensitively) sits alongside `review.maxIterations` in the `/ptp:config` registry and its resolver. The shared `ptp-review-loop` (every `-loop` command plus the `-full` orchestrators) now converges only on findings **at or above** the threshold — below-threshold findings are still reported, labelled "below threshold — not blocking convergence," but never confirmed, fixed, or counted toward the iteration cap, and the effective threshold is recorded in the loop's `reviews/*.json` marker. The `/ptp:full-apply` workflow's embedded reviewer agent (`agents/ptp-review.md`, which restates the loop inline rather than delegating) was brought to parity and now surfaces the resolved `minSeverity` in its terminal payload. Every standalone one-shot reviewer and verdict surface (`/ptp:review`, `/ptp:review-plan`, `/ptp:review-brainstorm`, `/ptp:review-prd`, the `codex-review*` commands) and the `/ptp:archive` Critical/High gate now read the same threshold — a `FAIL`/`WARN`/refusal fires only on an **actionable** Critical or High, so at the default `low` every one of those ten surfaces stays byte-identical to today. Shipped as four dependency-ordered slices under epic `0040` (config schema → loop consumption → full-apply agent parity → standalone verdicts), each independently planned, dual-reviewed, applied, and code-reviewed. (0040_01–0040_04) |
 | **0.2.17** | Close the one gap `/ptp:backlog-run` + `/ptp:backlog-edit` left open: a **`blocked`** epic whose halted change has since been manually verified had no way back to `done` short of a full reset-and-replan. A new **`/ptp:backlog-continue [issue text]`** identifies the single backlog entry that is `blocked` with a non-empty `changeEpics` (refusing on zero or on more than one candidate, never guessing) and drives it one of two ways. **Bare invocation** ("I checked it, it's fine"): for every recorded change-epic prefix, in order, it checks off any remaining `tasks.md` boxes (the user's own invocation *is* the manual sign-off), re-verifies (`openspec validate --strict` plus the project's build/test suite, so a stale automated failure still surfaces rather than being waved through), drives `/ptp:review-full` to convergence, and drives `/ptp:archive` — only once **every** prefix has archived does it perform the new **guard-4** `blocked` → `done` transition, in the same invocation, as the direct proof of that review-full → archive sequence having just succeeded. **Issue-text invocation** ("I found problems"): spawns a fix-pass agent (reusing `agents/ptp-apply.md`'s TDD discipline and its no-invented-tasks rule) scoped to the same change and issue text, re-verifies, and leaves the entry `blocked` for another manual check — never touching status. `ptp-backlog`'s status transition table gains **row 8** (`blocked` → `done`, performer `/ptp:backlog-continue` only) and **guard 4**, which is never a standalone disposition independent of that same-invocation proof — `/ptp:backlog-edit` continues to refuse `blocked` → `done` unconditionally, since it has no review-full/archive machinery of its own to satisfy the guard. The command never chains into `/ptp:backlog-run` — finishing one epic is one invocation; resuming the rest of the ready set stays a separate, explicit call. (0038_01) |
 | **0.2.15** | Make the epic backlog **runnable**. A new **`/ptp:backlog-run [rounds:{count}]`** takes ready backlog epics one at a time, in `ptp-backlog`'s dependency order, and runs each through **`/ptp:full`** — five per invocation by default. It is deliberately **UNWRAPPED**: it starts no `ptp-run-at-model` main run of its own or per epic and drives the `ptp-full` **skill inline**, because `ptp-run-at-model`'s *Nesting caveat* forbids naively wrapping a command whose work spawns a subagent or a Workflow and `/ptp:full` does both — a wrapped runner would make the first epic's Workflow launch throw. The new `ptp-backlog-run` skill owns the **`rounds:{count}`** token (positive-integer body, leading zeros accepted, absent → **5**, persisting nothing and adding **no** config key; one round = one epic **started**, so a halt consumes it) with every grammar mechanic defined **by reference** to `ptp-run-at-model`'s `fast:` section, and a **residual-argument refusal** that declines `model:` as structurally impossible while declining `fast:`/`parallel:` as a v1 scope decision — `fast` fixed to `false` with no config key, `parallel` resolved once from `parallel.mode` and passed through. Preconditions run in a fixed order — `codex.mode` as a **fail-fast gate, not a hand-off** (an environment failure aborts before any entry is marked `in-progress`), the `rounds:`/residual refusals, the one-per-run `parallel` posture resolution, then **one** branch guard for the whole run — after which the file is loaded through `ptp-backlog` and the runner **declines the writer eligibility it is granted**, STOPping on every writer-eligible structural defect because it *consumes* the `dependsOn` graph rather than repairing it. The loop **re-reads and re-validates before every iteration** (no in-memory model; the detection claim scoped honestly to edits present at that read, since the IO protocol has no locking) and classifies its end into **six** loop-terminal states with `halted` taking control-flow priority — rounds exhausted, under-supply (never called clean exhaustion while an `in-progress` entry lingers), blocked-predecessor starvation (transitive, **not** a file defect), structural starvation (its exact complement, unreachable on a validated file and kept as defence in depth), halted, and the mid-run **file-defect halt**. Per epic: **WRITE 0** takes the entry with `in-progress` + a `runBaseline` snapshot cited from `ptp-backlog`'s single change-prefix definition, **WRITE 1** merges `changeEpics`/`attributionWarnings` while still `in-progress` — report-authoritative, diff-corroborating, with *absent* and *empty* reports resolved differently and provenance only ever raised — and **WRITE 2** persists `done` or `blocked`, appends one line to `notes`, and performs the runner's **only** `runBaseline` clear; the two are **never coalesced**, because the crash window between them is exactly what `/ptp:backlog-edit`'s reconciliation gate reads. The terminal report uses backlog-level buckets `processed` / `halted` / `never-started` (never reusing `applied (review pending)`), nests each epic's `ptp-full-apply` per-slice report **verbatim**, and gives its own label to the four rows that have no buckets to nest — never-started, absent report, empty report, and a plan-convergence STOP (which nests `/ptp:full`'s own report instead). Fan-out **across** backlog epics is forbidden structurally while `/ptp:full`'s per-slice fan-out inside an epic is untouched, and the v2 **inter-epic seam** after WRITE 2 is named as documentation-only with branch-per-epic explicitly rejected on the `ptp-branch-prep` stash hazard. The runner never commits, pushes, merges, archives, or deploys, and announces that blast radius before the first epic runs. (0036_04) |
