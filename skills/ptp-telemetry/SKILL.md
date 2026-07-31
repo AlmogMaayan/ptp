@@ -1,10 +1,11 @@
 ---
 name: ptp-telemetry
-description: Single source of truth for ptp run telemetry — resolves the layered telemetry.mode / telemetry.root / telemetry.port config, owns the per-epic store layout under <telemetry.root>/<epic>/, defines the twelve-field append-only NDJSON run-ledger record and its RFC-4180 CSV dual-write, the mint-once-then-propagate run_id rule, the two-line open/close append protocol, the gate-and-never-fail ordering every write point applies, and the read-only /ptp:telemetry status methodology. Also owns the OTLP span layer — the loopback receiver and its identity/health wire contract, the 26-column spans.csv, the OTel-attribute and tool_class mapping tables, the ledger join, the append-only raw store and the global export that re-derives from it, the confirm-first setup writer, the start/stop lifecycle, and the auto-start preamble ptp-run-at-model invokes. Also owns the report layer — the /ptp:telemetry report methodology: selector delegation and the write-keyword strip, the two never-conflated headline numbers (aggregate work time and elapsed wall time as a union of span intervals with every closed run's window) plus concurrency_factor, the BANNED wall-minus-components subtraction, the phase/agent_role/span_kind and tool_class breakdowns, the top-N sinks, the derived per-iteration review view, the mandatory data-quality footer, and telemetry.retentionDays pruning of the reported epic's raw store on report only. Every write point (ptp-run-at-model's spawn boundary, the read-only codex exec reviewer call sites, the ptp-full-apply fan-out launcher, and the spawned apply/review agents) REFERENCES this skill and never restates the record shape, the run_id rule, the mapping tables, or the gate ordering.
+description: The shared substrate every ptp telemetry surface builds on — the layered telemetry.mode / telemetry.root / telemetry.port / telemetry.retentionDays config resolution, the per-epic store layout under <telemetry.root>/<epic>/ and its own git policy, the twelve-field append-only NDJSON run-ledger record and its RFC-4180 CSV dual-write, the mint-once-then-propagate run_id rule, the two-line open/close append protocol, the gate-and-never-fail ordering, and the four write points that apply it. Also owns the span substrate — the loopback OTLP receiver with its identity/health wire contract, per-store ingestion credential, and append-only immutable raw store; the 26-column spans.csv record with the OTel-attribute and tool_class mapping tables; the ledger join; the eight-key telemetry env block; the two never-conflated headline figures and the BANNED wall-minus-components subtraction; the mandatory data-quality footer obligation; the sink lifecycle and lockfile contract; the auto-start preamble ptp-run-at-model invokes; and the Codex ingestion layer with its consent record, canonical rendering, status preflight, and degradation ladder. Every write point (ptp-run-at-model's spawn boundary, the codex exec reviewer call sites, the ptp-full-apply fan-out launcher, and the spawned apply/review agents) REFERENCES this skill and never restates the record shape, the run_id rule, the mapping tables, or the gate ordering. Each subcommand's own methodology lives in its own ptp-telemetry-<name> skill — ptp-telemetry-status, ptp-telemetry-report, ptp-telemetry-analyze, ptp-telemetry-setup, ptp-telemetry-start, ptp-telemetry-stop, ptp-telemetry-export.
 ---
 
 # ptp-telemetry — the ptp run ledger contract
 
+<!-- ptp-telemetry:anchor id=purpose class=substrate -->
 ## Purpose
 
 ptp runs the same pipeline across many agents and CLIs but has emitted no durable timing data.
@@ -20,12 +21,294 @@ the record shape, the `run_id` rule, the CSV rules, or the gate ordering.
 
 **Two layers, one skill.** §§1–8 are the **run ledger** — the attribution spine, which contains no
 OpenTelemetry at all. §§9–15 are the **span layer** added by `0032_02_otel-sink-and-csv`: a loopback
-OTLP receiver, the 26-column `spans.csv` it dual-writes, the join that gives a span an epic, the
-global `export` that re-derives every CSV from the raw store, and the `setup` / `start` / `stop`
-lifecycle around it. The span layer **consumes** the ledger and never redefines it.
+OTLP receiver, the 26-column `spans.csv` it dual-writes, the join that gives a span an epic, the raw
+store the `export` action re-derives from, the `env` block the `setup` action writes, and the
+lockfile and identity contract the `start` / `stop` / `status` actions act on. The span layer
+**consumes** the ledger and never redefines it.
+
+**Substrate only.** Each `/ptp:telemetry` subcommand's own methodology now lives in its own
+`ptp-telemetry-<name>` skill, reached from either `/ptp:telemetry <sub>` or `/ptp:telemetry-<sub>`.
+What stays here is what more than one of them depends on. The *Retired sections* map below names,
+for each number a leaf took, the leaf that now owns it.
 
 ---
 
+<!-- ptp-telemetry:anchor id=substrate-map class=substrate -->
+## 0. The substrate map and the leaf reference contract
+
+This skill is a **shared substrate** plus the private methodology of the individual
+`/ptp:telemetry` subcommands. This section states, once, where that boundary runs, how to cite across
+it, and what a leaf may and may not restate. It changes no rule below it — it classifies and names
+them.
+
+### 0.1 Anchors and classes are two different things
+
+An **anchor** is a stable, number-independent citation handle. A section carries one — whatever its
+class — exactly when a citation of it must survive extraction: when its class differs from its
+parent's, when it closes a nested region, when it is cited **by anchor** from another file, or when
+it is cited across the substrate/leaf boundary. A subsection meeting none of those needs none: a
+citation carrying only a number — from within this file, or from either of LR-3's two `§N`-exempt
+bundled scripts, neither of which obliges an anchor on its target — stays valid on §0.3's frozen
+numbering alone, which is why §0.1–§0.5 themselves carry no sentinel of their own. A **class** — `substrate` or `leaf` — says
+who owns the region and which change may move it. Keeping the two apart is what lets a substrate section cite a leaf section through a
+registered handle without either promoting the leaf or leaving a dangling reference.
+
+### 0.2 The sentinel and the region rule
+
+Every anchored heading carries, on the line immediately above it:
+
+    <!-- ptp-telemetry:anchor id=<kebab-id> class=substrate|leaf [owner=<subcommand>] -->
+
+`id` is kebab-case, drawn from the section's subject rather than its number, and unique file-wide.
+`owner` is present **iff** `class=leaf` and names the subcommand that owns the methodology.
+
+**A sentinel opens a region that extends to the next sentinel at the same or shallower heading
+depth.** There is no closing sentinel — heading depth already totally orders the file, and pairing
+is a source of bugs. So a `leaf` `##` may contain a `substrate` `###` and a `substrate` `##` may
+contain subsections that serve a leaf but stay substrate; both occur below.
+
+**Regions nest, and the innermost one governs.** A `###` sentinel opens a region *inside* its parent
+`##` region without ending it, so a heading's class is the class of the **nearest preceding sentinel
+at the same or shallower depth than that heading** — §12.1 sits inside `export`'s region but is
+governed by its own `substrate` sentinel, and stays here when `export` leaves.
+
+The partition runs from `## Purpose` to the end of the file, and every `##` and `###` heading in it
+has **exactly one** governing region. The two unnumbered sections that bracket the numbered range —
+`## Purpose` and `## Hard rules` — were left outside the partition while the leaves were being
+extracted and are now **inside** it: each carries its own `class=substrate` sentinel and its own
+registry row. No terminator clause is needed any more, because `## Hard rules`' own `##` sentinel
+ends the preceding region by the ordinary depth rule rather than by a named exception.
+
+Anchor ids are **stable for the life of the plugin**. Renaming one is a breaking change to every
+citer.
+
+### 0.3 Section numbering is frozen
+
+**Section numbers never change, and a vacated number is never reused.** The file is never
+renumbered. When a leaf's methodology is extracted into its own skill, the **extracted region's own
+heading** — at whatever depth it sits, `##` or `###` — and its number **stay here as a redirect
+stub**, body replaced by one line naming the skill it moved to; and the
+extracted skill **preserves the subsection numbering**, so `§23.4` there means what `§23.4` meant
+here.
+
+The stub is kept at the **extracted region's** heading, not at every number beneath it: a subsection
+carried along with its parent (§12.3 with §12, §17.5 with §17.3–§17.7) leaves no stub of its own, and
+a `§12.3` citation resolves through §12's stub — where the pointer names the owning leaf, under the
+number `§12.3` still carries there — plus the retired-section map below. A subsection that is itself
+the extracted region (§14.5) keeps its own stub by the same rule.
+
+Both halves are needed. Freezing alone guarantees only that a number never comes to mean something
+else; the stub is what keeps a citation of an *extracted* section resolving. `scripts/ptp-otel-sink.js`
+and `scripts/ptp-telemetry-analyze.js` cite leaf sections heavily (§12.x, §13.1/§13.3/§13.4, §14.1,
+§14.5, §17.5, §18.2, §19.4, §20.4, §21.x, §23.x), and this pair of rules is exactly what lets every
+one of those citations stay correct and unedited through every extraction.
+
+**What this guarantees, and what it does not.** The guarantee is *citation resolvability*: no
+extraction rewrites a `§N` token in either script, changes the numbering convention those tokens rely
+on, or touches any logic or executable line. It is not byte-immutability, because frozen numbering
+cannot preserve a **file-identity** fact: each script header's `Normative contract:` line names the
+file that *owns* the methodology it implements, and when an extraction moves that methodology the line
+would otherwise assert something false about what is now a stub. Repointing that one comment line is
+therefore permitted to the extracting change, and nothing else in the script is.
+
+This is not a style preference. The `§N` citation form is used by roughly 400 references inside this
+file and by roughly 250 more inside `scripts/ptp-otel-sink.js` and
+`scripts/ptp-telemetry-analyze.js`, whose header comments are normative. Renumbering would invalidate
+all of them at once. Freezing keeps every one of them correct, so leaf extraction touches only the
+citations extraction itself makes cross-file.
+
+### 0.4 The leaf reference contract
+
+- **LR-1 — No restatement.** A leaf never restates a substrate normative statement; it cites the
+  anchor. This is the rule the Purpose section already applies to this skill's external consumers,
+  extended inward.
+- **LR-2 — Duplication only where the substrate pins it.** A leaf may hold a second copy of a
+  substrate *value* only where the substrate itself declares that duplication by design — today, only
+  §10.7's single-executable-copy rule. A leaf licenses no new duplication of its own.
+- **LR-3 — Anchor citation form.** A citation **from another file** of a section that carries a
+  registered anchor names that anchor: `` `ptp-telemetry` [config-resolution] ``. The `§N` form is
+  retained in exactly three cases, and this list is closed:
+  1. **Inside this file**, where §0.3's frozen numbering keeps it valid.
+  2. **Inside `scripts/ptp-otel-sink.js` and `scripts/ptp-telemetry-analyze.js`.** Their normative
+     header comments carry roughly 250 `§N` citations and **keep** them: frozen numbering is precisely
+     what makes those citations permanently valid, and rewriting a shipped executable's citation form
+     would add behavior risk for no gain. This exemption covers **these two files only**.
+  3. **A citation whose target carries no anchor at all** — which, because §0.5's registry anchors
+     *every* substrate section and subsection cited from a leaf region, can only be a **leaf-owned**
+     subsection of a *different* leaf. Such a citation keeps `§N` and resolves through frozen
+     numbering plus that leaf's redirect stub, so the citing leaf never has to name a sibling skill.
+     This case never covers a substrate target: a leaf citing an unanchored substrate section means
+     the **anchor is missing**, and §0.5 is amended rather than the citation left on a number.
+- **LR-4 — Declared dependencies.** An extracted leaf opens with a *Substrate dependencies* list
+  naming the anchors it relies on, so a substrate change can find its dependents by grep.
+- **LR-5 — Direction and normativity.** A substrate→leaf citation is permitted **only** through a
+  registered anchor and **only** as a non-normative pointer. A substrate rule may never depend on a
+  leaf statement; where it would, the leaf statement is promoted to substrate instead. Two such
+  promotions exist today and are marked in the registry: **§12.1** (the raw store's mutability
+  contract, which §9.6's single-writer assertion depends on) and **§13.2** (the eight `env` keys,
+  which §10.4's column-population gate and §15.2's four-key preamble gate both depend on, and which
+  `skills/ptp-run-at-model/SKILL.md` already cites as the one place they are enumerated). **Both stay
+  in this file when the `export` and `setup` leaves are extracted.** Because a promoted subsection
+  may not be left without a parent heading, **every leaf `##` that contains a `substrate` `###` —
+  §12, §13, and §17 — keeps its heading and its number as a substrate stub**: heading text unchanged,
+  sentinel flipped to `class=substrate`, the substrate subsections verbatim beneath it, plus one line
+  pointing at the extracted skill. (For §17 that is §17.0–§17.2; §17.3–§17.7 leave with `report`.)
+  A leaf section containing no substrate subsection keeps the plain redirect stub of §0.3 instead —
+  heading and number retained, body replaced by the one pointer line.
+
+  This is about *direction*, not notation: a substrate→leaf pointer written inside this file keeps
+  the `§N` form per LR-3, and "through a registered anchor" means the **target** carries a registered
+  anchor, so the pointer survives that target's extraction. **Naming a region as a region is not a
+  citation in this sense**: `§0` describes the partition by enumerating its leaf sections — including
+  ranges such as `§12.x` and `§23.x` that name no single heading — to say where the boundary runs, not
+  to reach a rule across it, and so obliges no anchor. Every *pointer* does.
+
+### 0.5 The anchor registry
+
+| Anchor id | Section | Class | Owner |
+|---|---|---|---|
+| `purpose` | `## Purpose` | `substrate` | — |
+| `substrate-map` | 0 | `substrate` | — |
+| `config-resolution` | 1 | `substrate` | — |
+| `telemetry-root-validation` | 1.1 | `substrate` | — |
+| `store-layout` | 2 | `substrate` | — |
+| `store-git-policy` | 2.1 | `substrate` | — |
+| `ledger-record` | 3 | `substrate` | — |
+| `command-phase-mapping` | 3.2 | `substrate` | — |
+| `write-point-role-table` | 3.3 | `substrate` | — |
+| `append-protocol` | 4 | `substrate` | — |
+| `gate-ordering` | 5 | `substrate` | — |
+| `write-points` | 6 | `substrate` | — |
+| `write-point-spawn-boundary` | 6.1 | `substrate` | — |
+| `write-point-codex-exec` | 6.2 | `substrate` | — |
+| `write-point-full-apply` | 6.3 | `substrate` | — |
+| `write-point-spawned-agents` | 6.4 | `substrate` | — |
+| `csv-dual-write` | 7 | `substrate` | — |
+| `status-methodology` | 8 | `leaf` | `status` |
+| `otlp-receiver` | 9 | `substrate` | — |
+| `receiver-artifacts-and-store` | 9.1 | `substrate` | — |
+| `receiver-identity-wire-contract` | 9.2 | `substrate` | — |
+| `receiver-write-path` | 9.3 | `substrate` | — |
+| `raw-entry-envelope` | 9.6 | `substrate` | — |
+| `receiver-two-appends` | 9.7 | `substrate` | — |
+| `span-record` | 10 | `substrate` | — |
+| `span-csv-columns` | 10.1 | `substrate` | — |
+| `span-value-encodings` | 10.2 | `substrate` | — |
+| `span-kind-set` | 10.3 | `substrate` | — |
+| `otel-attribute-mapping` | 10.4 | `substrate` | — |
+| `raw-record-superset` | 10.5 | `substrate` | — |
+| `tool-class-mapping` | 10.6 | `substrate` | — |
+| `single-source-mapping-rule` | 10.7 | `substrate` | — |
+| `ledger-join` | 11 | `substrate` | — |
+| `ledger-join-window-rules` | 11.2 | `substrate` | — |
+| `join-never-drops` | 11.4 | `substrate` | — |
+| `export-methodology` | 12 | `substrate` | — |
+| `raw-store-immutability` | 12.1 | `substrate` | — |
+| `setup-methodology` | 13 | `substrate` | — |
+| `telemetry-env-keys` | 13.2 | `substrate` | — |
+| `setup-merge-semantics` | 13.3 | `leaf` | `setup` |
+| `setup-consent-scope` | 13.4 | `leaf` | `setup` |
+| `sink-lifecycle` | 14 | `substrate` | — |
+| `start-methodology` | 14.1 | `substrate` | — |
+| `lifecycle-identity-idempotence` | 14.2 | `substrate` | — |
+| `lockfile-self-heal` | 14.4 | `substrate` | — |
+| `stop-methodology` | 14.5 | `leaf` | `stop` |
+| `lifecycle-status-read` | 14.6 | `substrate` | — |
+| `auto-start-preamble` | 15 | `substrate` | — |
+| `preamble-env-gate` | 15.2 | `substrate` | — |
+| `preamble-readiness-bound` | 15.4 | `substrate` | — |
+| `preamble-cache` | 15.5 | `substrate` | — |
+| `report-methodology-stub` | 16 | `substrate` | — |
+| `report-headline-numbers` | 17 | `substrate` | — |
+| `banned-subtraction` | 17.0 | `substrate` | — |
+| `aggregate-work-time` | 17.1 | `substrate` | — |
+| `elapsed-wall-time` | 17.2 | `substrate` | — |
+| `report-breakdowns-stub` | 18 | `substrate` | — |
+| `data-quality-footer-obligation` | 19 | `substrate` | — |
+| `report-write-posture-stub` | 20 | `substrate` | — |
+| `retention-stub` | 21 | `substrate` | — |
+| `codex-telemetry` | 22 | `substrate` | — |
+| `codex-canonical-rendering` | 22.2 | `substrate` | — |
+| `codex-consent-record` | 22.3 | `substrate` | — |
+| `codex-status-preflight` | 22.6 | `substrate` | — |
+| `codex-degradation-ladder` | 22.7 | `substrate` | — |
+| `analyze-methodology` | 23 | `leaf` | `analyze` |
+| `hard-rules` | `## Hard rules` | `substrate` | — |
+
+**The registry is a bijection over this file's own sentinels**, with two recorded exceptions:
+`setup-merge-semantics` (§13.3) and `setup-consent-scope` (§13.4) name anchors that **left with the
+`setup` leaf** and now carry their sentinels in `skills/ptp-telemetry-setup/SKILL.md`. Their rows are
+kept — a citer holding one of those ids finds here where it went — but they are the only two rows
+with no sentinel in this file. Every other row's id appears exactly once as a sentinel here, and
+every sentinel's id appears exactly once here.
+
+Two entries are **promotions** recorded by §0.4's LR-5 — `raw-store-immutability` (§12.1) and
+`telemetry-env-keys` (§13.2) are `substrate` inside `leaf` parents, and stay in this file when the
+`export` and `setup` leaves are extracted.
+
+**This registry is complete in the leaf→substrate direction.** Every `substrate` section and
+subsection cited from any `leaf` region of this file carries an anchor here, so an extracted leaf can
+always convert such a citation to LR-3's anchor form. A `leaf` subsection cited only from another
+`leaf` gets no anchor on that ground — it is private to the subcommand that owns it, and LR-3 case 3
+keeps that citation on `§N`, resolved by the redirect stub. If a leaf is ever found citing a
+`substrate` section that has no row here, the row is **added**; the citation is not left on a number.
+
+**The substrate→leaf direction is satisfied by frozen numbering plus the stub, not by a row per
+target** — which is what makes LR-5 satisfiable rather than merely asserted. A `substrate` region may
+*point at* a `leaf` region only as a non-normative pointer, and such a pointer written **inside this
+file** keeps the `§N` form LR-3 case 1 allows: the target's number is frozen, its heading survives
+here as a stub, and the retired-section map names the leaf that now owns it, so the pointer resolves
+in at most one hop rather than dangling. LR-5's "through a registered anchor" is a claim about the
+**target**, not about this table: once a leaf is extracted, its own registry becomes the authority
+over the ids it owns, and an extracted target's anchor lives there — §17.3 and §17.5, for instance,
+are registered in `ptp-telemetry-report`, and §12.3 in `ptp-telemetry-export`. A target keeps a row
+**here** only while its id must still be resolvable from this file, which is why some retired targets
+(§13, §13.4, §14.1, §21) have one and others do not. Where a `substrate` region cites a leaf **across
+files** by anchor id — §12.1's `` `ptp-telemetry-export` [export-determinism] `` is the one such
+citation today — the id is verified in that leaf's registry, never added to this one. A `leaf` subsection that no `substrate`
+region points at, and that only a sibling `leaf` cites, still gets no anchor: that is LR-3 case 3.
+
+---
+
+## Retired sections — where each subcommand's methodology went
+
+Section numbers below are **retired, not reused**. Surviving sections keep the numbers they have
+always had, and every retired number resolves in at most one hop: a retired **region** keeps a stub at
+its own heading (§0.3), and a subsection that travelled with its parent is found through that parent's
+stub and through this table. So every external `ptp-telemetry §N` citation still resolves — including
+the roughly 250 in `scripts/ptp-otel-sink.js` and `scripts/ptp-telemetry-analyze.js`, whose `§N`
+tokens no extraction ever rewrites (§0.3's one carve-out is each script's `Normative contract:` header
+line, which names a file rather than a section). This table
+is navigation over section **numbers**; §0.5's registry is the authority over anchor **ids**. Neither
+replaces the other, and neither states a rule.
+
+| Retired | Now owned by |
+|---|---|
+| §8 | `ptp-telemetry-status` |
+| §12.2–§12.6 | `ptp-telemetry-export` |
+| §13.1, §13.3, §13.4, §13.5 | `ptp-telemetry-setup` |
+| §14.1 (the `start` action) | `ptp-telemetry-start` |
+| §14.5 | `ptp-telemetry-stop` |
+| §16 | `ptp-telemetry-report` |
+| §17.3–§17.7 | `ptp-telemetry-report` |
+| §18 | `ptp-telemetry-report` |
+| §19.1–§19.5 | `ptp-telemetry-report` |
+| §20 | `ptp-telemetry-report` |
+| §21 | `ptp-telemetry-report` |
+| §23 | `ptp-telemetry-analyze` |
+
+**A number absent from this table stayed substrate** and is not retired — §12.1, §13.2, §17.0–§17.2,
+§19's footer obligation, and all of §14.2, §14.6, §14.8, §15 and §22 including §22.6. Where a retired
+number's own heading still holds substrate prose beside its pointer — §14.1's lockfile contract, §12's
+§12.1, §13's §13.2, §17's §17.0–§17.2, §19's footer obligation — that prose is substrate and stays;
+the row names only the methodology that left. §14.8 is neither retired nor whole: it keeps its
+substrate prose and carries a pointer per moved fragment — one to `ptp-telemetry-start`, one to
+`ptp-telemetry-stop` — at the subsection itself, where a `§14.8` citer lands, which is why a
+single-owner row could not describe it.
+
+---
+
+<!-- ptp-telemetry:anchor id=config-resolution class=substrate -->
 ## 1. Config resolution
 
 Four keys under a `telemetry` parent — `mode` and `root` (every layer of this skill), `port` (the
@@ -97,6 +380,7 @@ out of enum, and `off` is the result only when **no** layer validly set a value.
 (Contrast `ptp-config`, the *writer*, which is strict — it rejects and re-prompts an invalid value
 rather than writing it. Reader forgives, writer protects; do not align one to the other.)
 
+<!-- ptp-telemetry:anchor id=telemetry-root-validation class=substrate -->
 ### 1.1 `telemetry.root` validation
 
 A `telemetry.root` value is **valid** only when it is:
@@ -126,6 +410,7 @@ Both rejection classes are load-bearing:
 
 ---
 
+<!-- ptp-telemetry:anchor id=store-layout class=substrate -->
 ## 2. Store layout
 
 Under `<telemetry.root>/<epic>/`, where `<epic>` is the four-digit **epic** segment of the change id
@@ -156,6 +441,7 @@ archived, splitting an epic's timing history across the active and archived tree
 Directories are created **lazily on first write**. Rows whose epic cannot be resolved go to
 `<telemetry.root>/_unattributed/` rather than being dropped or guessed.
 
+<!-- ptp-telemetry:anchor id=store-git-policy class=substrate -->
 ### 2.1 The store carries its own git policy
 
 On **every** gated write into `<telemetry.root>/` — not only on the write that happens to create the
@@ -187,7 +473,7 @@ exists. A per-directory `.gitattributes` additionally follows a customized `tele
 which a fixed root-level entry could not. **This skill never authors a policy file into the ptp
 repository's own tree, and never modifies a repository's root `.gitattributes`.** It modifies a
 repository's root `.gitignore` in exactly **one** place — `setup`'s confirmed managed-line addition of
-`.claude/settings.local.json` (§13.4), required because that file carries the ingestion credential and
+`.claude/settings.local.json` (`ptp-telemetry-setup` [setup-consent-scope]), required because that file carries the ingestion credential and
 must stay untracked. Every other telemetry policy write stays inside `<telemetry.root>/`.
 
 Both operations run inside the **same gated, fire-and-forget path** as any other telemetry write
@@ -196,6 +482,7 @@ swallowed and never fails the observed ptp command.
 
 ---
 
+<!-- ptp-telemetry:anchor id=ledger-record class=substrate -->
 ## 3. The ledger record
 
 **This section is the one and only definition of the record shape.** No other file in `skills/`,
@@ -262,6 +549,7 @@ is written as the **empty string** — never invented, and **never a reason to s
 | `outcome` | The observed unit's terminal state via the mapping table in §3.4 | Empty on an open line; **never empty on a close line** |
 | `t_start` / `t_end` | The writer's clock at the run's boundaries, ISO-8601 UTC with milliseconds | `t_end` empty on an open line |
 
+<!-- ptp-telemetry:anchor id=command-phase-mapping class=substrate -->
 ### 3.2 Command → phase mapping
 
 | `phase` | Commands |
@@ -279,6 +567,7 @@ each of its ledger runs takes the phase of **the work that run actually covers**
 apply agent records `apply`, its review agent records `review`. That is precisely why `phase` sits on
 the *run* rather than on the *command*.
 
+<!-- ptp-telemetry:anchor id=write-point-role-table class=substrate -->
 ### 3.3 Write-point → `agent_role` / `cli` table
 
 | Write point | `agent_role` | `cli` |
@@ -314,6 +603,7 @@ No case is left unmapped, so **no close line can ever carry an empty `outcome`**
 
 ---
 
+<!-- ptp-telemetry:anchor id=append-protocol class=substrate -->
 ## 4. Append protocol
 
 A run is recorded as **two appended lines sharing one `run_id`**:
@@ -367,6 +657,7 @@ the `ptp-full-apply` path and are **available to no other write point**:
 
 ---
 
+<!-- ptp-telemetry:anchor id=gate-ordering class=substrate -->
 ## 5. Gate and failure ordering
 
 Every write point applies this ordering, identically:
@@ -412,11 +703,13 @@ unchanged.
 
 ---
 
+<!-- ptp-telemetry:anchor id=write-points class=substrate -->
 ## 6. Write points
 
 Each write point states the §5 gate and the fire-and-forget rule at its own site, and **references
 this skill** for the record shape rather than listing fields.
 
+<!-- ptp-telemetry:anchor id=write-point-spawn-boundary class=substrate -->
 ### 6.1 `skills/ptp-run-at-model/SKILL.md` — the spawn boundary
 
 Open **after** its step 4 (main-agent role resolution — the earliest point at which both `agent_role`
@@ -424,12 +717,14 @@ and `cli` are known) and **before** its step 5 (the main run). Close at its step
 funnel both the `main=claude` and `main=codex` branches return through, mapping the three relayed
 terminal states straight onto `outcome` per §3.4.
 
+<!-- ptp-telemetry:anchor id=write-point-codex-exec class=substrate -->
 ### 6.2 The read-only `codex exec` reviewer call sites (`skills/ptp-codex-mode/SKILL.md`)
 
 The **shelling-out Claude session** brackets the process window with `cli=codex`, `agent_role=codex`.
 It already knows the epic, the change id, the command, and the exact window, so Codex attribution is
 exact **with zero Codex-side metadata and no change to the `codex exec` command line**.
 
+<!-- ptp-telemetry:anchor id=write-point-full-apply class=substrate -->
 ### 6.3 `workflows/ptp-full-apply.js` and its launcher `skills/ptp-full-apply/SKILL.md`
 
 The workflow sandbox cannot read config and cannot write files, so the gate moves **outside**: the
@@ -438,6 +733,7 @@ launcher resolves `telemetry.mode` and passes an explicit top-level boolean in `
 agent's prompt, and returns it; the launcher — which has `Bash` — appends **one post-hoc ledger run
 per measured agent** with `agent_role=workflow-agent`, mapping outcomes per §3.4.
 
+<!-- ptp-telemetry:anchor id=write-point-spawned-agents class=substrate -->
 ### 6.4 The spawned `ptp:ptp-apply` / `ptp:ptp-review` agents (optional fallback)
 
 An agent given a `run_id` in its prompt MAY append **exactly one open line** under that id — never a
@@ -449,6 +745,7 @@ optional is harmless — skipping it costs only crash visibility.
 
 ---
 
+<!-- ptp-telemetry:anchor id=csv-dual-write class=substrate -->
 ## 7. CSV dual-write
 
 Whenever a **close** line is appended to `runs.ndjson`, the same record is appended as **one row** to
@@ -493,39 +790,19 @@ rebuildable rather than lost data, and **no ptp behavior depends on the two bein
 
 ---
 
+<!-- ptp-telemetry:anchor id=status-methodology class=leaf owner=status -->
 ## 8. `status` methodology (read-only)
 
-`/ptp:telemetry status`:
-
-1. Resolves `telemetry.mode` and `telemetry.root` per §1 — **independently of whether a store
-   exists**.
-2. Reports the **resolved mode** and the **resolved root** (absolute path shown for clarity).
-3. If **no store exists**, reports its **absence** — and still reports the independently resolved
-   mode alongside it. **An absent store never implies `mode=off`**: a store can legitimately be absent
-   with the mode on (nothing has run yet). It **creates nothing**.
-4. If a store exists, reports **per epic directory**: the **total**, **closed**, and **unclosed** run
-   counts, counting each `run_id` **once** per §4's reduction (a run with any close line is closed;
-   an open line with no close line is `unclosed`).
-5. Reports `_unattributed/` as **its own bucket alongside the epics**, never folded into an epic and
-   never omitted, so its count stays visible as the health signal §5 step 4 routes rows to it for.
-
-**Strictly read-only.** It creates no directory and no file, and runs **no git command, no
-`ptp-branch-guard`, and no `openspec validate`**.
-
-**The three states, stated unambiguously:**
-
-| State | Report |
-|---|---|
-| `telemetry.mode` resolves to `off` | `telemetry.mode = off`, the resolved root, and a note that no telemetry is being recorded. Whether a store exists is still reported from a read-only inspection; nothing is created. |
-| Mode `on`, no store | `telemetry.mode = on`, the resolved root, and **"no telemetry store exists at this root"** — no directory or file is created by the report. |
-| Mode `on`, one unclosed run | `telemetry.mode = on`, the resolved root, and per-epic counts including `unclosed: 1` **distinguished from** the closed count (e.g. `0032 — total: 4, closed: 3, unclosed: 1`). |
+**Relocated** to **`skills/ptp-telemetry-status/SKILL.md`** (reached from `/ptp:telemetry status` and `/ptp:telemetry-status`); the `status`-facing substrate stays here in §14.6 and §22.6.
 
 ---
 
 # The span layer (`0032_02_otel-sink-and-csv`)
 
+<!-- ptp-telemetry:anchor id=otlp-receiver class=substrate -->
 ## 9. The OTLP receiver
 
+<!-- ptp-telemetry:anchor id=receiver-artifacts-and-store class=substrate -->
 ### 9.1 What ships, where it lives, and what the store gains
 
 The spike recorded in `openspec/changes/0032_02_otel-sink-and-csv/spike/OUTCOME.md` established that
@@ -562,6 +839,7 @@ The receiver's own log is **not** in the store — it goes to
 `<os temp dir>/ptp-otel-sink-<hash of telemetry.root>.log`, so nothing untracked appears in a
 consumer repository beyond the two ignored files above. `status` reports its path.
 
+<!-- ptp-telemetry:anchor id=receiver-identity-wire-contract class=substrate -->
 ### 9.2 The identity/health wire contract
 
 Pinned here **once** because the probing side is a prompt contract and the answering side is an
@@ -585,6 +863,7 @@ Identity/health is this endpoint's **only** role. It accepts no control or regen
 
 Before answering **any** probe the receiver first repairs its own lockfile (§14.4).
 
+<!-- ptp-telemetry:anchor id=receiver-write-path class=substrate -->
 ### 9.3 The write path, gate by gate
 
 The order is fixed and complete, because one of these steps creates files:
@@ -634,7 +913,7 @@ A single opaque high-entropy token in `<telemetry.root>/.ptp-telemetry-credentia
   later `setup` — so re-running `setup` never invalidates an already-configured session.
 - Transmitted as `OTEL_EXPORTER_OTLP_HEADERS` = `x-ptp-store-token=<token>`, and read by the receiver
   from the `x-ptp-store-token` request header.
-- Gitignored by the managed line above, written **after** that line exists (§13.4).
+- Gitignored by the managed line above, written **after** that line exists (`ptp-telemetry-setup` [setup-consent-scope]).
 
 The receiver **rejects** (`401`, nothing written — no raw line, no CSV row, no `_unattributed`
 record) any batch reaching the write path whose credential is absent or does not match. A store with
@@ -661,6 +940,7 @@ and logged to the receiver's own log. It never terminates the listener, and no f
 receiver ever alters a ptp command's terminal state, ordering, or output — beyond the one advisory
 line §5 permits the lifecycle preflight.
 
+<!-- ptp-telemetry:anchor id=raw-entry-envelope class=substrate -->
 ### 9.6 The raw entry envelope
 
 Every line of a `raw/*.ndjson` file is a **typed entry**: an entry-kind discriminator and an entry
@@ -682,6 +962,7 @@ A reader **skips an entry whose kind it does not recognize**. The discriminator 
 compatibility, **not** licence to write a second entry about a record already stored: the raw store
 is append-only, immutable, and single-writer (§12.1).
 
+<!-- ptp-telemetry:anchor id=receiver-two-appends class=substrate -->
 ### 9.7 The two appends
 
 For each flattened record, in this order, by the same writer at the same moment:
@@ -716,8 +997,10 @@ fragment and lost with it — one lost record silently becoming two.
 
 ---
 
+<!-- ptp-telemetry:anchor id=span-record class=substrate -->
 ## 10. The span record, the CSV schema, and the two mapping tables
 
+<!-- ptp-telemetry:anchor id=span-csv-columns class=substrate -->
 ### 10.1 The 26 columns
 
 `spans.csv` carries exactly these columns, in exactly this order:
@@ -734,6 +1017,7 @@ report layer's secondary nested-chain diagnostic (§17.5) — **not** a critical
 which span happened inside which, never which sibling had to wait for which, so a dependency analysis
 is not derivable from them (§17.2 states why at length).
 
+<!-- ptp-telemetry:anchor id=span-value-encodings class=substrate -->
 ### 10.2 Value encodings
 
 Fixed here rather than left to the implementer, because a reader that guesses them mis-aggregates
@@ -750,6 +1034,7 @@ silently:
   {`llm_request`, `api_request`}) and left **empty, not zero**, for every other row.
 - `notes` is a `;`-separated list of the tokens §11 defines. No field may contain a CR or an LF.
 
+<!-- ptp-telemetry:anchor id=span-kind-set class=substrate -->
 ### 10.3 `span_kind` — a closed set
 
 The source name is taken as-is, its `claude_code.` prefix stripped, and matched against the closed
@@ -786,6 +1071,7 @@ a reason to stop and never a reason to drop the record. Crucially, a group the r
 did **not** identify stays in `_unattributed/` and yields **no** `cli=codex` row of kind `other`, however
 well its names match this table.
 
+<!-- ptp-telemetry:anchor id=otel-attribute-mapping class=substrate -->
 ### 10.4 OTel source → column mapping
 
 The single table both the receiver and `export` derive from (§10.7), written from the attribute shapes
@@ -838,6 +1124,7 @@ treated as jointly available:
 `duration_ms` arrives as a string on some events and an integer on others; it is coerced
 numerically, never by type.
 
+<!-- ptp-telemetry:anchor id=raw-record-superset class=substrate -->
 ### 10.5 The raw record is a superset — by exactly three fields
 
 A raw entry's `record` carries the 26 projected fields **plus** a closed set of raw-only fields: the
@@ -869,6 +1156,7 @@ command differently.
 That superset is what makes the raw store authoritative rather than a duplicate of the CSV, and it is
 what lets `export` reclassify without re-collecting a single span.
 
+<!-- ptp-telemetry:anchor id=tool-class-mapping class=substrate -->
 ### 10.6 `tool_class` — the mapping table
 
 The bucket set is `search`, `read`, `write`, `build_test`, `git`, `agent`, `other`.
@@ -913,6 +1201,7 @@ both classification inputs survive in the **raw NDJSON record** — `tool_name` 
 and the Bash command text as `bash_command` — so a wrong bucket is *re-derivable* by `export`, not
 baked in.
 
+<!-- ptp-telemetry:anchor id=single-source-mapping-rule class=substrate -->
 ### 10.7 Single-source rule for both tables
 
 The tables in §10.4 and §10.6 are defined **here and nowhere else** in the shipped plugin surface
@@ -930,6 +1219,7 @@ since a Node process cannot read rules out of Markdown at runtime:
 
 ---
 
+<!-- ptp-telemetry:anchor id=ledger-join class=substrate -->
 ## 11. The ledger join
 
 ### 11.1 The ledger set the join reads
@@ -952,6 +1242,7 @@ to the **set's membership**, not only to files already in it:
   signal that the set may be stale and the cheapest possible trigger, because it fires only on the
   miss.
 
+<!-- ptp-telemetry:anchor id=ledger-join-window-rules class=substrate -->
 ### 11.2 The window rules
 
 For each span, the run whose `session_id` matches and whose window contains the span's `start_ts`
@@ -1006,6 +1297,7 @@ the entire raw store; a later batch contradicting an ingest-time grouping is cor
 This is the `[RISK-A]` mitigation for a future concurrent `ptp-full-apply`; today's loop is strictly
 sequential, so ambiguity should not arise at all.
 
+<!-- ptp-telemetry:anchor id=join-never-drops class=substrate -->
 ### 11.4 Never dropped, never guessed
 
 A record matching no window is written under `<telemetry.root>/_unattributed/` with the reason in
@@ -1020,8 +1312,10 @@ placement.
 
 ---
 
+<!-- ptp-telemetry:anchor id=export-methodology class=substrate -->
 ## 12. `export`
 
+<!-- ptp-telemetry:anchor id=raw-store-immutability class=substrate -->
 ### 12.1 The raw store's mutability contract — first, because everything rests on it
 
 `<telemetry.root>/<epic>/raw/` and `<telemetry.root>/_unattributed/raw/` are **append-only,
@@ -1041,7 +1335,8 @@ ingested later, so it can land in a different UTC day file and carry different a
 as the ledger advances. `export` preserves the **multiplicity** — a row for each, never collapsed —
 while re-deriving each independently, so "verbatim" applies only to the raw lines `export` never
 touches. Determinism is unaffected regardless, because it is a property of exporting the **same store**
-twice and §12.3's total ordering orders non-identical rows just as stably.
+twice and `ptp-telemetry-export` [export-determinism]'s total ordering orders non-identical rows just
+as stably.
 
 *Capability note, not a requirement on anything:* a consumer that must not double-count can
 deduplicate on the **source-supplied** `(trace_id, span_id)` pair already in the record, **only where
@@ -1051,157 +1346,16 @@ change** — an accepted, documented limit rather than something solved, since s
 record identity forbidden above. Those ids come from the emitter, so this is **not** a minted
 `record_id` and licenses no dedup pass anywhere.
 
-### 12.2 One command, no flag, no selector
-
-`/ptp:telemetry export` takes **no flag and no argument**. Every invocation is a **global,
-deterministic re-derivation**. `export --rebuild` and `export <selector>` are **rejected** with a
-message saying `export` is global and takes no arguments; no CSV is modified.
-
-**Why global, so nobody "fixes" it later:** re-derivation rewrites the **shared**
-`_unattributed/spans.csv`, and rewriting a shared file correctly requires reading every epic's raw
-store and every ledger. A scoped re-derivation would omit records placed there from an excluded epic
-and reintroduce records an unread excluded ledger would have resolved — both breaking the complete
-partition. Corollary: because there is no scoped form and no attribution-preserving form, the "a
-scoped projection re-emits stale attribution" hazard has no surface on which to appear.
-
-**Inputs:** every epic's `raw/*.ndjson`, `_unattributed/raw/`, every epic's `runs.ndjson`, **and**
-`_unattributed/runs.ndjson`. **Outputs:** every epic's `spans.csv` **plus** `_unattributed/spans.csv`,
-written as a **complete partition of every input record after re-derivation, judged by where it now
-resolves and not by which raw directory it came from** — a record read from `_unattributed/raw/` that
-now resolves lands in its epic's CSV; a record read from an epic's `raw/` that reconciliation now
-attributes to no run lands in `_unattributed/spans.csv`.
-
-**Re-attribution is a CSV-level outcome only.** Raw lines never move, are never duplicated, and are
-never marked; only the CSV placement changes. There is deliberately **no** form that preserves stored
-attribution — an eagerly written row carries the ingest-time view, and reconciling that view is the
-whole purpose of the command.
-
-### 12.3 Determinism
-
-Rows are ordered by a **total** ordering, never filesystem enumeration order: `start_ts`, then
-`span_id`, then `trace_id`, then the serialized row compared lexicographically, with **empty values
-ordering before non-empty**, under one comparison rule. `start_ts` may legitimately be empty and two
-records can share both `start_ts` and `span_id`, so a partial ordering would break byte-identity
-*silently* — exactly the class of bug the byte-identity criterion exists to catch.
-
-"An unchanged store" needs no qualification: `export` writes nothing into `raw/`, so a second run
-reads byte-for-byte what the first one read.
-
-Each output is written to a **uniquely named temporary file in the same directory** and moved into
-place with **one replace-if-exists rename**, so a crash mid-write leaves the previous complete file
-and any reader sees a complete file at every moment.
-
-Directory order is compared on the **directory key alone**. This is stated rather than left to a
-default sort, because the natural way to write it — sorting the `(directory, rows)` pairs themselves —
-compares their string renderings, which both grows the sort key with the size of the store and orders
-`0032 b` ahead of `0032`. The order decides the `outputs` report and the rename sequence, so it is
-part of the contract.
-
-`export` performs the **§2.1 store-policy write** before it stages anything. It is a writer into
-`<telemetry.root>/` — it creates the epic directory a reattribution now needs, it always writes
-`_unattributed/spans.csv`, and it replaces every existing one — so §2.1's self-healing for "a root
-whose policy files were deleted" has to reach the one command whose entire output is CSV files:
-without `.gitattributes` these CRLF files are precisely what a consumer repo's `text=auto eol=lf`
-normalizes, and §2.1 already records that the BOM alone is not sufficient. It runs after the
-read-and-refuse gates, so a refusal still touches nothing, and both halves swallow their own errors,
-so it can never turn a successful `export` into a failed one.
-
-### 12.4 Torn lines
-
-The read can land on a torn line — the receiver may have been killed between an entry's two halves.
-An incomplete or unparseable **trailing** line is **skipped**; a malformed **interior** line is
-**skipped and counted**; an entry whose kind is unrecognized is skipped (§9.6). This is the same
-torn-line tolerance the ledger readers already require.
-
-State the consequence honestly rather than "left for the next `export`": the raw store is append-only
-and immutable, so **nothing ever completes or repairs a torn entry** and no later `export` recovers
-it. It is **unrecoverable telemetry loss**, bounded to the one record in flight when the receiver
-died. What stops it spreading is §9.7's fresh-line rule.
-
-### 12.5 It refuses while the receiver is live
-
-Before reading or writing **anything**, `export` runs the identity probe. When a live receiver for
-this store answers, it **refuses non-fatally** with **one line naming `/ptp:telemetry stop`**, writes
-no `spans.csv` and no temporary file, and **never stops the receiver** — `export` declines, it does
-not terminate anything.
-
-**The match rule is deliberately looser than `start`'s.** `start` requires a full identity match
-*including the launch token*, which presupposes an intact lockfile. `export` must **not** require the
-token, because the row-losing case is a live receiver for *this* store whose lockfile was deleted —
-the token cannot match, and a token-strict rule would let `export` proceed and overwrite rows appended
-after its read. So `export` refuses whenever the listener identifies itself as a **ptp receiver
-reporting this store's `telemetry_root`**, lockfile present or not, token matching or not, and
-whatever a `healthy` verdict says. A non-ptp process, or a ptp receiver reporting a different
-`telemetry_root`, writes none of these files and does **not** block `export`.
-
-**The ports probed** are the configured `telemetry.port` **and, when the lockfile records a different
-port, that port too** — on both the initial check and the pre-rename one. Probing only the configured
-port would satisfy the rule's letter while racing precisely the writer §14.4's write-path self-heal
-exists to reveal. **Residual limit, recorded rather than claimed away:** a receiver for this store on
-a non-configured port **and** with no lockfile is undiscoverable to the lifecycle rules and equally
-undiscoverable here.
-
-**The refusal is a check at an instant, not an exclusion held for the run.** A concurrent session can
-auto-start a receiver after `export` probed and began reading. That window is bounded two ways:
-**every** output CSV is staged to its temporary file first, then the identity probe runs **once, after
-all staging and before the first replace-rename**; if a receiver has appeared, `export` **aborts** —
-all temporary files deleted, every `spans.csv` untouched, the same `/ptp:telemetry stop` message. The
-ordering is load-bearing: probing before *each* rename could only catch a receiver after earlier
-outputs were already replaced, making "every `spans.csv` untouched" unkeepable for a multi-file export.
-
-What is left is stated honestly. A receiver appending between the final probe and a rename loses those
-rows **from the CSV only** — it appends to `raw/` in the same write path and `export` never writes
-there, so the next `export` restores them and **no telemetry is lost**. The partition guarantee is
-therefore over **the raw records observed while staging**, not over whatever the store holds when the
-rename lands. Closing the remainder would mean a store-scoped writer lock held across the export —
-cross-process mutual exclusion that can go stale, plus a crashed-`export`-blocks-the-receiver failure
-mode — bought to protect a **regenerable view** whose source of truth the operation never touches.
-That trade is not worth making, so it is not made: **no** CSV-writer lock, **no** regeneration control
-request on the loopback endpoint, **no** snapshot-versus-live-append ordering rule, and **no**
-monotonic-visibility invariant.
-
-**The recovery sequence, with its precondition.** The §15 preamble re-starts the receiver on the next
-funnel command, so `stop` → *any funnel command* → `export` is refused again. The documented order is
-**`stop` → `export` with no funnel command between them**, and `telemetry.mode=off` first is the way
-to guarantee it when that cannot be assured.
-
-### 12.6 Running it
-
-```
-node <plugin>/scripts/ptp-otel-sink.js export --repo <repo root>
-```
-
-It prints one JSON object: `action` ∈ `exported` | `refused` | `aborted` | `noop` | `failed`, the
-outputs and row counts on success, and the `message` to relay verbatim otherwise. Relay the message
-and stop; never "fix" a refusal by stopping the receiver.
-
-`failed` is the filesystem outcome, distinct from the two receiver-driven ones: `refused` and
-`aborted` both mean a live receiver was found and **nothing** was touched, whereas `failed` means the
-store itself could not be written. Its two forms differ in exactly one respect, which the message
-states: a **staging** failure leaves every `spans.csv` untouched, while a **publish** failure may have
-replaced some of them — each file is complete, some newly derived and some the previous version.
-Neither leaves a temporary file behind, and neither touches `raw/`, so re-running `export` after
-fixing the permissions fully repairs the store.
+The rest of this section — the `export` contract — now lives in the `ptp-telemetry-export` skill (`skills/ptp-telemetry-export/SKILL.md`), which retains this section's subsection numbering; reach it as `/ptp:telemetry-export` or `/ptp:telemetry export`.
 
 ---
 
+<!-- ptp-telemetry:anchor id=setup-methodology class=substrate -->
 ## 13. `/ptp:telemetry setup` — the one confirm-first setting writer
 
-### 13.1 What it writes, and where
+The rest of this section now lives in `skills/ptp-telemetry-setup/SKILL.md`, which retains this section's subsection numbering; the eight-key block below stays here.
 
-`setup` writes the **local project** settings file **`<repo>/.claude/settings.local.json`** — never
-`~/.claude/settings.json` and never the shared `<repo>/.claude/settings.json`. Two independent
-properties are required and only that file has both:
-
-- **Per-repository**, because the telemetry store is per-repository and a user-global write would
-  enable emission in every repository the user opens.
-- **Untracked**, because the block carries the ingestion credential, and the shared project settings
-  file is the one a team commits.
-
-Because ignoring a path does not untrack a file git already tracks, `setup` **refuses non-fatally,
-writing nothing**, when `.claude/settings.local.json` is already tracked, saying it must be untracked
-first. A secret written into a tracked file while claiming it is ignored is a false guarantee.
-
+<!-- ptp-telemetry:anchor id=telemetry-env-keys class=substrate -->
 ### 13.2 The block — exactly eight keys
 
 | Key | Value |
@@ -1253,7 +1407,7 @@ loopback-only, per-repository, and gitignored.
 
 The credential is read from `<telemetry.root>/.ptp-telemetry-credential`, **reused** when present
 and, when absent, generated **provisionally in memory** and persisted only after confirmation
-(§13.4).
+(`ptp-telemetry-setup` [setup-consent-scope]).
 
 **The credential's value is never rendered in the diff** — the `OTEL_EXPORTER_OTLP_HEADERS` row shows
 `x-ptp-store-token=<…>` with a description of which credential it is (the store's existing one, or a
@@ -1263,52 +1417,9 @@ decision**, not a byte string: a provisional credential lives only inside the pr
 so a value printed by `setup-plan` would not be the value `setup-apply` persists. Every other key
 shows its literal old and new value.
 
-### 13.3 Merge semantics
-
-Touch **only those eight keys**. Every other `env` key and every key outside `env` is left untouched.
-A key already present with a different value is shown **old and new** in the diff and changed only on
-confirmation. A **higher-precedence layer that already defines one** is called out rather than
-silently shadowed. Refuse — **without overwriting** — a settings file that does not parse as JSON or
-whose root is not an object. This is `/ptp:config`'s writer posture, not a second one.
-
-**The endpoint does not track `telemetry.port` afterwards.** Changing the port means re-running
-`setup`, whose diff then shows a single line — so "I changed the port and telemetry broke" is
-documented rather than discovered.
-
-### 13.4 Confirm-first covers the credential and both `.gitignore` files
-
-Nothing at all is written before explicit confirmation — not the settings file, not the credential,
-not either `.gitignore`. After confirmation the order is fixed, so neither secret is ever briefly
-tracked:
-
-1. Reconcile the **repository-level `.gitignore`** so it covers `.claude/settings.local.json`;
-2. reconcile **`<telemetry.root>/.gitignore`** (the managed lines of §9.3);
-3. persist the credential;
-4. write `settings.local.json`.
-
-Both reconciliations are shown in the diff. Both are managed-line additions: only missing lines are
-added, all other content preserved.
-
-On a confirmed write, `setup` states that **the block takes effect at process start**, so the session
-that just ran it must **restart Claude Code** before spans are emitted. That is the same condition the
-§15 preamble detects from the live environment.
-
-### 13.5 Running it
-
-```
-node <plugin>/scripts/ptp-otel-sink.js setup-plan  --repo <repo root>    # writes NOTHING
-node <plugin>/scripts/ptp-otel-sink.js setup-apply --repo <repo root>    # only after confirmation
-```
-
-`setup-plan` returns the diff (`env_diff` with `old` / `new` / `shadowed_by_live_env` per key — the
-credential row redacted per §13.2 — both reconciliations, and whether the credential already exists).
-**Render that diff verbatim, ask for explicit confirmation, and run `setup-apply` only on an
-affirmative answer.** Never reconstruct or print the credential value while rendering it. A refusal (`action: refused`) is
-relayed verbatim and nothing is run. `setup` is **never** invoked from any automatic path, including
-the §15 preamble.
-
 ---
 
+<!-- ptp-telemetry:anchor id=sink-lifecycle class=substrate -->
 ## 14. The sink lifecycle
 
 ```
@@ -1320,36 +1431,29 @@ the §15 preamble.
         └──── start (replaces stale) ──┘
 ```
 
+<!-- ptp-telemetry:anchor id=start-methodology class=substrate -->
 ### 14.1 `start`
 
-Launches the receiver in the background and writes the lockfile at
-**`<telemetry.root>/.ptp-otel-sink.pid`** — in the store root, so it follows a customized
-`telemetry.root` instead of drifting from the data it describes — recording: `pid`, `port`,
-`started_at`, `started_by` ∈ `manual|auto`, a **launch token** minted at start, the **OS-reported
-process start time** and the executable path (so a recorded pid can be told from a later process that
-reused it, which is what makes §15.5's cheap cache validation an actual pid-reuse guard), and the
-`repo_root` and `telemetry_root` the receiver was started with.
+The **start action** is performed by **`skills/ptp-telemetry-start/SKILL.md`** (reached from
+`/ptp:telemetry start` and `/ptp:telemetry-start`); the lockfile contract below stays here, because
+§14.4's self-heal and §15.5's pid-reuse guard both read it.
 
-Before it writes that lockfile, `start` performs the store's **managed `.gitignore` reconciliation**
-(§9.3's policy). Leaving that to `setup` and to the receiver's gated write does not cover the
-manual-start-without-`setup` path this change explicitly supports: with no credential file every batch
-is rejected before the policy write is reached, so the store could hold a `.ptp-otel-sink.pid` — pid,
-launch token, absolute paths — that nothing has ignored. **Whoever creates the file protects it.**
+The receiver's lockfile is **`<telemetry.root>/.ptp-otel-sink.pid`** — in the store root, so it
+follows a customized `telemetry.root` instead of drifting from the data it describes — recording:
+`pid`, `port`, `started_at`, `started_by` ∈ `manual|auto`, a **launch token** minted at start, the
+**OS-reported process start time** and the executable path (so a recorded pid can be told from a later
+process that reused it, which is what makes §15.5's cheap cache validation an actual pid-reuse guard),
+and the `repo_root` and `telemetry_root` the receiver was started with.
 
-`start` **refuses non-fatally, naming `telemetry.mode`**, when the mode is not `on`, so the manual
-path cannot bring up a receiver the gate would forbid from writing.
-
-A **bind failure** (port held by an unrelated process) is **reported**, never retried silently, and
-points at `telemetry.port` as the remedy.
-
+<!-- ptp-telemetry:anchor id=lifecycle-identity-idempotence class=substrate -->
 ### 14.2 Idempotence is by *identity*, not occupancy
 
-`start` probes the port and treats it as "already up" **only** when the listener answers §9.2's probe
-as a ptp sink whose **launch token matches the lockfile** and whose **repository root and
-`telemetry_root` match this invocation**. A served port that is anything else — an unrelated process,
-or a sink for another repo or store — is a **reported, non-fatal conflict naming `telemetry.port`**,
-and no second listener is started on it. Occupancy alone would silently deliver a second repository's
-spans into the first repository's store.
+An **occupied** port is not the same thing as this store's receiver being up. A listener counts as
+this store's receiver **only** when it answers §9.2's probe as a ptp sink whose **launch token matches
+the lockfile** and whose **repository root and `telemetry_root` match this invocation**. A served port
+that is anything else — an unrelated process, or a sink for another repo or store — is **not** this
+store's receiver, and is a conflict rather than an "already up": occupancy alone would silently
+deliver a second repository's spans into the first repository's store.
 
 This holds identically whether `start` was typed or reached through the §15 preamble, so no sequence
 of ptp commands produces a second listener per store — **while the store's lockfile is intact**. State
@@ -1359,20 +1463,21 @@ is the **single-writer** guarantee of §9.3's port-drift gate: only the receiver
 configured port ever writes, so the store keeps one writer even in the state where it briefly has two
 listeners.
 
-### 14.3 Two lockfile states, never conflated
+### 14.3 Three lockfile states, never conflated
 
-- **Stale** — the recorded process is not live **and** the recorded port is unserved. Treated as
-  **absent and replaced**, so a crashed receiver never permanently blocks a restart.
-- **Live but non-matching** — the recorded port is served by a listener that does not verify. **Not
-  replaced**: overwriting it would discard the only record of what is running while that listener
-  still holds the port. Reported as a conflict needing explicit resolution; nothing is started.
+A closed, **named** vocabulary. Each state is defined by its **condition**; what an action *does*
+about a state belongs to that action.
 
-**The port-migration check runs inside `start` itself, before the port probe.** When the store's
-lockfile names a **live, identity-matching** receiver on a **different** port, start nothing, leave
-that lockfile intact, and report that it must be stopped first. Putting this check only in the
-preamble would let a manual `start` after a `telemetry.port` change find the new port free, launch a
-second receiver for one store, and destroy the only record of the first.
+- **Stale** (`stale`) — the recorded process is not live **and** the recorded port is unserved. Treated
+  as **absent and replaced**, so a crashed receiver never permanently blocks a restart.
+- **Live but non-matching** (`live-non-matching`) — the recorded port is served by a listener that does
+  not verify. **Not replaced**: overwriting it would discard the only record of what is running while
+  that listener still holds the port. Reported as a conflict needing explicit resolution; nothing is
+  started.
+- **Migration conflict** (`migration-conflict`) — the lockfile verifies a **live, identity-matching**
+  receiver for this store on a **different** port than the resolved `telemetry.port`.
 
+<!-- ptp-telemetry:anchor id=lockfile-self-heal class=substrate -->
 ### 14.4 The receiver repairs its own lockfile
 
 A deleted lockfile would otherwise be a dead end, not a degraded state: `export` refuses (it detects a
@@ -1402,19 +1507,14 @@ exactly when it succeeds: `start` would compare the response to a stale token, d
 foreign, and launch a second receiver; `stop` would reject a receiver whose lockfile it just caused to
 be repaired. Reload **before** deciding to start, to stop, or to report a conflict.
 
+<!-- ptp-telemetry:anchor id=stop-methodology class=leaf owner=stop -->
 ### 14.5 `stop`
 
-**Verify first** — pid live, listener on the recorded port answering the identity probe, token
-matching — and terminate **only** on a match, then remove the lockfile. On any mismatch, report the
-lockfile as stale or mismatched and **remove nothing automatically**: pids get reused, and killing a
-stranger's process is worse than leaving a stale file. An already-stopped receiver is tolerated.
+The **stop action** is contracted in **`skills/ptp-telemetry-stop/SKILL.md`** (reached from
+`/ptp:telemetry stop` and `/ptp:telemetry-stop`), which holds its verification ordering, its outcomes,
+and its posture in full.
 
-**An absent lockfile is "unknown", never "nothing is running"**, or §14.4's self-heal is unreachable
-from `stop`. With no lockfile, probe the configured `telemetry.port` for a listener reporting **this
-store's** `telemetry_root`. Nothing answers → genuinely stopped, report that. One answers → its
-self-heal has just rewritten the lockfile, so reload it and run the ordinary verification before
-terminating. **Never kill on a port answer alone.**
-
+<!-- ptp-telemetry:anchor id=lifecycle-status-read class=substrate -->
 ### 14.6 `status` — read-only
 
 `status` reports, in one place so no other task implies a different list:
@@ -1449,7 +1549,7 @@ than a silently different one.
 - **No ptp command stops the receiver automatically.**
 - **No ptp command requires it to be running.** The single lifecycle dependency runs the other way and
   is not automatic: **`/ptp:telemetry export` requires the receiver to be *stopped*** and refuses while
-  it is live (§12.5) — it never terminates it, and it is not a pipeline command, so **no pipeline
+  it is live (`ptp-telemetry-export` [export-requires-receiver-stopped]) — it never terminates it, and it is not a pipeline command, so **no pipeline
   command stops or requires the receiver**.
 - `start` / `stop` / `status` remain the **manual override**: `stop` to take down an unwanted receiver,
   `status` to inspect one, `start` to bring one up explicitly.
@@ -1463,31 +1563,28 @@ than a silently different one.
 
 ### 14.8 Running them
 
-Before the **first** `start` of a session — the one that actually launches the script — run the
+Before the session's **first** real launch of the receiver **by any path** — manual or the §15
+preamble, whichever actually launches the script — run the
 canonical CRLF self-heal step of `skills/ptp-workflow-cache-heal/SKILL.md`, whose glob covers cached
 `scripts/*.js` as well as cached `workflows/*.js`. A `\r` injected into the shipped receiver by a
 Windows checkout breaks it exactly as it breaks a workflow script, and the heal is idempotent and a
 no-op when the cache is absent. Reference that skill; never inline its command body here.
 
 ```
-node <plugin>/scripts/ptp-otel-sink.js start  --repo <repo root>   # add --started-by auto from §15
-node <plugin>/scripts/ptp-otel-sink.js stop   --repo <repo root>
 node <plugin>/scripts/ptp-otel-sink.js status --repo <repo root>
 ```
 
-Each prints one JSON object carrying `action` and, where the outcome is anything other than plain
-success, a `message` to relay. `start` actions: `started` | `already-listening` | `refused` |
-`start-failed`. `stop` actions: `stopped` | `already-stopped` | `stale-lockfile` |
-`mismatched-lockfile` | `not-stopped` | `refused`. `status` always reports `action: status` — it has
-no failure form, since it decides nothing and changes nothing.
+`start`'s invocation line and its action values are in `skills/ptp-telemetry-start/SKILL.md`.
+`stop`'s invocation line, its action values, and the outcome that leaves the receiver running are in
+`skills/ptp-telemetry-stop/SKILL.md`.
 
-`not-stopped` is the one `stop` outcome that leaves the receiver **running**: the recorded process
-verified and was signalled, but the listener was still answering when the bounded wait elapsed. The
-lockfile is deliberately **left intact** — removing it would leave a knowingly live receiver with no
-record of itself — so the remedy is to re-run `stop` or end the reported pid by hand.
+Each prints one JSON object carrying `action` and, where the outcome is anything other than plain
+success, a `message` to relay. `status` always reports `action: status` — it has
+no failure form, since it decides nothing and changes nothing.
 
 ---
 
+<!-- ptp-telemetry:anchor id=auto-start-preamble class=substrate -->
 ## 15. The telemetry auto-start preamble
 
 A single **named, referenceable step**, defined here once in the same single-source style as
@@ -1512,10 +1609,12 @@ The order is load-bearing, not incidental.
 4. **Probe `127.0.0.1` on the resolved `telemetry.port`** — one **pre-launch** attempt, 250 ms
    timeout, no retries. Return **silently** only when the listener **identifies itself** as this
    store's ptp sink; emit one advisory when the port is served by anything else.
-5. **Otherwise perform the §14 idempotent start with `started_by=auto`**, then poll the identity
+5. **Otherwise run the executable's own `preamble` action (§15.8), recording `started_by=auto`** —
+   idempotent under §14.2's single-listener invariant and the §14.3 states — then poll the identity
    endpoint for readiness within §15.4's cap: silent when it answers in time, one non-blocking
    advisory when the start fails or the cap elapses.
 
+<!-- ptp-telemetry:anchor id=preamble-env-gate class=substrate -->
 ### 15.2 The gate is four keys, and why each
 
 `CLAUDE_CODE_ENABLE_TELEMETRY`, the **endpoint** (which must equal
@@ -1561,10 +1660,11 @@ the orphaned-listener-with-no-data failure the explicit-lifecycle posture existe
 **The setup/start asymmetry, stated so a later reader does not "simplify" it away.** `setup` writes
 `settings.local.json` — a Claude Code setting — so it stays manual, interactive, and confirm-first.
 `start` writes **no** Claude Code setting at all: only telemetry-store metadata, namely the store's
-managed `.gitignore` lines (§14.1) and its own pidfile. Automating the second is not permission to
+managed `.gitignore` lines (§9.3) and its own pidfile. Automating the second is not permission to
 automate the first. Requiring the env to be present before auto-starting is what keeps ptp from ever
 running a listener for a session that cannot emit into it.
 
+<!-- ptp-telemetry:anchor id=preamble-readiness-bound class=substrate -->
 ### 15.4 The bound, in real numbers
 
 "Never delays" is a **bound**, not an absolute — a probe and a process launch cannot cost nothing:
@@ -1581,6 +1681,7 @@ running a listener for a session that cannot emit into it.
 - When the cap elapses first, emit the single advisory and proceed. **Never** extend the wait, retry
   the launch, or block the spawn.
 
+<!-- ptp-telemetry:anchor id=preamble-cache class=substrate -->
 ### 15.5 Caching (a MAY, and a qualified one)
 
 A caller **MAY** cache an observed "already listening" result so the preamble costs at most one probe
@@ -1641,112 +1742,15 @@ emit nothing.** Never fail, never retry, never wait beyond §15.4's bound. With 
 
 # The report layer (`0032_04_telemetry-report`)
 
+<!-- ptp-telemetry:anchor id=report-methodology-stub class=substrate -->
 ## 16. `/ptp:telemetry report` — the analysis methodology
 
-`report` is the epic's answer to *"where is time wasted?"*. It **collects nothing**: it is a
-read-and-render pass over the **derived** store files the earlier layers wrote, plus the bounded
-retention deletion of §17.
+**Relocated** to **`skills/ptp-telemetry-report/SKILL.md`** (reached from `/ptp:telemetry report` and `/ptp:telemetry-report`), which keeps this section's `§16`–`§16.2` numbering; the anchor ids `report-methodology` and `report-selector-delegation` moved there with it.
 
-**Its posture, worded this way everywhere and never shortened:** a **default** `report` **creates no
-file, modifies no existing file, and deletes only aged raw files.** The word *default* is part of
-the wording, not a hedge on it: §20.2's explicit `write` keyword is the **one** way a `report.md` is
-created or overwritten, and a posture sentence that omitted the qualifier would be false of exactly
-the invocation the user asked to write. It is **never** called "read-only" — not here,
-not in `commands/telemetry.md`, not in the spec, not in the README, and not in a qualified form such
-as "read-only (except pruning)". A default invocation deletes data irreversibly, and a reader keeps
-the adjective while dropping the parenthesis.
-
-**`report` and `analyze` are separate readers, with separate inputs and separate postures: nothing in
-§16–§21 governs `analyze`, which §23 owns wholly.**
-
-### 16.1 The selector — delegated wholesale, extended not at all
-
-`report [selector]` hands its argument to the resolution algorithm of
-`skills/ptp-change-selector/SKILL.md` **unchanged**, and therefore supports exactly the forms that
-skill already defines:
-
-| Form | Meaning |
-|---|---|
-| `epic:all` | every active epic |
-| `epic:XXXX` | one epic |
-| `epic:XXXX story:NN` | one story within an epic |
-| `story:NN` | the one active change with that story, when unambiguous — resolved through the shared skill's ambiguity rule unchanged, so an id occurring in several epics STOPs there asking for `epic:XXXX story:NN` rather than being disambiguated here |
-| a bare change id | that change |
-| *(empty)* | **this command's own default — every active epic**, stated below |
-
-**The empty argument, stated here because the selector defers it back.** `ptp-change-selector` §2
-resolves an empty selector by *deferring to the command's existing default*, so a command that in
-turn defers to the selector leaves the scope undefined. `report`'s default is therefore named here:
-**an empty argument is treated exactly as `epic:all`** — every epic holding an active change,
-**each reported separately** per the rule below, with the same set and ordering §3 gives `epic:all`.
-Nothing about the grammar changes: the selector still only ever receives a form it defines.
-
-**Story-level selectors project to their epic's store, and narrow by row.** The store is keyed on
-the **epic** (`<telemetry.root>/<epic>/`), while every span and ledger row carries **both** `epic`
-and `change_id` (§10.1, §3). So for a resolved change id — from `epic:XXXX story:NN`, from
-`story:NN`, or from a bare id — `report` **reads that change's epic store** and counts as *in scope*
-only the rows whose `change_id` equals a resolved id. For `epic:XXXX` (and `epic:all`, per epic)
-every row in that epic's store is in scope. "In scope" means exactly that everywhere below — in
-§17's two headline figures, §18's breakdowns and top-N lists, and §19's counts.
-
-**A legacy id has no epic store, and that is a defined outcome rather than a gap.** The selector
-still resolves **legacy / unprefixed** folder names (`ptp-change-selector` §3 step 2 parses them as
-`epic=None`, and `epic:all` appends them after the epic-prefixed ids). Such a change has no
-four-digit epic segment, so §2's write points could never resolve an epic for it and its rows went
-to the store-wide `<telemetry.root>/_unattributed/` — which §17.4 reads **for the footer count
-alone**. So a legacy id resolves to a scope with **no epic store**: the report states that no
-telemetry exists for it per §20.3, the §19 footer still renders, and **nothing is pruned**, there
-being no `<telemetry.root>/<epic>/raw/` to prune. It is never an error, and the store-wide
-unattributed count in the footer is the signal that explains it.
-
-**Retention is the one thing that does *not* narrow with the rows** — see §21.2: a raw file holds
-every story's records for a day, and the raw store is append-only and immutable (§12.1), so there is
-no story-scoped deletion to perform. A story-scoped `report` therefore prunes its **whole epic's**
-`raw/`. That is stated rather than discovered, because it is the one effect whose blast radius
-exceeds the reported scope.
-
-**This section adds no grammar of any kind** — no new prefix, no new token, no per-command form.
-`/ptp:telemetry report` is listed among the **set-capable consumers** in
-`skills/ptp-change-selector/SKILL.md` §Role B, which is what makes a future grammar addition reach
-the report automatically instead of needing a second edit here.
-
-**Two inherited rules, restated because this command would break quietly without them:**
-
-- **Use the resolved id, never the raw selector string**, wherever an identifier or a path segment is
-  required. `<telemetry.root>/<epic>/` is keyed on the resolved epic; a raw `epic:0032 story:01`
-  string is never a path segment.
-- **Under `epic:all`, each epic is a separate reporting scope.** Report each on its own.
-
-**Why epics are never summed.** A cross-epic `concurrency_factor` would divide one epic's work by
-another epic's elapsed time — averaging unrelated workloads that never overlapped into a ratio that
-describes neither. The same objection applies to every summed figure, so no figure is summed across
-epics: `epic:all` produces *N* reports, never one merged report.
-
-### 16.2 The `write` keyword is a `report`-level token, stripped before the selector
-
-`report` recognises one literal token, `write`, and **removes it from the argument before anything
-reaches the selector**. So the selector never receives a token it does not define and §16.1's
-no-new-grammar rule holds *literally* rather than approximately:
-
-- `report write epic:0032` → the resolver is handed `epic:0032` **alone**, and `report.md` is written
-  for the resolved epic (§20).
-- `report epic:0032` → the resolver is handed `epic:0032`, and **nothing is written**.
-- A bare selector value is **never** read as a request to write, and `write` is **never** read as a
-  selector value. Both directions matter: a mis-parse in one direction loses the report, and in the
-  other writes a file the user did not ask for.
-
-**`write` is a reserved token at the `report` level, and the one consequence is stated.** Because the
-strip is unconditional, a **legacy** change folder named literally `write` could not be selected by
-its bare id here. That is the same reservation `ptp-change-selector` already makes for `all` inside
-the `epic:` namespace, scoped the same way — to this one subcommand's argument, never to the shared
-grammar, which gains and loses nothing. It is written down rather than discovered, and no
-epic-prefixed id can ever collide (`\d{4}_\d{2}_…` is not the string `write`).
-
-A `--write` flag was rejected for exactly this reason — it would have made `report` parse an argument
-string the selector otherwise owns end to end.
-
+<!-- ptp-telemetry:anchor id=report-headline-numbers class=substrate -->
 ## 17. The two headline numbers, and the subtraction that is banned
 
+<!-- ptp-telemetry:anchor id=banned-subtraction class=substrate -->
 ### 17.0 BANNED INVARIANT — no field is ever `wall − llm − tool`
 
 **No output field of `report` may be computed by subtracting component sums from wall time.** In
@@ -1764,6 +1768,7 @@ negative *other time* is not a poor estimate of anything — it is **undefined**
 an undefined quantity. `concurrency_factor` (§17.3) expresses the same intuition — how much overlap
 there was — as a well-defined ratio.
 
+<!-- ptp-telemetry:anchor id=aggregate-work-time class=substrate -->
 ### 17.1 Aggregate work time
 
 ```
@@ -1788,6 +1793,7 @@ The distinction is load-bearing: a ledger-only scope (runs recorded, spans never
 no work, which is not the same claim as "the work took no time", and §17.3 turns an absent numerator
 into an undefined ratio rather than a `0×` that reads like a measurement.
 
+<!-- ptp-telemetry:anchor id=elapsed-wall-time class=substrate -->
 ### 17.2 Elapsed wall time — a union, never a sum, and never a critical path
 
 ```
@@ -1856,276 +1862,14 @@ defined on this data:
 Calling interval coverage a "critical path" would credit the figure with a dependency analysis the
 data cannot support — the same class of error as §17.0's subtraction, with a more respectable name.
 
-### 17.3 `concurrency_factor`
+`§17.3`–`§17.7` moved to **`skills/ptp-telemetry-report/SKILL.md`** under those same numbers, taking the anchor ids `report-concurrency-factor` and `report-nested-chain-diagnostic` with them; `§17.0`–`§17.2` above are substrate and stay here.
 
-```
-concurrency_factor = aggregate work time ÷ elapsed wall time
-```
-
-Printed with its plain-language reading, e.g. *"2.4× — roughly 2.4 spans' worth of counted work
-overlapping on average."*
-
-**It is never phrased as a count of agents.** The numerator sums LLM and tool spans that overlap
-*within* a single agent as readily as across agents — a tool result streaming back during generation,
-parallel tool calls from one agent — so a **single-agent** run can score well above one. "2.4 agents
-were working" is a plausible, wrong reading of a correct number, which is precisely the failure this
-change exists to close; getting the denominator right and then mislabelling the ratio would waste the
-effort.
-
-**Reported only when elapsed wall time is available and greater than zero *and* aggregate work time
-is present.** Otherwise the report **states that the factor is undefined** — never `0`, never `∞`,
-never a dash a reader could average into something. A ledger-only scope therefore reports its
-ledger-window wall time, reports the LLM and tool figures as **absent**, and states the factor
-**undefined**: an absent numerator is not a zero numerator. A value below `1` is legitimate (spans dropped, sink down mid-run) and is reported
-as-is with the footer explaining, **never clamped**.
-
-### 17.4 Inputs — one authoritative set
-
-The report reads **`spans.csv` and `runs.ndjson`, and never `raw/`.**
-
-Why the restriction is a rule and not a preference: **pruning (§21) bounds `raw/` immediately, while
-`spans.csv` only catches up at the next `export`** — the two stores intentionally hold different
-histories in between. A report that mixed them would report a **different past depending on when it
-ran**. Reading the derived files also means a prune has no effect on report output until the user
-runs `export`, which is the honest and predictable ordering.
-
-**`analyze` (§23) reads `raw/` as a DIFFERENT COMMAND with its own input rule — a separate reader,
-NOT an exception to this one.** Every sentence above is scoped to `report` and stays literally true:
-`report` still reads `spans.csv` and `runs.ndjson`, and never `raw/`. The stated reason for this rule
-— the prune-versus-`export` divergence — is **unaffected**, because `analyze` prints **no figure
-`report` also prints**, so the two commands share no number that could disagree about the same past.
-
-**`<telemetry.root>/_unattributed/spans.csv` is read for the footer's row count and nothing else.**
-No record from it may enter aggregate work time, elapsed wall time, `concurrency_factor`, a
-breakdown, or a top-N list. Those records resolved to no run and therefore to **no epic**: folding
-them into an epic's body would both invent an attribution and count the same rows into **every**
-epic's report at once.
-
-**This clause is `report`'s too, and it is unchanged: `report`'s epic-scoped body figures still
-exclude `_unattributed/`.** `analyze` reads that store as part of the whole-store raw superset, but it
-has **no per-epic figure at all**, so the failure this rule prevents — inventing an attribution, and
-counting the same records into every epic at once — cannot occur there. A separate reader, not a
-relaxation (§23.9).
-
-### 17.5 The nested-chain diagnostic (secondary, but required)
-
-The parent ids still earn their place. The report shows the **longest chain of nested spans per
-trace**, measured as **that chain's interval union** — ties broken by **row order** (below): among
-chains of equal extent the winner is the one whose **earliest row** comes first in row order, and if
-that still ties, its next row, and so on. A tie-break is stated because §17.2 already establishes
-that ties are the *normal* case here — where a root encloses everything, every chain through it has
-the same extent — so an unstated tie-break would mean two implementations reporting different chains
-from identical input, in a diagnostic whose output includes counts a reader is asked to trust. It is
-clearly labelled a **secondary diagnostic**. It
-is **never** the denominator of `concurrency_factor` and no headline number depends on it — but it is
-**required rather than optional**, because the footer's graph-repair counts are produced by building
-it, and a report that skipped it would silently stop reporting those repairs.
-
-Because it does walk the graph, its degenerate cases are handled explicitly, and **each occurrence is
-counted for the footer** rather than quietly repaired:
-
-| Degenerate input | Handling | Footer |
-|---|---|---|
-| an edge whose `parent_span_id` matches no in-scope `span_id` | drop the edge | count dropped edges |
-| a duplicate `span_id` | resolve to its **first occurrence in row order** (below) | count duplicate ids |
-| a cycle in `parent_span_id` | break it at the edge that closes it **under row order** (below) | count broken cycles |
-
-**Span identity is `(trace_id, span_id)`, and no edge crosses a trace.** The chain is computed *per
-trace*, so "matches no in-scope `span_id`" and "a duplicate `span_id`" both mean **within the same
-`trace_id`**: a `parent_span_id` is resolved only against span ids in its own trace, and the same
-`span_id` appearing in two traces is **two different spans**, not a duplicate. Left unscoped, the
-two readings differ on real input — span ids are unique per trace, not globally — and would produce
-both different chains and different repair counts. A row with an **empty `trace_id`** forms no edge
-and joins no chain; it is not silently pooled with every other empty-trace row into a trace that
-never existed.
-
-**Row order — the total order these two rules resolve against, because "first" and "the edge that
-closes it" are otherwise underdetermined.** Two rows can share a `start_ts` to the millisecond, and
-which edge "closes" a cycle depends on where a traversal entered it — so two implementations could
-report different repair counts from identical input, which a *diagnostic whose whole output is
-repair counts* cannot afford. **Row order is `start_ts` ascending, ties broken by the row's position
-in `spans.csv`, ties there impossible** (a file position is unique). Nodes are visited in row order,
-and each node's parent edge is followed in that same order — so "first occurrence" is the earliest
-row, and the edge that closes a cycle is the one whose traversal reaches an ancestor already on the
-current path. An empty `start_ts` sorts **last**, after every populated one.
-
-Slice 2 records `trace_id` / `span_id` / `parent_span_id` only where the emitted event supplies them,
-so parent links depend on the emitter. **When no usable parent links exist the diagnostic is omitted
-and the omission is stated** — and the headline wall figure is unaffected, because it never depended
-on them.
-
-**"No usable parent links" means no `parent_span_id` values at all** — the emitter supplied none.
-A scope whose `parent_span_id` values are all **present but dangling** is **not** that case: those
-links exist, they are **dropped edges**, every one of them is **counted**, and the footer prints the
-dropped-edge count (§19.4). Reading an all-dangling graph as "no usable links" would suppress the
-repair count at the exact moment it is largest — reporting the worst parent graph as though it were
-the absence of one. The diagnostic itself then yields only single-span chains, which is a correct
-result rather than an omission.
-
-### 17.6 Ordering
-
-**The two headline numbers are printed before any breakdown**, so the concurrency framing is
-established before a reader starts summing sub-tables and re-deriving §17.0's banned figure for
-themselves.
-
-### 17.7 The wall-time source record
-
-While computing §17.2, record for the footer (§19.4):
-
-- **which sources contributed** — span intervals, ledger run windows, or both;
-- **how much of the union came from run time no span covered** — the direct measure of how
-  instrumented the scope actually was.
-
-A scope with runs and no spans is the **degenerate case of §17.2's single rule**, not a separate code
-path, and the substitution is **never silent**: the footer names the source either way.
-
+<!-- ptp-telemetry:anchor id=report-breakdowns-stub class=substrate -->
 ## 18. Breakdowns, top-N time sinks, and the per-iteration review view
 
-Everything in this section is a **grouping over rows the earlier layers already derived** — no new
-analysis, no new column, no new collection. All of it is printed **after** §17's headline numbers
-(§17.6).
+**Relocated** to **`skills/ptp-telemetry-report/SKILL.md`**, which keeps this section's `§18.1`–`§18.4` numbering; the anchor id `report-breakdowns` moved there with it.
 
-### 18.1 The general breakdown — phase × `agent_role` × `span_kind`
-
-One table, keyed on the three columns together, reporting each cell's summed `duration_ms` (and its
-row count). This is the general-purpose view: it answers "which phase, run by which kind of agent,
-spent its time on LLM calls versus tools?" without needing a second table per question.
-
-### 18.2 Tool time by `tool_class`
-
-Within tool time, a sub-table grouped by `tool_class` — the literal request answered as a
-**grouping**, because slice 2 already derived the column (§10.6). Its buckets are `search`, `read`,
-`write`, `build_test`, `git`, `agent`, `other`, so **repository-search time and build/test time are
-directly readable as two separate figures** even though both arrive as `Bash`.
-
-**Plus one row the mapping table does not name: `(unclassified)`.** §10.6 leaves `tool_class`
-**empty** whenever `tool_name` is empty, while §17.1 counts a row as tool work on its `span_kind`
-alone — so a timed tool row with no tool name is real tool time belonging to none of the seven
-buckets. Those rows get their own explicitly labelled row here (and are eligible for §18.3's
-slowest-`tool_class` list under that label). **The sub-table therefore sums exactly to §17.1's tool
-figure**, which is the point: a breakdown that quietly totals less than the headline it decomposes
-teaches a reader to distrust both, and "the rows are there but in no bucket" is precisely the kind of
-silent shortfall §19's footer exists to prevent — except that here it is avoidable outright rather
-than merely disclosable. `(unclassified)` is **never** merged into `other`: `other` means *classified
-as none of the above*, a genuinely different fact from *not classifiable at all*.
-
-### 18.3 Top-N time sinks — three lists, `N` = 10
-
-`N` is **10 for all three lists and is stated in the output**, so a truncated list never reads as
-exhaustive. A list with fewer than `N` entries is simply shorter — never padded.
-
-1. **Slowest individual spans** — by `duration_ms`, **populated durations only**. A row whose
-   `duration_ms` is empty is **not ranked at all** rather than sorted as a zero: empty is not zero
-   anywhere in this skill (§10.2), and a "slowest" list is a ranking, which an untimed row cannot
-   join. Ties are broken by row order (§17.5), so the list is deterministic.
-2. **Slowest `tool_class`** — by total time, from §18.2's table.
-3. **The costliest *repeated* identical tool call** — see below.
-
-**All three lists are ordered deterministically to the last row, including at the cutoff.** List 1
-breaks ties by row order (above). Lists 2 and 3 aggregate rows, so no single row order applies to
-them: they break a tie in **total time** by the **key itself, ascending** — the `tool_class` name
-for list 2, the full key string for list 3 — comparing by Unicode code point. Aggregate lists need
-this stated as much as the row list does: `N` is a **cutoff**, so a tie straddling rank 10 decides
-which entries a reader sees at all, and leaving that to an implementation would mean the same store
-printing different top-tens.
-
-**The costliest repeated identical tool call.** Its key is `tool_name` together with the **preserved
-command prefix**; **repetition is the *filter*** (only keys occurring **at least twice** are
-eligible) and **total time — count × mean duration — is the *ranking***, with the **count printed
-alongside the total** so the repetition stays visible in a list ordered by something else.
-
-**Only occurrences with a populated `duration_ms` participate — in the count, in the mean, and in
-the total alike.** An empty duration is never zero and is never imputed from the mean (§10.2,
-§17.1), so a row without one is not timed work and cannot be ranked; counting it while excluding it
-from the total would silently divide a real sum by an inflated count and *understate* the very sinks
-this list exists to surface. The consequence is stated: the printed count is the number of **timed**
-occurrences, `total = count × mean` is therefore just the sum of those durations, and a key with
-fewer than two timed occurrences is **not eligible** even if it appeared more often.
-
-**The list is named for cost, not for repetition.** A raw-count ordering and a total-time ordering
-are *different lists*: a call repeated twice for four minutes genuinely should outrank one repeated
-two hundred times for two seconds, so labelling the output "most-repeated" would describe the
-ordering it deliberately does **not** use.
-
-**Key resolution against the authoritative inputs, stated rather than assumed.** §17.4 forbids
-reading `raw/`, and the 26-column `spans.csv` (§10.1) carries **no** Bash command text — that value
-is raw-only (§10.5). So the key is `tool_name` plus the command prefix **only where the derived
-input supplies one**; where it does not, the report keys on `tool_name` + `tool_class` and **says
-so in the list's heading**, rather than silently presenting a coarser bucket as an identical call. A
-later additive column carrying the prefix would sharpen the key without changing the filter or the
-ranking rule.
-
-**And the degraded list is renamed, not merely footnoted** — because `tool_name` + `tool_class` is a
-**class**, not an identity: forty different `Grep` calls, or every `Bash` command that happens to be
-a build, collapse into one row that repeated no *identical* call at all. Printing that row under the
-heading "costliest repeated **identical** call" would be a plausible wrong conclusion drawn from a
-correct number — this change's own failure mode, in the one list most likely to drive an action. So
-where the key is degraded the list is headed **"costliest repeated tool *class*"** and names the key
-it actually used and why; the word *identical* appears **only** where the key genuinely establishes
-identity. Today's 26 columns supply no prefix, so the degraded heading is the one a reader sees —
-stated here rather than left to be inferred from the absence of a column.
-
-**Why this list exists.** `ptp-review-loop` runs up to `review.maxIterations` and **each iteration
-starts cold**, so the same `Grep`, the same `Read`, the same repository survey is re-run every
-time — ptp's characteristic waste pattern. Paired with §18.4 it turns "the review loop feels slow"
-into "iteration 4 cost six minutes, most of it re-running searches iteration 3 already ran".
-
-### 18.4 Review-loop cost per iteration
-
-**Which runs this view covers, stated before how they are grouped.** Only runs whose `command` is a
-**review-family command** — `/ptp:review*` or `/ptp:codex-review*` — are eligible, because those are
-exactly the commands `ptp-review-loop` drives under `review.maxIterations`. Every other command's
-runs appear in **no** per-iteration view: the grouping rule below would happily number three
-`/ptp:apply` runs "iterations 1–3" and compare them against a review cap that says nothing about
-them, manufacturing a sequence and a flag out of unrelated work. Note the eligibility is keyed on
-the **`command`**, not on §3.2's `phase`, because the plan-, PRD-, and brainstorm-kind review loops
-map to those phases while still running under the same cap.
-
-**Iteration numbers are derived, and the report says so.** `ptp-review-loop` keeps its counter in
-conversation state and **never persists it**, so no recorded field carries an iteration number. The
-reconstruction:
-
-1. **Group** ledger runs sharing **change id**, **`command`**, **`phase`**, and **`agent_label`**.
-2. **Order** the group by run **`t_start`**, ties broken by the run's **line position in
-   `runs.ndjson`** — the ledger is append-only (§4), so line position is a genuine total order and
-   two runs opened in the same millisecond still number deterministically. Without the tie-break,
-   two implementations could hand the same runs different iteration numbers, and with them different
-   per-iteration totals — the same failure §17.5's row order closes for spans.
-3. **Number** the members in that order — iteration *n* is the *n*th run of the group.
-
-**Spans join an iteration through the ledger run they are already attributed to** — via `run_id`,
-never by re-joining on time. Slice 2 already performed that join (§11); a second one could disagree
-with it, and two contradictory attributions of the same span is worse than one imperfect one.
-
-**Each iteration reports BOTH its aggregate work time AND its wall time, each labelled**, alongside
-the **configured `review.maxIterations` cap** (resolved by `skills/ptp-review-loop/SKILL.md`'s
-forgiving resolver, default 5). A single unlabelled "cost" number is forbidden: it would let a reader
-treat work time and elapsed time as the same quantity — the exact conflation §17 exists to prevent.
-
-**The loop-boundary problem is surfaced, never solved.** The ledger records **no loop-invocation
-id**, so nothing separates "one loop that ran five iterations" from "two loops that ran two and
-three" over the same change. Every available fix is a guess — an idle-gap threshold picks an
-arbitrary number of minutes, a session heuristic reads a boundary the store never recorded — and both
-would produce confident boundaries nobody can verify. **So the report invents none.** Instead, when a
-group holds **more runs than the currently configured `review.maxIterations`** permits, it flags **in
-the footer** (§19.5) that the group **likely** spans more than one loop invocation and that its
-numbering is **approximate**.
-
-**"Likely", never "proven".** The cap is read **at report time**; the ledger records no cap in force
-when those runs happened; a cap **lowered since** would trip the comparison on a single valid loop.
-Asserting proof would be the report doing precisely what it warns its readers against — turning a
-suggestive number into a confident claim.
-
-**Overlapping run windows within one group** are numbered by `t_start` and **flagged in the footer**
-(§19.5): a sequential loop should not produce overlaps, so an overlap means a **retry or a concurrent
-invocation**, and presenting either as "iteration 3 then iteration 4" would invent a sequence.
-
-**"Overlap" means a *positive-duration* intersection.** Windows are closed intervals, so one run's
-`t_end` can equal the next run's `t_start` exactly — that is a loop running back to back, the most
-*sequential* thing the ledger can record, and flagging it would say the opposite of what the flag
-means. Touching endpoints are therefore **not** an overlap; only a strictly positive shared extent
-is.
-
+<!-- ptp-telemetry:anchor id=data-quality-footer-obligation class=substrate -->
 ## 19. The data-quality footer — mandatory, never suppressed
 
 **Every report ends with this footer, and it is never omitted, shortened, or suppressed** — not on an
@@ -2137,237 +1881,23 @@ only the footer still sees every caveat**.
 into *"I have wrong conclusions"* — which is **worse than no report at all**. Every number in the
 body is only as trustworthy as the footer says it is.
 
-### 19.1 Store-wide unattributed span count
+`§19.1`–`§19.5` moved to **`skills/ptp-telemetry-report/SKILL.md`** under those same numbers, taking the anchor id `report-footer-items` with it; the obligation above is substrate and stays here.
 
-The row count of `<telemetry.root>/_unattributed/spans.csv`, **labelled store-wide**.
-
-It is store-wide and not this epic's, because a record that resolved to **no run** has **no epic** to
-belong to (§11.4). So the footer states that a large count means the ledger join is broken
-**store-wide**, and therefore that this epic's figures **may** be understated by an unknown amount.
-It **never asserts that they are**: nothing is known about which epic those records came from, and
-claiming they are this epic's would attribute records to an epic precisely where attribution failed.
-
-Per §17.4, this count is the **only** use of that store — no record from it reaches any body figure.
-
-**Unchanged by `analyze`.** `analyze` (§23) reads `<telemetry.root>/_unattributed/raw/` as part of the
-whole-store raw superset, but it produces **no per-epic figure**, so the failure this exclusion
-prevents cannot occur there. `report`'s rule above is untouched: a separate reader, **not an
-exception** (§23.9).
-
-### 19.2 Unclosed run count
-
-Runs with an open line and no close line (§4's reader-derived `unclosed`). Their count is reported,
-and they are **excluded from duration aggregates** — a missing `t_end` is **never** treated as a
-zero-length window, and an unclosed run contributes no interval to §17.2's union.
-
-**The exclusion is of the run, never of its spans** (§17.1): a span attributed to an unclosed run
-still contributes its own duration to aggregate work time and its own interval to the wall union,
-because it is a complete record of work that actually happened. Excluding those spans would
-understate the report most severely when it is most useful — mid-run, where open runs are the
-expected state.
-
-### 19.3 The Codex line — two independent inputs, both reported
-
-"No `cli=codex` rows" is compatible with several different situations, and **a single ordered ladder
-over that one signal cannot separate them** — an early branch swallows the cases the later branches
-exist for, leaving "the slice has not landed" unreachable. So **two independent inputs are read and
-both are reported**:
-
-**Configuration state** — does the **installed** `skills/ptp-telemetry/SKILL.md` carry a Codex
-telemetry contract? *Absent* ⇒ `0032_06_codex-telemetry` has not landed. *Present in the coarse
-ledger-only form* ⇒ it landed and deliberately configures **no** Codex span collection. *Present in
-the span-collecting form* ⇒ Codex spans are expected.
-
-**Ledger evidence** — does the scope contain `cli=codex` **runs**? Slice 1 brackets **every**
-`codex exec` shell-out with a ledger run (§6.2), so this answers *"did Codex run here?"*
-independently of whether any span was ever collected. That independence is the whole point: it is
-what distinguishes "Codex ran and told us nothing" from "Codex never ran".
-
-The footer states the **resolved combination**:
-
-| Configuration state | `cli=codex` ledger runs | The footer says |
-|---|---|---|
-| not configured (slice not landed) | none | Codex telemetry is not configured, **and** Codex did not run in this scope |
-| not configured (slice not landed) | present | Codex telemetry is not configured; Codex **ran**, and its ledger wall time is reported |
-| coarse ledger-only | none | Codex time is ledger wall time by design; Codex did not run in this scope |
-| coarse ledger-only | present | Codex time is ledger wall time by design, and that wall time is reported — a **steady state, not a gap** |
-| span-collecting, spans present | present | Codex data is present |
-| span-collecting, no spans | present | Codex ran and emitted no telemetry; reuse `0032_06_codex-telemetry`'s degradation label **verbatim** when it publishes one, and report the ledger wall time |
-| span-collecting | none | Codex did not run in this scope — **not** a data-quality problem |
-
-"Not configured" and "did not run" are stated as **two separate facts** when both hold, never
-collapsed into one statement that leaves the other unknown.
-
-**Whenever the scope holds `cli=codex` ledger runs, their ledger wall time is reported regardless of
-which row applies**, so Codex time is never simply missing. Under coarse ledger-only attribution that
-**is** the Codex figure, permanently — which needs no separate machinery, because §17.2's rule that
-every closed run's window joins the union already covers it, mixed scopes included.
-
-**Absence is reported the same way whether temporary or permanent**: the reason is stated without
-implying that Codex rows are *pending*, so a store that will never contain a `cli=codex` span reads
-as a valid steady state rather than a gap awaiting a fix.
-
-### 19.4 Wall-time sources, uncovered share, and graph repairs
-
-- **Which sources produced the wall figure** — span intervals, ledger run windows, or both (§17.7).
-- **How much of the union came from run time no span covered** — the direct measure of how
-  instrumented the scope actually was.
-- **The §17.5 diagnostic's repair counts** — dropped edges, duplicate `span_id`s, broken cycles.
-  **All three are printed on every report that built the diagnostic, including as `0`.** A count
-  that vanishes when it is nil is indistinguishable from a count that was never taken, which is
-  exactly the "no data reads as good news" failure this footer exists to prevent — and it is the
-  general rule of §19 ("not when every item is nil") rather than an exception to it. The **one**
-  case where the three counts are replaced rather than printed is the diagnostic being **omitted**
-  for want of usable parent links, where the statement of omission takes their place — and says so.
-
-### 19.5 Review-loop flags
-
-- **Overlapping run windows** within a group (§18.4) — flagged as a **retry or concurrent
-  invocation**, not renumbered into an invented sequence.
-- **A group larger than the currently configured `review.maxIterations`** — flagged as **likely**
-  spanning more than one loop invocation, with the numbering marked **approximate**, worded as
-  likelihood and never as proof (§18.4).
-
+<!-- ptp-telemetry:anchor id=report-write-posture-stub class=substrate -->
 ## 20. Write posture, and the two empty cases
 
-### 20.1 A default `report` writes nothing and deletes only aged raw files
+**Relocated** to **`skills/ptp-telemetry-report/SKILL.md`**, which keeps this section's `§20.1`–`§20.4` numbering; the anchor id `report-write-posture` moved there with it.
 
-A default `/ptp:telemetry report [selector]` **prints to the session**. It **creates no file and
-modifies no existing file**. It runs **no git command, no `ptp-branch-guard`, and no
-`openspec validate`** — the same exemption `status` holds (§8).
-
-**The one exception, stated every time the posture is stated:** §21's retention deletes aged files
-under the reported epic's `raw/`. That is a **default** effect, not an opt-in one.
-
-**Therefore the phrase "read-only" is never used for `report` — anywhere, in any form.** Not in this
-skill, not in `commands/telemetry.md`, not in the spec, not in the README, and **not qualified**:
-"read-only (except pruning)" is worse than useless, because readers keep the adjective and drop the
-parenthesis. The posture is always worded:
-
-> **creates no file, modifies no existing file, and deletes only aged raw files.**
-
-(`status`, by contrast, deletes nothing and **is** read-only. The two commands' postures are
-deliberately worded differently because they genuinely differ.)
-
-**`analyze` (§23.8) deletes nothing either, so this posture is unchanged and NOT weakened by it.**
-`report`'s wording above stands word for word, and **the phrase "read-only" remains forbidden for
-`report`** — for the reason restated above: a **default** `report` deletes aged raw files
-irreversibly. `analyze`, which creates no file, modifies no existing file, and **deletes nothing**,
-may be described as read-only. The two postures are stated separately precisely so a later edit
-homogenises neither into the other. **`analyze` is a separate reader, not an exception** (§23.9).
-
-### 20.2 The optional `report.md`
-
-Only when the literal `write` keyword is given (§16.2) does `report` write
-**`<telemetry.root>/<epic>/report.md`** — **that file and nothing else**, keyed on the **resolved**
-epic. Under `epic:all` that is one `report.md` per resolved epic, each in its own epic directory;
-figures are still never merged (§16.1). The keyword is stripped before the selector sees the
-argument, so the selector grammar is untouched.
-
-**A scope with no epic writes nothing, and says so.** The path is keyed on the resolved epic, so a
-**legacy / unprefixed** id (§16.1) — which has no four-digit epic segment and therefore no
-`<telemetry.root>/<epic>/` — leaves no path to construct. `report write <legacy-id>` therefore
-**writes no file** and **reports that it wrote none**, alongside the same "no telemetry for this
-scope" statement §20.3 gives the run anyway. It is **not** an error, and no directory is invented
-for it: creating some fallback path would put a report where no store exists and where nothing would
-ever look for it. Under `epic:all`, each epic-prefixed scope still writes its own `report.md`; only
-the legacy members write nothing.
-
-### 20.3 An empty scope is stated, never zeroed
-
-When the resolved scope holds **no telemetry at all** — no store, no `spans.csv`, no ledger runs —
-the report **states that** and stops. It does **not** raise an error, and it does **not** print a
-table of zeros: a zero that a reader could mistake for a measurement is exactly the failure mode this
-whole layer exists to close. The §19 footer still renders.
-
-The related-but-different case — **spans exist but no ledger run does**, so every record landed in
-the store-wide `_unattributed/` — is **not** an empty scope: the body figures are legitimately empty
-for this epic and §19.1's store-wide count makes the broken join impossible to miss.
-
-### 20.4 `report` works with collection turned off
-
-When `telemetry.mode` resolves to `off` but a store exists from earlier runs, `report` **reads it and
-notes that collection is currently off** — it never refuses. The mode gates **writes** (§5); it does
-not gate reading data that has already been recorded. Retention still applies, because it is a
-property of `report` rather than of collection.
-
+<!-- ptp-telemetry:anchor id=retention-stub class=substrate -->
 ## 21. Retention — the one deletion in this skill
 
-`telemetry.retentionDays` (§1, default **30**, same forgiving reader as the other telemetry keys)
-deletes aged files under **the reported epic's `raw/`**, during **`report`** and nowhere else.
-
-**"And nowhere else" is unchanged by `analyze`.** `analyze` (§23) reads `raw/` — it is the first
-reader of that store outside `export` — and prunes **no** file, so it adds **no second deletion
-point** and this section gains **no** exception. **`analyze` is a separate reader, not an exception**
-(§23.9).
-
-### 21.1 The candidate rule, stated exactly
-
-Because the deletion is **irreversible and happens on a default invocation**, the rule is stated
-exactly rather than as "older than the window". Vagueness in an irreversible default deletion is not
-a documentation gap — it is a data-loss bug waiting to be written. A file under
-`<telemetry.root>/<epic>/raw/` is a candidate **only when both** hold:
-
-1. **Its name parses as the receiver's `YYYYMMDD.ndjson` form** (§9.7). A name that does not parse is
-   **never deleted, whatever its modification time** — an unrecognised name means the pruner does not
-   know what it is looking at, and deleting on a guess is the one outcome that cannot be undone.
-2. **Its parsed date is *strictly earlier* than the cutoff**, where
-   `cutoff = today − telemetry.retentionDays`, computed on **§9.7's calendar-date basis** — the one
-   the writer names files by, read from there rather than restated here. Strictly earlier means the
-   **boundary day is retained**: a retention of `30` keeps **30 days plus today**, never 29.
-
-**"The file the receiver may be appending to right now is never a candidate" is a *consequence* of
-those two rules, not a separate assertion**: today's date is never strictly earlier than the cutoff
-for any positive retention value, and the reader guarantees the value is positive.
-
-### 21.2 What is never pruned
-
-- **`runs.ndjson`, `runs.csv`, and `spans.csv` — never.** They are small, and `spans.csv` is the
-  shareable artifact.
-- **Anything under the store-wide `<telemetry.root>/_unattributed/` — never.** That store belongs to
-  **no epic** (§2, §11.4); a *per-epic* `report` has no mandate to delete a store shared by every
-  epic.
-- **Any other epic's `raw/`.** Pruning is scoped to the epic being reported — under `epic:all` (and
-  under the empty argument, which §16.1 defines as `epic:all`) that is each reported epic in turn,
-  never a single epic standing in for the rest.
-- **Nothing narrower than an epic, either.** A **story**-scoped report (§16.1) narrows its *figures*
-  to the resolved `change_id` but prunes its **whole epic's** `raw/`: a raw file holds every story's
-  records for a day and the raw store is append-only and immutable (§12.1), so a story-scoped
-  deletion would mean rewriting an immutable file. Epic-level pruning is therefore the only
-  implementable rule, and it is **stated** rather than left to be discovered, because it is the one
-  effect of `report` whose reach exceeds its reported scope.
-- **Nothing at all outside `report`.** **No ptp pipeline command triggers pruning** — not `/ptp:apply`,
-  not `/ptp:review`, not the fan-out. Deletion happens while **a human is looking at the data**, never
-  as an invisible side effect of an unrelated command. **`analyze` is not an exception to this
-  bullet — it is covered by it:** it reads `raw/` and prunes nothing, so pruning still happens during
-  `report` and nowhere else, and no second deletion point exists (§23.8).
-
-### 21.3 The `export` consequence, stated rather than papered over
-
-Slice 2's `export` is **always a global re-derivation from `raw/`** (§12.2). So the **next `export`
-after a prune rewrites `spans.csv` without the pruned rows.** Pruning does not merely limit how far
-back a rebuild can reach — it removes that history from `spans.csv` at the next `export`.
-
-"`spans.csv` is never pruned" is therefore true of **the pruning step** and **not** of the store's
-eventual contents, and that distinction is stated **wherever retention is documented** (this skill,
-`skills/ptp-config/SKILL.md`, `commands/config.md`, and the README). Stating only "the CSV is never
-pruned" would leave a user with the exact opposite practical expectation, and they would discover the
-truth by losing data.
-
-Note the ordering this creates, which is the honest one: because `report` reads the **derived** files
-and never `raw/` (§17.4), a prune **cannot change the numbers the same command just printed**, and it
-has no effect on any report until the user runs `export`.
-
-### 21.4 A misconfigured value prunes on the default, not on nothing and not on the value
-
-A non-integer, zero, or negative `telemetry.retentionDays` resolves to **30** via §1's forgiving
-reader, and pruning then runs **on that 30-day window** — never on the unparseable value, and never
-"not at all". The reader **never throws and never STOPs a command**.
+**Relocated** to **`skills/ptp-telemetry-report/SKILL.md`**, which keeps this section's `§21.1`–`§21.4` numbering; the anchor id `retention` moved there with it.
 
 ---
 
 # The Codex layer (`0032_06_codex-telemetry`)
 
+<!-- ptp-telemetry:anchor id=codex-telemetry class=substrate -->
 ## 22. Codex telemetry — the repository-scoped mechanism
 
 Everything in this section implements the outcome `0032_05_codex-telemetry-scope-spike`'s **decision
@@ -2408,6 +1938,7 @@ Two record-level values carry the whole design, and both arrive as OTLP **resour
 Both are read from the **resource** scope specifically, so a span- or log-level attribute of the same
 name cannot shadow either one.
 
+<!-- ptp-telemetry:anchor id=codex-canonical-rendering class=substrate -->
 ### 22.2 The canonical rendering — pinned once
 
 This is the single definition `setup`'s writer, `status`'s parser, and the README example all consume. A
@@ -2449,6 +1980,7 @@ and, **only when the trace signal is opted in**, one further argument of the sam
 - **The credential is read live at construction time**, so the wiring can never carry a *stale* value.
   What it can be is **absent**, which is the delivery-breaking state §22.6 check 4 exists for.
 
+<!-- ptp-telemetry:anchor id=codex-consent-record class=substrate -->
 ### 22.3 `setup`'s second, separately-consented Codex step
 
 `/ptp:telemetry setup` gains a **second** step, consented **separately** from the Claude-side
@@ -2661,6 +2193,7 @@ Two further advisories are recorded without work: **A-5** — `otel.span_attribu
 `user.account_id`, a `prompt` attribute, and `arguments` / `output` **even with**
 `otel.log_user_prompt = false`, so what the receiver retains is a deliberate decision.
 
+<!-- ptp-telemetry:anchor id=codex-status-preflight class=substrate -->
 ### 22.6 The `status` Codex preflight — four read-only checks
 
 `status` reports four checks. **None invokes Codex and none writes any file.**
@@ -2696,6 +2229,7 @@ is emitting or that the receiver is accepting. It is **not** described as detect
 batches*: it detects a configured value that *will* be rejected, which is a weaker and different
 statement, and conflating them would let a green preflight coexist with an empty store.
 
+<!-- ptp-telemetry:anchor id=codex-degradation-ladder class=substrate -->
 ### 22.7 The degradation ladder, and why still no gate
 
 `skills/ptp-codex-mode/SKILL.md` already resolves `codex.mode` ∈ `auto | required | off`, already decides
@@ -2729,638 +2263,14 @@ zero Codex time when Codex ran normally** — worse than no report at all.
 
 # The analyze layer (`0039_01_telemetry-analyze-engine`)
 
-## 23. `analyze` — the predefined analysis engine
+<!-- ptp-telemetry:anchor id=analyze-methodology class=leaf owner=analyze -->
+## 23. `analyze` — moved to `skills/ptp-telemetry-analyze/SKILL.md`
 
-`analyze` answers *"where did the time actually go — inside subagents versus the main agent, by model,
-by tool, by bash command?"* over the **raw** span store, and it answers it with **predefined analysis
-code** rather than with a model re-reading and re-aggregating the store on every invocation.
-
-**That the model relays this output instead of re-deriving the parsing and aggregation IS the
-requirement, not an optimisation of it.** Hand-derivation costs tokens and wall-clock time on every
-single use, and two hand-derivations over the same store are not guaranteed to agree — the exact
-reproducibility problem §10.7 exists to prevent for the mapping tables.
-
-§23 owns this methodology **wholly**. Nothing in §16–§21 governs `analyze`, and `analyze` changes no
-figure `report` prints (§23.9).
-
-### 23.1 What ships, and why it is a second script
-
-```
-node <plugin>/scripts/ptp-telemetry-analyze.js --repo <repo root> [--format=json]
-```
-
-- **Dependency-free.** Node standard library only — `fs`, `path`, and `os` (the last for
-  `os.homedir()` alone, which the global config layer of §1 needs and which `scripts/ptp-otel-sink.js`
-  resolves the same way, as `PTP_HOME_DIR || os.homedir()`). No `package.json`, no install step.
-- **Flag surface.** `--repo <path>` — the internal path the skill passes — and `--format=json`. **Every
-  other flag, and every positional argument, is refused with exit code `2`**, mirroring the stray-flag
-  whitelist `ptp-otel-sink.js` already applies to `export`: an invented or misspelled flag must never
-  silently run a different analysis. Both `--format=json` and `--format json` are accepted.
-- **Exit codes.** `0` on a rendered report — *including* the empty-store statement, because an empty
-  or degraded store is never an error — `2` on an argument refusal, `1` on an unexpected internal error.
-- **Windows Git Bash safe.** Every path is built through `path`; nothing is shelled out; no glob is
-  expanded by a shell.
-- **Line endings and cache healing need no edit.** It inherits `.gitattributes`' `scripts/*.js text
-  eol=lf` pin and `skills/ptp-workflow-cache-heal/SKILL.md`'s `scripts/*.js` heal glob — **both already
-  match by glob, and neither file is edited.**
-- **Memory is proportional to the record count, not constant.** Parsing is line by line, but the
-  parsed records are retained for the run: nesting classification is inherently two-pass — every
-  wrapper window must exist before any leaf can be tested against it (§23.4) — so a single streaming
-  pass cannot produce the split. This section claims no size-independence.
-
-**Why a second script rather than a verb on `scripts/ptp-otel-sink.js`.** §10.7 binds **one**
-executable copy of the §10.4 OTel→column table and the §10.6 `tool_class` table, and names the sink as
-that copy. `analyze` consumes records those tables have **already** mapped — it reads `span_kind`,
-`tool_name`, `tool_class`, `model`, `duration_ms`, `bash_command`, and `raw_span_name` as *given* and
-derives none of them — so a second file creates **no** second copy and §10.7's guarantee is left
-untouched rather than needing to be re-argued. If a record's `tool_class` is wrong, the fix is `export`
-(§10.6's stated re-derivation path), never a second classifier here. The sink is the file every
-telemetry change already has to touch; `analyze` is a reader with one job, and keeping it separate is
-what lets a future reader hold it in context whole.
-
-The one shared **primitive** — §10.6's segment split and head normalisation, reused by §23.6's
-bash-by-command key — is a named, permitted exception and is **not** a re-derivation of `tool_class`:
-see §23.6.
-
-### 23.2 Source selection, and the CSV degradation
-
-1. **The raw superset, preferred.** Every `<telemetry.root>/<dir>/raw/*.ndjson` for every directory
-   under `<telemetry.root>` — the per-epic stores **and** `_unattributed/`. Each line is a
-   `{ ptp_entry_kind, ptp_entry_version, record }` envelope (§9.6); the `record` is taken and the
-   envelope discarded. Raw is preferred because `bash_command` and `raw_span_name` exist **only** there
-   (§10.5), and they are what §23.6's bash grouping and §23.3's wrapper key depend on.
-2. **`spans.csv`, only when step 1 yields no file at all**, parsed RFC-4180 with a leading BOM
-   tolerated and a stray duplicate header skipped (§9.7 permits both).
-3. **Neither** → the report **states that no telemetry exists and stops** — never a table of zeros
-   (§20.3's posture, applied to `analyze`). **The footer still renders.**
-
-**Parsing is total — it never throws.** A line that is empty, is not JSON, or is JSON but not an
-object carrying a `record` object is **skipped and counted**, and the **interior** and **trailing**
-cases are counted **separately**, because §12.4 draws exactly that line (an unparseable *trailing* line
-is skipped; a malformed *interior* line is skipped *and counted*) and one combined tally would not be
-comparable with any other reader of the same store. An envelope whose `ptp_entry_kind` is not
-`ptp.span_record`, **or whose `ptp_entry_version` is not `1`**, is skipped under a third tally and
-**never unwrapped for its `record`**, so a future entry kind sharing the file cannot enter a total
-silently. Those two values are pinned exactly rather than called "supported", which is a judgement two
-implementations would resolve differently. §12.4 states the **kind** rule and the sink already
-implements it on read; the **version** half is `analyze`'s own addition — the sink declares
-`ENTRY_VERSION` and writes it but does not test it on read, so no existing check is being credited. A
-CSV row whose field count does not match the header is skipped under its **own** tally, never merged
-with the raw store's, because the two sources are never read in one run and a shared counter would be
-unattributable.
-
-**Under the fallback, output 5 is OMITTED with its reason printed in its place** — never approximated
-from a coarser key. **The reason corrects the premise rather than repeating it:** `spans.csv` never
-*dropped* the command text; the 26-column schema never carried it, and it is **raw-only by design**
-(§10.5). A reader told the field was "lost" would go looking for a regression that never happened.
-
-**The scope consequence, stated rather than left implicit.** Source selection is all-or-nothing: **one
-surviving raw file anywhere suppresses the CSV path for the whole store.** Because §21 prunes a
-reported **epic's** `raw/` and §21.2 never prunes `spans.csv`, an aged epic directory routinely holds
-recent `raw/` *and* older CSV-only history, and an epic whose `raw/` has aged out entirely becomes
-invisible. So for a **pruned epic directory** `analyze`'s scope is the **raw-retained window**, not
-that epic's whole recorded history.
-
-**The limit of that narrowing, in the same breath.** §21 prunes only the epic a `report` was actually
-run for, and §21.2 prunes **nothing** under `<telemetry.root>/_unattributed/`. An unreported epic's
-`raw/` and the whole unattributed `raw/` therefore keep their **complete** recorded history. §23.2
-**must not** claim, or let a reader infer, that the analysed input — or its size — is retention-bounded
-in general.
-
-**The two sources are NOT merged**, and that is a decision: they overlap across the retained window,
-the raw record carries no key identifying its projected CSV row, and §17.4 already establishes that the
-two intentionally hold different histories. Merging without a deterministic dedup rule would
-double-count exactly the window `analyze` is most often run over — a worse failure than a narrowed
-scope.
-
-**The footer separates fact from inference.** It always names two lists: every directory holding a
-`spans.csv` and **no** `raw/` (a **certain** exclusion — it contributed nothing), and **every**
-directory whose `spans.csv` went unread, **including** those that do hold `raw/`. The second is
-reported as exactly what it is — *these files were not read* — with **no** inference that records were
-omitted, because §9.7 appends the raw entry and the CSV row in the **same step** for every record, so
-an unread `spans.csv` may be wholly duplicated by the `raw/` beside it. The second list is named at all
-because a directory with recent raw and an older CSV is not CSV-only, so the first list would never
-mention it, and that is the case most likely to make a narrowed figure look complete.
-
-**The narrowing statement is conditional, and is made at the strength its evidence supports.** Three
-cases, and the footer says which one it is in — never a stronger one:
-
-1. A directory holds a `spans.csv` and **no** `raw/` → a **definite** exclusion; the footer states
-   without hedging that the scope is the raw-retained window rather than all recorded history.
-2. Otherwise, a directory retention **can** prune — a per-epic directory, never `_unattributed/` — has
-   an unread `spans.csv` → the footer says history **may** be narrowed, with the mechanism. *Prunable
-   is not pruned*, and §9.7's paired append means an unread CSV may hold nothing its `raw/` lacks;
-   `analyze` can observe neither.
-3. Otherwise → the footer states that **no** directory's history is known **or able** to be excluded by
-   retention.
-
-The narrowing statement is **never** made on the strength of `_unattributed/` alone, which §21.2 never
-prunes. Printing a caveat where nothing was narrowed asserts a limitation that did not occur — the same
-class of unsupported claim as printing a figure that was never measured, in the opposite direction —
-and stating case 2 in case 1's wording is that error one notch quieter.
-
-**"Whole store" means *not epic-scoped*. It has never meant *not retention-bounded*** for a pruned epic
-directory. `analyze` is store-wide because it is an instrument-quality view of *how work is
-distributed*, not an accounting of *whose epic spent what*: §17.4's exclusion of `_unattributed/` from
-`report`'s **body** figures exists because folding unattributed rows into **an epic's** figures would
-invent an attribution and count the same rows into every epic at once, and `analyze` has **no per-epic
-figure** for either failure to occur in.
-
-### 23.3 The wrapper set, and the exclusion invariant
-
-```
-isWrapper(r)  ≡  r.tool_name === 'Agent'
-              ∨  r.tool_name === 'Workflow'
-              ∨  r.raw_span_name === 'claude_code.subagent_completed'
-```
-
-**Every wrapper row is excluded from EVERY leaf total, and wrapper time is reported SEPARATELY**, under
-its own label, with a per-key count.
-
-**Why, stated rather than assumed.** An `Agent` span's wall time is **gross**: it measures the whole
-contained subagent. Across every measured window in the reference store the sum of the non-wrapper LLM
-and tool spans inside a wrapper's own window came to **96–102% of that wrapper's own duration** (ratios
-of 1.000, 1.017, 0.960, 0.998, 1.012, 0.969). **The ratio is stated in that direction —
-contained-work over wrapper duration — because that is the quantity measured**; inverting it silently
-changes the figure. Counting a wrapper alongside its contained leaves therefore roughly **doubles** that
-subagent's measured work.
-
-- **`Workflow` is in the set** because `workflows/ptp-full-apply.js` also spawns subagents, so a
-  `Workflow` row can be a container by exactly the same mechanism. Observed `Workflow` durations are
-  small (4 ms, 6 ms — dispatch only), so including it costs almost nothing and protects the case where
-  it does wrap.
-- **`claude_code.subagent_completed` is keyed on `raw_span_name`** because those rows carry an **empty
-  `tool_name`**; a predicate keyed on `tool_name` alone misses every one of them.
-
-**That disjunct earns its place through the wrapper WINDOW, not the leaf exclusion — state it that way
-so a later editor cannot delete it as redundant.** §10.5 retains `raw_span_name` **only** on rows that
-mapped to `span_kind = other`, and §10.3 maps `subagent_completed` to `other`, so `isLeaf`'s
-`(isLLM ∨ isTool)` clause already excludes every such row and would do so with the disjunct deleted.
-What the disjunct governs is the **wrapper interval union** §23.4 tests against, and the wrapper
-counts. Removing it changes **no** leaf total and silently disables containment for every background
-dispatch.
-
-**The twin is NOT a duplicate of its `Agent` row.** Against a **foreground** dispatch it reproduces the
-`Agent` row's window to within **5 ms** — measured start offsets of `−1, 0, 0, +1, 0, 0` ms and end
-offsets of `−5, −2, −2, −2, −2, −4` ms across six pairs, so it starts within a millisecond either side
-and always ends slightly **before** its `Agent` row. Against a **background** dispatch the `Agent` row
-records only the ~3 ms dispatch while the twin carries the subagent's **whole** wall time (measured
-pairs of 852,240 ms and 954,530 ms against 3 ms `Agent` rows). The twin is therefore the **only** row
-that bounds a background subagent at all. The two offset sets are quoted separately because §23.4's
-dilation rule depends on the **start** offset alone.
-
-> **The key is `tool_name` / `raw_span_name` and is NEVER `tool_class`.** §10.6 maps `Agent`,
-> `Workflow`, **and `Skill`** to `tool_class = agent`. Keying this exclusion on that bucket would strip
-> real `Skill` leaf work out of every total while claiming to remove double counting — a worse error
-> than the one being corrected.
-
-**Leaf rows are §17.1's kind sets, unchanged:** LLM is `llm_request` and `api_request`; tools are
-`tool`, `tool.execution`, and `tool_result`; a leaf is any non-wrapper row in either set. The reuse is
-load-bearing beyond consistency — the store emits **two** rows per tool call, a timed `tool_result` and
-a `tool_decision` that maps to `span_kind = other`, and these sets already exclude the latter, which is
-what stops `analyze` double-counting every tool call in the other direction.
-
-**Under the CSV fallback** `raw_span_name` does not exist as a column, so the third disjunct cannot
-fire and the footer states that the wrapper key ran **degraded**. Two figures then render
-**`unavailable`, never `0`** — the `subagent_completed` key count and the uncovered-window count of
-§23.4 — because a `0` would assert, from data that cannot establish it, that no such rows existed. The
-two rules are complementary rather than an exception to each other: **a count that was taken and came
-out zero prints `0`; a count that could not be taken prints `unavailable`, with its reason.** The
-wrapper **time and row count are likewise incomplete** and are labelled *known `Agent`/`Workflow`
-wrapper rows/time (incomplete — the CSV cannot identify `subagent_completed` rows)* in both output
-formats: suppressing the *count* does not license the *sum* built from the same missing rows to be
-printed as though complete. The footer additionally states the error's **direction** — the short
-background `Agent` interval survives while its long twin does not, so the CSV-fallback split is
-**understated on the inside-subagent column**.
-
-**The wrapper set is stated in exactly two places** — this section and
-`scripts/ptp-telemetry-analyze.js` — and **changing one is changing the other, in the same change**,
-the pattern §10.7 establishes for the mapping tables.
-
-### 23.4 Nesting detection, and naming the method
-
-**Method selection is per leaf, never store-wide.** A leaf is classified by **parent links** when it
-carries a non-empty `trace_id` and a `parent_span_id` that resolves to an in-scope span within that
-same trace, and by **timestamp containment** otherwise.
-
-**Eligibility is asymmetric, and stated so.** The leaf needs a `trace_id` and a resolvable
-`parent_span_id`; it does **not** need a `span_id` of its own, because it never has to be *found* — only
-to walk upward. A populated `span_id` is required only of the rows serving as **ancestors**, the
-identity targets an edge resolves against (§17.5's `(trace_id, span_id)` rule). Demanding one of the
-leaf too would divert otherwise-resolvable leaves to containment and yield a different split from
-identical data.
-
-**The walk's three exits are ordered, because unordered they collide:**
-
-1. On reaching a **wrapper** ancestor → **inside by parent links**, and **stop**. A dangling edge or a
-   cycle *above* that wrapper is irrelevant: the deciding evidence is already in hand.
-2. On reaching a **root** — an ancestor whose own `parent_span_id` is empty — having passed **no**
-   wrapper → **main-agent by parent links**, and stop, counted under the parent-links method count. A
-   complete wrapper-free chain is direct evidence in the other direction; diverting it to containment
-   would discard the better evidence for the worse and could place it inside merely because an
-   unrelated concurrent wrapper in the same session spans its `start_ts`.
-3. **Fall back to containment only when the walk ends UNRESOLVED** — an edge matching no in-scope span,
-   or a cycle. **Never a bare main-agent default.**
-
-**Why not a single store-wide switch.** *"If **any** record has a parent link, use parent links"* flips
-the entire store on one linked record, and every leaf without a resolvable chain then falls through to
-main-agent, because parent links have no containment fallback — silently moving work out of the
-inside-subagent column. A partially-linked future store (a new emitter, or a Claude Code build that
-starts populating links mid-file) is exactly the input that rule handles worst, and exactly the input
-this preference exists to accommodate.
-
-**Timestamp containment.** For each **`session_id`**, collect every wrapper row carrying **both** a
-usable `start_ts` **and** a usable `duration_ms` as the closed interval
-`[start_ts, start_ts + duration_ms]`, take the **union** per session, and mark a leaf **inside** when
-its `start_ts` falls within that union for **its own** `session_id`.
-
-- **Both fields are required of a wrapper**, and one missing either contributes **no** interval — it is
-  **not** folded in as a zero-length one, which would classify a leaf starting at exactly that
-  millisecond as inside-subagent on the authority of a wrapper whose extent is unknown. This is live
-  input: 10 of the reference store's 20 `Agent` rows are `span_kind = other` dispatch rows with a
-  `start_ts` and an **empty** `duration_ms`. Leaf intervals *do* tolerate a missing duration as
-  zero-length (§23.5), so the two constructions genuinely differ and are kept apart.
-- **The union is taken before the test**, which is what makes a nested or duplicated wrapper — an
-  `Agent` row and its near-identical twin — attribute a contained row **once**, not twice.
-- **Why per session.** Sessions are concurrent here (9 distinct ids in one raw file); a global union
-  would let one session's subagent window swallow another session's main-agent rows.
-- **An empty `session_id` is not a partition — it is a missing one.** `''` is a perfectly good object
-  key, and pooling on it rebuilds the global union this partitioning exists to avoid, over the rows
-  there is least reason to relate. **A wrapper without one contributes to no union; a leaf needing
-  containment without one is classified main-agent and counted under its own footer field**, distinct
-  from the unclassifiable-by-time count.
-- **Why `start_ts` only, and why closed intervals.** §11.2 already resolves a span into a window by
-  testing its **`start_ts`** (*"the run whose window **contains** the span's `start_ts`"*), so testing
-  the start alone reuses that convention rather than inventing a second one in the same store. §11.2
-  does **not** fix whether its endpoints are inclusive, so the **closed** `[start, start + duration]`
-  boundary is `analyze`'s own convention, pinned here rather than credited to §11.2.
-- **Why `session_id` cannot do the job alone.** Every row inside all six measured wrapper windows
-  carried the wrapper's **own** `session_id` — a subagent gets no session id of its own here. It is a
-  *partition key* for containment, **never** the classifier.
-
-**Precedence, stated so the two branches cannot contradict each other.** A leaf whose chain resolves is
-classified by **that chain regardless of its `start_ts`** — a resolved ancestry is direct evidence and
-needs no timestamp to be trusted — and such a leaf is **never** counted as unclassifiable-by-time. A
-leaf that **reaches containment** with no usable `start_ts` is classified **main-agent** and counted as
-unclassifiable-by-time; it is not dropped (its duration is real leaf work) and not guessed into a
-wrapper it may not belong to. **The unclassifiable tally therefore means *leaves that needed a
-timestamp and had none*, never *leaves without a timestamp*.**
-
-**A leaf missing BOTH a `session_id` and a usable `start_ts` increments BOTH tallies**, because each
-answers its own question and both answers are true of it. **The two are therefore not disjoint and
-SHALL NOT be summed** into one "unclassifiable leaves" figure.
-
-**The method actually used is NAMED IN THE FOOTER on every run**, in both output formats:
-`parent-links` when every classified leaf used links, `timestamp-containment` when every leaf used
-containment, **`hybrid`** when both were used — with the **per-method leaf counts** printed beside it —
-and **`not-applicable`**, with both counts `0`, when **no leaf was classified at all**. Reporting
-containment on a store with nothing to classify would name a method that never ran and make the footer
-false in exactly the degenerate case the mandatory footer exists to keep honest. On the reference store
-**0 of 5,265** records carry any of `trace_id`, `span_id`, or `parent_span_id`, so every leaf takes the
-containment branch today and the reported method is `timestamp-containment`.
-
-**The two stated limits.**
-
-1. **Concurrent fan-out.** With `parallel.mode` on, sibling wrapper windows overlap, so containment can
-   say a row was inside *a* subagent but never *which*. `analyze` therefore reports the **split** and
-   never a per-subagent attribution.
-2. **Background dispatch — the split's largest known error.** A background `Agent` row records only the
-   ~3 ms dispatch, but its twin carries the subagent's **whole** wall time, so the session's wrapper
-   union *does* cover that subagent's work. The cost runs the other way: a background subagent is
-   concurrent with its parent and shares its `session_id`, so **main-agent** leaves starting inside that
-   window are classified **inside-subagent**. **The exposure is delimited by the TWIN's window, not by
-   the ~3 ms dispatch** — three orders of magnitude larger — and what the window delimits is the *set of
-   leaves that can be misclassified* (containment tests `start_ts` alone). **It does NOT bound the
-   misattributed duration**: a leaf starting one millisecond before that window ends carries its
-   **whole** `duration_ms` into the inside column however far past the window it runs. On the reference
-   store the larger of the two uncovered windows contained **154 leaf rows / ~1.78 × 10⁶ ms** and the
-   smaller **132 rows / ~1.69 × 10⁶ ms** — quoted **per window and never added**, since they lie in one
-   session and overlap. No leaf work is lost or double-counted; it is the **split** that
-   over-attributes to inside.
-
-**The uncovered-window count, defined exactly.** The footer reports the count of **uncovered
-`claude_code.subagent_completed` windows**: intervals **not covered** by the union of their **own
-session's** `Agent` and `Workflow` intervals, each **dilated by 5 ms at both ends**. **No pairing, no
-"twin" matching, and no duration ratio** — all three need thresholds, and concurrent siblings in one
-session make pairing ambiguous in exactly the case the count exists to describe. Coverage is a total
-function of the rows.
-
-**Why 5 ms, stated as the choice it is.** A foreground twin can start marginally **before** its `Agent`
-row (start offsets `−1 … +1` ms, §23.3), so an **undilated** test misreports such a twin as uncovered.
-The largest observed need is **1 ms**; `5` is a deliberate **guard band above** it and **not** a value
-the data singles out — on the reference store every dilation from 1 ms upward yields the same split, so
-the measurement bounds the choice from below without determining it. It is nevertheless pinned to
-**exactly 5** rather than described as "small", because the count is reproducible only if two
-implementations pick the same number, and **a range in a normative rule is not a rule**. Only the
-**start** offset needs the tolerance (a twin ends *before* its `Agent` row in every measured pair), so
-the symmetric both-ends form is a simplification, not a necessity. §23 owns this rule precisely so the
-skill and the script cannot derive different counts and both look right.
-
-> **The figure is named for what it measures, and is NO bound on background dispatches in either
-> direction.** Under concurrent fan-out a genuinely background window can lie wholly inside an
-> unrelated sibling's long foreground `Agent` interval in the same session and read as **covered**
-> (**under**-count); and a foreground completion whose own `Agent` row is missing or untimed
-> contributes **no** wrapper interval at all and so reads as **uncovered** (**over**-count) — and on the
-> reference store roughly half the `Agent` rows carry an empty `duration_ms`, so that input is present
-> rather than imagined. It SHALL NOT be called a background-dispatch count, a lower bound, an upper
-> bound, or a minimum, and **no narrative built on it may say "there were N background subagents"**. An
-> exact count would need a pairing identity the records do not carry. The footer states that it is an
-> **imprecise signal that can both over- and under-count**.
-
-**Clock skew is not a live risk in the configuration ptp creates — a scoped assumption, not a proof.**
-§10.4's timestamp rule maps the **source's** timestamps and fixes no clock domain, so it must not be
-cited for one; §9.1's loopback binding (`127.0.0.1` only, never `0.0.0.0`) constrains who can *reach*
-the receiver but does not rule out a tunnel or relay forwarding a remote emitter's records. Every
-emitter ptp itself starts runs on the machine running the receiver, so one clock produces every
-timestamp compared in practice; a relayed remote emitter is outside what ptp configures, is explicitly
-**not** defended against, and would degrade containment silently.
-
-### 23.5 The arithmetic — permitted forms and the ban that still holds
-
-| Figure | Definition | Note |
-|---|---|---|
-| **total busy** | Σ `duration_ms` over leaf rows | A *sum*. Overlaps are counted more than once — that is what makes it "busy", not "elapsed". |
-| **union-of-intervals** | covered extent of the union of every leaf interval `[start, start + duration]` | Disjoint by construction; covers the **timestamped** rows, not "the work". |
-| **wall window** | `max(end) − min(start)` over leaf intervals | The observation window, gaps included. |
-
-**Three figures, three separate labels, never conflated** and never printed as a single unlabelled
-"time" — the discipline §17 imposes on `report`'s two headline numbers, extended by one.
-
-**LLM↔tools overlap is an INTERSECTION:**
-
-```
-overlap = covered extent of ( union(LLM intervals) ∩ union(tool intervals) )
-```
-
-**It is never `Σllm + Σtool − union`, and the reason is stated accurately.** That alternative is *not*
-§17.0's banned `wall − Σllm − Σtool` under another name, and it *cannot* go negative — a union can
-never cover more than the durations it was built from. Claiming either would itself be a confidently
-wrong statement in the section whose purpose is to prevent them. It is rejected because it measures
-**all** overlap, **within-kind included**: two LLM spans overlapping each other, or two parallel tool
-calls overlapping each other, inflate it exactly as much as an LLM span overlapping a tool span — and
-§17.0's own list of causes says within-kind overlap is the common case, not the exotic one. It would
-therefore be labelled *LLM-versus-tools* while largely measuring something else. Intersecting the two
-unions measures the named quantity exactly, because each union has already absorbed its own within-kind
-overlap.
-
-**`idle = wall window − union-of-intervals` is PERMITTED and well defined.** The subtrahend is a union
-**coverage**, disjoint by construction, so `idle` is a genuine measure of uncovered time within a known
-window and cannot go negative. **What §17.0 bans is subtracting overlapping COMPONENT SUMS from wall
-time** — the distinction is *what is subtracted*, not that a subtraction appears.
-
-> **`wall − Σllm − Σtool` remains banned and appears nowhere in `analyze`.**
-
-**Every interval-derived figure is reported ABSENT, never `0`, when no usable interval exists.** A
-store can hold leaf rows with a real `duration_ms` and no usable `start_ts`: *total busy* is then a
-genuine measurement while *union-of-intervals*, *wall window*, *overlap*, and *idle* have no defined
-value at all — first start and last end over an empty set are **undefined, not zero** — and `idle` is
-additionally absent whenever either operand is. Rendering any of them as `0` would turn a known unknown
-into a measurement, which is §17.1's own rule (*"reported as **absent**, not as `0`"*) applied to the
-four figures that depend on intervals. **Total busy is therefore not always decomposable into the
-interval figures**, and the renderer never implies it is.
-
-**A mean divides by the count of rows carrying a usable duration, never by the row count.** Both counts
-are printed and the mean renders **absent** when no row in the bucket is timed. Dividing by every row
-spreads the sum across rows that contributed nothing — *"empty is zero"* (§10.2) arriving in the figure
-where it is hardest to spot.
-
-### 23.6 The six outputs
-
-All six render in **one** invocation.
-
-1. **Leaf-work split.** LLM versus tool row counts and Σ`duration_ms`, plus §23.5's three labelled
-   figures, the intersection-derived overlap, and `idle`. **Wrapper time is printed beside it as its own
-   line, labelled *excluded from every figure above*, with the per-key counts.**
-2. **Inside-subagent versus main-agent.** Total leaf time, LLM time, and tool time per column, then two
-   sub-tables under the same split: per `tool_name` and per `model`. **Each sub-table covers EVERY leaf
-   row in its column, not only the rows carrying its key** — an LLM row has no `tool_name` and a tool
-   row has no `model`, and both bucket under an explicit `(none)`, **never merged elsewhere**. That is
-   what makes the invariant hold: **each sub-table sums exactly to its column's total**, so a reader
-   never sees a breakdown that quietly totals less than the headline it decomposes (§18.2's principle).
-   Restricting `byTool` to tool rows makes the invariant arithmetically impossible.
-3. **Token burn by model.** Per `model`: rows, Σ`input_tokens`, Σ`output_tokens`, and Σ`cost_usd`
-   **where populated**. §10.2 leaves those fields **empty, not zero**, off LLM rows, and §10.4's
-   advisory A-3 records that Codex LLM rows carry **no** cost at all — so the cost column reports
-   **absent** for a model whose rows carry none, never `0`, which a reader would read as free. **The
-   same rule governs the two token columns**, because all three are summed *where populated*: a model
-   **none** of whose rows carry an input (or output) count reports that column **absent** too, never
-   `0`, which would assert a consumption the store never measured. A column with at least one populated
-   row still prints its sum, so a genuine zero remains printable.
-4. **Tool work by `tool_name`.** Rows, timed rows, Σ`duration_ms`, and the mean (§23.5's denominator
-   rule). Wrapper rows are absent by construction, which is why `Agent` and `Workflow` do not appear
-   here and **`Skill` does**.
-5. **Bash-by-command.** Leaf rows with `tool_name = 'Bash'`, grouped on the **leading segment head** of
-   `bash_command.text`, derived with §10.6's rule and **not** with a plain whitespace split:
-   1. split the retained text on `&&`, `||`, `|`, `;` — §10.6's segment separators;
-   2. take the **first token of each segment**, strip any directory prefix and a trailing
-      `.exe` / `.cmd` / `.bat` / `.ps1`, and lowercase — §10.6's head normalisation, unchanged;
-   3. the key is the **first head that is not a navigation no-op** (`cd`, `pushd`, `popd`) **and that
-      can name a command at all** (see the fabrication rule below); if every such head is a navigation
-      no-op, the key is the first of them.
-
-   **Why not token 0 of the whole string.** §10.6 splits on the separators *before* taking a head for
-   exactly this reason — it is what "makes `cd repo && npm test` a `build_test` row rather than a `cd`
-   row", in §10.6's own words. On the reference store **163 of the 303** Bash leaf rows carrying command
-   text begin with `cd` — **53.8% of those rows** and, because the compound commands are the
-   long-running ones, **93.6% of their total duration**. A token-0 key would file almost all Bash *time*
-   under one `cd` bucket that describes none of it.
-
-   **This is still not a re-derivation of `tool_class`.** §10.6 examines **every** segment head and
-   resolves a row to one of seven ordered *buckets*; this output takes **one** head and reports it
-   verbatim as a *command name*. Only the tokenisation and normalisation are shared, which is what makes
-   the two agree on what a command's name is. **The navigation no-op set lives in exactly the same two
-   places as the wrapper set — this section and the script — and changing one is changing the other.**
-
-   **Truncation (§10.5 cuts the retained text at 512 characters).** **A row flagged truncated discards
-   its final segment** — the only one the cut can have left partial — and derives its key from the
-   complete segments before it, because a partial head would otherwise be reported as a **fabricated**
-   command name such as `gi`: a plausible-looking value with nothing behind it, worse than any honest
-   degradation. **If no complete non-navigation head remains, the row buckets under an explicit
-   `(truncated command)`** — never under a fragment. **A single-segment truncated row is not an
-   exception**: its only segment is also its final one, so it is discarded and the row buckets
-   `(truncated command)`. **Nothing bounds a command's first token to 512 characters**, so no rule here
-   relies on the first head surviving; falling back to a surviving **navigation** head is reserved for
-   **untruncated** commands whose heads are all navigation no-ops. Only the retained text is ever
-   classified — never a reconstruction — for §10.5's own reason.
-
-   **A head that cannot name a command is never reported as one.** Truncation is not the only way a
-   segment head turns out to be a fabrication, so the same rule that discards a partial final segment
-   governs the other two ways, both observed on the live store:
-
-   - **A shell assignment** (`NAME=value`). `SP="C:/…/scratchpad" && node "$SP/snap.js"` filed rows
-     under `scratchpad"`, and `D=openspec/changes/0039_01_… && grep …` filed rows under
-     `0039_01_telemetry-analyze-engine` — a directory and a change id reported as commands, while the
-     real `node` / `grep` / `sed` work went uncounted.
-   - **A head with no command-name shape** — `{` (shell grouping), a quote fragment such as `b"`,
-     regex text. These arise because §10.6's separator split is **quote-blind**, so a `|` or `;` inside
-     a quoted argument yields a phantom segment whose head is argument text.
-
-   Such a segment supplies **no** candidate and the search continues to the next head. **Where no
-   candidate survives at all, the row buckets under an explicit `(no command name)`** — never under a
-   head that names nothing, and never under `(no command text)`, which would deny that text existed.
-   §10.6's tokenisation and normalisation are used **unchanged**: this decides only which of the
-   identical heads may be *reported* as a name, exactly as the navigation-no-op and truncated-segment
-   rules already do, which is what keeps §10.7 untouched. §10.6 feeds every head into a fixed
-   seven-bucket vocabulary, where a nonsense head matches nothing and falls to `other`; this output
-   prints the head **verbatim**, so the same head becomes a fabricated command name.
-
-   **The stated limit this leaves.** A phantom segment whose head happens to have a legitimate name
-   shape is indistinguishable from a real command — `grep -rn "Critical/High\|Critical or High"`
-   yields a head `critical`, and it is reported. Reaching that case means making the **split**
-   quote-aware, which is exactly the divergence from the shared primitive this section forbids: output
-   5 and `tool_class` would then disagree about the same row. So every head that *cannot* be a name is
-   suppressed, and the residual is disclosed in the footer rather than silently narrowed away.
-
-   **An empty or absent `bash_command`** (the row predates the field, or `OTEL_LOG_TOOL_DETAILS` was
-   unset — §10.4 gates the whole attribute) groups under an explicit `(no command text)`. It is never
-   dropped and never guessed.
-
-   **Under the `spans.csv` fallback the whole table is OMITTED** with §23.2's stated reason in its
-   place.
-6. **The data-quality footer** — §23.7.
-
-### 23.7 The data-quality footer
-
-**Mandatory, never suppressed** — not on an empty store, not on a clean one, not when every item is
-nil — and present in **both** output formats, so a machine consumer cannot lose a caveat the text
-renderer prints. **Every count is printed including when it is `0`:** a count that vanishes when nil is
-indistinguishable from a count that was never taken (§19.4's principle, applied to `analyze`'s own
-footer).
-
-The items:
-
-| Item | Why it is not optional |
-|---|---|
-| The source used and the files **read** — plus, listed separately, any selected file that could **not be opened**, and any directory that **exists and could not be enumerated** | Two different inputs give two different bash tables, so a reader must know which ran; and an unreadable file's whole contents are missing from every figure, which is invisible loss unless it is named. `filesRead` is a claim about what was actually read, so a file that failed to open is never listed there. **Absent and unreadable are different answers**: an unenumerable directory's contents were never observed, so it is never reported as a directory with no `raw/` (which would make the scope statement a **DEFINITE** exclusion on an unobserved premise), and it suppresses the "no telemetry exists" statement in favour of an explicit unknown — a claim about contents is only made where the contents were observable. |
-| Records parsed; **interior** lines skipped; **torn trailing** lines skipped; envelopes skipped for an unrecognised kind or version; malformed CSV rows skipped — four separate tallies, never one combined `skipped` | Silently skipped input is invisible loss, and §12.4 distinguishes the interior and trailing cases. |
-| Under the raw source: directories holding a `spans.csv` and **no** `raw/`; **every** directory whose `spans.csv` went unread, as a **fact** carrying no inference; and §23.2's conditional narrowing statement at the strength its evidence supports | Retention makes this the steady state of an aged epic directory, not a corner case — while `_unattributed/` is never pruned, so an unread CSV there cannot be a retention artifact. |
-| **The nesting method actually used** — `parent-links`, `timestamp-containment`, `hybrid`, or `not-applicable` — with the **leaf count classified by each**, and the two limits of §23.4 | The whole split means something different under each method, and a `hybrid` run describes two populations at once. |
-| **Which interval-derived figures rendered absent**, and why | An absent union or wall window is a very different claim from a zero one. |
-| The **wrapper set applied**, its **per-key counts**, the wrappers' separately reported time and row count, and the statement that wrapper rows are excluded from every leaf total | An unexpected `0` for a key is how a future wrapper-shaped tool outside the set gets noticed. |
-| The **wrapper bimodality note** — an `Agent` row is bimodal (foreground ≈ gross subagent wall, background ≈ the ~3 ms dispatch), while a `subagent_completed` twin carries the whole subagent in **both** modes | Stops anyone summing wrapper durations into a "subagent time" figure, and stops the twin being read as a duplicate. |
-| The count of **uncovered `subagent_completed` windows**, derived by §23.4's exact rule, with the statement that it can both over- and under-count and bounds background dispatches in **neither** direction, and the note that main-agent work concurrent with one is classified inside-subagent | This is the split's largest known error; an unstated count leaves a reader unable to tell a clean split from a heavily background-dispatched one, and a count *named* as a background tally would assert the quantity §23.4 shows it is not. |
-| Leaf rows excluded from sums for an empty `duration_ms`; leaf rows excluded from intervals for an empty `start_ts`; leaves unclassifiable **by time**; leaves unclassifiable **for want of a `session_id`** — counted separately and never summed | **Empty is never zero** (§10.2); each exclusion is a known unknown, and the two unclassifiable tallies are different questions. |
-| Whether output 5 was omitted, and why | Otherwise its absence reads as "no Bash work happened". |
-| The counts of Bash rows keyed on a **navigation** head, keyed **`(truncated command)`**, keyed **`(no command text)`**, and keyed **`(no command name)`** — the last with §23.6's stated quote-blind-split limit — plus the **total truncated-row count** | These are the ways output 5's key degrades; a rising count is the signal that the grouping has stopped describing the work, and the truncated and no-command-name totals are what make the fabrication-suppression rules auditable. |
-| Under the CSV fallback: the degraded wrapper key, the `subagent_completed` count and the uncovered-window count as **`unavailable`** (never `0`), the incompleteness label on wrapper time and rows, and the note that the inside-subagent column is **understated** | A `0` is a claim the data cannot support, and a reader told only "degraded" would assume the error is neutral when it has a known direction. |
-| Date range and session count covered | Scope of the claim. |
-| *"analyze created no file, modified no existing file, and deleted nothing"* | The posture, restated where the user is looking. |
-| *"analyze is a separate reader from `report`; it does not change any figure `report` prints"* | Prevents a reader reconciling two commands' numbers that were never meant to match. |
-
-### 23.8 Posture — creates nothing, modifies nothing, deletes nothing
-
-`analyze` **creates no file, modifies no existing file, and deletes nothing.** Three clauses, always
-together. It runs **no git command, no `ptp-branch-guard`, and no `openspec validate`** — the same
-exemption §8 gives `status` and §20.1 gives `report`.
-
-**It prunes nothing.** §21's *"during `report` and nowhere else"* gains **no** exception, and `analyze`
-adds **no second deletion point** anywhere in this skill, even though it is the first reader of `raw/`
-outside `export`.
-
-**Unlike `report`, `analyze` genuinely IS read-only, and this section may say so.** The reason `report`
-may never use that word (§20.1) is that a **default** `report` deletes data irreversibly — which
-`analyze` never does. The contrast is stated explicitly so the two postures are not homogenised by a
-later editor in either direction.
-
-### 23.9 Relationship to `report` — a separate reader, not an exception
-
-`report` and `analyze` are **separate readers with separate inputs and separate postures**.
-
-- `analyze` changes **no** figure `report` prints, and prints no figure `report` also prints. The two
-  commands share **no number that could disagree**.
-- §17.4's never-`raw/` rule is **`report`'s**, and its stated reason — pruning bounds `raw/` immediately
-  while `spans.csv` catches up only at the next `export`, so a reader that mixed them would describe a
-  different past depending on when it ran — is **unaffected**, precisely because the two share no figure.
-- §17.4 and §19.1 exclude `_unattributed/` from `report`'s **epic-scoped body figures**; `analyze` has
-  **no per-epic figure**, so the failure that rule prevents cannot occur there.
-- §20.1's posture wording and §21's single deletion point are **unchanged and not weakened** (§23.8).
-
-So `analyze` is **a separate reader, not an exception** — and every cross-reference in §16–§21 says so
-in those words.
-
-### 23.10 Dispatch and selector posture
-
-`analyze` is the **seventh** `/ptp:telemetry` subcommand (`commands/telemetry.md`), dispatched by
-name exactly as `status`, `report`, `setup`, `start`, `stop`, and `export` are. It is **not** a mode
-of `report`, and the reason is three structural divergences from `report`'s own stated invariants —
-each of which a mode would have to break:
-
-1. **Inputs.** `analyze` reads the **raw** store, because the bash-by-command table needs
-   `bash_command`, one of §10.5's exactly three **raw-only** fields, which deliberately has **no CSV
-   column**. §17.4 forbids `report` from **ever** reading `raw/`, and says why it is a rule rather
-   than a preference: pruning bounds `raw/` immediately while `spans.csv` only catches up at the next
-   `export`, so a reader mixing them would report a different past depending on when it ran.
-2. **Blast radius.** `analyze` deletes nothing. A **default** `report` prunes the reported epic's
-   `raw/` irreversibly (§21) — which is precisely why §20.1 forbids ever calling `report` read-only,
-   even qualified.
-3. **Scope.** `analyze` is store-wide over the raw store, `_unattributed`
-   **included**. `report` is per-epic — its store path is keyed on the resolved epic — and §17.4 bars
-   every `_unattributed` record from every body figure. A `report` mode obeying `report`'s scoping
-   rule would render empty tables against a store whose rows are entirely `_unattributed`, which is
-   the observed state of a store where the ledger join has not attributed anything.
-
-**A shared executable core is not available**, and that is a fact about `report` rather than a choice
-made here: `report` has **no executable implementation at all** — §§16–21 are model-executed prose,
-and `scripts/ptp-otel-sink.js` implements the receiver, `export`, `setup`, and the lifecycle but no
-reporting. The sharing is therefore at the **invariant** level, and it is **BY REFERENCE**: `analyze`
-inherits **never conflate work time with elapsed time** (§17.1, §17.2), the **BANNED**
-`wall − Σllm − Σtool` subtraction (§17.0), and the **mandatory, never-suppressed** data-quality
-footer (§19) **by citing them, and restates none of them.** A later correction to any of the three
-therefore corrects `analyze` with no second edit — the same single-source posture this skill already
-holds for the record shape, the `run_id` rule, and the mapping tables.
-
-**SELECTOR POSTURE — `analyze` takes no selector of any kind.**
-
-- **No selector grammar**: no `epic:` form, no `story:` form, no bare change id, no new prefix, no
-  new token. It adds nothing to any grammar and reserves nothing.
-- **Store-wide over the raw store, `_unattributed` included.** This is the deliberate inverse of
-  §17.4's rule for `report`, and it is scoped to `analyze` **alone**: §17.4 is **unchanged**, and no
-  `_unattributed` record reaches any `report` body figure as a consequence of this section.
-- **Any narrowing would be an explicit non-selector flag, and §23.1 defines none today.** §23.1 pins
-  the engine's whole flag surface and refuses everything outside it — that list is stated there and
-  is not copied here — so there is **no** day or session flag to invoke yet. Were one added it would
-  be the engine's own flag, never change-selector grammar: narrowing by day or session
-  narrows by *when the work happened*, not by *which change it belonged to*, which is exactly why the
-  change selector has nothing to resolve here.
-- **Explicitly NOT delegated to `ptp-change-selector`.** Nothing from an `analyze` invocation ever
-  reaches that skill. An argument that is not one of the engine's explicit non-selector flags is
-  reported as unsupported **without writing anything** — never guessed at, and never resolved as a
-  selector.
-
-The consequence, stated because it is the property this posture exists to preserve: **`report`
-remains the one and only `/ptp:telemetry` subcommand that resolves a change selector.**
-`skills/ptp-change-selector/SKILL.md` §Role B already records that the other `/ptp:telemetry`
-subcommands take no selector, and that sentence stays **true and unedited** with a seventh
-non-selector subcommand — this change edits that skill **not at all**.
-
-**Write posture, worded against `report`'s deliberately:**
-
-| Subcommand | Posture |
-|---|---|
-| `status` | **read-only** — deletes nothing (§8) |
-| `report` | **creates no file, modifies no existing file, and deletes only aged raw files** (§20.1) |
-| `analyze` | **creates no file, modifies no existing file, and deletes nothing** |
-
-`analyze` reuses `report`'s first two clauses and **contrasts on the third**, the same way §20.1
-already words `status` differently from `report` because the two genuinely differ. `analyze` **may**
-be called read-only; `report` may not, not even qualified. `analyze` triggers **no** retention pass:
-§21's pruning remains `report`-only, and a seventh subcommand does not become a second deletion site.
-
-**No `write` keyword and no `analyze.md` — deferred, with the reason.** `report write` writes
-`<telemetry.root>/<epic>/report.md`, a path **keyed on the resolved epic** (§20.2). `analyze`
-resolves no epic, so there is no such path to key on, and every candidate
-(`<telemetry.root>/analyze.md`, an `_unattributed/` file, a per-day file) is an invention that has
-not been chosen. Until it is, `analyze` prints to the session and writes nowhere. This is a
-**deferral with a stated reason**, not an omission.
-
-**The name collision with `/ptp:analyze`, stated so the two are never conflated.** `/ptp:analyze` is
-the read-only *investigation* command that writes an analysis doc into a change folder, specced by
-the **`analyze`** capability. `/ptp:telemetry analyze` renders a telemetry work breakdown and is
-specced by the **`telemetry`** capability. They collide by name and nothing else — not a front
-door, not an input, not an output, not a capability.
+The `analyze` methodology moved to `skills/ptp-telemetry-analyze/SKILL.md`, which keeps this section's `§23.1`–`§23.10` numbering.
 
 ---
 
+<!-- ptp-telemetry:anchor id=hard-rules class=substrate -->
 ## Hard rules
 
 - **Default off.** `telemetry.mode` defaults to `off`; `telemetry.root` defaults to
@@ -3387,53 +2297,17 @@ door, not an input, not an output, not a capability.
   implementation, which `export` calls rather than reimplementing (§10.7).
 - **`run_id` is minted once and propagated**, never re-derived by a second writer.
 - **`unclosed` is reader-derived** and is never written by any write point.
-- **`status` is read-only** — it starts and stops nothing, creates no file or directory of its own,
-  and runs no git, no branch guard, and no `openspec validate`. Its probe may cause the **receiver** to
-  repair its own lockfile, which `status` reports (§14.6).
-- **`export` requires the receiver stopped and never stops it** (§12.5); **no ptp command stops the
-  receiver automatically and none requires it running** (§14.7).
-- **`/ptp:telemetry setup` is the only ptp step that writes a Claude Code setting**, only on explicit
-  confirmation, and is **never** reached automatically — including from the §15 preamble.
+- **No ptp command stops the receiver automatically and none requires it running** (§14.7). The one
+  lifecycle dependency runs the other way and belongs to `ptp-telemetry-export`.
 - **`report` never derives a field by subtraction** (§17.0). `wall − Σllm − Σtool` — an "other time"
   figure — exists nowhere, because the component sums overlap and the remainder can be negative.
 - **Elapsed wall time is a union of intervals, never a sum of durations, and is never called a
   critical path** (§17.2). `concurrency_factor` is never described as a count of agents (§17.3) and is
   stated **undefined** rather than printed when wall time is zero or unavailable or work time is
   absent.
-- **`report` reads only the derived files** — `spans.csv` and `runs.ndjson` — and **never `raw/`**;
-  `_unattributed/spans.csv` reaches the **footer count alone** and no body figure (§17.4).
-- **`report`'s §19 data-quality footer is mandatory** — never omitted, shortened, or suppressed, with
+- **The §19 data-quality footer is mandatory** — never omitted, shortened, or suppressed, with
   every item present in the footer itself. (`analyze` has its own mandatory footer, §23.7, which
   neither replaces nor satisfies this one.)
-- **`report` creates no file, modifies no existing file, and deletes only aged raw files** (§20.1),
-  and writes `<telemetry.root>/<epic>/report.md` only on the literal `write` keyword, which is
-  stripped before the selector sees the argument (§16.2, §20.2). **The phrase "read-only" is never
-  used for `report`, not even qualified.**
-- **Pruning is `raw/`-only, reported-epic-only, and `report`-only** (§21): never `runs.ndjson`,
-  `runs.csv`, or `spans.csv`; never anything under `<telemetry.root>/_unattributed/`; never triggered
-  by any pipeline command; and never a file whose name does not parse as `YYYYMMDD.ndjson` or whose
-  date is not strictly earlier than the cutoff.
-- **`analyze`'s wrapper-exclusion invariant** (§23.3): a wrapper is a row whose `tool_name` is `Agent`
-  or `Workflow`, **or** whose `raw_span_name` is `claude_code.subagent_completed`. Wrapper rows are
-  excluded from **every** leaf total and reported separately with per-key counts. **The key is
-  `tool_name` / `raw_span_name` and is NEVER `tool_class`** — `tool_class=agent` also holds `Skill`,
-  which is not a wrapper. The set lives in §23.3 and `scripts/ptp-telemetry-analyze.js`, changed
-  together.
-- **`analyze`'s footer names the nesting method actually used** (§23.4) — `parent-links`,
-  `timestamp-containment`, `hybrid`, or `not-applicable` — with the per-method leaf counts, on every
-  run and in both output formats. The preference is resolved **per leaf, never store-wide**.
-- **`analyze`'s two permitted arithmetic forms, and the one still banned** (§23.5): LLM↔tools overlap
-  is `union(llm) ∩ union(tool)` by **intersection**, and `idle = wall window − union-of-intervals` is
-  permitted because the subtrahend is a disjoint union coverage. **`wall − Σllm − Σtool` remains
-  banned and appears nowhere.** *Total busy*, *union-of-intervals*, and *wall window* are three
-  separately labelled figures, and every interval-derived figure is **absent, never `0`**, when no
-  usable interval exists.
-- **`analyze` prefers the `raw/` superset and degrades honestly** (§23.2): `spans.csv` is a fallback
-  only when no raw file exists, the two are **never merged**, and on the fallback the bash-by-command
-  output is **OMITTED with its reason stated** rather than approximated.
-- **`analyze` creates no file, modifies no existing file, and deletes nothing** (§23.8) — it prunes
-  nothing, adds no second deletion point, and is the one command in this skill that genuinely **is**
-  read-only.
 - **No user-global Codex configuration is ever written, for any reason** (§22), and **no Codex
   configuration file of its own is written anywhere** — the selected mechanism is per-invocation
   `-c otel.*` arguments plus one repository-scoped ptp consent record. `codex.mode` remains the **only**
@@ -3444,16 +2318,26 @@ door, not an input, not an output, not a capability.
   configuration path are never origin evidence, and a group with partial or conflicting evidence goes
   **wholly** to `_unattributed/` rather than being routed on its positive members.
 - **Never modify the repository's root `.gitattributes`, and modify its root `.gitignore` only as
-  `setup`'s confirmed managed-line addition** of `.claude/settings.local.json` (§13.4) — the one write
+  `setup`'s confirmed managed-line addition** of `.claude/settings.local.json` (`ptp-telemetry-setup` [setup-consent-scope]) — the one write
   outside `<telemetry.root>/`, required because that file carries the ingestion credential and must be
   untracked. The store otherwise carries its own policy inside `<telemetry.root>/`.
-- **`analyze` is dispatched by name as the seventh `/ptp:telemetry` subcommand, not as a `report`
-  mode** (§23.10). It **analyses** `raw/` — the only subcommand that does, `export` being the global
-  re-derivation that also *reads* it — so §17.4's bar on `report` reading `raw/` is unchanged. It
-  writes no `analyze.md` and reserves no `write` keyword; its deletes-nothing posture is stated once,
-  in the §23.8 bullet above, and is deliberately not repeated here.
-- **`analyze` takes no selector and resolves none.** Store-wide over the raw store, `_unattributed`
-  included, narrowed by no flag §23.1 defines today, and never delegated to
-  `ptp-change-selector` — so **`report` remains the only `/ptp:telemetry` subcommand that resolves a
-  change selector.** `analyze` inherits §17.0's banned subtraction, §17.1/§17.2's never-conflated
-  figures, and §19's mandatory footer **by reference** and restates none of them.
+- **Section numbering is frozen** (§0.3). A section's number never changes and is never reused;
+  extracting a leaf leaves its number here as a **redirect stub**, and the extracted skill preserves
+  its subsection numbering — the file is never renumbered, because roughly
+  400 citations here and roughly 250 more in `scripts/ptp-otel-sink.js` and
+  `scripts/ptp-telemetry-analyze.js` are keyed to these numbers.
+- **Every section whose citations must survive extraction carries an anchor, and a cross-file
+  citation of an anchored section names the anchor, never the number** (§0.1, §0.2, LR-3). That is
+  not every section: a subsection cited only by number from inside this file — §0.1–§0.5 among them —
+  needs none, because frozen numbering already keeps such a citation valid. Anchor ids are stable for
+  the life of the plugin; renaming one is a breaking change to every citer. `§N` remains the citation
+  form **inside this file**; inside the two bundled executables `scripts/ptp-otel-sink.js` /
+  `scripts/ptp-telemetry-analyze.js` — the one closed two-file exemption, which frozen numbering keeps
+  correct; and in a citation of a section that has no anchor, which §0.5's completeness rule confines,
+  across the substrate/leaf boundary, to one leaf citing another leaf's private subsection.
+- **A leaf never restates a substrate normative statement** (LR-1) and licenses no duplication of its
+  own (LR-2) — §10.7's single-executable-copy rule is the only duplication this skill pins. An
+  extracted leaf opens with a *Substrate dependencies* list naming the anchors it relies on (LR-4).
+- **A substrate→leaf citation is non-normative and passes through a registered anchor** (LR-5). A
+  substrate rule never depends on a leaf statement; where it would, the leaf statement is promoted —
+  which is why **§12.1** and **§13.2** are `substrate` inside `leaf` parents and stay in this file.

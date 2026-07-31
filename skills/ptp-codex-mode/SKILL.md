@@ -127,16 +127,16 @@ confined to the `otel.*` key space** MAY be appended — **no environment variab
 and no key outside `otel.*`** — and **only when telemetry is on**. Concretely, they are appended only
 when **both** hold:
 
-1. `telemetry.mode` resolves to `on` (per `ptp-telemetry` §1); **and**
-2. the repository-scoped ptp telemetry-consent record records consent (per `ptp-telemetry` §22.3).
+1. `telemetry.mode` resolves to `on` (per `ptp-telemetry` [config-resolution]); **and**
+2. the repository-scoped ptp telemetry-consent record records consent (per `ptp-telemetry` [codex-consent-record]).
 
 With either condition unmet the appended set is **empty** and the command line is **byte-identical** to
 the pre-change one — which is the property the invariant was really protecting. The exact rendering is
-pinned once in `ptp-telemetry` §22.2 and is **not** restated here; the arguments go **before** the
+pinned once in `ptp-telemetry` [codex-canonical-rendering] and is **not** restated here; the arguments go **before** the
 trailing stdin marker `-`, alongside the model/effort flags. Nothing else about the invocation changes:
 no model, no prompt, no sandbox, no approval policy, no tool surface. The recorded case *against* the
 relaxation is on the record too — those arguments are visible in any process listing and in Codex's own
-session record — and `ptp-telemetry` §22.3 requires that exposure be disclosed in the consent text.
+session record — and `ptp-telemetry` [codex-consent-record] requires that exposure be disclosed in the consent text.
 
 **Both `codex exec` call sites, one rule.** Like the `codex.model` / `codex.reasoningEffort` resolution
 owned here, this telemetry-wiring appendix is **reused by the write-capable main-implementer invocation**
@@ -181,7 +181,7 @@ the record shape, the `run_id` rule, and the append protocol; this section lists
   run is opened or closed — there is nothing to bracket — and no span is emitted, so the store gains no
   `cli=codex` row either. The *non-silent-skip rule* is unchanged: the skip is still reported as
   `Codex phase skipped (mode=…)`, and telemetry neither adds to nor suppresses that reporting. This is
-  rung 1 of `ptp-telemetry` §22.7's degradation ladder; refer to that skill for the record shape and for
+  rung 1 of `ptp-telemetry` [codex-degradation-ladder]'s degradation ladder; refer to that skill for the record shape and for
   the other rungs (unconfigured, credential-rejected, `required`-with-CLI-absent, `codex mcp-server`)
   rather than restating them here.
 
@@ -346,4 +346,4 @@ in `ptp-full-apply`, no pre-run stop in `/ptp:full`), with the skip always named
 - The **one telemetry relaxation**: `-c` arguments confined to the `otel.*` key space MAY be appended,
   at **both** `codex exec` call sites, and **only** when `telemetry.mode` is `on` **and** the
   repository-scoped telemetry-consent record records consent. In every other state the command line is
-  byte-identical to the pre-change one. The rendering is pinned in `ptp-telemetry` §22.2.
+  byte-identical to the pre-change one. The rendering is pinned in `ptp-telemetry` [codex-canonical-rendering].

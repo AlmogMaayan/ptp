@@ -59,10 +59,10 @@ One story is fully processed (`apply → review-full`) before the next begins �
 The workflow sandbox can neither read config nor write files, so **this skill** — which has `Bash` —
 owns both halves of the fan-out write point. The record shape, the `run_id` mint-once-then-propagate
 rule, the store layout, the append protocol, and the CSV rules are defined **once**, in the
-`ptp-telemetry` skill; this section **references** them and lists no ledger fields.
+`ptp-telemetry` skill (`ptp-telemetry` [ledger-record]); this section **references** them and lists no ledger fields.
 
 **Before the launch — resolve the gate.** Resolve `telemetry.mode` per `ptp-telemetry`'s layered,
-forgiving reader (global then project, key-by-key; any missing file / missing key / parse error /
+forgiving reader (`ptp-telemetry` [config-resolution]) (global then project, key-by-key; any missing file / missing key / parse error /
 out-of-enum value leaves the prior value; never crash, never STOP). Add a **top-level**
 `telemetry: true` to the workflow's `args` **only when it resolves to `on`** — by the same
 strict-boolean-identity convention the existing `fast` argument uses. When it does not resolve to
@@ -75,7 +75,7 @@ array, append **one ledger run per measured agent** with `agent_role=workflow-ag
 `run_id` the workflow **minted** and the `t_start` / `t_end` / `agent_label` it measured. These rows
 are the ledger's one **post-hoc** case: **both** the open and the close line are appended after the
 fact, because the launcher never sees the run while it is running — it receives the measured window
-only once the workflow returns. `ptp-telemetry` names this as the single exception to "the open line
+only once the workflow returns. `ptp-telemetry` [append-protocol] names this as the single exception to "the open line
 is written before the observed work begins"; no other write point may use it.
 
 The append is gated and fire-and-forget exactly like every other write point: nothing is written when
@@ -100,7 +100,8 @@ skill maps every one of them onto a writable `outcome`:
 and each MAY append **exactly one open line** under the `run_id` the workflow injected into its
 prompt — never a close line, never a CSV row (see `agents/ptp-apply.md` / `agents/ptp-review.md`).
 That buys crash visibility for a workflow killed before this skill can append anything. Rows sharing
-a `run_id` **reconcile to one run** rather than duplicating, per `ptp-telemetry`'s reduction rule.
+a `run_id` **reconcile to one run** rather than duplicating, per `ptp-telemetry` [append-protocol]'s
+reduction rule.
 
 This only works because the workflow **mints** the `run_id` at `t_start` and **injects** it into the
 spawned agent's prompt: an id each writer derived independently from its own clock reading would

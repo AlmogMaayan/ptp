@@ -376,7 +376,8 @@ repository root itself — the store writes its own `.gitignore` / `.gitattribut
 would otherwise overwrite the repository's) and ask again. Only proceed to step 5 once a valid
 repository-relative path is in hand.
 
-These are exactly the validity rules the `ptp-telemetry` **reader** applies. As with
+These are exactly the validity rules the `ptp-telemetry` **reader** applies
+(`ptp-telemetry` [telemetry-root-validation]). As with
 `review.maxIterations`, the two surfaces are complementary: this editor is **STRICT** (reject and
 re-prompt, so an invalid value is never written) while the reader is **FORGIVING** (an invalid
 layer's value is ignored, leaving the prior layer's valid value, ultimately defaulting to
@@ -466,7 +467,7 @@ convention and is what `/ptp:telemetry setup` writes into the exporter endpoint.
   `spans.csv` without the pruned rows**. Saying only "the CSV is never pruned" would leave the user
   with the exact opposite practical expectation, and they would discover the truth by losing data.
 - A retention of `N` keeps **N days plus today**: only files strictly older than the cutoff are
-  deleted. `ptp-telemetry` §21 holds the full rule.
+  deleted. `ptp-telemetry-report` [retention] holds the full rule.
 
 **`parallel.maxConcurrency` carries one additional bound**, because it caps how many main runs may
 overlap: the value must also be **within `1..10`**. Anything above that range (`11`, `50`) is
@@ -625,14 +626,14 @@ Examples:
   non-integer, non-numeric, string-typed, zero, negative, or out-of-TCP-range input is rejected and
   re-prompted — never written, so the editor can never produce a port the receiver could not bind.
   (Changing this value does **not** update an already-written exporter endpoint: `/ptp:telemetry
-  setup` must be re-run and Claude Code restarted, which `ptp-telemetry` §13.3 documents.)
+  setup` must be re-run and Claude Code restarted, which `ptp-telemetry-setup` [setup-merge-semantics] documents.)
 - **Never write an invalid `telemetry.retentionDays`.** Only a positive integer (`>= 1`) may be
   written; zero, negatives, non-integers, non-numerics, and string-typed input are rejected and
   re-prompted. **Zero matters most:** the runtime reader treats it as invalid and falls back to 30
   precisely because "retain nothing" is the most destructive reading of a value this editor refuses
   to write — the editor is the reason a zero can only ever arrive by a hand edit. The value prunes
   the **raw** store only, on `/ptp:telemetry report` only; the next `export` after a prune
-  nevertheless rewrites `spans.csv` without the pruned rows (`ptp-telemetry` §21).
+  nevertheless rewrites `spans.csv` without the pruned rows (`ptp-telemetry-report` [retention]).
 - **Never write an out-of-enum value for `parallel.mode`.** Only `off` or `on` may be written. The
   value comes from the step 4 enum menu — never from free-form user input.
 - **Never write a `parallel.maxConcurrency` outside `1..10`.** Only an integer within the inclusive
