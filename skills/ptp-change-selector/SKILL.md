@@ -133,7 +133,7 @@ These **allocate** a fresh epic and **name** the change folder. The pure produce
 
 Commands: `review`, `review-loop`, `review-full`, `codex-review`, `codex-review-loop`, `codex-review-plan`, `codex-review-plan-loop`, `review-plan`, `review-plan-loop`, `review-plan-full`, `review-fix`, `apply`, `effort`, `archive`, `archive-force`, `archive-and-deploy`, `status`, `full-apply`, `telemetry report`
 
-**`/ptp:telemetry report`** is set-capable and adds **no grammar**: it strips its own literal `write` keyword *before* the remaining argument reaches this skill, so the selector only ever sees a form defined here. Under `epic:all` it treats each resolved epic as a **separate reporting scope** and never merges or sums figures across epics. (The other `/ptp:telemetry` subcommands take no selector — `export` is global by definition.)
+**`/ptp:telemetry report`** is set-capable and adds **no grammar**: it strips its own literal `write` keyword *before* the remaining argument reaches this skill, so the selector only ever sees a form defined here (`ptp-telemetry-report` [report-selector-delegation]). Under `epic:all` it treats each resolved epic as a **separate reporting scope** and never merges or sums figures across epics. (The other `/ptp:telemetry` subcommands take no selector — `export` is global by definition.)
 
 `epic:all` is immediately available to every consumer in this list the moment it lands — no per-command change is required. Any set-capable consumer that receives `epic:all` resolves it through §3 and operates on all active changes.
 

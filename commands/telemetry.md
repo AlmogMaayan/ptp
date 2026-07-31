@@ -1,114 +1,52 @@
 ---
-description: Front door onto the ptp telemetry store. `status` (read-only) reports the resolved telemetry.mode / root / port, the env preflight verdict, the receiver's state, and per-epic run counts; `report [write] [selector]` renders the timing analysis — aggregate work time and elapsed wall time as two never-conflated figures plus concurrency_factor, the breakdowns, the top-N sinks, the per-iteration review cost, and a mandatory data-quality footer — creating no file, modifying no existing file, and deleting only aged raw files; `analyze` (read-only) renders the de-nested LLM-vs-tools work breakdown store-wide over the raw store — leaf work, the inside-subagent vs main-agent split, token burn by model, tool work by tool_name, bash-by-command, and a mandatory data-quality footer — taking no selector, creating no file, modifying no existing file, and deleting nothing; `setup` is the confirm-first one-time Claude Code telemetry opt-in; `start` / `stop` are the manual receiver lifecycle; `export` re-derives every spans.csv globally and requires the receiver stopped. Delegates all methodology to the shared ptp-telemetry skill.
-argument-hint: "status | report [write] [selector] | analyze | setup | start | stop | export   (analyze takes no selector; export takes no flag and no argument)"
+description: Thin router onto the seven `/ptp:telemetry-*` leaf commands — `status`, `report`, `analyze`, `setup`, `start`, `stop`, and `export`. It holds no behavior of its own: each subcommand's methodology lives in its own leaf skill (`ptp-telemetry-status`, `ptp-telemetry-report`, `ptp-telemetry-analyze`, `ptp-telemetry-setup`, `ptp-telemetry-start`, `ptp-telemetry-stop`, `ptp-telemetry-export`), and the shared store, ledger, span, receiver, preamble, and Codex contract lives in the `ptp-telemetry` substrate skill.
+argument-hint: "status | report | analyze | setup | start | stop | export   (the rest of the argument is passed to the leaf verbatim)"
 ---
 
-You are running **`/ptp:telemetry`** — the front door onto ptp's per-epic telemetry store. It accepts
-exactly seven subcommands:
+You are running **`/ptp:telemetry`** — the front door onto ptp's per-epic telemetry store. It is a
+**dispatcher with no behavior of its own**, and it accepts exactly seven subcommands.
 
-| Subcommand | What it does |
-|---|---|
-| `status` | **Read-only.** The resolved mode / root / port, the environment preflight verdict, the **Codex preflight** (four read-only checks), whether the receiver is listening and how it was started, lockfile health, and the per-epic run counts. |
-| `report` | Renders the timing analysis for the selected scope. **Creates no file, modifies no existing file, and deletes only aged raw files.** Takes an optional literal `write` keyword and an optional selector. |
-| `analyze` | **Read-only.** Renders the de-nested LLM-vs-tools work breakdown — leaf work, the inside-subagent vs main-agent split, token burn by model, tool work by `tool_name`, bash-by-command, and a mandatory data-quality footer — by running the bundled analysis engine over the **raw** store, **store-wide including `_unattributed`**. **Takes no selector.** **Creates no file, modifies no existing file, and deletes nothing.** |
-| `setup` | The **one-time, interactive, confirm-first** writer of the telemetry `env` block in `<repo>/.claude/settings.local.json`, plus a **second, separately-consented Codex step**. |
-| `start` | Brings the OTLP receiver up manually. Idempotent. |
-| `stop` | Takes the receiver down, after verifying it is the one this store recorded. |
-| `export` | Re-derives **every** `spans.csv` from the raw store. **Global**: no flag, no argument, no selector. Requires the receiver to be **stopped**. |
+**Two doors, one skill.** A slash command cannot invoke another slash command, so this command does
+not forward to `/ptp:telemetry-<sub>`; it invokes the **same leaf skill** that `/ptp:telemetry-<sub>`
+invokes, via the Skill tool. There is one implementation behind both doors, so the two cannot
+diverge, and neither door holds a rule of its own.
 
-It is a thin wrapper. The config resolution, the store layout, the ledger record, the span record and
-its 26 columns, the OTel-attribute and `tool_class` mapping tables, the append protocol, the CSV
-rules, the gate ordering, the identity/health wire contract, the lifecycle rules, and the auto-start
-preamble all live in the `ptp-telemetry` skill.
+| Subcommand | Leaf command | Leaf skill | What it is for |
+|---|---|---|---|
+| `status` | `/ptp:telemetry-status` | `ptp-telemetry-status` | Reports the resolved configuration and the store's state |
+| `report` | `/ptp:telemetry-report` | `ptp-telemetry-report` | Renders the timing analysis for a scope |
+| `analyze` | `/ptp:telemetry-analyze` | `ptp-telemetry-analyze` | Renders the LLM-vs-tools work breakdown |
+| `setup` | `/ptp:telemetry-setup` | `ptp-telemetry-setup` | The one-time Claude Code telemetry opt-in |
+| `start` | `/ptp:telemetry-start` | `ptp-telemetry-start` | Brings the OTLP receiver up |
+| `stop` | `/ptp:telemetry-stop` | `ptp-telemetry-stop` | Takes the OTLP receiver down |
+| `export` | `/ptp:telemetry-export` | `ptp-telemetry-export` | Re-derives every `spans.csv` from the raw store |
+
+Every leaf delegates the shared contract to the **`ptp-telemetry`** substrate skill, which owns the
+config resolution, the per-epic store layout, the ledger record and its append protocol, the span
+record and its 26 columns, the OTel-attribute and `tool_class` mapping tables, the ledger join, the
+receiver and its identity/health wire contract, the auto-start preamble, and the Codex ingestion
+layer.
 
 ## Steps
 
-1. **Invoke the `ptp-telemetry` skill** via the Skill tool, naming the subcommand from `$ARGUMENTS` —
-   one of `status`, `report`, `analyze`, `setup`, `start`, `stop`, `export`. Treat an omitted argument
-   as `status`, and report any other subcommand as unsupported without writing anything. The skill
-   holds the complete methodology; do not restate its steps here.
-2. For `report`, pass the rest of the argument through **as the user typed it**: the skill owns both
-   the `write`-keyword strip and the selector delegation (`ptp-telemetry` §16). Do **not** parse,
-   reorder, or expand the selector here, and never hand `write` to the change selector.
-3. For `analyze`, pass the rest of the argument through **as the user typed it** — but it is **not a
-   selector**. The skill owns analyze's flag handling; nothing from an `analyze` invocation is ever
-   handed to `ptp-change-selector`, and `write` carries no meaning here. An argument that is not one
-   of the analysis engine's explicit non-selector flags is reported as unsupported **without writing
-   anything**, exactly as an unsupported subcommand is.
-4. **STOP** when the skill reports the subcommand's result — the `status` report, the rendered
-   `report` (and, when `write` was given, the path of the one `report.md` per resolved epic), the
-   rendered `analyze` breakdown (which names no written path, because it writes none), the `setup`
-   outcome (including the "nothing was written" case when the user declines), the receiver's
-   lifecycle state, or the `export` outcome or its single refusal line.
+1. **Select the leaf — do not invoke yet.** Read the subcommand token from `$ARGUMENTS`. An omitted
+   argument means `status`. Look the token up in the pointer table above to get its leaf skill. Any
+   other token is reported as an unsupported subcommand, writes nothing, and stops here.
+2. **Invoke the selected leaf skill** via the Skill tool, passing the remainder of `$ARGUMENTS`
+   through **verbatim** — unparsed, unreordered, unexpanded. Selection and invocation are separate
+   steps because a Skill invocation is a single call, not a resumable handshake: a step that invoked
+   before the remainder was in hand could not pass it through unchanged.
+3. **STOP** when the leaf reports its result, relaying that result unaltered.
 
 ## Hard rules
 
-- **`export` takes no flag and no argument.** Every invocation is a global re-derivation of every
-  `spans.csv`. `export --rebuild` and `export <selector>` are rejected, modifying nothing.
-- **`report` creates no file, modifies no existing file, and deletes only aged raw files.** Never
-  describe it as "read-only", not even qualified: a default invocation prunes the reported epic's
-  `raw/` per `telemetry.retentionDays`, which is irreversible. It writes
-  `<telemetry.root>/<epic>/report.md` — and nothing else — **only** when the literal `write` keyword
-  is given, and that keyword is stripped **before** the remaining argument reaches the change
-  selector, so the selector grammar gains nothing.
-- **`report` adds no selector grammar and prunes nothing outside the reported epic's `raw/`.** It
-  never deletes `runs.ndjson`, `runs.csv`, `spans.csv`, or anything under
-  `<telemetry.root>/_unattributed/`, and **no ptp pipeline command ever triggers pruning**.
-- **`report` never conflates work time with elapsed time**, and no field it prints is derived by
-  subtracting component sums from wall time. Its data-quality footer is **mandatory** and is never
-  omitted or suppressed.
-- **`analyze` creates no file, modifies no existing file, and deletes nothing.** The third clause is
-  worded deliberately against `report`'s: `report` "deletes only aged raw files" because a default
-  invocation prunes irreversibly, while `analyze` performs **no deletion of any kind**, triggers no
-  retention pass, and writes no `analyze.md`. `analyze` **may** be called read-only — exactly as
-  `status` may and `report` may not. The three postures are worded differently because they
-  genuinely differ.
-- **`analyze` takes no selector and adds no grammar.** It is **store-wide over the raw store,
-  `_unattributed` included**; the skill defines **no** day or session narrowing flag today, and any
-  narrowing ever added would be an explicit **non-selector** flag of the engine's rather than
-  selector grammar. It is **never** delegated to `ptp-change-selector`. It
-  reads `raw/`, which `report` may never do; `export` reads it too, as the global re-derivation path
-  rather than an analysis one, so the property `analyze` holds alone is being an **analysis** over
-  `raw/`. `report` therefore remains the **one** `/ptp:telemetry` subcommand that resolves a change
-  selector.
-- **`/ptp:telemetry analyze` is not `/ptp:analyze`.** The names collide and nothing else does:
-  `/ptp:analyze` is the read-only investigation command that writes an analysis doc into a change
-  folder, specced by the **`analyze`** capability; `/ptp:telemetry analyze` renders a telemetry work
-  breakdown and is specced by the **`telemetry`** capability. Never route one to the other, and never
-  file a change against the wrong capability because of the shared word.
-- **`status` and `export` never start or stop the receiver.** `status` is read-only; `export`
-  **refuses** while a receiver for this store is live, naming `/ptp:telemetry stop`, rather than
-  stopping it. (`status`'s identity probe may cause the *receiver* to repair its own lockfile — a
-  receiver-owned write, which `status` reports.)
-- **`setup` writes only on explicit confirmation.** It renders the exact diff first and writes
-  nothing — not the settings file, not the credential, not either `.gitignore`, not the Codex
-  telemetry-consent record — unless the user confirms. It is the single exception to ptp's
-  never-write-a-Claude-Code-setting rule and is never reached automatically.
-- **`setup`'s Codex step is consented separately.** It records consent in a **repository-scoped ptp
-  telemetry-consent record** under `<telemetry.root>` and authorizes ptp to append per-invocation
-  `-c otel.*` arguments — carrying the store's ingestion credential, value never shown — to the
-  `codex exec` invocations it constructs here. **No Codex configuration file is written anywhere and
-  nothing is written to any user-global path.** Declining leaves the Claude-side setup completed and the
-  `codex exec` command line byte-identical; the step is blocked only when the store has **no ingestion
-  credential**, never by a declined Claude-side write. **No metrics exporter is ever configured** —
-  metrics are out of scope for this layer, not an emptied column.
-- **`status`'s Codex preflight is read-only and honest.** Four checks — `codex` on `PATH` (a filesystem
-  lookup; it **never invokes Codex**), the consent record present, its endpoint matching the resolved
-  `telemetry.port`, and its credential matching the store's (a **match verdict with neither value
-  printed**). A fully-matching result is reported as **configured; delivery not verified** — never as a
-  claim that Codex is emitting or that the receiver is accepting. An absent `codex` is reported as
-  absent with the rest marked not applicable, without erroring.
-- **Codex telemetry adds no ptp gate.** `codex.mode` remains the **only** authority over whether Codex
-  runs; the consent record only decides whether telemetry wiring is appended, so it can never disagree
-  with `codex.mode` about whether Codex ran — a run without consent simply produces no Codex rows.
-- **`/ptp:telemetry` runs no auto-start preamble.** It does not use `ptp-run-at-model`, which is what
-  keeps `status` strictly read-only and stops a status check from starting a process.
-- **No branch guard, no `openspec validate`, no git write.** `/ptp:telemetry` is exempt from the
-  branch guard exactly as `/ptp:status` and `/ptp:version` are. `setup` reads git only to refuse when
-  `.claude/settings.local.json` is already tracked. The **one** subcommand that resolves a change
-  selector is `report`, which delegates resolution wholesale to `ptp-change-selector` and adds no
-  grammar; `status`, `analyze`, `setup`, `start`, `stop`, and `export` take no selector at all.
-- **`status` never creates the store**, and never infers the mode from it: the mode is resolved from
-  configuration independently, and an absent store never means `telemetry.mode=off`.
-- **Never restate the skill's contract here** — the record shapes, store layout, mapping tables, CSV
-  rules, lifecycle rules, and gate ordering are defined once, in `ptp-telemetry`.
+- **No branch guard, no `openspec validate`, no git write.** `/ptp:telemetry` is exempt exactly as
+  `/ptp:status` and `/ptp:version` are.
+- **No `ptp-run-at-model`, and therefore no telemetry auto-start preamble.** That is what keeps a
+  `status` check from starting a process.
+- **This command owns no behavior and restates no methodology.** Every subcommand rule lives in its
+  leaf skill; every store, record, and lifecycle rule lives in `ptp-telemetry`.
+- **An unsupported subcommand is reported and writes nothing.**
+- **`/ptp:telemetry analyze` is not `/ptp:analyze`.** They are different commands against different
+  capabilities; the full statement of the collision lives in `ptp-telemetry-analyze`. Never route one
+  to the other.

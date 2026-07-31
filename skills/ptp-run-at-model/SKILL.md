@@ -132,7 +132,7 @@ The skill then runs, **in this order**:
    here; the derived `reviewer` is not used by this skill.
 
    **Telemetry auto-start preamble.** In this same slot, and **before** the ledger open below, run
-   the **telemetry auto-start preamble** defined in `skills/ptp-telemetry/SKILL.md` §15 — so the span
+   the **telemetry auto-start preamble** defined in `skills/ptp-telemetry/SKILL.md` [auto-start-preamble] — so the span
    receiver is listening before the run it observes emits anything. **Reference** it; do **not**
    restate its mode gate, its env check, its probe, or its lockfile rules here. It resolves
    `telemetry.mode` **once** and that single resolution is **shared with the ledger open that
@@ -667,15 +667,15 @@ git, and archive-force delegates to the inline `ptp-archive-force` skill.
   run proceeds.
 - **The never-write-a-Claude-Code-setting rule has exactly ONE exception: `/ptp:telemetry setup`.**
   It writes the telemetry `env` block into `<repo>/.claude/settings.local.json` — the key set is
-  enumerated once, in `skills/ptp-telemetry/SKILL.md` §13.2, and never restated here — it is
+  enumerated once, in `skills/ptp-telemetry/SKILL.md` [telemetry-env-keys], and never restated here — it is
   **manual, interactive, and confirm-first** — it renders the exact diff and writes nothing without
-  explicit confirmation — and it is defined in `skills/ptp-telemetry/SKILL.md` §13. The rule is
+  explicit confirmation — and it is defined in `skills/ptp-telemetry-setup/SKILL.md` [setup-methodology]. The rule is
   **not** weakened anywhere else: no other setting, no other command, and no automatic path may write
-  any settings file, and the `fast:` preflight above stays purely advisory and read-only. The §15
-  telemetry **auto-start preamble is not a second exception**: it writes no Claude Code setting at all
+  any settings file, and the `fast:` preflight above stays purely advisory and read-only. The
+  `ptp-telemetry` [auto-start-preamble] telemetry **auto-start preamble is not a second exception**: it writes no Claude Code setting at all
   and **never invokes `setup`** — it only starts a loopback process, and only when the user has
   already opted in twice (`telemetry.mode=on` **and** a live telemetry environment).
 - **The telemetry auto-start preamble never delays past its bound** — at most two 250 ms pre-launch
-  probes and one bounded readiness window (`ptp-telemetry` §15.4) — **never waits on the receiver
+  probes and one bounded readiness window (`ptp-telemetry` [preamble-readiness-bound]) — **never waits on the receiver
   outside it, never retries, never alters the relayed terminal state, and writes no setting.** Its
   entire permitted effect on this skill's output is **one** non-blocking advisory line.

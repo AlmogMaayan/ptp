@@ -2,8 +2,15 @@
 /**
  * ptp-telemetry-analyze — the predefined analysis engine over the ptp span store.
  *
- * Normative contract: `skills/ptp-telemetry/SKILL.md` §23. That section owns the methodology; this
- * file is its one executable copy. Changing §23 and changing this file is one change, never two.
+ * Normative contract: `skills/ptp-telemetry-analyze/SKILL.md`. That skill owns the methodology;
+ * this file is its one executable copy. Changing it and changing this file is one change, never
+ * two.
+ *
+ * Section-citation convention, unchanged by that relocation: `§23.x` is
+ * `skills/ptp-telemetry-analyze/SKILL.md`; every other `§N` (N <= 22) is
+ * `skills/ptp-telemetry/SKILL.md`, the telemetry substrate, which keeps a numbered forwarding stub
+ * at §23. Every `§` reference in the comments below resolves under this convention, and none of
+ * them was edited.
  *
  * This file **consumes** records that `scripts/ptp-otel-sink.js` has ALREADY mapped: it reads
  * `span_kind`, `tool_class`, `tool_name`, `model`, `duration_ms`, `bash_command` and `raw_span_name`
