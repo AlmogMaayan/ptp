@@ -109,7 +109,7 @@ nothing of its own — it only invokes Skills (`superpowers:brainstorming`, `sup
 
 Judge the *implementation* complexity from `tasks.md`, not how hard the planning was. Weigh: number of files/tasks, architectural subtlety, state/concurrency/async, security or data-integrity sensitivity, test difficulty, and how much judgment each task leaves open vs. being fully specified.
 
-Model and effort are **two independent dials** — pick each on its own, then combine. Valid efforts: `low`, `medium`, `high`, `xhigh`. So `sonnet · high` and `opus · xhigh` are both legitimate (and common) recommendations, not just the anchor pairs below.
+Model and effort are **two independent dials** — pick each on its own, then combine. Valid efforts: `low`, `medium`, `high`, `xhigh`. So `sonnet · high`, `opus · medium`, and `opus · xhigh` are all legitimate (and common) recommendations, not just the anchor pairs below.
 
 **Model** — how much raw capability the hardest task needs:
 - **Haiku** — trivial, fully-specified, mechanical work with zero design judgment left.
@@ -122,9 +122,18 @@ Model and effort are **two independent dials** — pick each on its own, then co
 - **high** — interacting constraints, non-obvious wiring, or tricky tests that need careful step-by-step reasoning.
 - **xhigh** — deep or easy-to-get-subtly-wrong work (concurrency, invariants, security, intricate state) where extra deliberation materially lowers the risk of a wrong implementation.
 
-Anchor combinations to calibrate against: `haiku · low` (mechanical copy/config edits) → `sonnet · medium` (typical feature) → `sonnet · high` (clear scope but fiddly logic/tests) → `opus · high` (subtle or cross-cutting) → `opus · xhigh` (subtle *and* high-stakes).
+Anchor combinations to calibrate against: `haiku · low` (mechanical copy/config edits) → `sonnet · medium` (typical feature) → `sonnet · high` (clear scope but fiddly logic/tests) → `opus · medium` (broad reach or contract subtlety, but `tasks.md` leaves no design judgment open) → `opus · high` (subtle or cross-cutting) → `opus · xhigh` (subtle *and* high-stakes).
 
 When a change straddles two levels on either dial, round up to the safer (more capable / higher effort) option and say why in the justification.
+
+**Round-down trigger (EFFORT dial only).** When `tasks.md` is already written at a level of detail that leaves **no design judgment open** during implementation — each task names the file to touch, the concrete edit to make, and how to verify it, so the implementer is *transcribing* decisions rather than *making* them (the verification half may be discharged per task or by a `## Verification` section that maps back to the same edits and to `proposal.md > Success criteria`; what matters is that nothing is left for the implementer to decide, not that every line carries the word *Verify*) — round the EFFORT dial **one step down** from the anchor row (`xhigh`→`high`, `high`→`medium`, `medium`→`low`) and say so in the justification. **Not applied twice:** the `sonnet | low` and `opus | medium` rows already have this condition built into them, so when the anchor row is one of those two the round-down is already reflected in the row — take the row's effort as written and do not lower it again.
+
+- **EFFORT dial only.** This never lowers the MODEL dial. Every opus trigger — subtlety, blast radius, security/concurrency/migration, cross-cutting reach — still resolves to opus. A detailed `tasks.md` makes the work *cheaper to reason about per task*; it does not make the work *smaller in reach*. The common landing spot for this repo is therefore `opus.medium`.
+- **One step, never two.** `xhigh` rounds down to `high`, never to `medium`. `low` is the floor.
+- **Precedence over the round-up rule.** When a change straddles two levels *and* this trigger fires, **this trigger wins on the EFFORT dial** and the justification MUST name it. The round-up rule continues to govern the MODEL dial unchanged, and continues to govern the EFFORT dial for straddles that have nothing to do with task detail.
+- **Does not fire when the risk is executional rather than design.** Detail in `tasks.md` removes the risk of *deciding wrongly*; it does not remove the risk of *getting a correctly-decided edit subtly wrong*. Concurrency, invariants, security, auth, and data migration keep their `high` / `xhigh` effort no matter how precisely the tasks are written.
+
+`commands/effort.md` step 4 is the authoritative statement of this rubric; if this mirror ever disagrees with it, `commands/effort.md` wins.
 
 ## Hard rules
 
