@@ -1,5 +1,5 @@
 ---
-description: Run ready epics from the epic backlog through /ptp:full, one at a time in ascending backlog-id order — five per invocation by default, overridable per invocation with rounds:{count}. Recomputes the ready set after every epic, records each epic's change ids back into the backlog store, and halts the whole run on the first epic whose /ptp:full does not converge. Never commits, pushes, merges, archives, or deploys. Delegates every rule to the ptp-backlog-run skill.
+description: Run ready epics from the epic backlog through /ptp:full, one at a time in the backlog's canonical order — five per invocation by default, overridable per invocation with rounds:{count}. Recomputes the ready set after every epic, records each epic's change ids back into the backlog store, and halts the whole run on the first epic whose /ptp:full does not converge. Never commits, pushes, merges, archives, or deploys. Delegates every rule to the ptp-backlog-run skill.
 argument-hint: "[rounds:{count}]"
 ---
 
@@ -21,9 +21,10 @@ while it had not is the **shape** of the refusal, not its wording:
   **writer-eligibility** rule; `ptp-github-projects-mcp`'s **`read-only`** and **`unavailable`**
   preflight verdicts (precondition 3 below); the read path's **degraded-scope** withholding, which this
   command consumes because it **consumes the ready set**, refusing at the top of the iteration and
-  never classifying a withheld ready set as an empty one; and an entry whose **content type offers no
-  path to update a carrier** a planned field rides. Each is a **condition within this one refusal
-  contract**, naming its own cause when it fires.
+  never classifying a withheld ready set as an empty one; an entry whose **content type offers no
+  path to update a carrier** a planned field rides; and `ptp-backlog-write`'s refusal when **the
+  resolved status-option row does not identify exactly one board `Status` option**. Each is a
+  **condition within this one refusal contract**, naming its own cause when it fires.
 - **No ground is worded over the write path being unshipped**, that antecedent having lapsed.
 - **No fallback of any kind.** No local backlog file is read, created, or written, and no other store
   is substituted — under any verdict, any problem, any refusal, and **any write outcome**, the error
@@ -88,5 +89,6 @@ restated in this file or in the runner skill.
   unarchived, and the pre-run announcement says so.
 - **Halt the whole run on a non-converged epic** — mark it `blocked` and take no further epic.
 - **One branch guard per run**, never one per epic.
-- **No selector and no other token** — no change id, no `epic:`/`story:` selector, no backlog id, and
+- **No selector and no other token** — no change id, no `epic:`/`story:` selector, no entry
+  identifier, and
   no `model:` / `fast:` / `parallel:` token; residue refuses rather than being ignored.

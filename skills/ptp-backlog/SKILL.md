@@ -1,6 +1,6 @@
 ---
 name: ptp-backlog
-description: Own the epic backlog board contract — the store being one GitHub Projects v2 board per repository, resolved through ptp-github-projects-mcp's configuration and capability preflight with no local backlog file, no second store and no fallback; the membership rule (an item is an entry iff its Backlog ID is non-empty after trimming); the ten-field entry model and its tolerant read; the field mapping of those ten slots onto six board carriers — the two required custom fields Backlog ID (TEXT) and Status (SINGLE_SELECT), the item's title and body, and the board's own stamps — with the status option table, the sentinel-fenced metadata block and its malformed-body boundaries, and unknown-key preservation in both scopes; the ptp-backlog-version: marker and its gate, whose absent-marker-reads-as-v1 divergence is justified in place; the read-only read protocol with its configuration-completeness-then-preflight precondition, its returned handle table and its degraded scope; board-derived BK-NNNN id allocation with its complete-fetch precondition and the numeric-ordering rule; the validator and its fixed five-code problem vocabulary with the fatal/structural split, the narrower writer-eligibility rule and the distinct unreachable-store outcome; and the ready-set definition — the pending entries in ascending backlog-id order — with its order deterministic over the produced document. A pure prose contract in the single-source-of-truth pattern of ptp-branch-guard (branch safety), ptp-codex-mode (the reviewer gate), ptp-agent-roles (role resolution), and ptp-parallel-fanout (fan-out safety) — it reads nothing on its own, writes nothing, and edits nothing. Also owns the status transition table — eight rows, each naming its performer — with its three guards (the gated blocked-to-pending reset that retains the prior attempt's changeEpics, the any-to-cancelled guard, and the blocked-to-done resume row available only as the same-invocation result of /ptp:backlog-continue's own review-full-then-archive sequence), and the recovery-and-reconciliation machinery every writer that settles a stale in-progress entry runs: the stale definition and its deliberately conditional wording, the single change-prefix-set definition both the runBaseline snapshot and the reconciliation diff cite, the additive-only reconciliation, the gate, the availability table and the disposition outcomes (claim / disown / rerun anyway, and per-prefix promote / dismiss) with their combination rules, the every-settling-edit-clears-runBaseline rule, and the never-yields-done rule. The contract was defined over a local file by 0036_01, which ships no writer; the transitions and recovery machinery by 0036_03 alongside /ptp:backlog-edit, the runner in 0036_04; the store became a GitHub Projects board in 0042_03, which ships the read half and leaves every writer refusing.
+description: Own the epic backlog board contract — the store being one GitHub Projects v2 board per repository, resolved through ptp-github-projects-mcp's configuration and capability preflight with no local backlog file, no second store and no fallback; the rule that every board item is an entry, no membership test being performed; the ten-field entry model and its tolerant read; the field mapping of those ten slots onto five board carriers — the one required custom field Status (SINGLE_SELECT), the item's title and body, and the board's own stamps — with the status option table, the sentinel-fenced metadata block and its malformed-body boundaries, and unknown-key preservation in both scopes; the ptp-backlog-version: marker and its gate, whose absent-marker-reads-as-v1 divergence is justified in place; the read-only read protocol with its configuration-completeness-then-preflight precondition, its returned handle table and its degraded scope; the node-id identity rule, under which nothing is allocated, minted or written and two ids can neither collide nor be malformed; the validator and its fixed four-code problem vocabulary with the fatal/structural split, the writer-eligibility rule that refuses past fatal problems only, and the distinct unreachable-store outcome; and the ready-set definition — the pending entries in the board's creation-stamp order — with its order deterministic over the produced document. A pure prose contract in the single-source-of-truth pattern of ptp-branch-guard (branch safety), ptp-codex-mode (the reviewer gate), ptp-agent-roles (role resolution), and ptp-parallel-fanout (fan-out safety) — it reads nothing on its own, writes nothing, and edits nothing. Also owns the status transition table — eight rows, each naming its performer — with its three guards (the gated blocked-to-pending reset that retains the prior attempt's changeEpics, the any-to-cancelled guard, and the blocked-to-done resume row available only as the same-invocation result of /ptp:backlog-continue's own review-full-then-archive sequence), and the recovery-and-reconciliation machinery every writer that settles a stale in-progress entry runs: the stale definition and its deliberately conditional wording, the single change-prefix-set definition both the runBaseline snapshot and the reconciliation diff cite, the additive-only reconciliation, the gate, the availability table and the disposition outcomes (claim / disown / rerun anyway, and per-prefix promote / dismiss) with their combination rules, the every-settling-edit-clears-runBaseline rule, and the never-yields-done rule. The contract was defined over a local file by 0036_01, which ships no writer; the transitions and recovery machinery by 0036_03 alongside /ptp:backlog-edit, the runner in 0036_04; the store became a GitHub Projects board in 0042_03, which ships the read half and leaves every writer refusing.
 ---
 
 # ptp-backlog — the epic backlog board and everything that defines it
@@ -14,13 +14,13 @@ defects, and need the same ready-set answer, the store's contract has to live in
 
 This skill is that place. It is the single source of truth for the epic backlog's store: its identity,
 its entry model, the mapping of that model onto board carriers, its version marker and gate, its read
-protocol, its id allocation, its validation vocabulary, and its ready-set definition. It is the backlog
-analog of `ptp-branch-guard` (branch safety), `ptp-codex-mode` (the reviewer gate), `ptp-agent-roles`
-(role resolution), and `ptp-parallel-fanout` (fan-out safety): **commands reference this contract rather
-than restating any part of it.** A command that needs the field list, the problem codes, the id rule, or
-the ready-set rule cites this skill; it does not copy them, because four commands each carrying their
-own copy of a ten-field schema and a five-code validator *is* the enumeration drift ptp's config
-contract already forbids.
+protocol, its **identity rule**, its validation vocabulary, and its ready-set definition. It is the
+backlog analog of `ptp-branch-guard` (branch safety), `ptp-codex-mode` (the reviewer gate),
+`ptp-agent-roles` (role resolution), and `ptp-parallel-fanout` (fan-out safety): **commands reference
+this contract rather than restating any part of it.** A command that needs the field list, the problem
+codes, the identity rule, or the ready-set rule cites this skill; it does not copy them, because four
+commands each carrying their own copy of a ten-field schema and a four-code validator *is* the
+enumeration drift ptp's config contract already forbids.
 
 The **transport** — which board, through which MCP server, under which namespace, and whether its tools
 are callable — is `ptp-github-projects-mcp`'s, not this skill's. This contract **cites** it and restates
@@ -54,8 +54,8 @@ lost or overwritten backlog write** — every safeguard has to be a refusal *bef
 repair after it.
 
 **This contract creates nothing.** The read creates no project, no custom field, no `Status` option, no
-board item and no version marker; a missing required carrier is **reported, never created**. Only two
-custom fields must pre-exist for a board to be usable, and how a user creates them is a one-time setup
+board item and no version marker; a missing required carrier is **reported, never created**. Only **one**
+custom field must pre-exist for a board to be usable, and how a user creates it is a one-time setup
 documented in the README, not an operation ptp performs.
 
 ## Schema (v1)
@@ -70,23 +70,28 @@ Exactly two recognized keys:
 ```jsonc
 {
   "version": 1,
-  "epics": [ /* entry objects, sorted by ascending numeric id */ ]
+  "epics": [ /* entry objects, in the canonical createdAt order */ ]
 }
 ```
 
 | Key | Type | Source | Notes |
 |---|---|---|---|
 | `version` | integer | the board's version marker (*Version marker and gate* below) | Exactly `1` in v1. No candidate anywhere ⇒ `1`, synthesized in memory. |
-| `epics` | array of entry objects | the board's **entries** (*Membership* below) | May be empty. Ordered by ascending **numeric** id — never board order, never column order. |
+| `epics` | array of entry objects | the board's items — **every one of them is an entry** (*Every board item is an entry* below) | May be empty. Ordered by the canonical key below — never board order, never column order, never any view's position. |
 
-**The `epics` order is total, which a file's array position made free and a board does not.** A
-malformed id orders **after** every well-formed one; two malformed ids order **between themselves** by
-the **raw id value** as read, ascending by Unicode code point of its canonical JSON serialization. Two
-entries sharing one id — a `duplicate-id` board, which still renders — are ordered **between
-themselves** by their **board item node ids**, ascending by Unicode code point of the node id's
-canonical JSON serialization, the same total key the problem sort key falls back to. The node id is the
-**last** tie-break in every case, which is what makes the order total: two entries can share a raw id
-value, but never a node id.
+**The `epics` order is total, which a file's array position made free and a board does not.** The
+canonical key is: **`createdAt` ascending; an entry whose `createdAt` is unusable — absent or
+`malformed-entry` — orders after every entry with a usable one; the node id ascending by Unicode code
+point of its canonical JSON serialization is the final tie-break in every case.** That last component is
+what makes the order total: two entries can share a `createdAt`, but never a node id.
+
+**`createdAt` is compared as an *instant*, never lexicographically** — and saying so is not pedantry,
+exactly as *all id ordering is numeric* was not in the rule this replaces. The normalized stamps
+(*Timestamps* below) are ISO-8601 UTC, but they may differ in fractional-second precision, and
+`2026-01-01T00:00:00.500Z` sorts **before** `2026-01-01T00:00:00Z` by code point while falling **after**
+it in time. Two stamps naming the same instant at different precisions are **equal** for this key and
+fall to the node-id tie-break. Only the node-id component is compared by code point, and it says so in
+place.
 
 ### Entry object
 
@@ -94,7 +99,7 @@ value, but never a node id.
 
 | # | Field | Type | Required on read | Empty value | Written by |
 |---|---|---|---|---|---|
-| 1 | `id` | string, `BK-NNNN` | **yes** | — | add (`0036_02`) |
+| 1 | `id` | string, opaque board node id | **yes** | — | **nobody — board-supplied** (*Identity* below) |
 | 2 | `title` | string, non-empty | **yes** | — | add / edit |
 | 3 | `description` | string | no | `""` | add / edit |
 | 4 | `status` | enum | **yes** | — | add sets `pending`; transitions in `0036_03` / `0036_04` |
@@ -104,6 +109,9 @@ value, but never a node id.
 | 8 | `createdAt` | `null` or ISO-8601 UTC instant string | no | `null` | **nobody — board-maintained** (*Timestamps* below) |
 | 9 | `updatedAt` | `null` or ISO-8601 UTC instant string | no | `null` | **nobody — board-maintained** (*Timestamps* below) |
 | 10 | `notes` | string | no | `""` | user edit |
+
+**`id`'s requirement is satisfied by construction:** the transport supplies a node id on every board
+item, so a read cannot produce an entry without one.
 
 **`status`** is exactly one of `pending`, `in-progress`, `done`, `blocked`, `cancelled`. This change
 treats status as **data**: it reads it, renders it, and uses it in the ready-set rule. It performs no
@@ -145,64 +153,47 @@ settled — and avoids a `version: 2` migration for a field whose shape was know
 Reading is tolerant, so the board stays **hand-editable** — which on a board is not a nicety but the
 normal case: a human drags cards, renames a column, and types in a body.
 
-- Exactly **three** fields are required: **`id`, `title`, `status`**.
+- Exactly **three** fields are required: **`id`, `title`, `status`**. `id` is **transport-supplied**, so
+  it can never actually be absent: only **`title`** and **`status`** can be, and this is stated rather
+  than left to inference.
 - Every other recognized field **may have no value on the board**; the reader supplies its empty value
   (`""`, `[]`, `null` per the table above) **in memory only** — nothing is written back to the board to
   materialize a default.
 - An **absent required field is a `malformed-entry` problem and is never defaulted.** Inventing a
   `status` would silently place an entry in the ready set, which is exactly the failure a tolerant
   reader must not commit.
-- A present field of the **wrong type**, an **out-of-enum** `status`, or a malformed `id`,
-  `attribution`, or change-epic prefix is a **reported** `malformed-entry` problem and is **never
-  coerced** to a valid value.
+- A present field of the **wrong type**, an **out-of-enum** `status`, or a malformed `attribution` or
+  change-epic prefix is a **reported** `malformed-entry` problem and is **never coerced** to a valid
+  value.
 
 ## The board mapping
 
-Ten entry field slots onto **six** carriers. Everything in this section is true of the backlog *because
+Ten entry field slots onto **five** carriers. Everything in this section is true of the backlog *because
 it is a board*; everything above it would survive a change of store.
 
-### Membership — decided before any field is read
+### Every board item is an entry
 
-**A board item is a backlog entry if and only if its `Backlog ID` field carries a value that is
-non-empty after trimming surrounding whitespace.** Membership is decided **before** any required-field
-check.
+**Every item on the resolved board is a backlog entry.** There is **no membership test**: no field value
+decides membership, nothing is decided before the required-field checks, and no item is excluded from
+`epics`.
 
-Three consequences, all of them load-bearing:
+An item is an entry whatever its content type — **draft issue, issue, or pull request**, all three
+exposing a title and a body — and **whether or not it is archived**; an archived item is an ordinary
+entry, flagged as board-archived by the view.
 
-- An item with **no** `Backlog ID` value, or one that is empty after trimming, is an **unmanaged item**:
-  not an entry, excluded from `epics`, excluded from id allocation, **reported** by the view, and **not
-  a defect**. A human dragging a card onto the board, or an ordinary issue tracked there, produces
-  exactly this.
-- An item **with** one is an entry whatever its content type — **draft issue, issue, or pull request**,
-  all three exposing a title and a body — and **whether or not it is archived**.
-- A value that is non-empty **after trimming** but is not a well-formed `BK-NNNN` (`bk-1`, `BK-x`,
-  `BK-123`) is a `malformed-entry` on `id`.
+**There is no unmanaged-item concept.** No item is "reported but not an entry", none is excluded from the
+entry set on membership grounds, and no rule of this contract classifies an item as unmanaged.
 
-**The trim is part of the membership test, and that is not a detail.** A field holding `"   "` is
-non-empty raw and empty trimmed. Read as an entry it is a `malformed-entry` on `id`, which under *Writer
-eligibility* makes the **whole store writer-ineligible** — a full lockout produced by someone typing a
-space. Read as unmanaged it is a harmless reported card. So membership tests the **trimmed** value, and
-`""`-after-trimming is **not** in the malformed-id set: a malformed id is a **non-empty trimmed** value
-that is not a well-formed `BK-NNNN`.
-
-**The trimmed value is also the value that maps.** The entry's `id` is the `Backlog ID` **trimmed** —
-`"  BK-0001  "` yields the entry `BK-0001`, well-formed — and that one trimmed value is what every
-downstream rule reads: the well-formedness test, `duplicate-id`, the ascending-numeric order, and
-allocation's `max + 1`. Surrounding whitespace is therefore never *data*, and the same card cannot be
-well-formed for membership and malformed for validation. The **raw**, untrimmed value survives in one
-place only — the handle table's `backlogId` (*What a read returns*) — because a future writer needs to
-know what the board actually holds. Trimming here is not a coercion: it changes no character of the
-identifier, whereas inventing or repairing one would.
-
-Deciding membership first is also what keeps the mapping consistent with *an absent required field is a
-`malformed-entry` and is never defaulted*: an unmanaged item never became an entry, so no required field
-of it was absent.
+The consequence is stated rather than hidden: **a card a human adds by hand is an entry**, and with no
+`Status` set it raises a `malformed-entry` on `status` — a structural problem, so every entry still
+renders and the ready set is withheld until it is repaired through *Repairing a `status` that is unset
+or out of enum* below.
 
 ### Field-name matching, and the collision that is fatal
 
-Board field names are matched **case-insensitively** with **surrounding whitespace trimmed** —
-`Backlog ID`, `backlog id`, `  Status  ` all match. **Nothing further is inferred:** a differently-named
-field (`Backlog Id #`, `State`) is a **missing** field, not a fuzzy match.
+Board field names are matched **case-insensitively** with **surrounding whitespace trimmed** — `Status`,
+`status`, `  Status  ` all match. **Nothing further is inferred:** a differently-named field (`Status #`,
+`State`) is a **missing** field, not a fuzzy match.
 
 **A normalized-name collision on a required carrier is `malformed-file` and fatal**, and the problem
 **names both colliding field names**. It is never resolved by picking one — first-declared,
@@ -213,7 +204,7 @@ coercion this whole section forbids.
 
 | # | Field | Required on read | Carrier |
 |---|---|---|---|
-| 1 | `id` | **yes** | the **`Backlog ID`** TEXT custom field — its presence is what makes the item an entry |
+| 1 | `id` | **yes** | the board item's own **node id** — the item's identity, not a carried value |
 | 2 | `title` | **yes** | the item content's **title** |
 | 3 | `description` | no | the item **body**, everything before the `begin` sentinel |
 | 4 | `status` | **yes** | the board's **`Status`** SINGLE_SELECT, through the option table below |
@@ -224,19 +215,20 @@ coercion this whole section forbids.
 | 9 | `updatedAt` | no | the board item's own `updatedAt`, normalized |
 | 10 | `notes` | no | block key `notes` |
 
-**Six carriers in three groups:** two **required custom fields** (`Backlog ID`, `Status`); two
-**positional carriers on the item itself** (its title, and its body — whose prose is `description` and
-whose sentinel block carries the four block keys); and two **board stamps**.
+**Five carriers:** one **required custom field** (`Status`); two **positional carriers on the item
+itself** (its title, and its body — whose prose is `description` and whose sentinel block carries the
+four block keys); and two **board stamps**. `id` is **not** among them: it is the item's own identity,
+the thing the other nine fields hang on, rather than a slot the item carries.
 
 No entry field is read from more than one carrier, and no board state causes a field to be inferred from
 a carrier other than its own.
 
-### Required and optional carriers — a floor of two, never a cap
+### Required and optional carriers — a floor of one, never a cap
 
-**Exactly two custom fields must pre-exist:** `Backlog ID` (TEXT) and `Status` (SINGLE_SELECT). That is
-a **floor, never a cap**. A board carrying `Priority`, `Iteration`, `Assignees` and a team's own field
-alongside them is fully usable: their presence neither makes the board unusable nor raises a problem,
-and they are preserved by construction (below).
+**Exactly one custom field must pre-exist:** `Status` (SINGLE_SELECT). That is a **floor, never a cap**.
+A board carrying `Priority`, `Iteration`, `Assignees` and a team's own field alongside it is fully
+usable: their presence neither makes the board unusable nor raises a problem, and they are preserved by
+construction (below).
 
 - A **required** carrier that is **missing**, **or present with the wrong type**, is `malformed-file`
   and **fatal**. No item on that board can yield a required entry field, and guessing a value out of a
@@ -245,15 +237,19 @@ and they are preserved by construction (below).
 - A missing **optional** carrier is **not a defect**: the tolerant read supplies the entry model's empty
   value **in memory only**.
 
-**A board carrying both required fields and zero items with a non-empty trimmed `Backlog ID` is a
-successfully-read, genuinely empty backlog** — not a defect, not an error. It is the **only** state that
-may render as "no entries yet".
+**A board carrying the required field and no items at all is a successfully-read, genuinely empty
+backlog** — not a defect, not an error. It is the **only** state that may render as "no entries yet".
 
-### The `status` option table
+**A leftover `Backlog ID` field from an earlier ptp is an ordinary unrecognized custom field** — never
+read, never written, never removed, and never a problem. It is named literally here so a user can
+recognize it on their own board; it may be deleted by hand, and ptp neither requires that nor performs
+it.
+
+### The `status` option table — configurable, with a built-in default
 
 Matched on the selected option's **name**, case-insensitively and whitespace-trimmed:
 
-| Entry `status` | Accepted option names |
+| Entry `status` | Default accepted option names |
 |---|---|
 | `pending` | `pending`, `Todo` |
 | `in-progress` | `in-progress`, `In Progress` |
@@ -261,14 +257,78 @@ Matched on the selected option's **name**, case-insensitively and whitespace-tri
 | `blocked` | `blocked`, `Blocked` |
 | `cancelled` | `cancelled`, `Cancelled`, `Canceled` |
 
+> **The resolved table** is the built-in default table with each status's row replaced by that status's
+> resolved override where one exists, and left at its default row where none does.
+
+The overrides come from the `backlog.statusOptions` configuration key, whose path, kind, per-status-key
+validity, and layered forgiving resolution are owned by `ptp-github-projects-mcp` — see that skill for
+the key itself; its validity rules are **not** restated here. This skill owns the **default table**, the
+**merge** onto it, the **resolved table's** semantics, and the **collision rule** below.
+
+Matching is unchanged: on the selected option's **name**, **case-insensitively** and
+**whitespace-trimmed**, with no fuzzy matching and no near-match. Configuration changes *which names are
+in the table*; it never changes *how a name is matched*, and it never adds a sixth status — the five
+entry `status` values are the schema's.
+
+#### Replace, not extend
+
+A configured row **replaces** its default row rather than being unioned with it. Extension can never
+lose a spelling that used to work, which is genuinely attractive, and it is rejected for two reasons:
+
+1. It makes it **impossible to stop** `Todo` meaning `pending`. A board that uses `Todo` for something
+   else — a triage column, say — would have every card in it read as a `pending` epic.
+2. It would make a collision **permanently unfixable**. A user whose pending column is literally named
+   `Done` configures `pending: "Done"`; under extension the `done` row still contains `Done`, and there
+   is no configuration that removes it. The collision rule below would then refuse a configuration the
+   user has no way to repair.
+
+A user who wants both spellings lists both. Replace keeps the row entirely in the user's hands.
+
+#### The collision rule
+
+> **No normalized option name may appear on two rows of the resolved table.** Where one does, the
+> configuration is **unactionable**: the consumer refuses non-silently, naming `backlog.statusOptions`,
+> the colliding option name, and **every** status claiming it. It is **never** resolved by picking one —
+> first-listed, last-listed, and canonical-status-order are all silent guesses at which status the user
+> meant, which is the coercion this whole section forbids.
+
+Three refinements:
+
+- **It is a property of the *resolved* table, not of the configured fragment.** A configured row
+  colliding with an **unconfigured default** row counts — and that is in fact the realistic case
+  (`pending: "Done"` against the untouched `done` row).
+- **Duplicates within one row are not a collision.** `["Todo","todo"]` normalizes to one name on one
+  row; only two **distinct** statuses claiming one normalized name collide.
+- **It is a configuration defect, not a board defect**, and therefore **not** `malformed-file`: raising a
+  board problem code for a JSON typo would report the fault in the board's problem table and send the
+  user hunting the board for something that is in a config file. It adds nothing to the problem
+  vocabulary.
+
+Two precedents, both exact in shape. `ptp-github-projects-mcp`'s **`mcpServerInvalid`** carve-out also
+has resolution never throw, has the fact computed and carried as a verdict, and leaves the **refusal** to
+the consumer; it differs only in *where* the fact is computed, and that is forced by the ownership split
+— `mcpServerInvalid` is decidable from the key alone, while a collision needs the **resolved** table,
+which needs the default table the transport skill deliberately does not hold. And this skill's own
+**normalized-name collision on a required carrier** applies the same doctrine: *never resolved by picking
+one*.
+
+#### The four situations
+
 Four situations, deliberately landing in four different places:
 
 | Situation | Outcome |
 |---|---|
-| the selected option's name is **outside the table** (`Needs review`) | `malformed-entry` on `status`, **never coerced** to a nearby value |
+| the selected option's name is **outside the resolved table** (`Needs review`) | `malformed-entry` on `status`, **never coerced** to a nearby value |
 | the item has **no `Status` value set** (a real Projects state) | `malformed-entry` on `status` — `status` is required on read and is **never invented** |
 | the board **has no `Status` field**, or it is not a SINGLE_SELECT | `malformed-file`, **fatal** (above) |
-| the board's `Status` field **lacks an option** for one of the five values | **not a read defect at all** — no item can carry an option that does not exist. It becomes the write path's problem when it needs to *write* that value |
+| the board's `Status` field **lacks an option** for one of the five values | **not a read defect at all** — no item can carry an option that does not exist. It is the **write path's refusal** (`ptp-backlog-write`, *The commit refuses when the resolved row does not identify exactly one board option*), and the view **notes it** (below) |
+
+**The advisory.** `list_project_fields` already returned the board's `Status` options, so the read is the
+cheapest possible place to tell a user that their configuration and their board disagree: the view emits
+a **note** naming every status the board can carry no option for. Its bounds are absolutes, because a
+note that quietly grew teeth would be worse than no note — it raises **no problem code**, adds **nothing
+to the problem vocabulary**, withholds **nothing** (not the ready set, not the entries table), changes
+**no verdict**, and does **not affect writer eligibility**. It is information, not a gate.
 
 Because `status` is the **whole** of the readiness predicate, this refusal to coerce carries weight it
 did not carry when a dependency graph shared the load: misreading `status` is the only way a board
@@ -418,8 +478,11 @@ by ptp" from "a board a human made" — and `1` is the only version that exists.
 would make **every pre-existing board unviewable**, which is this contract's purpose negated. The view
 renders it honestly as `1 (assumed — no version marker on the board)`.
 
-Rejected: strict parity (unviewable boards); a sentinel *item* carrying the version (a fake card needing
-exclusion from the entry set, from allocation, and from the view — three special cases for one integer).
+Rejected: strict parity (unviewable boards); a sentinel *item* carrying the version — a fake card needing
+exclusion from the entry set and from the view. That rejection is **stronger now, not weaker**: with no
+allocation to exclude it from, and with **every board item an entry**, the sentinel card would have to be
+carved out of a rule that admits no exceptions at all — one integer bought with a hole in the membership
+rule this contract just deleted.
 
 ## Timestamps
 
@@ -438,10 +501,17 @@ reaches the board at all. The consequence is stated rather than hidden: **a call
 post-write in-memory `updatedAt` as the stored value.** A human's UI edit moving a stamp is a third
 party touching the store, and the read reports it as exactly that.
 
-**Why the churn is harmless where it matters:** nothing computed reads a timestamp. The ready set reads
-`status` alone, the canonical order reads `id`, and the problem sort key reads id / field / value. A card
-touched in the UI changes what the view *displays* about it and **nothing about what the view
-computes**.
+**Why the churn is harmless where it matters:** **`updatedAt` is read by nothing computed.** The
+canonical `epics` order, the ready-set order, and the problem sort key all read **`createdAt`** — and
+`createdAt` is the one board stamp the board **never mutates after creation**. So a card touched in the
+UI moves only `updatedAt`, which changes what the view *displays* about it and **nothing about what the
+view computes**. The distinction between the two stamps is what makes this an amendment of the old claim
+rather than an abandonment of it.
+
+A `malformed-entry` on `createdAt` therefore does reach a computation, and its three consequences are
+stated together: the entry **orders last** (per the canonical key), the **ready set is withheld** as
+under any structural problem, and the store is **not** made writer-ineligible (*Writer eligibility*
+below).
 
 The obvious alternative — mapping `updatedAt` to a writable carrier so a committed value persists — is
 **not available**: the API exposes no setter, and inventing a second, ptp-owned `updatedAt` custom field
@@ -457,9 +527,17 @@ absence from this contract is deliberate rather than an omission.
 ```
 READ:
   0. CONFIGURATION COMPLETENESS FIRST — resolve `backlog.*` through
-     `ptp-github-projects-mcp` and read its verdict. Incomplete (or
-     `mcpServerInvalid`) → REFUSE non-silently, naming the missing or
-     invalid keys. NO Projects tool is called. This is NOT the preflight.
+     `ptp-github-projects-mcp` and read its verdict. Then, in this fixed
+     order, REFUSE non-silently on any of THREE grounds:
+       (1) the configuration is INCOMPLETE — naming the missing keys;
+       (2) `mcpServerInvalid` — naming `backlog.mcpServer`;
+       (3) the RESOLVED status-option table COLLIDES — merge the verdict's
+           `statusOptionOverrides` onto the built-in default table and apply
+           the collision rule above, naming `backlog.statusOptions`, the
+           colliding name, and every status claiming it.
+     All three are decidable from CONFIGURATION ALONE, so all three precede
+     the preflight and precede every board call. NO Projects tool is called.
+     This is NOT the preflight.
   1. Run `ptp-github-projects-mcp`'s capability preflight.
        a verdict that does not admit the read → terminate through THAT
        skill's non-silent STOP, cited and never restated here.
@@ -471,14 +549,14 @@ READ:
        not obtained → the `unreachable-store` outcome. STOP.
   2b. Fetch EVERY item page to cursor exhaustion.
        not pagination-complete → the `unreachable-store` outcome. STOP.
-  3. Apply MEMBERSHIP (entries vs unmanaged items).
-  4. Map the carriers: the two custom fields, the title, the body and its
+  3. Map the carriers: the one custom field, the title, the body and its
      block, the two stamps.
-  5. Apply the VERSION GATE.
-  6. VALIDATE. Readers report the problems; writers apply writer
+  4. Apply the VERSION GATE.
+  5. VALIDATE. Readers report the problems; writers apply writer
      eligibility below.
-  7. Return the document, the problem list, the unavailable mask, and the
-     handle table.
+  6. Return the document, the problem list, the unavailable mask, the
+     handle table, and the `Status` field's option names as read at
+     step 3.
 ```
 
 **Three absolutes.**
@@ -500,27 +578,31 @@ a one-line config fix. Folding the two together loses that distinction, which is
 
 ### What a read returns
 
-Two things, deliberately separate:
+Three things, deliberately separate:
 
 1. the **document** `{ version, epics }` in the in-memory shape the validator and the ready set consume
    unchanged, plus the ordered **problem list** and the **unavailable mask**;
 2. a **handle table keyed by the board item's node id** —
-   `nodeId → { itemId, backlogId, contentType, isArchived }` — where `backlogId` is the **raw** value as
-   read, possibly malformed and possibly shared with another row.
+   `nodeId → { itemId, contentType, isArchived }`;
+3. the **`Status` field's option names, verbatim and in board order** — the values step 3 already read
+   in order to map the carrier.
 
 The handles stay **outside** the entry objects, so the entry model gains no store-specific field for
 unknown-key preservation to reason about.
 
-**Why the node id keys the table, and not `BK-NNNN`.** Keying by backlog id looks natural and is wrong
-in two cases this contract admits. A **duplicated** valid id is a supported structural read
-(`duplicate-id` leaves both entries renderable), so a `BK-NNNN`-keyed table would silently lose one
-item's handle — a silent drop, in the one contract that forbids them. And a **malformed** id is still an
-entry, so it has no well-formed key at all, while the problem sort key needs exactly that entry's node
-id. The node id is present, unique and total over every item.
+**The third is returned rather than re-fetched, and it is neither a document value nor a handle.** No
+entry carries it — it describes the **field**, not any item — so folding it into either of the first two
+would misplace it. It is returned because two consumers need it and **neither may make a second board
+call for it**: the view's **missing-status-option advisory** (above), which is only free because the
+options are already in hand, and `ptp-backlog-write`'s **selection of which option a `status` commit
+writes** together with its refusal when the resolved row identifies no option or more than one — a
+refusal that binds to the pre-dispatch snapshot, which is a re-read through **this** protocol. The names
+are returned **unnormalized**: normalizing here would destroy the exact spelling both the advisory and
+the write refusal must print back to the user.
 
-The `BK-NNNN` → handle lookup a writer needs is a **derived** view, well-defined precisely when the
-store is **writer-eligible** — no `duplicate-id`, no `malformed-entry` on an `id` — which is exactly the
-condition under which a write may proceed at all.
+The table is keyed by the node id, **which is also the entry's `id`**, so the justification is trivially
+true: every entry has exactly one, no two entries share one, and no derived second lookup exists or is
+needed.
 
 ### Degraded scope — when archived items are unreachable
 
@@ -528,28 +610,23 @@ The state: the resolved transport can enumerate items but **cannot return archiv
 **transport capability limit, not a document defect**: it raises **no problem code**, and the read still
 proceeds, because a view that refuses over a limit it can describe is useless.
 
-Two things are withheld, and the view says why:
-
-1. **Allocation is `unavailable`, not "computed over the non-archived items".** An unreachable archived
-   tier **is** a partial id space, so the same rule as an incomplete fetch applies — the next id renders
-   `unavailable (archived items unreachable)` — reached **without** calling it a document defect.
-2. **The ready set is withheld.** An incomplete `pending` set can put the **wrong entry at the head** of
-   the ascending-id order, and the head is exactly what a runner consumes. This is an **additional**
-   withholding condition standing alongside the problem-based one, not a re-derivation of it: the
-   inherited suppression rule is one-directional (*display a ready set only when free of fatal and
-   structural problems*), so it bounds when a ready set **may** be shown and never obliges showing one.
+**Exactly one thing is withheld, and the view says why: the ready set.** An incomplete `pending` set can
+put the **wrong entry at the head** of the canonical order, and the head is exactly what a runner
+consumes. This is an **additional** withholding condition standing alongside the problem-based one, not
+a re-derivation of it: the inherited suppression rule is one-directional (*display a ready set only when
+free of fatal and structural problems*), so it bounds when a ready set **may** be shown and never
+obliges showing one. **Nothing else is withheld**, there being no allocation left to withhold.
 
 Everything else is still reported. The criterion is **soundness over a subset**: each surviving code can
-only ever be *missed* when an entry is unreturnable, never manufactured. The one residual false negative
-is stated rather than hidden — **an archived entry sharing an id with a visible one yields no
-`duplicate-id` under degraded scope** — and what bounds it is the **withheld allocation**: the miss's
-only consequence is on the id space, and nothing may derive an id from a degraded read.
+only ever be *missed* when an entry is unreturnable, never manufactured. The residual is stated rather
+than hidden — **an archived entry is not seen at all** — and its only consequence is on the order, and
+therefore on the order's head, which the withheld ready set already bounds.
 
 **Deliberately not claimed: that degraded scope makes the store writer-ineligible.** It raises no problem
-code, and writer eligibility refuses only past a fatal problem, a `duplicate-id`, or a `malformed-entry`
-on an `id` — none of which this state produces. What *is* established is narrower and sufficient: **no id
-may be allocated**, so any write needing one cannot proceed. Whether a write needing **no** new id may
-proceed under degraded scope is the write path's question and is left open here.
+code, and writer eligibility refuses only past a **fatal** problem — which this state does not produce.
+What *is* established is narrower and sufficient: **a writer that consumes the ready set cannot
+proceed**. Which writers those are is the write path's question, answered by `ptp-backlog-write`'s own
+derivation rule.
 
 **How the read knows.** Archive reachability is read from `ptp-github-projects-mcp`'s preflight record —
 its `archiveReachable` fact — and is **never inferred from the result set**: a complete fetch of a board
@@ -558,7 +635,7 @@ came back" establishes nothing. Per that skill's own consumer rule, **only `true
 scope**; `false` and `"unknown"` are treated **identically** as *not established* and both degrade, the
 two being distinguished only so the reported reason is honest. Where the record publishes no such fact at
 all, the read degrades rather than claiming a scope it cannot establish — withholding costs a user a
-ready set, whereas wrongly assuming full scope costs them a reused id.
+ready set, whereas wrongly assuming full scope costs them a runner taking the **wrong epic**.
 
 ### Concurrency
 
@@ -570,71 +647,23 @@ this contract only notes that the runner is not permitted to use them.)
 must not carry an in-memory document across an operation that could have been interleaved with a human's
 edit in the GitHub UI. There is no lockfile and no version control to fall back on — see *The store*.
 
-## Id allocation
+## Identity
 
-**Format.** `BK-` followed by a zero-padded decimal integer of **minimum** width four, with no upper
-bound: `BK-0001`, `BK-0042`, `BK-9999`, `BK-10000`. The prefix is **fixed and uppercase**, and ids are
-**case-sensitive** — `bk-0001` is a `malformed-entry`.
+**The entry `id` is the board item's own GraphQL node id** — an opaque string carrying no ptp-defined
+format. It is supplied by the transport on every item, and it has **no writable carrier**.
 
-**Allocation.** `next = max(numeric part of every id in the store) + 1`, formatted to at least four
-digits. **Every entry counts regardless of status** — `done` and `cancelled` entries **included**. An
-empty backlog allocates `BK-0001`.
+**Nothing is allocated, minted, derived, or written.** There is no `max + 1` rule, no zero-padding, no
+allocation precondition, and no persisted counter, manifest, or sentinel item. No ptp command establishes
+an entry's identifier; the store hands it over with the item.
 
-Allocation is a **pure function of the store's current contents**: **no persisted counter, no manifest,
-no sentinel item, no other persisted state**. This mirrors `ptp-change-selector` § 4's
-filesystem-derived epic allocation, which likewise derives the next number from current state alone.
+Two consequences follow **by construction**, not by luck: **two ids cannot collide**, and **an id cannot
+be malformed** from ptp's perspective. That is why `duplicate-id` does not exist and why
+`malformed-entry` is not raisable on `id` (*Problem codes* below).
 
-### The board-derived input, and its precondition
-
-The formula, the zero-padding, the every-status-counted rule and the no-persisted-counter posture are
-**unchanged**. What changes is the *input* the formula runs over, and the precondition without which it
-is unsafe:
-
-```
-PREPARE-FOR-ALLOCATE(board):
-  1. Require a COMPLETE item fetch — every page retrieved, the cursor exhausted.
-     Incomplete → the `unreachable-store` outcome. NO id is allocated.
-  2. entries := items carrying a non-empty trimmed `Backlog ID`
-                -- archived items INCLUDED, unmanaged items EXCLUDED
-  3. If any entry's id is malformed, or two entries share an id
-       → writer-ineligible. NO allocation.
-  4. next := max(numeric part) + 1, formatted to at least four digits.
-     An empty entry set allocates BK-0001.
-```
-
-**"Complete" means pagination-complete** — every page retrieved, the cursor exhausted, no page erroring.
-A fetch failing *that* test is `unreachable-store`. A pagination-complete fetch whose **archive coverage
-is unestablished** is **not** an incomplete fetch: it is *Degraded scope* above, which withholds
-allocation without claiming the board was not obtained. Keeping the two apart is what stops the rules
-colliding over an archive-limited board.
-
-Four properties, each of which is a way to get this wrong:
-
-- **Step 1 is fatal rather than a warning** because `max + 1` over a partially-fetched board **silently
-  reuses a live id** and collides two epics.
-- **Archived items count.** They are ordinary entries — in `epics`, in the max scan, flagged in the view
-  as board-archived. This mirrors the rule that `done` entries keep counting forever; excluding them
-  would reallocate their ids.
-- **Unmanaged items contribute nothing**, having no id to contribute.
-- **Allocation is never derived from the item count.** Deleting a card would then collide immediately.
-
-**All id ordering is numeric, never lexicographic.** `BK-10000` sorts **after** `BK-0002`. This
-applies everywhere ordering appears: the canonical `epics` sort, the ready-set tie-break, and every id
-array and identifier-bearing collection.
-
-**No interaction with the change selector.** `BK-NNNN` ids are **not** added to the `epic:` / `story:`
+**No interaction with the change selector.** Node ids are **not** added to the `epic:` / `story:`
 selector grammar, `ptp-change-selector` is **not modified** by this contract and **does not read** the
-backlog, and backlog ids **reserve no ptp change-epic numbers**. `epic:BK-0001` would mean
-something different from `epic:0041`, which is exactly the ambiguity being avoided.
-
-**Stated limitation — ids can be reused after a hand-deletion, and it is worse on a board than it was in
-a file.** Deleting a card is **one click and leaves no trace** ptp can read, so hand-deleting the
-highest-numbered entry makes the next allocation reuse its number. Accepted for the same reason v1
-accepted it for the file — a persisted counter reintroduces exactly the persisted state this rule avoids
-— and mitigated by `done`, `cancelled` **and archived** cards all continuing to count.
-
-**The read path allocates nothing.** The rule is defined here and consumed by the write path, whose
-first act on taking an epic is to allocate an id under the precondition above.
+backlog, and backlog entry identifiers **reserve no ptp change-epic numbers**. This obligation is carried
+forward here deliberately rather than dropped with the identifier that used to state it.
 
 ## Validation
 
@@ -644,30 +673,24 @@ nothing**, **writes nothing**, and **never mutates** what it inspects.
 **The order is specified, not incidental** — "pure function" would be an empty claim if the same
 document could yield the same problems in two different sequences. Problems are emitted in the
 **table order below** (the row order of *Problem codes*: `unparseable-file`, `unsupported-version`,
-`malformed-file`, `duplicate-id`, `malformed-entry`), and **within one code** by this total key,
-compared left to right:
+`malformed-file`, `malformed-entry`), and **within one code** by this total key, compared left to right:
 
-1. ascending **numeric** id of the entry the problem names — falling back, when the id itself is
-   unusable, to the **board item's node id** ascending by Unicode code point of its canonical JSON
-   serialization (an unusable id always sorts after every usable one). The file contract fell back to
-   the entry's array **index**; a board has none, and the node id is present, unique and total over
-   every item, so the substitute is total for the same reason the original was;
+1. the entry's **position in the canonical `epics` order** — itself total, by that order's node-id final
+   tie-break, so this component alone separates any two entries;
 2. the **offending field name**, ascending lexicographically, when one entry raises the same code on
    more than one field;
-3. the **offending value** — the duplicated identifier, or the `changeEpics` element's `id` —
-   ascending by Unicode code point of its canonical JSON serialization, which settles the case of one
-   entry raising the same code on the same field more than once (two malformed `changeEpics`
-   elements' ids) and is defined for a non-string offending value as well;
-4. the **board item's node id** of the item the problem came from, ascending by Unicode code point of
-   its canonical JSON serialization. This last component settles the one case the first three cannot —
-   **two entries sharing an id** (a `duplicate-id` board) raising the **same** code on the **same**
-   field with the **same** value, where components 1–3 are identical by construction. It is the same
-   node id component 1 falls back to, applied here as the final tie-break rather than as a substitute.
+3. the **offending value** — the `changeEpics` element's `id`, say — ascending by Unicode code point of
+   its canonical JSON serialization, which settles the case of one entry raising the same code on the
+   same field more than once (two malformed `changeEpics` elements' ids) and is defined for a
+   non-string offending value as well.
+
+**There is no fourth, node-id component.** It existed only to separate **two entries sharing one id**,
+which is now impossible, and the canonical order's own tie-break already makes component 1 total.
 
 **Board-level problems name no entry, and they sort first.** `unparseable-file` and `malformed-file`
 are properties of the **board**, not of an item — a missing or mistyped required carrier, a
-normalized-name collision, a present-but-invalid version marker — so they have neither an id nor a node
-id, and components 1 and 4 do not reach them. Within their code they are emitted **ahead of** every
+normalized-name collision, a present-but-invalid version marker — so they occupy no position in the
+canonical order, and component 1 does not reach them. Within their code they are emitted **ahead of** every
 entry-scoped problem of that same code, ordered between themselves by the **offending carrier or field
 name** ascending lexicographically and then by the **offending value** ascending by Unicode code point
 of its canonical JSON serialization. A board cannot raise two board-level problems of one code naming
@@ -688,14 +711,17 @@ pure functions of the produced document** — not of the board over time.
 |---|---|---|---|
 | `unparseable-file` | fatal | the board **was obtained** and its content could not be turned into the in-memory document — a field response of an unexpected shape, an item payload not interpretable at all. It is **not** the code for failing to *reach* the board; that is the `unreachable-store` outcome below | what could not be interpreted |
 | `unsupported-version` | fatal | the version marker parses to an integer greater than the supported version | the found version and the supported one |
-| `malformed-file` | fatal | a **required carrier is missing** (`Backlog ID`, `Status`); a required carrier is present with the **wrong type**; two board fields **normalize to the same** required carrier name; or a **present** version marker is non-integer, empty, or < 1 | the carrier and the type it must have, or both colliding field names, or the marker value found |
-| `duplicate-id` | structural | the same `id` appears on more than one entry — a pure function of the produced document, with no board-specific narrowing | the id and how many entries carry it |
-| `malformed-entry` | structural | everything the entry model already lists — a required field absent, a field of the wrong type, an empty `title`, an out-of-enum `status`, a malformed `attribution` or change-epic prefix, a `changeEpics` `id` duplicated within the entry — **plus**: a `Backlog ID` present and non-empty-trimmed but malformed; a `Status` unset or naming an option outside the option table; a **sentinel block that does not parse**; and a board timestamp that will not normalize to a UTC instant | the entry id (or its board item node id when the id itself is unusable) and the offending field |
+| `malformed-file` | fatal | the **required carrier is missing** (`Status`); the required carrier is present with the **wrong type**; two board fields **normalize to the same** required carrier name; or a **present** version marker is non-integer, empty, or < 1 | the carrier and the type it must have, or both colliding field names, or the marker value found |
+| `malformed-entry` | structural | everything the entry model already lists — a required field absent, a field of the wrong type, an empty `title`, an out-of-enum `status`, a malformed `attribution` or change-epic prefix, a `changeEpics` `id` duplicated within the entry — **plus**: a `Status` unset or naming an option outside the option table; a **sentinel block that does not parse**; and a board timestamp that will not normalize to a UTC instant | the entry's node id and the offending field |
 
-These **five** codes are the **shared vocabulary for the whole epic**, reused **verbatim** by every
+These **four** codes are the **shared vocabulary for the whole epic**, reused **verbatim** by every
 command rather than renamed per command. The four graph-shaped codes this vocabulary once carried were
 removed in `0042_01` because their only inputs — the epic-dependency fields and the **keys** of their
 evidence map — are no longer recognized fields, so no document can raise them.
+
+**`duplicate-id` is gone, and `malformed-entry` has no `id` case**, both being **unreachable by
+construction** rather than merely unlikely: the identifier is the item's node id, which no two items
+share and which ptp never has to parse.
 
 **No sixth code is added for the board, and the two file-shaped spellings are kept.** A consumer must
 classify a defect the same way whatever produced it; `unparseable-file` and `malformed-file` are opaque
@@ -716,8 +742,8 @@ did not complete**. It carries the **tool name and the transport error** in plac
 and it is **distinct from "no entries yet" at the level of the value returned**, not merely in wording —
 which is what makes the honest-failure rule structurally true rather than only phrased.
 
-It is **fatal-equivalent**: nothing is computed, no entries, no ready set, no id allocated, and the view
-renders the short fatal form.
+It is **fatal-equivalent**: nothing is computed, no entries, no ready set, and the view renders the short
+fatal form.
 
 ### The honest-failure rule
 
@@ -739,46 +765,57 @@ for the STOP message — is the error this rule exists to prevent.
 
 ### Fatal vs. structural
 
-- **Fatal** — **nothing further is computed**: no entries are rendered, no ready set is produced, and
-  no id is allocated. The document is not usable at all. A reader reports the problem alone; a writer
-  refuses.
-- **Structural** — the document parses and its entries **still render individually**, but the **id
-  space** or an **individual entry's own data** is not trustworthy, so the **ready set is withheld**.
+- **Fatal** — **nothing further is computed**: no entries are rendered and no ready set is produced. The
+  document is not usable at all. A reader reports the problem alone; a writer refuses.
+- **Structural** — the document parses and its entries **still render individually**, but an
+  **individual entry's own data** is not trustworthy, so the **ready set is withheld**.
 
-Withholding is **more** load-bearing now, not less. `duplicate-id` leaves undefined which entry heads
-the ascending-id order that is now the whole ready-set order. And a `malformed-entry` on an
-out-of-enum `status` leaves unreadable the very `status` that is now the whole readiness predicate.
-Structural is nevertheless not fatal, because a read-only view that shows **nothing** because one
-entry carries one bad field is useless exactly when the user most needs to see the board. Structural
-is therefore defined by what it still *permits* (rendering the entries), not merely by its name.
+Withholding is **more** load-bearing now, not less: a `malformed-entry` on an out-of-enum `status`
+leaves unreadable the very `status` that is now the whole readiness predicate. Structural is
+nevertheless not fatal, because a read-only view that shows **nothing** because one entry carries one
+bad field is useless exactly when the user most needs to see the board. Structural is therefore defined
+by what it still *permits* (rendering the entries), not merely by its name.
+
+**The split is retained even though `structural` now has a single member**, because the two classes
+still permit different things: fatal computes nothing at all, while structural still renders every entry
+and withholds only the ready set.
 
 ### Writer eligibility
 
 "Structural" governs what a **reader** renders; it does **not** by itself decide whether a **writer**
-may proceed. That is a third, narrower rule:
+may proceed. That is a third rule:
 
-> A writer refuses past **any fatal problem**, and past **exactly two** structural ones — a
-> `malformed-entry` on an entry's **`id`**, and **`duplicate-id`**.
+> A writer refuses past **any fatal problem**, and past **no structural problem at all**.
 
-Those two, and only those two, leave the **id space** untrustworthy, and both the canonical entry order
-(ascending *numeric* id) and allocation (`max(numeric part) + 1`) are **undefined** over an id that will
-not parse or that names two entries.
+**Nothing replaces the two structural conditions this rule used to carry** — a `malformed-entry` on an
+entry's `id`, and `duplicate-id`. Their justification was that they left the **id space** untrustworthy
+while both the canonical order and allocation were undefined over it; allocation no longer exists, and
+the canonical order is **total by construction over any document a read can produce**, its node-id final
+tie-break guaranteeing it. The justification therefore has no surviving instance.
+
+**The one candidate, considered and rejected.** The canonical order now reads `createdAt`, so a
+`malformed-entry` on `createdAt` is the natural replacement condition. It is rejected for a decisive
+reason: **`createdAt` is board-maintained and the store exposes no setter**, so a store made
+writer-ineligible by a bad stamp would be **unrepairable through ptp forever** — precisely the lockout
+this rule exists to prevent. The order's fallback already keeps the order well-defined over such an
+entry, so refusing would buy nothing.
 
 *Degraded scope* is deliberately **not** on this list: it raises no problem code at all, so this rule
-does not reach it. What it establishes instead is narrower — no id may be allocated.
+does not reach it. What it establishes instead is narrower — a **consumer of the ready set** cannot
+proceed.
 
-A writer does **not** refuse over a `malformed-entry` on any **non-`id`** field. That one case is
-**the writer-eligible structural defect** — the set has exactly one member. Refusing there would
-leave a defective backlog **unrepairable through ptp**: such a defect is most often an **out-of-enum
-`status`**, and `/ptp:backlog-edit` is the only tool that can repair it, so a writer that refused
-would strand the backlog. Refusing there would be a lockout, not a safeguard.
+**Every structural defect is therefore writer-eligible.** A writer does not refuse over a
+`malformed-entry` on any field. Refusing would leave a defective backlog **unrepairable through ptp**:
+such a defect is most often an **unset or out-of-enum `status`**, and `/ptp:backlog-edit` is the only
+tool that can repair it, so a writer that refused would strand the backlog. Refusing there would be a
+lockout, not a safeguard.
 
 This rule is defined here and **first consumed by `0036_02`**.
 
 ## Ready set
 
-An entry is **ready** when its `status` is **`pending`**. The ready set is the `pending` entries in
-**ascending numeric `BK-NNNN` order**. **No topological pass is performed.**
+An entry is **ready** when its `status` is **`pending`**. The ready set is the `pending` entries in the
+**canonical order** below. **No topological pass is performed.**
 
 Two readings are wrong, and both are ruled out here:
 
@@ -790,15 +827,19 @@ Two readings are wrong, and both are ruled out here:
 
 ### Order
 
-**Ascending numeric backlog id** — mirroring ptp's existing `(epic, story)` ascending rule. There is
-**no `priority` field**; the ids supply the stable order.
+The **canonical order**, identical to the `epics` order above: **`createdAt` ascending; an entry whose
+`createdAt` is unusable — absent or `malformed-entry` — orders after every entry with a usable one; the
+node id ascending by Unicode code point of its canonical JSON serialization is the final tie-break in
+every case.** There is **no `priority` field**; the board's creation stamp supplies the stable,
+first-in-first-out order.
 
-**The order *within* a ready set is unchanged** by the deletion: the topological pass never
-constrained it (every member of a ready set already had its predecessors settled), so the ascending-id
-tie-break was always the whole visible order. Removing the pass removed **ordering** machinery, not
-ordering behavior. **Ready-set *membership* is a different matter and did change** — a backlog that
-carried edges now admits every `pending` entry at once, so one that used to run in a dependency-derived
-order now runs in id order. That is a deliberate behavior change, recorded as such in the release notes.
+**The order *within* a ready set is unchanged** by the deletion of the dependency pass: the topological
+pass never constrained it (every member of a ready set already had its predecessors settled), so the
+canonical tie-break was always the whole visible order. Removing the pass removed **ordering**
+machinery, not ordering behavior. **Ready-set *membership* is a different matter and did change** — a
+backlog that carried edges now admits every `pending` entry at once, so one that used to run in a
+dependency-derived order now runs in the canonical order. That is a deliberate behavior change, recorded
+as such in the release notes.
 
 **Determinism, over the produced document.** Ordering reads **only materialized fields**, so **for any
 given produced document the ready set and its order are fully deterministic** — computing them twice
@@ -865,20 +906,28 @@ so no guard applies. This does not contradict the refusal list above: that list 
 `done`, the opposite direction, which stays refused. Cancelling a `done` epic documents abandonment of
 shipped work — and discards no link (`changeEpics` survives).
 
-### Repairing an out-of-enum `status` — a repair, not a transition
+### Repairing a `status` that is unset or out of enum — a repair, not a transition
 
 Every row of the table above is defined over the **five enum values**, so an entry whose stored `status`
-is **out of enum** has **no *from* row at all**. That state is a `malformed-entry` on a **non-`id`**
-field — **the writer-eligible structural defect** — so *Writer eligibility* deliberately
-lets a writer proceed over it, and `/ptp:backlog-edit` is the tool that repairs it. Refusing the repair
+is **out of enum** has **no *from* row at all** — and so does an item with **no `Status` selected at
+all**, which is the same defect reached by a shorter path. The rule is therefore worded over a `status`
+that is **unset or out of enum**, both cases governed identically. Both states are a `malformed-entry` on
+`status`, and **every** structural defect is writer-eligible, so *Writer eligibility* deliberately lets a
+writer proceed over them, and `/ptp:backlog-edit` is the tool that repairs them. Refusing the repair
 as "a row absent from the table" would make that defect **unrepairable through ptp**, which is exactly
 the lockout writer eligibility exists to prevent.
 
-So: **an instruction that replaces an out-of-enum `status` with a valid enum value is a repair, not a
-transition.** It is **permitted**, the refusal list above does not reach it, and the report names it
-**as a repair**, quoting the invalid value found.
+**The widening to an unset `Status` is required, not incidental.** With no membership test, a card a
+human adds by hand is an entry with no `Status`; without this rule it could never be repaired through
+ptp, and the accepted membership regression would become a real lockout.
 
-Its bounds:
+So: **an instruction that replaces an unset or out-of-enum `status` with a valid enum value is a repair,
+not a transition.** It is **permitted**, the refusal list above does not reach it, and the report names
+it **as a repair**, quoting the invalid value found or naming the `Status` as unset.
+
+**Every bound below is unchanged and applies identically to an unset `Status`** — the permitted
+destinations, the `runBaseline` routing, the disposition-outcome-is-binding rule with its `cancelled`
+exception, the same-write `runBaseline` clear, and the still-named-in-the-report rule:
 
 - The repair may set **`pending`**, **`blocked`**, or **`cancelled`** only. **`in-progress`** is row 1's
   runner-owned outcome and **`done`** is never written by this command at any time; requesting either is
@@ -1050,7 +1099,7 @@ significant, exactly as a `changeEpics` element's `id` and an `attributionWarnin
 ### Reconciliation — runs first, and is always additive
 
 Reconciliation runs **before** the gate below, wherever a **non-null `runBaseline`** is being settled —
-on a **stale** entry, and in the out-of-enum-status repair the previous section routes here (a null
+on a **stale** entry, and in the unset-or-out-of-enum-status repair the previous section routes here (a null
 `runBaseline` has nothing to diff — see *The hand-edited entry* below):
 
 1. Compute the **current** prefix set per the definition above.
@@ -1078,12 +1127,12 @@ staleness instead would let the null-baseline entry slip past it entirely. (An e
 fields of an `in-progress` entry changes no status and is therefore not gated at all.)
 
 There is exactly **one** further trigger, in the mirror-image case: an entry whose stored `status` is
-**out of enum** but whose `runBaseline` is **non-null**. Its status cannot be read as `in-progress`, yet
-the baseline is the runner's own evidence that a run was taken, so the *Repairing an out-of-enum
-`status`* rule above routes that repair through **this same machinery** — reconciliation, this gate, an
+**unset or out of enum** but whose `runBaseline` is **non-null**. Its status cannot be read as `in-progress`, yet
+the baseline is the runner's own evidence that a run was taken, so the *Repairing a `status` that is unset or out of
+enum* rule above routes that repair through **this same machinery** — reconciliation, this gate, an
 offered disposition, and guard 2 when the destination is `cancelled`. Stating it here keeps the trigger
 enumerated in one place: **`in-progress` with a status-changing instruction, or a non-null
-`runBaseline` under an out-of-enum-status repair.** Nothing else is gated.
+`runBaseline` under an unset-or-out-of-enum-status repair.** Nothing else is gated.
 
 ### The gate
 
@@ -1158,7 +1207,7 @@ that lands `claim` on `blocked` — except under `rerun anyway`, which explicitl
 disposition**, **the ungated reset of the availability table's first row**, and **a cancellation**. The
 ungated reset is named explicitly because it is the easiest of the three to miss — an entry with
 nothing to reconcile still carries a baseline that must go. One edit outside this section carries the
-same obligation for the same reason: the **out-of-enum `status` repair** above, which moves an entry out
+same obligation for the same reason: the **unset-or-out-of-enum `status` repair** above, which moves an entry out
 of the `in-progress` space where a baseline could still be consumed.
 
 Left set, the baseline would have three consequences, each worse than the last:

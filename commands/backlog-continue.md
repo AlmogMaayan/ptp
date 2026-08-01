@@ -27,10 +27,12 @@ while it had not is the **shape** of the refusal, not its wording:
   **specific** reason it cannot write. No second, divergently-worded refusal is added beside it.
 - The grounds are their owning contracts' and are **cited, never restated**: `ptp-backlog`'s
   **writer-eligibility** rule; `ptp-github-projects-mcp`'s **`read-only`** and **`unavailable`**
-  preflight verdicts (precondition 2 below); and an entry whose **content type offers no path to update
-  a carrier** a planned field rides. Each is a **condition within this one refusal contract**, naming
-  its own cause when it fires. **Degraded scope is not among them**: this command allocates no id and
-  consumes no ready set, so it **proceeds** under it.
+  preflight verdicts (precondition 2 below); an entry whose **content type offers no path to update
+  a carrier** a planned field rides; and `ptp-backlog-write`'s refusal when **the resolved
+  status-option row does not identify exactly one board `Status` option**. Each is a **condition within
+  this one refusal contract**, naming
+  its own cause when it fires. **Degraded scope is not among them**: this command consumes no ready set,
+  so it **proceeds** under it.
 - **No ground is worded over the write path being unshipped**, that antecedent having lapsed.
 - **No fallback of any kind.** No local backlog file is read, created, or written, and no other store
   is substituted — under any verdict, any problem, any refusal, and **any write outcome**, the error
@@ -40,8 +42,8 @@ while it had not is the **shape** of the refusal, not its wording:
 
 Request: $ARGUMENTS — an **optional** free-text description of problems found during the manual
 verification. **Empty or whitespace-only means the bare flow** (the invocation is the sign-off).
-There is **no selector and no token**: no change id, no `epic:` / `story:` selector, no `BK-NNNN`
-backlog id, and no `model:` / `fast:` / `parallel:` / `rounds:` override. Which epic is acted on is
+There is **no selector and no token**: no change id, no `epic:` / `story:` selector, no backlog entry
+identifier, and no `model:` / `fast:` / `parallel:` / `rounds:` override. Which epic is acted on is
 target selection's answer, read from the backlog store. The argument-shape rules — including the
 refusal for an argument made **solely** of token-shaped words — live in the **`ptp-backlog-continue`**
 skill.

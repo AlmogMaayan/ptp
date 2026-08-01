@@ -6,7 +6,7 @@ argument-hint: "(no arguments — read-only)"
 You are running **`/ptp:backlog`** — a **read-only** view of the epic backlog, which lives on a
 **GitHub Projects v2 board**. It renders what the board says and what the `ptp-backlog` skill computes
 from it, and it writes nothing at all — not on the board, not on disk. It is a thin front door: the
-store contract, the field mapping, the validation vocabulary, the id rules, and the ready-set
+store contract, the field mapping, the validation vocabulary, the identity rule, and the ready-set
 definition all live in the `ptp-backlog` skill; the board coordinates, the tool namespace, the
 capability preflight and its STOP message all live in `ptp-github-projects-mcp`.
 
@@ -18,7 +18,7 @@ capability preflight and its STOP message all live in `ptp-github-projects-mcp`.
    and preflight preconditions, the validation problem codes with their fatal / structural
    classification and the `unreachable-store` outcome, and the ready-set definition with its
    deterministic order. **Do not restate any of it here** — not the field list, not the mapping table,
-   not the read protocol, not the problem-code table, not the id-allocation rule, and not the
+   not the read protocol, not the problem-code table, not the identity rule, and not the
    ready-set rule.
 2. **Read** the backlog through the skill's read protocol and **compute** the validation problems and
    (subject to the suppression rule below) the ready set.
@@ -32,14 +32,15 @@ When the backlog carries **no fatal** validation problem, render these six secti
 | # | Section | Contents |
 |---|---|---|
 | 1 | **Header** | the resolved **board** — owner, project number, project title, and URL — the `version`, and the entry count, **alongside** the preflight verdict line (below) |
-| 2 | **Entries** | one row per entry, in **canonical ascending-numeric-id order**: id, title, status, the entry's `changeEpics` links **counted by `attribution`**, and a flags cell |
+| 2 | **Entries** | one row per entry, in the **canonical creation-stamp order**: the entry's **board item node id rendered verbatim in its own column**, title, status, the entry's `changeEpics` links **counted by `attribution`**, and a flags cell |
 | 3 | **Ready set** | the ready entries **in run order** — or the reason it is withheld (see *The ready-set suppression rule*) |
 | 4 | **Attention** | stale `in-progress` entries, entries holding a `folder-diff-unconfirmed` change-epic link, entries holding an undispositioned `attributionWarnings` prefix |
 | 5 | **Validation** | one row per problem — code, affected entries, message — or an explicit "no problems found" |
 | 6 | **Recommendation** | the next ptp command, in `/ptp:status`'s style |
 
 The entries table renders in **canonical order, not ready order**, so section 2 is a stable picture of
-the board and section 3 is the derived answer. A **scope note** (below) is rendered above the
+the board and section 3 is the derived answer. **The node id column is rendered verbatim so it can be
+copied**: it is exactly what `/ptp:backlog-edit` takes as its target. A **scope note** (below) is rendered above the
 recommendation whenever it has anything to say.
 
 ### The header's board identity and verdict line
@@ -55,9 +56,12 @@ recommendation whenever it has anything to say.
   The **owner** and the **project number** come from the resolved configuration, so on every path
   **past the configuration-completeness gate** — which is every read exit, the failing ones included —
   both have resolved and are **always shown**. The one path where they have not is the pre-read
-  refusal below, which is precisely the case of one of them not resolving: that refusal renders **no
+  refusal below, on its **incomplete-configuration** ground — precisely the case of one of them not
+  resolving: that refusal renders **no
   board header at all**, only the non-silent refusal naming the missing or invalid keys, because a
-  header identifying a board no configuration named would be an invention. The **project title** and the
+  header identifying a board no configuration named would be an invention. **On the gate's
+  colliding-status-option-table ground the owner and the project number *have* resolved**, so naming
+  them is no invention and they are shown alongside that refusal. The **project title** and the
   **URL** require a board call, so on any path that never retrieved the project — a preflight that did
   not admit the read, or a post-preflight failure to obtain it — they render as `unavailable`.
   Rendering them `unavailable` satisfies the always-show-the-store-identity rule; guessing or omitting
@@ -67,17 +71,26 @@ recommendation whenever it has anything to say.
 
 Render a **scope note** section listing, **when each is non-empty**:
 
-- **Unmanaged items** — the count and the titles of every item the skill's membership rule leaves
-  unmanaged, which is every item whose `Backlog ID` is **absent or empty after trimming** (a
-  whitespace-only value included) — with the explicit statement that they are **not a defect**;
 - entries that are **board-archived**;
 - **metadata-block keys ignored** — **every** key the skill's block grammar does not recognize,
   wherever it sits (the block's top level, or inside a `changeEpics` element), each retained and read
   into nothing. `createdAt` / `updatedAt` and any `dependsOn` / `dependencyEvidence` /
   `dependencyRejected` are the ones a hand-edited or pre-`0042_01` board most often carries — they are
   **examples, not the whole list**, and a key outside them is reported exactly the same way;
-- the **degraded-scope** state and exactly what it withholds (the ready set, and the next id);
+- the **degraded-scope** state and exactly what it withholds (the ready set);
+- the **missing-status-option advisory** below;
 - the **legacy-file line** below.
+
+### The missing-status-option advisory
+
+Emit a note naming **every** entry status the board's `Status` field can carry **no option** for — that
+is, every status whose row in the resolved option table matches none of the board's `Status` options.
+The board's options are already in hand from the field read, so the note costs no extra call.
+
+Its bounds are `ptp-backlog`'s, cited and not restated: the advisory raises **no problem code**,
+withholds **nothing**, and changes **no verdict**. See that skill's §*The `status` option table —
+configurable, with a built-in default* for the rule, the resolved table, and the write path's
+corresponding refusal.
 
 ### The legacy `openspec/backlog.json` notice
 
@@ -101,8 +114,8 @@ exactly when the board could not be reached, so no failure path suppresses it.
 "**No entries yet**" names the **board** — its owner, number and title — and how entries are added. It
 **never** names `openspec/backlog.json` or any other local file.
 
-**Hard rule: this wording is reachable only from a successfully-read board that carries both required
-custom fields and no entries.** It is **never** rendered from a failed preflight, **never** from the
+**Hard rule: this wording is reachable only from a successfully-read board that carries the required
+custom field and no items at all.** It is **never** rendered from a failed preflight, **never** from the
 `unreachable-store` outcome, and **never** from an `unparseable-file` problem. An unreadable board that
 rendered as an empty backlog is the single worst outcome this command can produce.
 
@@ -122,10 +135,17 @@ leaves a header value undefined. Still nothing is written.
 **The legacy-file line survives the short output; every other scope-note item does not.** The legacy
 line is a **presence check on disk**, computed without reading the board, so it is unaffected by any
 board-side problem: when the path exists it is rendered **alongside** the three sections above. Every
-other scope-note item — unmanaged items, archived entries, ignored block keys, degraded scope — is a
+other scope-note item — archived entries, ignored block keys, degraded scope, **and the
+missing-status-option advisory** — is a
 **board-derived** fact, and under a fatal problem or the `unreachable-store` outcome nothing board-derived
 is computed at all (that is what *fatal* means in the `ptp-backlog` skill). Those items are therefore
-**withheld, not emptied**: the short output never asserts that a board carries no unmanaged item.
+**withheld, not emptied**: the short output never asserts that a board carries no archived entry.
+
+**The advisory is withheld under the short output, and that bound is load-bearing rather than
+incidental.** The fatal problem that most often produces the short output is exactly *the board has no
+`Status` field, or it is not a SINGLE_SELECT* — under which the board offers **no options at all**, so an
+advisory computed anyway would name **all five** statuses and send the user chasing a configuration
+mismatch that does not exist. The `malformed-file` problem already names the real defect.
 
 ### The three read exits and their two renderings
 
@@ -137,10 +157,14 @@ is computed at all (that is what *fatal* means in the `ptp-backlog` skill). Thos
 
 **Alongside, never instead of** — substituting one of these renderings for another is the error.
 
-A fourth case is deliberately **not** in that table: an **incomplete `backlog.*` configuration** is
-refused **before any read is attempted**, naming the missing (or invalid) keys and calling **no**
-Projects tool. It is a pre-read refusal, not a read exit, and it must never surface as an
-`unreachable-store` or a project-not-found error.
+A fourth case is deliberately **not** in that table: the `ptp-backlog` read protocol's **step-0
+configuration gate**, refused **before any read is attempted** and calling **no** Projects tool. It is a
+pre-read refusal, not a read exit, and it must never surface as an `unreachable-store` or a
+project-not-found error. Its **three** grounds are that skill's, cited and not restated, and each names
+its own cause: an **incomplete `backlog.*` configuration** (the missing keys), an **invalid
+`backlog.mcpServer`**, and a **colliding resolved status-option table** — which names
+`backlog.statusOptions`, the colliding option name, and every status claiming it, rather than any
+missing key.
 
 ### The attention section
 
@@ -167,8 +191,8 @@ problem.** When any such problem is present the ready set is **withheld** and th
 its place, so the view can **never** show a ready set that a backlog runner would refuse to consume.
 
 **A second, store-shaped withholding condition stands alongside it:** under **degraded scope** — the
-transport cannot return archived items — the ready set is withheld and the **next id renders
-`unavailable`**, with the reason named in the scope note, even though no problem code is raised.
+transport cannot return archived items — the ready set is withheld, with the reason named in the scope
+note, even though no problem code is raised.
 
 One condition of an **otherwise valid** board is **not** a defect and is reported as such rather than
 as a problem:
@@ -204,8 +228,8 @@ verified") rather than overclaiming.
   branch guard exactly as `/ptp:status` and `/ptp:version` are.
 - **Not wrapped in `ptp-run-at-model`.** Like `/ptp:status`, it does no work that needs a deterministic
   model, and wrapping it would start a main run (and a telemetry window) for a read.
-- **Takes no argument and no change selector.** Backlog ids are outside the `epic:` / `story:` selector
-  grammar. An argument is reported as **unsupported** in a **single diagnostic line above the header**,
+- **Takes no argument and no change selector.** Backlog entry identifiers are outside the `epic:` /
+  `story:` selector grammar. An argument is reported as **unsupported** in a **single diagnostic line above the header**,
   and the backlog view below that line is **identical to the no-argument rendering** — the argument
   never filters, reorders, or otherwise alters it — and nothing is written.
 - **No reconciliation affordance.** The view never performs, and never triggers, reconciliation — an
@@ -213,6 +237,6 @@ verified") rather than overclaiming.
   `/ptp:backlog-edit` in the **recommendation only**, exactly as `/ptp:status` recommends a next
   command without running it.
 - **Never restate the skill's contract here** — the entry model, the field mapping, the read protocol,
-  the problem codes, the id-allocation rule, and the ready-set definition are defined once, in
+  the problem codes, the identity rule, and the ready-set definition are defined once, in
   `ptp-backlog`; the namespace, the tool set, the preflight and its STOP message once, in
   `ptp-github-projects-mcp`. **Compose no `mcp__` literal.**

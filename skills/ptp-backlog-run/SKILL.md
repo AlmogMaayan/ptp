@@ -7,8 +7,9 @@ description: Own the epic backlog runner behind /ptp:backlog-run — the rounds:
 
 ## Purpose
 
-The epic backlog (`ptp-backlog`, `0036_01`) records the epics a user intends to build, in ascending
-backlog-id order. This skill is the contract for **executing** that backlog: taking ready epics one at a time,
+The epic backlog (`ptp-backlog`, `0036_01`) records the epics a user intends to build, in the
+backlog's **canonical order** — whose key is `ptp-backlog`'s to state and is not named here. This skill
+is the contract for **executing** that backlog: taking ready epics one at a time,
 running each through `/ptp:full`, writing the outcome back into the backlog store, and halting
 the whole run the moment an epic does not converge.
 
@@ -127,7 +128,8 @@ No invalid row falls through to the default.
 ## Residual-argument refusal
 
 `/ptp:backlog-run` takes **no selector and no free text**: no change id, no `epic:`/`story:` selector,
-no backlog `BK-NNNN` id. Backlog ids are deliberately outside the `ptp-change-selector` grammar, and
+no backlog entry identifier. Backlog entry identifiers are deliberately outside the
+`ptp-change-selector` grammar, and
 *which* epics run is the ready set's job, not the caller's.
 
 After `rounds:` is stripped, **any remaining non-whitespace text is a refusal** that names the
@@ -238,13 +240,13 @@ validator.
   `ptp-backlog`'s and **none of it is reproduced here** — a partial copy would be exactly the
   enumeration drift this skill avoids everywhere else.
 
-**The stricter-than-eligible posture, stated as a decision.** This gate STOPs on **the
-writer-eligible structural defect** too — the one `ptp-backlog` says a writer `SHALL NOT` refuse
-over. That definition stays where `ptp-backlog` states it and is not copied here. The
+**The stricter-than-eligible posture, stated as a decision.** **Every structural defect is now
+writer-eligible**, and this gate STOPs on **all** of them — the whole class `ptp-backlog` says a writer
+`SHALL NOT` refuse over. That definition stays where `ptp-backlog` states it and is not copied here. The
 eligibility exists so the **repair** path stays reachable: `/ptp:backlog-edit` is the repair tool and
 a refusal there would make a defect permanent. **The runner repairs nothing.** It consumes
-**`status`** to compute the ready set, and that one defect — a `malformed-entry`, which explicitly
-covers an **out-of-enum `status`** — corrupts exactly that **input**, not merely its output. A runner
+**`status`** to compute the ready set, and the `malformed-entry` on `status` — which explicitly covers
+an **unset or out-of-enum `status`** — corrupts exactly that **input**, not merely its output. A runner
 that guessed past an unreadable `status` could take an epic that is not `pending`, or skip one that
 is. `0036_01`'s own read-only view is already calibrated against this posture — it withholds
 the ready set on the same problems "so that the view can never present a ready set that a backlog
@@ -282,7 +284,7 @@ processed so far (see *store-defect halt* below).
 Load-bearing, not an optimization, for two reasons — **mid-run defect detection** and the
 **no-in-memory-model rule** — neither of which is about promotion:
 
-> On a backlog holding three `pending` entries `BK-0001`, `BK-0002`, `BK-0003`, a `rounds:3` run
+> On a backlog holding three `pending` entries A, B, C, a `rounds:3` run
 > processes all three. The re-read before each iteration is what lets a **hand edit** or a **store
 > defect** arriving between epics be seen at all: without it the run would execute a picture of the
 > backlog taken before the first epic started.
