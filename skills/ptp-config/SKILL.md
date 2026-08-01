@@ -158,11 +158,26 @@ parameters = [
     jsonPath: ["backlog", "projectNumber"],
     kind:     "integer",
     default:  undefined  // unset
+  },
+  {
+    key:      "backlog.statusOptions",
+    label:    "Backlog status option names",
+    jsonPath: ["backlog", "statusOptions"],       // a PREFIX; the member is appended
+    kind:     "map",
+    members: [                                    // the schema's canonical status order
+      { member: "pending",     label: "pending",     default: ["pending", "Todo"] },
+      { member: "in-progress", label: "in-progress", default: ["in-progress", "In Progress"] },
+      { member: "done",        label: "done",        default: ["done", "Done"] },
+      { member: "blocked",     label: "blocked",     default: ["blocked", "Blocked"] },
+      { member: "cancelled",   label: "cancelled",   default: ["cancelled", "Cancelled", "Canceled"] }
+    ],
+    memberKind: "stringList",
+    default:  undefined                           // unset = the built-in default table
   }
 ]
 ```
 
-**Parameter menu:** The registry currently holds fifteen entries. Step 2 builds an `AskUserQuestion`
+**Parameter menu:** The registry currently holds sixteen entries. Step 2 builds an `AskUserQuestion`
 menu from each entry's `label` value and presents it to the user. The flow is data-driven: adding
 a new entry to the registry automatically adds it to the menu with no further edits to this flow.
 
@@ -211,10 +226,42 @@ Build an `AskUserQuestion` menu from the registry entries' `label` values:
 13. **Backlog MCP server** (`backlog.mcpServer`)
 14. **Backlog project owner** (`backlog.projectOwner`)
 15. **Backlog project number** (`backlog.projectNumber`)
+16. **Backlog status option names** (`backlog.statusOptions`)
 
 Use the selected entry's `jsonPath`, `kind`, `values` (for enum entries), and `default` for the
 remaining steps. This is data-driven off the registry — adding a parameter requires only a new
 registry entry, no other edits to this flow.
+
+### Step 2b — Member selection
+
+**This step applies to `map`-kind entries only.** For every other kind it is not reached and the flow
+runs exactly as before.
+
+When the selected entry's `kind` is `map`, use `AskUserQuestion` to offer that entry's `members`, each
+shown with its **current or default** row — for `backlog.statusOptions`, the five entry status values in
+the schema's canonical order:
+
+1. **pending** (default row: `pending`, `Todo`)
+2. **in-progress** (default row: `in-progress`, `In Progress`)
+3. **done** (default row: `done`, `Done`)
+4. **blocked** (default row: `blocked`, `Blocked`)
+5. **cancelled** (default row: `cancelled`, `Cancelled`, `Canceled`)
+
+**Where the *current* row in that menu comes from, since the file is not read until step 3.** Read the
+target file **for display only** at this point: where it exists, parses as JSON, has an object root, and
+has an object at `backlog.statusOptions`, show each member's **stored** row; in **every** other case —
+absent file, unparseable contents, non-object root, non-object `backlog` or `statusOptions`, or a member
+with no stored value — show that member's **default** row. This display-only read **never STOPs and
+never reports a parse or shape failure**: **step 3 remains the sole place** a malformed or wrong-shape
+file is diagnosed and the command ends, so the menu never pre-empts it and never diverges from it.
+
+The selected member is appended to the entry's `jsonPath`, so the **effective path** for the remaining
+steps is `jsonPath + [member]` — for example `["backlog","statusOptions","done"]`. Every later step runs
+on that effective path unchanged.
+
+**One invocation still sets exactly one key.** The member menu selects *which* row is edited; it never
+turns one invocation into several writes. The idempotency/no-op report, the `written: <path> / <key> =
+<value>` report, and the merge-write's *set only the targeted key* all continue to hold verbatim.
 
 ### Step 3 — Read and show current value
 
@@ -253,8 +300,13 @@ registry entry, no other edits to this flow.
      - For `backlog.mcpServer`, `backlog.projectOwner`, or `backlog.projectNumber` (all three share
        the same `backlog` parent): if `backlog` exists but is not an object (e.g.
        `{"backlog":"github"}` or `{"backlog":null}`), STOP.
+     - For `backlog.statusOptions`, **the same rule at a second level** — not a second rule: if
+       `backlog` exists but is not an object, STOP; **and** if `backlog.statusOptions` exists but is
+       not an object (e.g. `{"backlog":{"statusOptions":"Todo"}}` or
+       `{"backlog":{"statusOptions":null}}`), STOP.
    - Absent parents (`codex`, `review`, `roles`, `telemetry`, `parallel`, or `backlog` not present in
-     the root) are fine — they will be created as empty objects on write. This is not clobbering.
+     the root — and, for `backlog.statusOptions`, an absent `statusOptions` under a present `backlog`)
+     are fine — they will be created as empty objects on write. This is not clobbering.
 
 4. Show the **current value** of the selected parameter:
    - If the parameter's value is set in the file (at its `jsonPath`), display:
@@ -262,6 +314,10 @@ registry entry, no other edits to this flow.
    - If it is absent, display: `Current value: unset (default: <entry.default>)`
    - For example, for `codex.mode`: `Current value: unset (default: "auto")`; for
      `review.maxIterations`: `Current value: unset (default: 5)`
+   - For a `map`-kind entry the value is read at the **effective path** (step 2b), and an **unset member
+     displays that member's own default row** — not the whole default table. For example, for
+     `backlog.statusOptions` with `done` selected and nothing stored:
+     `Current value: unset (default: done, Done)`
 
 ### Step 4 — Value selection
 
@@ -500,6 +556,64 @@ or stopping over a config typo. Do not align one to the other: softening the edi
 default would silently write a useless value; hardening the resolver to STOP would break its
 forgiving contract.
 
+#### kind = `map`, memberKind = `stringList` (e.g. `backlog.statusOptions`)
+
+Prompt the user for a **comma-separated** list of option names for the member chosen in step 2b (show
+that member's current or default row as the suggested value). Then validate the input:
+
+- **Accept:** a value that, after splitting on commas and trimming each element, yields **at least one**
+  element with **every** element non-empty. **Normalize** the row by dropping elements equal to an
+  earlier element **ignoring case**, preserving **first-seen order**.
+- **Reject and re-prompt** on any of the following — do NOT write an invalid value:
+  - empty or whitespace-only input;
+  - **any empty element**, arising from a leading comma, a trailing comma, or a doubled comma
+    (`,Doing`, `Doing,`, `Doing,,WIP`);
+  - a normalized row that **would collide** with another row of the resolved table — that is, whose
+    normalized names (trimmed, compared case-insensitively) intersect another status's row. The
+    rejection **names the colliding option name and the other status**.
+
+**The collision check is evaluated against the target layer merged onto the default table.** Build the
+other four rows **the way the resolver would**: take the target file's own `backlog.statusOptions` value
+for a status only where that value is **valid** under `ptp-github-projects-mcp`'s per-status-key rules
+(after trimming, dropping empty elements, and dropping case-insensitive duplicates it still yields at
+least one name), and take `ptp-backlog`'s built-in default row for that status otherwise. Do not read
+the other config layer.
+
+**A present-but-invalid sibling row falls back to its default here, exactly as it does in the resolver —
+and reading it as an empty row instead would open the hole this check exists to close.** With a
+hand-edited `"pending": []` in the target file, `pending` resolves to its **default** row `pending`,
+`Todo`; an editor that treated the present `[]` as the `pending` row would see no collision and happily
+write `done: Todo`, which the consumer would then refuse on. The doctrine that **the editor's writable
+set is a subset of what the resolver accepts** requires the check to model the resolver's validity rules,
+not merely the file's key presence.
+
+**Written form:** a **one-name** row is written as a JSON **string**; a **multi-name** row is written as
+a JSON **array of strings**. The shortest faithful form keeps the file readable and matches the
+documented shape.
+
+**Idempotency compares the normalized row, not the raw JSON.** Re-entering `Backlog` over a stored
+`["Backlog"]` reports a no-op and leaves the stored array form exactly as it is, rather than performing
+a semantically empty rewrite.
+
+**Three things to state at the point of selection:**
+
+1. Leaving `backlog.statusOptions` **unset means the built-in default table** — every status keeps its
+   own default row.
+2. **Returning a row to its default requires deleting that key by hand** — this editor writes values and
+   never removes them, the same limitation `codex.model`, `codex.reasoningEffort`, and
+   `backlog.mcpServer` already carry. Re-typing the default row's names is **equivalent in effect**.
+3. **An option name containing a comma cannot be entered here** and must be hand-edited into the config
+   file, which the forgiving resolver accepts. There is no separator that cannot appear in a GitHub
+   option name, so an escape hatch was always required.
+
+As with every other ptp parameter, the two surfaces are complementary: this editor is **STRICT** (reject
+and re-prompt, so an invalid or colliding value is never written) while the `ptp-github-projects-mcp`
+reader is **FORGIVING** (an invalid status key is ignored, leaving that row at its own default; it never
+throws and never STOPs). **The residual is honest and stated rather than hidden:** the editor's collision
+check is **single-layer**, so a **cross-layer** collision can still arise — it is covered by the
+consuming command's refusal at `ptp-backlog`'s step-0 configuration gate. The two surfaces are
+complementary and neither is redundant.
+
 ### Step 5 — Safe merge-write
 
 With the resolved path, the base JSON object (from step 3), and the chosen value (from step 4):
@@ -516,7 +630,8 @@ With the resolved path, the base JSON object (from step 3), and the chosen value
      `telemetry.mode`, `telemetry.root`, `telemetry.port`, or `telemetry.retentionDays`: create
      `telemetry` as `{}`; for `parallel.mode` or `parallel.maxConcurrency`: create `parallel` as
      `{}`; for `backlog.mcpServer`, `backlog.projectOwner`, or `backlog.projectNumber`: create
-     `backlog` as `{}`.
+     `backlog` as `{}`; for `backlog.statusOptions`: create `backlog` as `{}` and then
+     `statusOptions` as `{}` when absent, in the same manner as the existing parents.
    - Set the targeted key to the chosen value.
    - Leave **every other key** (e.g. `deploy`, any unknown keys) and every other nested value
      **untouched**.
@@ -583,6 +698,10 @@ Examples:
 | `backlog.mcpServer` input empty or whitespace-only | Reject, re-prompt; do NOT write. |
 | `backlog.projectOwner` input empty, whitespace-only, or containing `/`, internal whitespace, or `://` | Reject, re-prompt; do NOT write. |
 | `backlog.projectNumber` input non-integer (`7.5`, `abc`), string-typed (`"7"`), zero, or negative | Reject, re-prompt; do NOT write. |
+| `backlog.statusOptions` present but not an object (`"statusOptions":"Todo"`, `"statusOptions":null`) | STOP, report, do **not** overwrite. |
+| `backlog.statusOptions` absent (under a present or absent `backlog`) | Created as `{}` on write; not clobbering. |
+| `backlog.statusOptions` row input empty, whitespace-only, or containing an empty element (`,Doing`, `Doing,`, `Doing,,WIP`) | Reject, re-prompt; do NOT write. |
+| `backlog.statusOptions` row that would collide with another row of the resolved table | Reject, re-prompt, naming the colliding name and the other status; do NOT write. |
 | Not in a git repo (project target) | Fall back to `<cwd>/.claude/ptp/config.json`; note the fallback in output. |
 | Chosen value equals current stored value | Report no-op; do not write. |
 
@@ -650,7 +769,14 @@ Examples:
 - **Never write a `backlog.projectNumber` that is not a positive integer.** Only an integer `>= 1`,
   written as a JSON number, may be written. Zero, negatives, non-integers, non-numerics, and
   string-typed input are rejected and re-prompted — never written.
-- **Never touch keys other than the selected parameter's `jsonPath`.** All other keys (including
+- **Never write an invalid or colliding `backlog.statusOptions` row.** Only a non-empty,
+  comma-separated, case-insensitively de-duplicated row — every element non-empty after trimming — that
+  does **not** collide with another row of the resolved table may be written: a one-name row as a JSON
+  **string**, a multi-name row as a JSON **array of strings**. Empty or whitespace-only input, any empty
+  element from a leading/trailing/doubled comma, and any row that would collide are rejected and
+  re-prompted — never written.
+- **Never touch keys other than the selected parameter's `jsonPath`** (for a `map`-kind entry, the
+  **effective path** `jsonPath + [member]`; sibling status rows are preserved as data). All other keys (including
   `deploy`, sibling `codex` keys, and any unknown keys) are preserved as data in the serialized
   output.
 - This is an **ordinary interactive command** — `AskUserQuestion` is used deliberately and is

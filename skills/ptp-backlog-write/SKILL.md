@@ -1,6 +1,6 @@
 ---
 name: ptp-backlog-write
-description: Own how a backlog write is dispatched onto the GitHub Projects board and what a partial failure means — the deterministic ordered write sequence (existence, identity, payload, commit) with `status` last and the single justification for that order stated here and nowhere else; the status-commit invariant that replaces atomicity, together with its backstop refusal of any operation writing `status` on more than one entry; the field-is-the-unit-of-planning / carrier-is-the-unit-of-dispatch rule and the compose-from-a-fresh-read-of-the-carrier rule that keeps it from losing an update; the two re-read rules — the pre-dispatch snapshot every decision binds to, and the per-field pre-write check over exactly two field categories with deliberately no third — and the degraded-scope dispositions derived from what the read path withholds; the write journal with its one-row-per-planned-field shape, its six exhaustive outcomes and its six terminal verdicts; fail-stop with no compensating writes on three independent grounds; the ambiguous-create board scan read against the snapshot's match set, the id-less item's report-and-manual-repair obligation, and the orphan repair split by the identity row's outcome; and the `runBaseline`-clear dispatch decision with its accepted residual, its two-layer detection rule and its four-part report obligation. A pure prose contract in the single-source-of-truth pattern of ptp-branch-guard (branch safety), ptp-codex-mode (the reviewer gate), ptp-agent-roles (role resolution), ptp-parallel-fanout (fan-out safety), and ptp-backlog (the board contract): it states obligations, performs none of them, reads nothing on its own, writes nothing, and edits nothing. Delegates the schema and its canonical field order, the validator and its problem codes, writer eligibility, the status transition table and its guards, and the whole recovery-and-reconciliation machinery to ptp-backlog; the field mapping, the membership rule, id allocation and the read path to 0042_03's read contract; and transport, the tool namespace and the capability preflight to ptp-github-projects-mcp. Defined by 0042_04, and consumed by /ptp:backlog-add, /ptp:backlog-edit, /ptp:backlog-run, and /ptp:backlog-continue.
+description: Own how a backlog write is dispatched onto the GitHub Projects board and what a partial failure means — the deterministic ordered write sequence (existence, payload, commit) with `status` last and the single justification for that order stated here and nowhere else; the status-commit invariant that replaces atomicity, together with its backstop refusal of any operation writing `status` on more than one entry; the field-is-the-unit-of-planning / carrier-is-the-unit-of-dispatch rule and the compose-from-a-fresh-read-of-the-carrier rule that keeps it from losing an update; the two re-read rules — the pre-dispatch snapshot every decision binds to, and the per-field pre-write check over exactly two field categories with deliberately no third — and the degraded-scope dispositions derived from what the read path withholds; the write journal with its one-row-per-planned-field shape, its six exhaustive outcomes and its six terminal verdicts; fail-stop with no compensating writes on three independent grounds; the ambiguous-create board scan read against the snapshot's match set, and the single orphan repair shape; and the `runBaseline`-clear dispatch decision with its accepted residual, its two-layer detection rule and its four-part report obligation. A pure prose contract in the single-source-of-truth pattern of ptp-branch-guard (branch safety), ptp-codex-mode (the reviewer gate), ptp-agent-roles (role resolution), ptp-parallel-fanout (fan-out safety), and ptp-backlog (the board contract): it states obligations, performs none of them, reads nothing on its own, writes nothing, and edits nothing. Delegates the schema and its canonical field order, the validator and its problem codes, writer eligibility, the status transition table and its guards, and the whole recovery-and-reconciliation machinery to ptp-backlog; the field mapping, the identity rule and the read path to 0042_03's read contract; and transport, the tool namespace and the capability preflight to ptp-github-projects-mcp. Defined by 0042_04, and consumed by /ptp:backlog-add, /ptp:backlog-edit, /ptp:backlog-run, and /ptp:backlog-continue.
 ---
 
 # ptp-backlog-write — how a backlog write is dispatched, and what a partial failure means
@@ -24,7 +24,7 @@ It **delegates** and restates nothing of:
 | the validator, its problem codes, and writer eligibility | `ptp-backlog` |
 | the status transition table and every guard | `ptp-backlog` |
 | the recovery-and-reconciliation machinery, the stale definition, the change-prefix set, the gate, the availability table, the dispositions, *every settling edit clears `runBaseline`*, and *recovery never yields `done`* | `ptp-backlog` |
-| the field mapping onto board carriers, the membership rule, id allocation, and the read path | `ptp-backlog` (`0042_03`'s read contract) |
+| the field mapping onto board carriers, the identity rule, and the read path | `ptp-backlog` (`0042_03`'s read contract) |
 | the `backlog.*` keys, the tool namespace, the capability preflight and its record | `ptp-github-projects-mcp` |
 
 This skill is a **pure prose contract**. It states obligations; it **performs none of them**. It reads
@@ -64,24 +64,29 @@ The order is **fixed, not a heuristic**, and **this table is the only place it i
 | Stage | Contents | Applies to |
 |---|---|---|
 | **W1 — existence** | create the item with its composed **title and body**, thereby writing **every mapped field those two carriers hold**; **capture and retain its board node id** | creating operations only |
-| **W2 — identity** | write the entry's `id` | creating operations only |
-| **W3 — payload** | every **remaining** mapped field, in the schema's **canonical field order**, excluding `status` — and, **on a creating operation only**, also excluding the `id` already written at W2 and any field the mapping carries inside the created item's **title/body**, which W1 therefore already wrote. The **subject** entry first; then any other affected entry in ascending numeric backlog id, each in canonical field order | creation + edit |
-| **W4 — commit** | the **single** `status` write | whichever operation writes `status` |
+| **W2 — payload** | every **remaining** mapped field, in the schema's **canonical field order**, excluding `status` — and, **on a creating operation only**, also excluding any field the mapping carries inside the created item's **title/body**, which W1 therefore already wrote. The **subject** entry first; then any other affected entry in `ptp-backlog`'s canonical order, each in canonical field order | creation + edit |
+| **W3 — commit** | the **single** `status` write | whichever operation writes `status` |
 
-The four stages are **disjoint** and together cover **every mapped field that has a writable carrier**
-exactly once. The qualifier is load-bearing, not hedging: `createdAt` and `updatedAt` are **mapped but
-have no writable carrier** and are therefore **never written** by any stage — see *Why there is no third
-check*, fourth bucket. An unqualified *every mapped field* would contradict that outright. The partition
-is per **operation kind**: on a creation it is exactly as listed; on an **edit** W1 and W2 are empty,
-so every mapped field the edit changes falls to W3 and only `status` is held for W4.
+**The identity stage is deleted, and the stages are renamed rather than renumbered around a gap.** The
+previous sequence's **W2 wrote the entry's `id`** and no longer exists — the identifier is the board
+item's node id, which has no writable carrier and is never written — and the **payload stage was
+previously numbered W3**. Saying so here is what stops a reader taking the new W2 for the deleted
+identity stage, or hunting for a missing stage in a W1/W3/W4 gap.
 
-**The two exclusions in W3 are creation-scoped, and saying so is not pedantry.** On an edit nothing was
-written by a W1 that never ran, so **nothing is excluded on those grounds**: a title/body-carried field
-the edit changes **is** a W3 row, dispatched through the item's title/body write. Reading the exclusion
-as unconditional would leave such an edit with **no planned row at all** and would silently drop the
-user's requested edit.
+The three stages are **disjoint** and together cover **every mapped field that has a writable carrier**
+exactly once. The qualifier is load-bearing, not hedging: `id`, `createdAt`, and `updatedAt` are **mapped
+but have no writable carrier** and are therefore **never written** by any stage — see *Why there is no
+third check*, fourth bucket. An unqualified *every mapped field* would contradict that outright. The
+partition is per **operation kind**: on a creation it is exactly as listed; on an **edit** W1 is empty,
+so every mapped field the edit changes falls to W2 and only `status` is held for W3.
 
-W3's cross-entry clause is **vacuous but retained**: no writer in this epic produces a second affected
+**The remaining exclusion in W2 is creation-scoped, and saying so is not pedantry.** On an edit nothing
+was written by a W1 that never ran, so **nothing is excluded on those grounds**: a title/body-carried
+field the edit changes **is** a W2 row, dispatched through the item's title/body write. Reading the
+exclusion as unconditional would leave such an edit with **no planned row at all** and would silently
+drop the user's requested edit.
+
+W2's cross-entry clause is **vacuous but retained**: no writer in this epic produces a second affected
 entry, and the clause is what keeps the dispatch order **total** if one ever does.
 
 ## `status` last — the answer, stated once
@@ -98,8 +103,9 @@ are **inputs** a decision procedure consults *once it knows the entry's state*, 
 **selects** the procedure. So every decision-bearing payload field lands before the commit, and
 `status`-last is what makes the inputs already correct at the moment the state becomes observable.
 
-**W1 → W2 → W3 is physics twice over,** not policy: nothing can be written onto an item that does not
-exist, and an item carrying no `id` is **unaddressable by every ptp command**.
+**W1 → W2 is physics, not policy:** nothing can be written onto an item that does not exist. The second
+half of that old argument — *an item carrying no `id` is unaddressable* — is **deleted**: the item's node
+id **is** its address, and it exists the moment the item does.
 
 ## The status-commit invariant
 
@@ -121,7 +127,8 @@ Two consequences:
    on that verdict the entry's status is **unknown** and this consequence does not apply. Stating the
    exception here keeps this sentence from being an absolute that the verdict table then has to
    contradict.
-2. **A committed-partial state is unreachable by construction** — nothing is dispatched after W4.
+2. **A committed-partial state is unreachable by construction** — nothing is dispatched after the
+   commit stage, **W3**.
 
 **The backstop refusal keeps consequence 2 a derivation.** It holds only while there is **at most one**
 `status` write per operation, so that is pinned:
@@ -159,7 +166,7 @@ composed from a fresh read of the carrier*.)
 
 ## A field is the unit of planning; a carrier is the unit of dispatch
 
-`0042_03`'s landed mapping puts **ten entry fields on six board carriers**, and in particular puts
+The landed mapping puts **ten entry fields on five board carriers**, and in particular puts
 `description`, `changeEpics`, `attributionWarnings`, `runBaseline`, and `notes` on **one** — the item
 **body**, the last four inside its metadata block. So several planned rows can share one physical write.
 
@@ -171,15 +178,22 @@ composed from a fresh read of the carrier*.)
 Each row additionally records **which carrier write dispatched it**, so rows sharing an outcome visibly
 share a **cause** rather than coincidentally agreeing.
 
-Every W3 row is assigned to **exactly one** carrier, and the carrier partition sums to the mapping:
+Every W2 row is assigned to **exactly one** carrier, and the carrier partition sums to the mapping:
 
 | Carrier | Planned rows it can carry |
 |---|---|
-| the `Backlog ID` custom field | `id` |
 | the item's content **title** | `title` |
 | the item **body** | `description`, `changeEpics`, `attributionWarnings`, `runBaseline`, `notes` |
-| the `Status` custom field | `status` (W4) |
+| the `Status` custom field | `status` (W3) — the option written is the **first name in the resolved row that the board offers** (below) |
 | the two board stamps | *(never written — `createdAt`, `updatedAt`)* |
+| **no carrier at all** | *(never written — `id`)* |
+
+**`id` occupies the second row on purpose, and not the stamp row.** `ptp-backlog` — which owns the
+mapping — says the node id is the **item's own identity, not a carried value**, and counts **five**
+carriers with `id` outside them. Folding it into the stamp row would quietly make it a sixth carrier
+here and put this contract at odds with its owner on the very concept this identity model turns on. The
+two rows are equally unwritable, but for **different reasons**: a stamp has a carrier the board owns and
+exposes no setter for, while `id` has **nothing to write to**.
 
 **Four consequences:**
 
@@ -203,6 +217,70 @@ Every W3 row is assigned to **exactly one** carrier, and the carrier partition s
 - A carrier **all** of whose planned rows are `skipped-identical` is **not dispatched at all**.
 
 **No sentence of this contract assumes one mapped field equals one dispatch.**
+
+### Which `Status` option the commit writes
+
+The `Status` carrier is the one carrier whose **content** is not simply the field's value: the entry
+`status` is an enum of five values, while the board carries a SINGLE_SELECT **option** whose accepted
+names come from `ptp-backlog`'s **resolved status-option table** (its default table merged with the
+`backlog.statusOptions` overrides). So the carrier's content needs a rule, and this is it:
+
+> **When an operation commits `status = S`, it writes the board `Status` option whose normalized name —
+> trimmed and compared case-insensitively, the same normalization the read applies — is the FIRST name in
+> the resolved table's row for `S` that the board's `Status` field actually offers.**
+
+Three properties, in order of importance:
+
+- **Deterministic.** Two boards offering the same options resolve the same name. The selection depends on
+  board option **order**, **position**, and **color** not at all.
+- **User-controlled.** The row is an ordered list the user writes, so *which spelling do you prefer* is
+  answered by the configuration rather than by a preference of ptp's own.
+- **Correct on a README-shaped board.** Under the default table the `pending` row is `pending`, `Todo`;
+  a board created per the documented setup offers `Todo` and not `pending`, so the rule selects `Todo`.
+  **A rule of *always write the row's first name* is rejected** — it would select `pending` and fail on
+  the most common board there is.
+
+### The commit refuses when the resolved row does not identify exactly one board option
+
+> **Where the board's `Status` field offers NONE of the names in the resolved row for the status the
+> operation must commit — or offers MORE THAN ONE option whose normalized name matches the selected name
+> — the operation is REFUSED on the pre-dispatch snapshot, BEFORE W1.** Nothing is dispatched and the
+> verdict is `refused`. The refusal names: the entry, the target status, the resolved row's accepted
+> names, the board's actual `Status` option names, and **both** repairs — `/ptp:config →
+> backlog.statusOptions`, or fix the options on the board. **ptp creates no `Status` option**, under any
+> circumstance.
+
+**The ambiguous branch is never resolved by picking one.** Board option order, option position, and
+option color are each the board-order dependence the selection rule above forbids, and it is the same
+*never resolved by picking one* doctrine `ptp-backlog` already applies to a normalized-name collision on
+a required carrier. Both branches are the same defect — *the resolved row does not identify exactly one
+board option* — at the same moment, so they share one refusal, one verdict, and one placement.
+
+**The ambiguity is a *write* concern only.** An item carries exactly one option, and every matching
+option normalizes into the same row, so a **read** of that item yields an unambiguous `status` and raises
+**no problem** on this ground.
+
+**Why before W1 rather than at the commit.** On a **creation**, refusing at the commit would mean W1 had
+already landed, leaving an item on the board with **no `Status`** — which is an **entry** carrying a
+`malformed-entry` on `status`, withholding the ready set for the whole backlog and requiring the orphan
+repair. And the repair would not work: the orphan repair *sets the item's `Status` to `pending`*, which
+is the very write that has no option to select. A commit-time refusal would therefore manufacture an
+**unrepairable** orphan out of a configuration typo. Refusing before W1 creates nothing and leaves
+nothing behind.
+
+**Two non-interactions, stated so neither rule is read into the other.**
+
+- **This is not the no-op refusal.** *A status write that changes nothing is refused as a no-op* covers
+  the different case in which the board **does** carry the option and the item already holds it. This
+  refusal fires when the row identifies no option at all, and it must never be reported as a no-op.
+- **The status-commit invariant is untouched.** It governs what must have **landed before** a commit is
+  dispatched; this rule governs whether a commit is **dispatchable at all**, and it is evaluated before
+  any payload row exists. Neither reads the other.
+
+**It is a state-derived check under the existing snapshot rule.** The board's `Status` options arrive
+**with** the snapshot, so this refusal drops into the slot *The pre-dispatch snapshot* already defines
+for checks *evaluated on* the snapshot and explicitly permitted to still refuse: **no new stage, no new
+verdict, no new ordering concept.**
 
 ## A carrier write is composed from a fresh read of the carrier
 
@@ -263,20 +341,21 @@ precede it, state-dependent ones are computed from it.
 The snapshot reads:
 
 - **every pre-existing item the operation will write to, in full** (a creation's own subject item does
-  not exist yet and is represented by its composed intended values until W1);
-- **every item's `id`**, when the operation allocates one; and
+  not exist yet and is represented by its composed intended values until W1); and
 - the **pre-existing match set** for the intended creation payload, when the operation **creates** an
   item.
 
+**No snapshot reads the store in order to allocate an identifier**, none being allocated. The creation
+**match-set census** is a different read with a different purpose and is unchanged.
+
 **Every decision of the operation binds to this snapshot and to no earlier one** — writer eligibility,
-the transition-table check, the recovery gate, reconciliation's diff, the availability table, and id
-allocation.
+the transition-table check, the recovery gate, reconciliation's diff, and the availability table.
 
 ### The degraded-scope dispositions
 
 `0042_03` defines a state in which the transport can enumerate board items but **cannot return archived
-ones**. It raises **no problem code** and the read still proceeds, but it **withholds exactly two
-things**: **id allocation** and **the ready set**. Archive reachability is established **only** from
+ones**. It raises **no problem code** and the read still proceeds, but it **withholds exactly one
+thing**: **the ready set**. Archive reachability is established **only** from
 `ptp-github-projects-mcp`'s preflight **record** (its `archiveReachable` fact) and is **never** inferred
 from the result set.
 
@@ -285,7 +364,7 @@ consumes something withheld*** — not enumerated by taste:
 
 | Writer | Under degraded scope | Because |
 |---|---|---|
-| `/ptp:backlog-add` | **refuses** | it allocates an id, and allocation is withheld — minting one over a partial id space is exactly the reuse the withholding exists to prevent |
+| `/ptp:backlog-add` | **proceeds** | it allocates no id and consumes no ready set |
 | `/ptp:backlog-run` | **refuses at the top of the iteration** | it consumes the ready set, which is withheld. **A withheld ready set is NOT an empty one** |
 | `/ptp:backlog-edit` | **proceeds** | it allocates no id and consumes no ready set |
 | `/ptp:backlog-continue` | **proceeds** | likewise |
@@ -350,14 +429,19 @@ Every surviving schema field falls in **exactly one** of four buckets:
 |---|---|
 | **checked** — merge-written collections | `changeEpics`, `attributionWarnings`, `runBaseline` |
 | **checked** — the commit field | `status` |
-| **written, excluded from the check, with the reason recorded** | `title`, `description`, `notes` — outright-set scalars, **set not merged** by a writer the user already authorized, which **cannot invert a decision** because no decision procedure reads them; plus `id`, which has **no snapshot value** because it is written onto an item this same operation just created |
-| **never written** — so no check can apply | the two board-owned stamps `createdAt`, `updatedAt`, which have **no writable carrier** |
+| **written, excluded from the check, with the reason recorded** | `title`, `description`, `notes` — outright-set scalars, **set not merged** by a writer the user already authorized, which **cannot invert a decision** because no decision procedure reads them |
+| **never written** — so no check can apply | `id`, the item's own node id, and the two board-owned stamps `createdAt`, `updatedAt` — all three having **no writable carrier** |
 
-The four buckets sum to the mapping's **ten** fields, so a later reviewer can find **no uncategorized
-field** on which to hang a third check.
+The four buckets sum to the mapping's **ten** fields — 3 + 1 + 3 + 3 — so a later reviewer can find **no
+uncategorized field** on which to hang a third check.
+
+**`id` is in the never-written bucket, not the written-but-excluded one.** Its former justification —
+that it had no snapshot value because it was written onto an item this same operation had just created —
+does **not** carry forward: it is now excluded for the stronger reason that it is **never written at
+all**.
 
 **The fourth bucket is not an exclusion.** An *excluded* field is one this writer may write **blind**;
-these are fields it may **not write at all**. One consequence follows and is recorded rather than left
+these **three** are fields it may **not write at all**. One consequence follows and is recorded rather than left
 implicit: the inherited obligation to bump the modification stamp **only on entries the operation
 actually changed** is discharged **by the board**, which stamps exactly the item a write touched — so
 the obligation holds with **no write of ours**, and this contract adds none.
@@ -416,7 +500,7 @@ FIELD, in dispatch order**:
 |---|---|
 | `#` | the ordinal — ordered by **dispatch**, and within one dispatch by canonical field order |
 | `dispatch` | the **carrier write** that carries this row, shared by every row of that carrier |
-| `entry` | the backlog id — or the item's **board node id** when no `id` has been written yet — or, where **neither exists**, the **intended** backlog id marked **unbound** (see below) |
+| `entry` | the item's **board node id** — the entry's `id` — or, on a creating operation before that id exists, the literal **`unidentified`** (see below) |
 | `field` | the mapped field |
 | `intended` | the intended value, elided past a stated length |
 | `outcome` | exactly one of the six below |
@@ -433,14 +517,24 @@ no-writable-carrier stamps are never planned, so they were never journal rows to
 planned row is assigned to
 **exactly one** carrier, so the `dispatch` grouping is a **partition** rather than an overlap.
 
-**The third `entry` form exists because the first two are both unavailable at W1, and the journal is
-built before anything is dispatched.** A creating operation has written no `id` yet — that is W2 — and
-has captured no **board node id** yet, since W1 is what produces it; on `unresolved-create` it may never
-capture one. So W1's rows carry the operation's **allocated intended backlog id**, explicitly marked
-**unbound**: it names the row for the reader and for the repair path while asserting **nothing** about
-any item on the board. When W1's node id is captured — at dispatch, or **recovered from the board
-scan** — those rows are **rebound** to it and reported so; where it is never captured they stay unbound,
-and the report says exactly that rather than printing an identity it does not have.
+**The `entry` column carries the board node id, and its only other admissible value is the literal
+`unidentified`.** There is no **intended** identifier marked unbound: nothing is allocated, so there is
+no intended value to name, and the column may **never** carry a guessed, derived, or placeholder
+identity.
+
+**Why `unidentified` is needed at all, and why it is not the deleted third form.** The journal is built
+**before anything is dispatched**, and on a creating operation the node id comes into existence **with
+the item** — at W1. So at build time **every** row of a creating operation is written `unidentified`,
+the later commit row included, and not merely W1's — the identity is missing from the *operation*, not
+from a stage. **Every** such row is then **rebound** to the real node id the moment it is **captured at
+W1**, or **recovered from the board scan** where W1's response was ambiguous, and the report says they
+were rebound. Where the scan never settles it — the `unresolved-create` verdict — they **stay
+`unidentified`**, and the report says **exactly that** rather than printing an identity the operation
+does not have. (Under fail-stop nothing past W1 is dispatched in that case, so no row that stays
+`unidentified` ever names a landed write.) The deleted third form asserted an identifier ptp had
+minted; `unidentified` asserts **nothing at all**, which is the whole difference.
+
+On an **edit**, every row's `entry` is known before dispatch and `unidentified` is unreachable.
 
 **W1 is not an exception to *one row per planned field*, and must not be turned into one.** The create
 call is **one carrier write of two carriers** — the item's title and its body — so on a creating
@@ -557,11 +651,11 @@ Three independent grounds, **each sufficient on its own**:
 | `uncommitted-partial` | dispatch began, **at least one planned row did not succeed**, and **no orphan remains** |
 | `uncommitted-partial (orphan item)` | the same failure condition **and** W1 landed **and the item is still there** |
 | `unresolved-create` | W1's response was **ambiguous** and the board scan could not settle whether an item was created. Reachable **only** at W1 |
-| `unresolved-commit` | the **commit** row is `unresolved`, so the transition **may or may not** have committed. Reachable **only** at W4 |
+| `unresolved-commit` | the **commit** row is `unresolved`, so the transition **may or may not** have committed. Reachable **only** at **W3** |
 
 **The partition, stated explicitly.** The two `unresolved-*` verdicts are separated **first**, each
 recording that **one specific row's own outcome is unknown**; they **cannot collide**, because fail-stop
-halts at the *first* unresolved row, so an operation that reached W4 at all had no unresolved W1. The
+halts at the *first* unresolved row, so an operation that reached W3 at all had no unresolved W1. The
 remaining four then partition on **three** questions asked in this order:
 
 1. **did every planned row succeed?** → `complete`;
@@ -599,7 +693,7 @@ the bare form and the report says the item **disappeared**.
 exists whose `status` **may** be absent and which may therefore withhold the ready set for the whole
 backlog — yet the **orphan label is withheld**, because asserting it would assert the commit failed. The
 **report** SHALL state that the item's `status` may be absent, what an absent `status` costs, and that
-the identity-landed repair applies **only if** `Status` is in fact unset. It SHALL assert neither
+the orphan repair above applies **only if** `Status` is in fact unset. It SHALL assert neither
 outcome.
 
 **`committed-partial` is absent because the backstop refusal makes it unreachable** — a derivation, not
@@ -690,19 +784,20 @@ scan **completed**. **Pre-existing matches are subtracted first and then ignored
 pre-existing and one new match is the **first** row rather than an unclassified case.
 
 **The match predicate is the creation payload itself** — the composed **title and body** W1 was
-dispatched with, compared for equality through the read path. Nothing narrower is available, since the
-entry's `id` is not written until W2.
+dispatched with, compared for equality through the read path. Nothing narrower is available: the item's node id
+comes into existence only with the item, and is exactly what the scan is trying to establish.
 
 ### Why the comparison is not optional
 
 The board **positively invites duplicates**: a human adds a card in one click, and an earlier partial
 creation can leave an orphan whose payload matches a recomposed one. A scan read **in isolation** would
-treat a **pre-existing** card as proof that W1 landed, and the operation would then write its freshly
-allocated `id` onto **a card it never created**, silently corrupting an unrelated entry.
+treat a **pre-existing** card as proof that W1 landed, and the operation would then **adopt a card it
+never created as its own creation** — reporting that card's node id as the new entry's `id` and
+dispatching the `status` commit onto it, silently taking over an unrelated entry.
 
-That is also exactly what the exclusion of `id` from the pre-write check rests on — *onto an item **this
-same operation** created* — so the **novelty test is what keeps that exclusion honest** along the
-recovery path.
+Nothing is written onto the card to establish its `id`, so the hazard is **adoption**, not corruption of
+an identifier — and the **novelty test is what keeps the created-item exclusion from the pre-write check
+honest** along the recovery path, that exclusion resting on *an item **this same operation** created*.
 
 **A match set that cannot be established is a snapshot failure, not one of these rows.** The operation
 halts before dispatching anything, every W1 row is `not-dispatched`, and the verdict is **`refused`** —
@@ -730,59 +825,42 @@ So the scan **enumerates completely**, bounded by the board's size, and a scan t
 completed for any reason is treated exactly like one that failed: **`unresolved-create`, never
 `failed`**.
 
-## The id-less card is unmanaged, not a lockout
+## The orphan repair
 
-Adding a card to a Project is **one click**, so a human **will** create items with no `Backlog ID` — and
-so can a creation whose identity write did not land.
+There is **one** orphan shape, not three: with the identity stage gone there is no identity row to key
+on, and every board item is an entry, so there is no id-less card to distinguish.
 
-**`0042_03`'s landed membership rule decides what such an item is, and it is not paraphrased into
-something stronger.** An item with **no** `Backlog ID`, or one **empty after trimming**, is an
-**unmanaged item**: not an entry, excluded from `epics` and from id allocation, **reported by the view**,
-**not a validation problem**, and **blocking no backlog write whatever**. That slice ships a scenario
-named *A whitespace-only backlog id does not lock writers out* specifically to forbid the stronger
-reading.
+**The shape.** W1 landed and the commit did not, so the item exists on the board carrying its **full
+composed payload** with its **`Status` unset**. That is an **ordinary entry** carrying a
+`malformed-entry` on `status` — **structural**, so every entry still renders and **the ready set is
+withheld**. It is not an unmanaged item — there are none — and it is not a defect of the identifier.
+And unlike the id-less card the old contract carried, it **does** block: the withheld ready set is
+exactly what forces the repair.
 
-**The `malformed-entry` on `id` case is a different object and stays distinct:**
+**The repair the report directs:** **set the item's `Status` on the board to the intended `pending`**, or
+repair it through **`/ptp:backlog-edit` against the item's node id**. The report names the item by
+**board node id and title**, states that its `Status` is unset and that an unset `Status` withholds the
+ready set for the whole backlog.
 
-| Object | What the read path says | Effect on writers |
-|---|---|---|
-| **no / whitespace-only `Backlog ID`** | **unmanaged item** — not an entry, not a problem, reported by the view | **none.** Blocks nothing, refuses nothing |
-| **non-empty, malformed `Backlog ID`** | `malformed-entry` on `id` — an **id-space** defect | writer eligibility **refuses every backlog write** until repaired, `max(id)+1` being undefined over it |
-
-That second rule is **not weakened**.
-
-Because an id-less item blocks nothing, **the obligation moves to the report**:
-
-> An operation that may have left an item with **no `Backlog ID`** SHALL name **every such item it
-> observed or holds a handle for**, by **board node id and title**; SHALL state the **two** repairs —
-> set the item's `Backlog ID`, or remove the item from the board; and SHALL state that until then the
-> item is **unmanaged**: invisible to every backlog reader except the view's unmanaged-item list, in no
-> ready set, and **forcing no later invocation to act**. The report SHALL NOT claim that the item will
-> refuse a later write, because it will not.
+**Applying the landed carrier record.** Where **every** payload field rides the carrier the creation call
+itself wrote — which is the case under the landed mapping, the create carrying title **and** body — the
+restore step is **vacuous**, so the report directs **setting `Status` alone** rather than a
+`/ptp:backlog-edit` pass that would change nothing. The ordering rule is unchanged; there is simply one
+step to order.
 
 **Scoped to what the operation can identify.** Where the enumeration did not complete there may be **no
-node id and no title to print**; the report names every **observed** candidate and says so.
-
-The **board node id locates the card for a human** and is **not** an address any ptp command accepts.
-
-## The orphan repair, split by the identity row's outcome
-
-Conflating the three would name a repair the user cannot perform.
-
-| Identity row | The orphan's defect | The repair the report directs |
-|---|---|---|
-| **W2 landed** | the entry has an `id` but an **absent** `status` — structural, so the ready set is withheld | **in the sequence's own order**: first restore every not-landed payload field via `/ptp:backlog-edit` against that backlog id, **then** set the item's `Status` on the board to the intended `pending`. The report states the **order**, because `Status` first publishes an entry a runner may **take** before its `notes`, `changeEpics`, and `attributionWarnings` are there |
-| **W2 failed** | the item has **no `Backlog ID`**, so it is an **unmanaged item** rather than a defect | the **manual board repair** above. **`/ptp:backlog-edit` SHALL NOT be offered** — it can neither address nor write such an item. The report SHALL state that the item **blocks nothing**, so nothing will force the repair later |
-| **W2 unresolved** | **unknown** whether the item carries an `id` | the report names the **board node id** *and* the **intended backlog id**, states that the write **may or may not** have landed, directs the user to **inspect the item** and then apply whichever repair matches, and **asserts neither** |
-
-**Applying the landed carrier record to the W2-landed row.** Where **every** payload field rides the
-carrier the creation call itself wrote — which is the case under `0042_03`'s landed mapping, the create
-carrying title **and** body — the restore step is **vacuous**, and the report directs **setting `Status`
-alone** rather than a `/ptp:backlog-edit` pass that would change nothing. The ordering rule is unchanged;
-there is simply one step to order.
+node id and no title to print**; the report names every **observed** candidate and says so, rather than
+claiming a complete list.
 
 **The absent `status` is not softened**: no default is invented, and **no compensating delete is
 offered**.
+
+**Where the board's own automation stamps `Status` on add**, premise 1 below does not hold and the item
+will carry a `Status` this operation never committed. That case is **reported, never worked around**: the
+report names the **observed** value, does **not** claim the commit landed, does **not** assert the value
+is the intended `pending`, and directs the user to **inspect the item before any repair**. No new
+detection step, no automation probe, and no compensating write is introduced — the obligation is on the
+report's honesty, not on a new branch of behavior.
 
 ## The `unresolved-create` repair
 
@@ -801,10 +879,8 @@ repair row invites an implementer to **synthesize the state that reaches it**.
 - states plainly **when, and only when, the enumeration did not complete** that further candidates may
   exist. A **complete** enumeration finding two or more new matches **did** complete, so its report
   **SHALL NOT** claim otherwise: it names the full observed candidate set **as complete**;
-- directs the user to **enumerate by hand and reconcile**, so that **at most one** card receives the
-  intended id and **every remaining id-less candidate is removed or repaired**;
-- SHALL **never** direct setting the intended id on "the item", which would either mislabel a human's
-  card or create **duplicate ids**;
+- directs the user to **enumerate by hand and reconcile**, so that **at most one** card survives as this
+  epic's entry and **every remaining stray candidate is removed or repaired**;
 - SHALL **never** direct **re-running the creation**, which would risk a second item on top of an
   unknown first.
 
@@ -965,17 +1041,26 @@ as gated premises rather than derived.
 
 **1. Creating an item does not populate the mapped `status` field.** No single-select default and no
 project automation stamps `Status` on add. If one could, creation would itself publish a state and the
-commit stage would stop being the commit point. The bound that makes the premise safe where a board's
-own automation does stamp a status: an item is **not an entry** until its `Backlog ID` is written at W2,
-so it is **outside `epics`, outside allocation and outside the ready set** for the whole of W1 — and
-under the landed mapping the create call carries the entire payload, so no runner can ever meet an entry
-whose `status` is published before its payload. A board configured otherwise is reported, never
-worked around.
+commit stage would stop being the commit point.
+
+**The old bound no longer holds, and is retired rather than left standing.** It read: *an item is not an
+entry until its ptp-minted identifier is written at the identity stage, so it is outside `epics`, outside
+allocation and outside the ready set for the whole of W1.* With every board item an entry, **a created item is an entry the
+instant W1 lands**, so the premise is **load-bearing without a safety net** and is stated as such. What
+remains true, and stands in the bound's place:
+
+- the create call carries the **entire payload** — title and body — so an entry visible from W1 is
+  visible **with its payload intact**, and only `status` is outstanding;
+- an outstanding `status` is a `malformed-entry`, which **withholds the ready set** rather than admitting
+  the entry to it, so the failure direction is **fail-closed**;
+- the window between W1 and the commit is **one round trip**, bounded by the existing attestation that no
+  other writer and no human is concurrently editing the board;
+- a board whose **own automation stamps `Status` on add** is **reported, never worked around**.
 
 **2. The item body is writable on an existing item.** The verified backend facts establish a
 one-custom-field-value update, a create taking `--title`/`--body`, and a one-field-value mutation —
 **none of which is by itself a path to update an existing item's title or body**, and the body carries
-five of the ten fields including all three merge-written collections. The membership rule admits **draft
+five of the ten fields including all three merge-written collections. The board admits **draft
 issues, issues, and pull requests** alike, and they are not one case:
 
 | Content type | Body-update path | Consequence |

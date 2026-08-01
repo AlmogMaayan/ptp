@@ -1,6 +1,6 @@
 ---
 name: ptp-github-projects-mcp
-description: Own the GitHub-Projects backlog transport contract and the backlog.* configuration schema — the layered resolution of backlog.mcpServer, backlog.projectOwner, and backlog.projectNumber with its forgiving per-key reader and its once-on-the-combination completeness verdict, the tool-namespace derivation rule and its no-fuzzy-matching absolute, the closed two-tier eight-tool Projects v2 required set, the once-per-invocation capability preflight and its three verdicts (ready | read-only | unavailable), the preflight record every consumer reads, and the fixed non-silent STOP-message shape. A pure prose contract in the single-source-of-truth pattern of ptp-branch-guard (branch safety), ptp-codex-mode (the reviewer gate), ptp-agent-roles (role resolution), ptp-parallel-fanout (fan-out safety), and ptp-backlog (the backlog board contract): it reads no file on its own, writes nothing, runs no git, and edits nothing. Defined by 0042_02; first consumed by 0042_03 (the read path), then 0042_04 (the write path and wiring).
+description: Own the GitHub-Projects backlog transport contract and the backlog.* configuration schema — the layered resolution of backlog.mcpServer, backlog.projectOwner, backlog.projectNumber, and backlog.statusOptions (the map-kind key whose members sit at the schema's first three-level path, resolved per status key and published as validated overrides on the verdict, with the default table, the merge, and the collision rule left to ptp-backlog) with its forgiving per-key reader and its once-on-the-combination completeness verdict, the tool-namespace derivation rule and its no-fuzzy-matching absolute, the closed two-tier eight-tool Projects v2 required set, the once-per-invocation capability preflight and its three verdicts (ready | read-only | unavailable), the preflight record every consumer reads, and the fixed non-silent STOP-message shape. A pure prose contract in the single-source-of-truth pattern of ptp-branch-guard (branch safety), ptp-codex-mode (the reviewer gate), ptp-agent-roles (role resolution), ptp-parallel-fanout (fan-out safety), and ptp-backlog (the backlog board contract): it reads no file on its own, writes nothing, runs no git, and edits nothing. Defined by 0042_02; first consumed by 0042_03 (the read path), then 0042_04 (the write path and wiring).
 ---
 
 # ptp-github-projects-mcp — which board, through which server, and can I reach it
@@ -47,13 +47,17 @@ consume — and they fall back to nothing.
 
 ## Backlog configuration
 
-Three keys, one new two-level `backlog` parent, matching every existing ptp parameter's depth.
+**Four** keys under one `backlog` parent. Three are scalars at the two-level depth every other ptp
+parameter uses; `backlog.statusOptions` is a **map**, so its members sit one level deeper at
+`["backlog","statusOptions",<status>]` — the **first three-level path in the schema**, and the reason
+`/ptp:config`'s parent-shape rule and parent-creation clause each gain a second level.
 
 | Key | `jsonPath` | Kind | Default | Meaning |
 |---|---|---|---|---|
 | `backlog.mcpServer` | `["backlog","mcpServer"]` | string | **unset** | unset means *the fixed official GitHub-plugin MCP server*; set names the server the user runs (e.g. a per-account Docker MCP server under a different GitHub token) |
 | `backlog.projectOwner` | `["backlog","projectOwner"]` | string | unset | the GitHub org or user **login** owning the board |
 | `backlog.projectNumber` | `["backlog","projectNumber"]` | integer `>= 1` | unset | the board's project number |
+| `backlog.statusOptions` | `["backlog","statusOptions"]` | **map** | **unset** | per-status board option names; unset means **the built-in default table**, and each unconfigured status keeps **its own** default row |
 
 **Board identity is owner-login + project-number, never a URL.** Those are exactly the two values the
 Projects v2 API and `gh project` take (`--owner`, `<number>`), so no derivation stands between the
@@ -124,6 +128,67 @@ Four properties, each separately load-bearing:
 - **(d) Resolution never throws and never STOPs.** A configuration typo must not fail an unrelated
   command that merely happens to resolve config.
 
+### Resolving `backlog.statusOptions` — the same per-key reader, one level deeper
+
+`backlog.statusOptions` resolves through the identical forgiving layered reader; the only difference is
+that the unit of independence is a **status key inside the map**, not the map itself. A layer supplies no
+status key at all unless it parses, its root is an object, its `backlog` is an object, **and** its
+`statusOptions` is an object.
+
+```
+overrides = {}                                  # validated per-status overrides; {} means none
+
+for path in [ ~/.claude/ptp/config.json,        # global first
+              <repo>/.claude/ptp/config.json ]: # then project (overrides)
+    if file missing, unreadable, or not parseable JSON: continue
+    obj = parsed root;      if obj is not an object:  continue
+    b   = obj.backlog;      if b is not an object:    continue
+    m   = b.statusOptions;  if m is not an object:    continue   # supplies NO status key
+
+    for s in [ "pending", "in-progress", "done", "blocked", "cancelled" ]:   # canonical order
+        if s is a key of m:
+            raw = (m[s] is a string) ? [ m[s] ] : (m[s] is an array ? m[s] : nothing)
+            if raw is nothing: continue                       # wrong type -> ignore THIS key only
+            if any element of raw is not a string: continue   # wrong shape -> ignore THIS key only
+            names = [ trim(x) for x in raw ]
+            drop from `names` every element that is empty,
+              and every element equal to an earlier one ignoring case   # order-preserving
+            if names is non-empty:
+                overrides[s] = names
+            # else: leave the prior value in force (ultimately the default row)
+
+# keys of `m` outside the five are IGNORED — never an error, never written by the editor
+# resolution never throws and never STOPs
+```
+
+Four consequences, each separately load-bearing:
+
+- **(a) Per-status independence.** Each of the five status keys is validated and applied
+  **independently**: an invalid `pending` in a layer does not discard that same layer's valid `done`, and
+  does not reset an earlier layer's valid `pending`. The whole map is never discarded because one status
+  key is invalid.
+- **(b) The default applies per row, last — and it is applied by `ptp-backlog`'s merge, never
+  substituted by this resolver.** A status for which no layer supplied a valid override simply gets **no
+  entry** in `overrides`; this resolver never substitutes a default row, because it does not hold the
+  default table (see [the ownership split](#ownership-split-for-backlogstatusoptions)). The merge in
+  `ptp-backlog` is what leaves that status at its own built-in row. The net effect is that a status's
+  built-in row applies only when **no** layer supplied a valid override for **that status**.
+- **(c) Trimming applies to the resolved value.** A hand-edited `" Shipped "` reaches the table as
+  `Shipped`, exactly as `projectOwner` already does.
+- **(d) An empty row is invalid, not a wildcard.** `""`, `[]`, `[""]`, and `["   "]` all resolve to no
+  names, which would make the status **unreadable *and* unwritable** — a self-inflicted lockout with no
+  repair path except a hand edit — so the row falls back to its own default. **An empty element among
+  non-empty ones is dropped, not fatal:** `["Backlog", ""]` resolves to `Backlog`, because the row still
+  yields a usable name and the reader's posture is to survive a hand-edit typo rather than punish it.
+  Only a row that survives with **no** names is invalid. (The STRICT editor still **rejects** such input
+  outright — the ordinary STRICT/FORGIVING asymmetry, not a divergence.)
+
+A wrong-typed member is **ignored rather than fatal** for the same reason every other key's invalid value
+is: the reader's first prohibition — *it must not throw or STOP* — is absolute, and a `backlog.*` typo
+must never fail an unrelated command that merely happens to resolve config. The strict editor cannot
+produce any of these values; only a hand edit can, which is exactly the class of input the forgiving
+posture exists to survive.
+
 ### Completeness verdict
 
 Evaluated **once, on the resolved combination** — never per layer. Key-by-key precedence legitimately
@@ -145,9 +210,33 @@ Its output is a **verdict, not an action**:
   "projectNumber":     7   | unset,
   "complete":          true | false,
   "missing":           ["projectOwner", "…"],  // the missing REQUIRED key names; [] when complete
-  "mcpServerInvalid":  true | false
+  "mcpServerInvalid":  true | false,
+  "statusOptionOverrides": { "done": ["Shipped"] }  // validated per-status overrides; {} when none
 }
 ```
+
+**`statusOptionOverrides` is always an object, never null and never absent.** It carries only those
+statuses for which some layer supplied a valid value, each mapped to that status's resolved, trimmed,
+de-duplicated list of names, and it is `{}` when no layer supplied any — so a consumer reads it without a
+presence check and without a nullity check, the same property `complete`, `missing`, and
+`mcpServerInvalid` already carry. A status **absent** from it means *no override resolved for this
+status*; the verdict **never substitutes that status's built-in default row**, because applying the
+default is the merge, and the merge belongs to `ptp-backlog`. The verdict carries **no** collision field,
+**no** resolved table, and **no** default table.
+
+### Ownership split for `backlog.statusOptions`
+
+This skill owns the **key**: its JSON path, its kind, its per-status-key validity rules, its layered
+forgiving resolution, and the publication of the validated per-status overrides on the configuration
+verdict. `ptp-backlog` owns the **built-in default table**, the **merge** of overrides onto it, the
+**resolved table's** matching semantics, and the **collision rule**. This skill therefore never needs to
+know the default table, and never states it.
+
+That split is not a convenience — it is the boundary this contract already binds itself to: this skill
+**SHALL NOT define, restate, or alter the backlog's entry model**, read protocol, validation vocabulary,
+status transition table, status option table, or ready-set definition. Those belong to `ptp-backlog` (see
+the sibling-contract table in [Purpose](#purpose)), and a collision is a property of the **resolved**
+table, which needs the default table this skill deliberately does not hold.
 
 ### The set-but-invalid `mcpServer` carve-out
 
@@ -585,8 +674,8 @@ Three absolutes:
    archive-limited transport, so zero archived items coming back establishes nothing at all. This is the
    one mistake the field exists to prevent.
 2. **It fails closed.** Never `true` without positive schema evidence. Being wrong toward `false` /
-   `unknown` costs a withheld id allocation, repaired by one edit here the moment the affordance is
-   confirmed; being wrong toward `true` costs a **reused live id** and a corrupted id space, discovered
+   `unknown` costs a **withheld ready set**, repaired by one correction here the moment the affordance is
+   confirmed; being wrong toward `true` costs the backlog runner **executing the wrong epic**, discovered
    late. The asymmetry is not close.
 3. **It never changes the verdict**, never adds a verdict, and never adds a STOP-message label. A
    transport that cannot see archived items is still `ready` when all eight tools are callable, because
@@ -596,11 +685,11 @@ Three absolutes:
 the eight tool spellings are themselves unverified against a live server. Nothing may infer it upward
 from a result set.
 
-**Why the field exists.** `0042_03` allocates `BK-NNNN` ids as `max + 1` over the board's items with no
-persisted counter. If the item-listing tool silently omits archived items, `max + 1` is computed over a
-*partial* id space and a fresh allocation can collide with an id an archived card already holds.
-`0042_03` therefore refuses to allocate unless archive coverage is affirmatively established from this
-record, and this field is its only admissible source.
+**Why the field exists.** The backlog's **ready set** is the `pending` entries in the backlog's
+canonical order, and a runner consumes its **head**. If the item-listing tool silently omits archived
+items, an archived `pending` entry that belongs at that head is missing from the order and the runner can
+take the **wrong epic**. The read path therefore withholds the ready set unless archive coverage is
+affirmatively established from this record, and this field is its only admissible source.
 
 ---
 
@@ -636,7 +725,7 @@ not produced" state the record does not define.
 ### How consumers read `archiveReachable`
 
 **Only `true`** establishes that archived items are reachable. **`false` and `unknown` are treated
-identically** — as *not established* — so a consumer that must see the whole id space degrades under
+identically** — as *not established* — so a consumer that must see every entry degrades under
 either. The two are distinguished **only** so the reported reason is honest ("the transport excludes
 archived items" versus "nothing was established"), never so that a consumer acts differently on them.
 

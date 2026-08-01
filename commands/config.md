@@ -1,5 +1,5 @@
 ---
-description: Interactively set a ptp config value — guides you through target (user/global or project), parameter selection (codex.mode, codex.model, codex.reasoningEffort, review.maxIterations, review.minSeverity, roles.main, telemetry.mode, telemetry.root, telemetry.port, telemetry.retentionDays, parallel.mode, parallel.maxConcurrency, backlog.mcpServer, backlog.projectOwner, or backlog.projectNumber), and value selection, then writes the chosen value into the correct config.json with a safe merge-write that preserves existing keys.
+description: Interactively set a ptp config value — guides you through target (user/global or project), parameter selection (codex.mode, codex.model, codex.reasoningEffort, review.maxIterations, review.minSeverity, roles.main, telemetry.mode, telemetry.root, telemetry.port, telemetry.retentionDays, parallel.mode, parallel.maxConcurrency, backlog.mcpServer, backlog.projectOwner, backlog.projectNumber, or backlog.statusOptions), and value selection, then writes the chosen value into the correct config.json with a safe merge-write that preserves existing keys.
 argument-hint: "(no arguments — fully interactive)"
 ---
 
@@ -9,8 +9,8 @@ choosing a target layer, selecting a parameter (`codex.mode`, `codex.model`,
 `codex.reasoningEffort`, `review.maxIterations`, `review.minSeverity`, `roles.main`,
 `telemetry.mode`, `telemetry.root`, `telemetry.port`, `telemetry.retentionDays`, `parallel.mode`,
 `parallel.maxConcurrency`, `backlog.mcpServer`, `backlog.projectOwner`, or
-`backlog.projectNumber` — fifteen in all), and picking a valid value, then writes only the targeted
-key while preserving all other existing keys
+`backlog.projectNumber`, or `backlog.statusOptions` — sixteen in all), and picking a valid value,
+then writes only the targeted key while preserving all other existing keys
 (including the `deploy` block). A missing file or directory is created automatically. A malformed
 or wrong-shape existing file is never overwritten.
 
@@ -78,3 +78,16 @@ or wrong-shape existing file is never overwritten.
   as a JSON number, may be written. Non-numeric, non-integer, string-typed, zero, and negative input
   is rejected and re-prompted, never written. There is no upper bound — project numbers are unbounded
   per owner.
+- **Validated row writes for `backlog.statusOptions`.** This is a **map** parameter: a member menu picks
+  one of the five entry status values, and only that one row is written per invocation. Only a
+  non-empty, comma-separated, case-insensitively de-duplicated row — every element non-empty after
+  trimming — that does **not** collide with another row may be written. That collision check is
+  **single-layer**, per `ptp-config`: the **target layer** merged onto `ptp-backlog`'s built-in default
+  table, the other config layer never being read, with the cross-layer residual left to the consuming
+  command's own refusal. A one-name
+  row is written as a JSON **string**, a multi-name row as a JSON **array of strings**. Empty or
+  whitespace-only input, any empty element from a leading, trailing, or doubled comma, and any row that
+  would collide are rejected and re-prompted, never written. Leaving the key **unset** means the built-in
+  default option table; **returning a row to its default requires deleting that key by hand**, because
+  this editor writes values and never removes them. An option name **containing a comma** cannot be
+  entered here and must be hand-edited into the config file.

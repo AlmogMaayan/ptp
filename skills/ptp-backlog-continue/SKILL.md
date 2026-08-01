@@ -58,7 +58,7 @@ outer for the same reason.
 ## Invocation shape — the bare/issue-text split is the signal
 
 The command takes **one optional free-text argument** and **no selector of any kind**: no change id,
-no `epic:` / `story:` selector, no `BK-NNNN` backlog id. *Which* epic is acted on is target
+no `epic:` / `story:` selector, no backlog entry identifier. *Which* epic is acted on is target
 selection's answer, read from the store — never the caller's.
 
 - **Bare** — `$ARGUMENTS` absent, empty, or whitespace-only → the **bare flow**. The invocation
@@ -82,8 +82,8 @@ the other direction: there, everything after the token is residue; here, everyth
 
 Read the backlog store through `ptp-backlog`'s **read protocol** and **tolerant read**, and apply
 its **writer-eligibility rule** unchanged: STOP exactly where that rule obliges a writer to STOP — on
-any **fatal** problem, on `duplicate-id`, and on a `malformed-entry` on an entry's **`id`** — having
-written nothing. **Proceed** over **the writer-eligible structural defect**, and **name every
+any **fatal** problem, and on **no structural problem at all** — having
+written nothing. **Proceed** over **every** structural defect, and **name every
 outstanding structural problem in the report**: the candidate predicate is per-entry, and no ready set
 is ever computed to choose an action, so such a defect cannot mislead it, and refusing over one would
 make a halted epic unfinishable until an unrelated repair happened. The one place a ready set is *mentioned* at all is report shape 1's

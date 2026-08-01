@@ -1,10 +1,10 @@
 ---
-description: Edit exactly one epic backlog entry from a free-text instruction — fields, status transitions, and the recovery of an entry left in a stale in-progress state, un-reconciled from a crashed backlog run only if no backlog run is currently live. Enforces the transition table and the reconciliation gate, lands every mutation of one invocation in a single write, and reports every entry it touched. Autonomous: refuses with what is available rather than asking. Delegates the schema, IO, validation, transition, and recovery rules to the shared ptp-backlog skill.
-argument-hint: "<BK-NNNN> <what to change> [model:<model>.<effort>]"
+description: Edit exactly one epic backlog entry from a free-text instruction — fields, status transitions, and the recovery of an entry left in a stale in-progress state, un-reconciled from a crashed backlog run only if no backlog run is currently live. Enforces the transition table and the reconciliation gate, lands every mutation of one invocation in a single write, and reports every entry it touched. Autonomous: refuses with what is available rather than asking. Targets the entry by its board item node id, copied from /ptp:backlog's entries table. Delegates the schema, IO, validation, transition, and recovery rules to the shared ptp-backlog skill.
+argument-hint: "<board-item-node-id> <what to change> [model:<model>.<effort>]"
 ---
 
 You are running **`/ptp:backlog-edit`** — the writer that **changes** an epic already in the backlog,
-which lives on a **GitHub Projects v2 board**. It takes **one** backlog id plus a free-text edit
+which lives on a **GitHub Projects v2 board**. It takes **one** board item node id plus a free-text edit
 instruction, applies every mutation of that invocation in a **single** write, and reports. It is a thin
 front door: the store identity, the entry model, the read protocol, the validation vocabulary and its
 writer-eligibility rule,
@@ -29,10 +29,12 @@ while it had not is the **shape** of the refusal, not its wording:
   the **specific** reason it cannot write. No second, divergently-worded refusal is added beside it.
 - The grounds are their owning contracts' and are **cited, never restated**: the `ptp-backlog` skill's
   **writer-eligibility** rule; `ptp-github-projects-mcp`'s **`read-only`** and **`unavailable`**
-  preflight verdicts; and an entry whose **content type offers no path to update a carrier** a planned
-  field rides. Each is a **condition within this one refusal contract**, and each names its own cause
-  when it fires. **Degraded scope is not among them**: this command allocates no id and consumes no
-  ready set, so it **proceeds** under it, per `ptp-backlog-write`'s degraded-scope dispositions.
+  preflight verdicts; an entry whose **content type offers no path to update a carrier** a planned
+  field rides; and, on an invocation that commits a `status`, `ptp-backlog-write`'s refusal when **the
+  resolved status-option row does not identify exactly one board `Status` option**. Each is a
+  **condition within this one refusal contract**, and each names its own cause
+  when it fires. **Degraded scope is not among them**: this command consumes no ready set, so it
+  **proceeds** under it, per `ptp-backlog-write`'s degraded-scope dispositions.
 - **No ground is worded over the write path being unshipped**, that antecedent having lapsed.
 - **No fallback of any kind.** No local backlog file is read, created, or written, and no other store
   is substituted — under any verdict, any problem, any refusal, and **any write outcome**, the error
@@ -41,32 +43,42 @@ while it had not is the **shape** of the refusal, not its wording:
 
 ## Inputs
 
-Request: $ARGUMENTS — a **required first positional backlog id** (`BK-NNNN`) followed by a **free-text
-edit instruction**, optionally carrying an anywhere-in-text `model:<model>.<effort>` override token
+Request: $ARGUMENTS — a **required first positional board item node id**, copied from `/ptp:backlog`'s
+entries table, followed by a **free-text edit instruction**, optionally carrying an anywhere-in-text `model:<model>.<effort>` override token
 (e.g. `model:fable.high`) that overrides this command's `opus.high` default for this invocation only;
 see step 1 of **Steps** below.
 
 ## Argument grammar
 
-- **The first positional argument is a backlog id and is required.** The remainder is free text; there
-  is no per-field flag grammar and no new per-invocation token — a recovery disposition is not an
-  invocation modifier, it is the edit itself.
+- **The first whitespace-delimited token — after the `model:` token is stripped — is the target**, and
+  it is matched against the read set by **exact node-id equality**. The **remainder** is the free-text
+  edit instruction; there is no per-field flag grammar and no new per-invocation token — a recovery
+  disposition is not an invocation modifier, it is the edit itself.
 - **Exactly one entry is directly targeted per invocation.** Refuse when the invocation carries **no
-  positional id**, an **unknown positional id** (one no entry in the store carries — list the valid
-  ids), or **more than one positional id**. There is no bulk selector.
-- **The count is of positional target ids only.** A `BK-NNNN` appearing **inside the free-text
-  instruction** — as in `BK-0001 note that this supersedes BK-0002` — is part of the **instruction**,
-  not a second target, and is **never** counted as one. A rule that counted every `BK-NNNN` in the
-  invocation would refuse ordinary instructions that merely mention another entry.
-- **Backlog ids are not routed through `ptp-change-selector`.** Its `epic:` / `story:` grammar
-  addresses change folders only; `BK-NNNN` ids are deliberately outside it, per the `ptp-backlog`
-  skill's id-allocation contract.
+  first token**, an **empty instruction**, or a first token that **matches no entry** — and on that last
+  refusal **list every entry's node id and title**, so the caller can retarget without a second command.
+  There is no bulk selector.
+- **There is no positional-count rule, and none is needed.** The old rule existed only because the
+  previous identifier had a recognizable shape that could appear mid-sentence; an **opaque** node id has
+  none, so the first-token rule replaces it outright and is strictly simpler.
+- **The grammar's premise, recorded rather than assumed:** a whitespace-delimited first token resolves a
+  node id only because node ids **carry no whitespace** — a property of the transport's identifiers, not
+  a ptp-imposed format on an identifier this contract makes opaque. A node id that violated it would
+  make the first token a **strict prefix**, which matches no entry under exact equality and therefore
+  **refuses**; no quoting or escaping form is introduced for that fail-safe case.
+- **The accepted cost is stated rather than hidden:** an invocation whose first token is ordinary prose
+  (`/ptp:backlog-edit fix the auth epic's title`) matches no entry and is **refused**, printing every
+  valid target. For a write command, a refusal that never guesses and never writes is preferred to a
+  shaped grammar that might.
+- **Entry identifiers are not routed through `ptp-change-selector`.** Its `epic:` / `story:` grammar
+  addresses change folders only; node ids are deliberately outside it, per the `ptp-backlog` skill's
+  identity rule.
 
 ## Branch safety (first step)
 
 **Ordering note:** the cheap read-only `model:` override parse (step 1 of **Steps** below) and the
 required-id-and-instruction check (step 1a) run in the outer session **before** this guard — an invalid
-token, a missing backlog id, or an empty instruction STOPs the command before the guard evaluates or
+token, a missing node id, or an empty instruction STOPs the command before the guard evaluates or
 cuts any branch.
 
 Before creating or updating **any** file, run the **`ptp-branch-guard`** preamble: check
@@ -90,10 +102,10 @@ lives in the **`ptp-branch-guard`** skill — do not restate it here.
      than one candidate) → **STOP immediately, in the outer session**, before the branch guard and
      before any main run. Report the offending candidate(s) and the two valid enums.
 
-   **Step 1a — require a backlog id and a non-empty instruction (outer session, still before the branch
-   guard).** The text remaining **after** the token is stripped MUST carry both a **positional backlog
+   **Step 1a — require a node id and a non-empty instruction (outer session, still before the branch
+   guard).** The text remaining **after** the token is stripped MUST carry both a **positional node
    id** and a **non-empty edit instruction**. If either is missing — `/ptp:backlog-edit` with no
-   argument, or `/ptp:backlog-edit BK-0001 model:opus.high`, which leaves nothing to interpret into a
+   argument, or `/ptp:backlog-edit <node-id> model:opus.high`, which leaves nothing to interpret into a
    mutation — **STOP in the outer session**, before the branch guard and before any main run, reporting
    what is missing. This mirrors `/ptp:backlog-add`'s empty-request STOP. **Never invent a mutation** to
    fill an empty instruction.
@@ -110,15 +122,13 @@ lives in the **`ptp-branch-guard`** skill — do not restate it here.
    gates interact:
    1. **Read and validate the whole store** through the skill's read protocol and its
       **writer-eligibility rule**. **STOP exactly where that rule obliges a writer to STOP** — on any
-      **fatal** problem, on `duplicate-id`, and on a `malformed-entry` on an entry's **`id`** — having
-      written nothing to the backlog store. **Proceed** over the one defect the skill names **the
-      writer-eligible structural defect** (a `malformed-entry` on a **non-`id`** field), which the
-      validator explicitly declines to let a writer refuse over so that a defective backlog stays
-      repairable through ptp — **this command is the tool that repairs it**, so a STOP on an
-      out-of-enum `status` would make that status permanent. Use the skill's own term for it. **Name
-      every outstanding structural problem in the report.**
-   2. **Resolve the target entry** per *Argument grammar* above. An unknown id → refuse, listing the
-      valid ids.
+      **fatal** problem, and on **no structural problem at all** — having written nothing to the backlog
+      store. **Proceed** over **every** structural defect, the whole structural class being
+      writer-eligible so that a defective backlog stays repairable through ptp — **this command is the
+      tool that repairs it**, so a STOP on an unset or out-of-enum `status` would make that status
+      permanent. **Name every outstanding structural problem in the report.**
+   2. **Resolve the target entry** per *Argument grammar* above. A first token matching no entry →
+      refuse, listing every entry's node id and title.
    3. **Classify the instruction** into a mutation set drawn from **three** kinds: **field edits**
       (`title` / `description` / `notes`), a **status transition**, and a **recovery disposition** (an
       id disposition, a warning disposition, or both). An instruction that resolves
@@ -132,12 +142,18 @@ lives in the **`ptp-branch-guard`** skill — do not restate it here.
         `done` must be refused as an illegal / never-`done` transition, **not** as a missing
         disposition — the latter would print an availability table inviting a choice when **no**
         disposition can produce `done`, which is a misleading answer to a request that was illegal on
-        its face. One case is **not** a transition at all: a target whose stored `status` is **out of
-        enum** has no *from* row, and replacing it with a valid value is governed by the skill's
-        **out-of-enum `status` repair** rule — a repair this command is obliged to allow, since that
-        defect is writer-eligible precisely so it stays repairable.
-      - **Then the recovery gate**, whenever the target's status is **`in-progress`** and the
-        instruction would change **its status**. An edit touching only fields of an
+        its face. One case is **not** a transition at all: a target whose stored `status` is **unset or
+        out of enum** has no *from* row, and replacing it with a valid value is governed by the skill's
+        repair rule for a **`status` that is unset or out of enum** — a repair this command is obliged
+        to allow, since every structural defect is writer-eligible precisely so it stays repairable.
+      - **Then the recovery gate**, on **either** of the skill's two triggers, which are its to
+        enumerate and are cited here rather than narrowed: the target's status is **`in-progress`** and
+        the instruction would change **its status**, **or** the repair above is being applied to a
+        target whose `status` is **unset or out of enum** while its **`runBaseline` is non-null**. The
+        second trigger is not optional and is easy to miss precisely because such a target is not
+        `in-progress`: its baseline is the runner's own evidence that a run was taken, so the repair
+        routes through this same machinery — reconciliation, this gate, an offered disposition, and
+        guard 2 when the destination is `cancelled`. An edit touching only fields of an
         `in-progress` entry is **not** recovery-gated. Reconcile first when the entry is **stale**;
         when `runBaseline` is null there is nothing to diff, so reconciliation is skipped and the gate
         is evaluated on the entry's existing holdings alone. Either way, evaluate the skill's

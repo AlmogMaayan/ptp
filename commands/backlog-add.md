@@ -1,12 +1,12 @@
 ---
-description: Add one epic to the backlog from a free-text request — allocates a backlog id and writes a single pending entry, modifying no other entry. Autonomous: asks no clarifying questions. Delegates the schema, IO, id allocation, and validation rules to the shared ptp-backlog skill.
+description: Add one epic to the backlog from a free-text request — writes a single pending entry, modifying no other entry, and establishes no identifier of its own, the entry's id being the board item's node id. Autonomous: asks no clarifying questions. Delegates the schema, IO, the identity rule, and validation rules to the shared ptp-backlog skill.
 argument-hint: "<free-text description of the epic to add> [model:<model>.<effort>]"
 ---
 
 You are running **`/ptp:backlog-add`** — the writer that puts an epic **into** the epic backlog,
 which lives on a **GitHub Projects v2 board**. It takes a free-text epic request, creates **exactly
 one** new entry, and reports. It is a thin front door: the store identity, the entry model, the read
-protocol, the id allocation, and the validation vocabulary with its writer-eligibility rule all live in
+protocol, the identity rule, and the validation vocabulary with its writer-eligibility rule all live in
 the **`ptp-backlog`** skill.
 
 > **Contrast with its siblings:** `/ptp:backlog` is the read-only view — it writes nothing, and
@@ -22,9 +22,11 @@ while it had not is the **shape** of the refusal, not its wording:
   the **specific** reason it cannot write. No second, divergently-worded refusal is added beside it.
 - The grounds are their owning contracts' and are **cited, never restated**: the `ptp-backlog` skill's
   **writer-eligibility** rule; `ptp-github-projects-mcp`'s **`read-only`** and **`unavailable`**
-  preflight verdicts; the read path's **degraded-scope** withholding, which this command consumes
-  because it **allocates an id** (see `ptp-backlog-write`'s degraded-scope dispositions); and an entry
-  whose **content type offers no path to update a carrier** a planned field rides. Each is a
+  preflight verdicts; an entry whose **content type offers no path to update a carrier** a planned
+  field rides; and `ptp-backlog-write`'s refusal when **the resolved status-option row does not identify
+  exactly one board `Status` option** — taken before the existence stage, so a creation under it leaves
+  **no item** on the board. **Degraded scope is not a ground**: this command establishes no identifier and consumes
+  no ready set, so `ptp-backlog-write`'s degraded-scope dispositions let it proceed. Each is a
   **condition within this one refusal contract**, and each names its own cause when it fires.
 - **No ground is worded over the write path being unshipped**, that antecedent having lapsed.
 - **No fallback of any kind.** No local backlog file is read, created, or written, and no other store
@@ -82,14 +84,13 @@ proceed as-is. The full rule (branch naming, the workflow contract, the hard rul
    `ptp-backlog` skill; name the step, do not restate the rule:
    1. **Read and validate** the backlog store **through the skill**, following its read protocol
       (a board carrying no entry reads as the empty backlog, and nothing is created here) and its
-      **writer-eligibility rule**. That rule decides the outcome: either **STOP and report** the
-      defect, having allocated no id and written nothing to the backlog store, or — over **the
-      writer-eligible structural defect** — **proceed**, creating the entry, reporting the defect, and
-      naming `/ptp:backlog-edit` as the repair path. Do **not** enumerate the problem codes or restate
-      which class falls where.
-   2. **Allocate the id** via the skill's id allocation — only after validation has settled.
-   3. **Compose the entry** in memory, per *Entry composition* below.
-   4. **Persist the new entry alone**, by running the **ordered write sequence** with both re-reads and
+      **writer-eligibility rule**. That rule decides the outcome: on **any fatal problem**, **STOP and
+      report** the defect, having written nothing to the backlog store; otherwise **proceed**, every
+      structural defect being writer-eligible — creating the entry, reporting the defect, and naming
+      `/ptp:backlog-edit` as the repair path. Do **not** enumerate the problem codes or restate which
+      class falls where.
+   2. **Compose the entry** in memory, per *Entry composition* below.
+   3. **Persist the new entry alone**, by running the **ordered write sequence** with both re-reads and
       the write journal, per **`skills/ptp-backlog-write/SKILL.md`** — cited, not restated. **No earlier
       step writes anything**, and nothing is created on disk, at any step.
 
@@ -98,17 +99,27 @@ proceed as-is. The full rule (branch naming, the workflow contract, the hard rul
 
       **The actual dispatch count, from the skill's carrier record:** the create call carries **title
       and body**, so it writes `title`, `description`, `changeEpics`, `attributionWarnings`,
-      `runBaseline`, and `notes` **at once**; `id` is the identity write; `status` is the commit. **The
-      payload stage is therefore empty**, and a creation is **three dispatches** — not one per field.
+      `runBaseline`, and `notes` **at once**; there is **no identity write**, the entry's `id` being the
+      node id the creation returns; `status` is the commit. **The payload stage is therefore empty**, and
+      a creation is **two dispatches** — not one per field.
 
       **Refusals and failures are different, and both statements stand.** If any step **refuses**,
       nothing was written to the store — that guarantee is unchanged. A **failure** mid-sequence is
       governed by the skill's journal and its terminal verdicts, and this command **may not** claim that
       such a failure leaves the store byte-unchanged.
-   5. **Report** the entry it created, naming its `id`, its `title`, and its `status`, so the new
-      record is identifiable from the report alone — and, when the load reported the
-      writer-eligible structural defect, that defect too, with `/ptp:backlog-edit` named as the repair
-      path.
+   4. **Report** the entry it created, naming its `id`, its `title`, and its `status`, so the new
+      record is identifiable from the report alone — and **any outstanding structural defect** the load
+      reported, with `/ptp:backlog-edit` named as the repair path.
+
+      **That naming obligation is scoped to a settled creation, and the scoping is load-bearing now
+      that the `id` is the board's.** Under the old contract the identifier was minted before dispatch,
+      so it could always be named; the node id comes into existence **with the item**, so it cannot be.
+      Where the skill's verdict is `unresolved-create` there is **no node id to name** and the report
+      SHALL say so — carrying the journal's `unidentified` rows and the observed candidates — rather
+      than printing an identity it does not have; where the verdict is `unresolved-commit` the entry's
+      **`status` is unknown** and the report SHALL NOT assert `pending`. In both cases the report is the
+      skill's journal and terminal verdict, and this command **asserts nothing the write did not
+      establish**.
 5. **STOP** with the report.
 
 ## Entry composition
@@ -116,27 +127,29 @@ proceed as-is. The full rule (branch naming, the workflow contract, the hard rul
 This is the **only** methodology this command owns — everything else is the skill's. Reference the
 `ptp-backlog` skill for the field set itself; do **not** restate the schema here.
 
-- Its `id` is the one allocated in step 4.2 — it is **not** an "empty value" field; it is always the
-  allocated id.
+- Its `id` is the **board item's node id the creation returns**. It is **not composed** and **not
+  written** — it joins `createdAt` and `updatedAt` as a board-supplied value.
 - The new entry's `status` is **`pending`**.
 - Its `title` is a short **derived** label — **one to eight words, never empty** — for the
   `/ptp:backlog` view.
 - Its `description` carries the user's request text **substantively verbatim**. Do **not** paraphrase
   the request into your own words: that text is what `/ptp:full` later receives as its free-text
   request, so paraphrasing here silently degrades the input to every downstream planning run.
-- Every recognized field **other than** the four above takes the **empty value the skill's schema gives
-  it** — including `createdAt` and `updatedAt`, which are **board-maintained**: the skill's timestamp
+- Every recognized field **other than** those above takes the **empty value the skill's schema gives
+  it** — including `createdAt` and `updatedAt`, which like `id` are **board-supplied**: the skill's timestamp
   rule states that the store exposes no setter and that **ptp sends no value for either**, so this
   command composes neither and the store's own stamps are authoritative from the first read onward.
 
-The composed entry is exactly what the single write persists.
+The composition is the **intended logical state** the one write group carries — not a payload persisted
+by a single dispatch. W1 writes the title and body, the commit stage writes `status`, and the board
+supplies `id`, `createdAt` and `updatedAt`, which this command neither composes nor sends.
 
 ## Hard rules
 
 - **Autonomous.** Ask **no** clarifying questions, do **not** use AskUserQuestion, and do **not** pause
   for approval. Where the request is ambiguous, pick the most reasonable interpretation and proceed.
 - **Never restate the skill's contract here** — not the schema or field list, not the IO protocol, not
-  the id-allocation rule, and not the validation problem codes or the writer-eligibility rule. The
+  the identity rule, and not the validation problem codes or the writer-eligibility rule. The
   `ptp-backlog` skill owns them; cite it. The **ordered write sequence**, both **re-reads**, the
   **journal** with its outcomes and verdicts, the **backstop refusal**, and the **creation scan** are
   `ptp-backlog-write`'s; cite that skill and restate none of them here either.
