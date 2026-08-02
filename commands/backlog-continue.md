@@ -31,10 +31,23 @@ while it had not is the **shape** of the refusal, not its wording:
 - **Exactly one refusal exists in this file**, issued **non-silently and up front**, naming the
   **specific** reason it cannot write. No second, divergently-worded refusal is added beside it.
 - The grounds are their owning contracts' and are **cited, never restated**: `ptp-backlog`'s
-  **writer-eligibility** rule; `ptp-github-projects-mcp`'s **`read-only`** and **`unavailable`**
-  preflight verdicts (precondition 2 below); an entry whose **content type offers no path to update
-  a carrier** a planned field rides; and `ptp-backlog-write`'s refusal when **the resolved
-  status-option row does not identify exactly one board `Status` option**. Each is a **condition within
+  **writer-eligibility** rule; the **`gh` transport contract**'s (`ptp-github-projects-gh`)
+  **`read-only`** and **`unavailable`**
+  preflight verdicts (precondition 2b below); an **issue- or pull-request-backed** entry on an
+  operation that **plans a row on the title or the body carrier** — `ptp-backlog-write`'s
+  per-content-type table records that only a **draft-backed** item has an in-board title/body write
+  path, so this ground is **per carrier, not per entry**, and such an entry's **`Status` writes are
+  untouched**. **What that means for this command specifically:** the **resume write**'s `runBaseline`
+  clear rides the **co-dispatched title/body route** while its `done` commit uses the **field-value
+  route**, so an issue- or PR-backed target **refuses at the same point every other body write does** —
+  the operation's own pre-dispatch evaluation, not a new precondition;
+  `ptp-backlog-write`'s refusal when **the resolved
+  status-option row does not identify exactly one board `Status` option**; and the `ptp-backlog`
+  skill's *Read protocol* **step-0 configuration grounds, both of them** — an **incomplete `backlog.*`
+  configuration** (its missing keys being only ever `backlog.projectOwner` and/or
+  `backlog.projectNumber`) and a **colliding resolved status-option table**, taken at
+  **precondition 2a below**, ahead of the preflight, ahead of target selection and
+  ahead of the branch guard. Each is a **condition within
   this one refusal contract**, naming
   its own cause when it fires. **Degraded scope is not among them**: this command consumes no ready set,
   so it **proceeds** under it.
@@ -58,10 +71,28 @@ skill.
 Check in this order, all in the outer session:
 
 1. **Classify the invocation** — bare vs issue-text, applying the skill's token-only refusal.
-2. **Resolve the backlog configuration and evaluate the capability preflight verdict**, per
-   **`ptp-github-projects-mcp`**, applying the verdict disposition table **`ptp-backlog-run`** owns.
-   The gate precedes selection on purpose: a command that provably cannot write should not select a
-   target and thereby imply it might act.
+2. **The transport preconditions, taken as an ordered pair — never as one conjoined check**, because
+   "resolve X **and** evaluate Y" cannot express that a failing X precludes Y, and because the
+   configuration resolver is contractually forbidden from stopping anything itself. The gate precedes
+   selection on purpose: a command that provably cannot write should not select a target and thereby
+   imply it might act — and that rationale now covers the configuration gate as well as the preflight.
+
+   **2a. Take the configuration gate.** Resolve the `backlog.*` configuration per
+   **`ptp-github-projects-gh`** — that skill owns the `backlog.*` keys and the completeness verdict —
+   and take **`ptp-backlog`**'s *Read protocol* **step 0**, refusing non-silently on either of its
+   **two** grounds: an **incomplete `backlog.*` configuration** (its missing keys being only ever
+   `backlog.projectOwner` and/or `backlog.projectNumber`) and a
+   **colliding resolved status-option table** (which names `backlog.statusOptions`, the colliding
+   option name, and every status claiming it). **Name the ground; do not restate the rule.** **No
+   `gh` command is run.** This precedes 2b **absolutely**: the resolver never STOPs, so the refusal
+   is this command's obligation, and running the preflight on a configuration that names no board
+   would report a transport failure in place of a one-line configuration fix. Any board identity
+   rendered here carries its **provenance**, per `ptp-github-projects-gh` §*The acting
+   identity*.
+
+   **2b. Evaluate the capability preflight verdict**, per the **`gh` transport contract**
+   (**`ptp-github-projects-gh`**), applying the
+   verdict disposition table **`ptp-backlog-run`** owns — reached **only** when 2a passed.
 3. **Resolve the target entry** — read and validate the backlog store through **`ptp-backlog`**
    and apply **`ptp-backlog-continue`**'s candidate predicate (`blocked` **or** `in-review` with a
    non-empty `changeEpics`), under that skill's **`blocked`-takes-precedence** rule, which it owns and
@@ -70,8 +101,10 @@ Check in this order, all in the outer session:
    what was found; never guess by recency or any other unstated heuristic. Several `in-review`
    candidates are **not** a refusal — the skill resolves them by `ptp-backlog`'s canonical order.
 
-All three are aborting preconditions and **all three precede the branch guard**, so no refusable
-invocation cuts a branch or edits a file.
+Steps 1, 2a, 2b, and 3 are **all** aborting preconditions and **all of them precede the branch
+guard**, so no refusable invocation cuts a branch or edits a file. An unactionable `backlog.*`
+configuration is exactly such an invocation — decided at 2a from configuration alone, at zero
+transport cost.
 
 `codex.mode` is **not** resolved by this command — it is `/ptp:review-full`'s to resolve and apply per
 **`ptp-codex-mode`**, and the skill records the consequence.

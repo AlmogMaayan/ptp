@@ -1,5 +1,5 @@
 ---
-description: Interactively set a ptp config value — guides you through target (user/global or project), parameter selection (codex.mode, codex.model, codex.reasoningEffort, review.maxIterations, review.minSeverity, roles.main, telemetry.mode, telemetry.root, telemetry.port, telemetry.retentionDays, parallel.mode, parallel.maxConcurrency, backlog.mcpServer, backlog.projectOwner, backlog.projectNumber, or backlog.statusOptions), and value selection, then writes the chosen value into the correct config.json with a safe merge-write that preserves existing keys.
+description: Interactively set a ptp config value — guides you through target (user/global or project), parameter selection (codex.mode, codex.model, codex.reasoningEffort, review.maxIterations, review.minSeverity, roles.main, telemetry.mode, telemetry.root, telemetry.port, telemetry.retentionDays, parallel.mode, parallel.maxConcurrency, backlog.projectOwner, backlog.projectNumber, or backlog.statusOptions), and value selection, then writes the chosen value into the correct config.json with a safe merge-write that preserves existing keys.
 argument-hint: "(no arguments — fully interactive)"
 ---
 
@@ -8,8 +8,8 @@ files (`~/.claude/ptp/config.json` and `<repo>/.claude/ptp/config.json`). It wal
 choosing a target layer, selecting a parameter (`codex.mode`, `codex.model`,
 `codex.reasoningEffort`, `review.maxIterations`, `review.minSeverity`, `roles.main`,
 `telemetry.mode`, `telemetry.root`, `telemetry.port`, `telemetry.retentionDays`, `parallel.mode`,
-`parallel.maxConcurrency`, `backlog.mcpServer`, `backlog.projectOwner`, or
-`backlog.projectNumber`, or `backlog.statusOptions` — sixteen in all), and picking a valid value,
+`parallel.maxConcurrency`, `backlog.projectOwner`, or
+`backlog.projectNumber`, or `backlog.statusOptions` — fifteen in all), and picking a valid value,
 then writes only the targeted key while preserving all other existing keys
 (including the `deploy` block). A missing file or directory is created automatically. A malformed
 or wrong-shape existing file is never overwritten.
@@ -66,10 +66,6 @@ or wrong-shape existing file is never overwritten.
 - **Range-bounded integer writes for `parallel.maxConcurrency`.** Only an integer within `1..10` may
   be written. Non-integer, string-typed, zero, negative, and above-10 input is rejected and
   re-prompted, never written, so the editor can never disable the fan-out cap.
-- **Non-empty string writes for `backlog.mcpServer`.** Only a non-empty, trimmed string may be
-  written. Empty and whitespace-only input is rejected and re-prompted, never written. Leaving the key
-  **unset** means the fixed official GitHub-plugin MCP server; returning to it means deleting the key
-  by hand, because this editor writes values and never removes them.
 - **Login-shaped writes for `backlog.projectOwner`.** Only a non-empty, trimmed GitHub org or user
   login may be written. Empty or whitespace-only input, and any value containing `/`, internal
   whitespace, or `://`, is rejected and re-prompted, never written — a login is expected here, not a

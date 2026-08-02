@@ -1,6 +1,6 @@
 ---
 name: ptp-backlog
-description: Own the epic backlog board contract — the store being one GitHub Projects v2 board per repository, resolved through ptp-github-projects-mcp's configuration and capability preflight with no local backlog file, no second store and no fallback; the rule that every board item is an entry, no membership test being performed; the ten-field entry model and its tolerant read; the field mapping of those ten slots onto five board carriers — the one required custom field Status (SINGLE_SELECT), the item's title and body, and the board's own stamps — with the status option table, the sentinel-fenced metadata block and its malformed-body boundaries, and unknown-key preservation in both scopes; the ptp-backlog-version: marker and its gate, whose absent-marker-reads-as-v1 divergence is justified in place; the read-only read protocol with its configuration-completeness-then-preflight precondition, its returned handle table and its degraded scope; the node-id identity rule, under which nothing is allocated, minted or written and two ids can neither collide nor be malformed; the validator and its fixed four-code problem vocabulary with the fatal/structural split, the writer-eligibility rule that refuses past fatal problems only, and the distinct unreachable-store outcome; and the ready-set definition — the `ready` entries in the board's creation-stamp order — with its order deterministic over the produced document. A pure prose contract in the single-source-of-truth pattern of ptp-branch-guard (branch safety), ptp-codex-mode (the reviewer gate), ptp-agent-roles (role resolution), and ptp-parallel-fanout (fan-out safety) — it reads nothing on its own, writes nothing, and edits nothing. Also owns the status transition table — eleven rows, each naming its performer, cited by from-to pair and never by number — with its three guards (the gated blocked-to-ready reset that retains the prior attempt's changeEpics, the any-to-cancelled guard, and the two resume rows blocked-to-done and in-review-to-done, both available only as the same-invocation result of /ptp:backlog-continue's own review-full-then-archive sequence), the in-progress-to-in-review convergence row that makes in-review the resting state of a converged-but-unarchived epic and leaves /ptp:backlog-run writing done nowhere, and the recovery-and-reconciliation machinery every writer that settles a stale in-progress entry runs: the stale definition and its deliberately conditional wording, the single change-prefix-set definition both the runBaseline snapshot and the reconciliation diff cite, the additive-only reconciliation, the gate, the availability table and the disposition outcomes (claim / disown / rerun anyway, and per-prefix promote / dismiss) with their combination rules, the every-settling-edit-clears-runBaseline rule, and the never-yields-done rule. The contract was defined over a local file by 0036_01, which ships no writer; the transitions and recovery machinery by 0036_03 alongside /ptp:backlog-edit, the runner in 0036_04; the store became a GitHub Projects board in 0042_03, which ships the read half and leaves every writer refusing.
+description: Own the epic backlog board contract — the store being one GitHub Projects v2 board per repository, resolved through ptp-github-projects-gh's configuration and capability preflight with no local backlog file, no second store and no fallback; the rule that every board item is an entry, no membership test being performed; the ten-field entry model and its tolerant read; the field mapping of those ten slots onto five board carriers — the one required custom field Status (SINGLE_SELECT), the item's title and body, and the board's own stamps — with the status option table, the sentinel-fenced metadata block and its malformed-body boundaries, and unknown-key preservation in both scopes; the ptp-backlog-version: marker and its gate, whose absent-marker-reads-as-v1 divergence is justified in place; the read-only read protocol with its configuration-completeness-then-preflight precondition, its returned handle table and its degraded scope; the node-id identity rule, under which nothing is allocated, minted or written and two ids can neither collide nor be malformed; the validator and its fixed four-code problem vocabulary with the fatal/structural split, the writer-eligibility rule that refuses past fatal problems only, and the distinct unreachable-store outcome; and the ready-set definition — the `ready` entries in the board's creation-stamp order — with its order deterministic over the produced document. A pure prose contract in the single-source-of-truth pattern of ptp-branch-guard (branch safety), ptp-codex-mode (the reviewer gate), ptp-agent-roles (role resolution), and ptp-parallel-fanout (fan-out safety) — it reads nothing on its own, writes nothing, and edits nothing. Also owns the status transition table — eleven rows, each naming its performer, cited by from-to pair and never by number — with its three guards (the gated blocked-to-ready reset that retains the prior attempt's changeEpics, the any-to-cancelled guard, and the two resume rows blocked-to-done and in-review-to-done, both available only as the same-invocation result of /ptp:backlog-continue's own review-full-then-archive sequence), the in-progress-to-in-review convergence row that makes in-review the resting state of a converged-but-unarchived epic and leaves /ptp:backlog-run writing done nowhere, and the recovery-and-reconciliation machinery every writer that settles a stale in-progress entry runs: the stale definition and its deliberately conditional wording, the single change-prefix-set definition both the runBaseline snapshot and the reconciliation diff cite, the additive-only reconciliation, the gate, the availability table and the disposition outcomes (claim / disown / rerun anyway, and per-prefix promote / dismiss) with their combination rules, the every-settling-edit-clears-runBaseline rule, and the never-yields-done rule. The contract was defined over a local file by 0036_01, which ships no writer; the transitions and recovery machinery by 0036_03 alongside /ptp:backlog-edit, the runner in 0036_04; the store became a GitHub Projects board in 0042_03, which ships the read half and leaves every writer refusing.
 ---
 
 # ptp-backlog — the epic backlog board and everything that defines it
@@ -22,10 +22,10 @@ codes, the identity rule, or the ready-set rule cites this skill; it does not co
 commands each carrying their own copy of a ten-field schema and a four-code validator *is* the
 enumeration drift ptp's config contract already forbids.
 
-The **transport** — which board, through which MCP server, under which namespace, and whether its tools
-are callable — is `ptp-github-projects-mcp`'s, not this skill's. This contract **cites** it and restates
-none of it: not the `backlog.*` keys, not the namespace rule, not the tool set, not the preflight, not
-its record, and not its STOP message.
+The **transport** — which board, as which `gh` account, and whether the transport can reach it — is
+`ptp-github-projects-gh`'s, not this skill's. This contract **cites** it and restates
+none of it: not the `backlog.*` keys, not the `gh` surface, not the preflight ladder, not the preflight,
+not its record, and not its STOP message.
 
 This skill is a **pure prose contract**. It states obligations; it performs none of them. It reads no
 file on its own, writes no file, runs no git command, and edits nothing.
@@ -33,7 +33,7 @@ file on its own, writes no file, runs no git command, and edits nothing.
 ## The store
 
 **The backlog is one GitHub Projects v2 board per repository**, resolved through
-`ptp-github-projects-mcp`'s `backlog.*` configuration and admitted by its capability preflight.
+`ptp-github-projects-gh`'s `backlog.*` configuration and admitted by its capability preflight.
 
 **There is no local backlog file, no second store, and no fallback.** No ptp command reads, creates,
 modifies, or deletes a local backlog file. No failure path — not an incomplete configuration, not a
@@ -111,7 +111,17 @@ place.
 | 10 | `notes` | string | no | `""` | user edit |
 
 **`id`'s requirement is satisfied by construction:** the transport supplies a node id on every board
-item, so a read cannot produce an entry without one.
+item it returns, so a read cannot produce an entry without one — and the node id it supplies is the
+**same value** the transport's item-scoped writes address, so the identity is never derived, translated,
+or paired with a second handle.
+
+**An item the transport returns with no interpretable content at all** — no title and no body, its
+content type being none the transport exposes, most often because the token cannot see the content's
+repository — is **`unparseable-file`, fatal**, naming the item by its node id and stating that cause.
+It is not masked and it is not a `malformed-entry` on `title`: masking would assert an empty body the
+read never obtained, and blaming the entry would report a **card** as defective when the token's
+**access** is what is defective. The repair is to grant the token access to the content's repository or
+to remove the card from the board.
 
 **`status`** is exactly one of `backlog`, `ready`, `in-progress`, `in-review`, `done`, `blocked`,
 `cancelled`, in that canonical order. The first five are the **pipeline** values; the last two —
@@ -212,6 +222,59 @@ Board field names are matched **case-insensitively** with **surrounding whitespa
 last-declared, and the non-empty one are all silent guesses at which value is the entry's, which is the
 coercion this whole section forbids.
 
+#### The item object's flattened field keys
+
+The resolved transport returns each item as one JSON object carrying `id`, `content`, **and every field
+value the item holds, flattened in under a key derived from that field's name** — `Status` becoming
+`status`. The derivation lowercases the **first character only** and alters nothing else, so
+`In Progress` becomes `in Progress` and `Id` becomes `id`.
+
+**The identity and content keys are written first and the field values second**, so a board field whose
+derived key collides with one of them **silently overwrites** it. Three collisions are therefore fatal,
+and the problem **names both** the field and the key, exactly as the normalized-name rule above does:
+
+| Collision | What is silently lost | Outcome |
+|---|---|---|
+| a field whose derived key is the **identity key** | the entry's **node id** — the value a user copies and hands `/ptp:backlog-edit` | `malformed-file`, **fatal** |
+| a field whose derived key is the **content key** | the item's **title and body together** | `malformed-file`, **fatal** |
+| two fields sharing a derived key where one is **`Status`** | the entry's `status` | `malformed-file`, **fatal**, naming both |
+| two fields sharing a derived key that is **neither** the identity nor the content key, **neither** field being `Status` | one unread value overwrites another | **not a defect** — this contract reads neither |
+
+**The rows are read in order and the first three win.** Two fields whose shared key *is* the identity
+key are the first row, not the fourth: the entry's node id is overwritten either way, and how many
+fields overwrite it changes nothing. The fourth row is the residue — a shared key that reaches nothing
+this contract reads.
+
+**This is a second, independent rule and both run.** The normalized-name rule above is
+case-insensitive, whitespace-trimmed, and scoped to a **required carrier name**; it therefore does not
+reach two fields named `Id` and `id` — neither is a carrier name — and it does not model a
+first-character-only lowering. Either rule alone is fatal, and **both are decided from the field list,
+before any item is fetched**, so neither can depend on which items happen to carry which values.
+
+**A board carrying more than 100 fields in total is `unparseable-file`, fatal.** Built-in and custom
+fields count alike toward that ceiling. The transport resolves an
+item's field keys from at most the first 100 fields of the board and does not page them, so a value
+whose field falls outside that window is flattened under an empty key — and where `Status` falls outside
+it, **every entry silently reads as having no status**, a board-wide defect blamed on the cards. The
+problem names the count, the ceiling, and the transport as the cause. It is `unparseable-file` rather
+than `malformed-file` because the board **was obtained** and it is the **item payload** that cannot be
+interpreted; `malformed-file`'s conditions are a missing, mistyped, or name-colliding required carrier
+and a bad version marker, and a 101st unrelated field is none of those.
+
+**An item object carrying no key for the `Status` field is the genuine *no `Status` selected* state** —
+`malformed-entry` on `status`, unchanged. It can never mean *the read did not ask for the field*: the
+transport flattens every value an item holds, and this contract chooses none of them.
+
+**The `Status` field's type is matched against the literal `ProjectV2SingleSelectField`.** The
+transport reports a field's type as its GraphQL type name, and the string `SINGLE_SELECT` does not occur
+in its output — so every place this contract previously named `SINGLE_SELECT` as the compared type now
+either says **single-select** in English or names the transport's own literal, and no artifact compares
+against a literal the transport never emits.
+
+**A `Status` field carrying no options at all returns no options key**, which reads as *zero options*
+and never as *the key was not returned*. It is **not** a defect — the field exists and has the right
+type — and the existing missing-status-option advisory names every status in consequence.
+
 ### The carrier table
 
 | # | Field | Required on read | Carrier |
@@ -219,7 +282,7 @@ coercion this whole section forbids.
 | 1 | `id` | **yes** | the board item's own **node id** — the item's identity, not a carried value |
 | 2 | `title` | **yes** | the item content's **title** |
 | 3 | `description` | no | the item **body**, everything before the `begin` sentinel |
-| 4 | `status` | **yes** | the board's **`Status`** SINGLE_SELECT, through the option table below |
+| 4 | `status` | **yes** | the board's **`Status`** single-select field, through the option table below |
 | 5 | `changeEpics` | no | block key `changeEpics` |
 | 6 | `attributionWarnings` | no | block key `attributionWarnings` |
 | 7 | `runBaseline` | no | block key `runBaseline` |
@@ -232,12 +295,23 @@ itself** (its title, and its body — whose prose is `description` and whose sen
 four block keys); and two **board stamps**. `id` is **not** among them: it is the item's own identity,
 the thing the other nine fields hang on, rather than a slot the item carries.
 
+**Under a transport that returns an item's body, all four block-carried slots and `description` are
+read from that body.** On the resolved transport that body is the item row's **`content.body`**, present
+on **every** content type it exposes — draft issue, issue, and pull request alike — with `description`
+being everything before the opening sentinel and `changeEpics`, `attributionWarnings`, `runBaseline` and
+`notes` coming from the sentinel-fenced block that follows. Where a transport cannot return one of the
+ten slots at all, that is a
+**transport capability limit** governed by *Degraded scope* below and by the unavailable mask's existing
+single cause — and **no such limit applies to the resolved transport**, which returns the body on every
+content type it exposes. The unavailable mask therefore keeps exactly one cause: an entry whose
+**sentinel block did not parse**.
+
 No entry field is read from more than one carrier, and no board state causes a field to be inferred from
 a carrier other than its own.
 
 ### Required and optional carriers — a floor of one, never a cap
 
-**Exactly one custom field must pre-exist:** `Status` (SINGLE_SELECT). That is a **floor, never a cap**.
+**Exactly one custom field must pre-exist:** `Status`, a single-select field. That is a **floor, never a cap**.
 A board carrying `Priority`, `Iteration`, `Assignees` and a team's own field alongside it is fully
 usable: their presence neither makes the board unusable nor raises a problem, and they are preserved by
 construction (below).
@@ -298,7 +372,7 @@ individual cards through `/ptp:backlog-edit`.
 > resolved override where one exists, and left at its default row where none does.
 
 The overrides come from the `backlog.statusOptions` configuration key, whose path, kind, per-status-key
-validity, and layered forgiving resolution are owned by `ptp-github-projects-mcp` — see that skill for
+validity, and layered forgiving resolution are owned by `ptp-github-projects-gh` — see that skill for
 the key itself; its validity rules are **not** restated here. This skill owns the **default table**, the
 **merge** onto it, the **resolved table's** semantics, and the **collision rule** below.
 
@@ -342,10 +416,10 @@ Three refinements:
   user hunting the board for something that is in a config file. It adds nothing to the problem
   vocabulary.
 
-Two precedents, both exact in shape. `ptp-github-projects-mcp`'s **`mcpServerInvalid`** carve-out also
-has resolution never throw, has the fact computed and carried as a verdict, and leaves the **refusal** to
-the consumer; it differs only in *where* the fact is computed, and that is forced by the ownership split
-— `mcpServerInvalid` is decidable from the key alone, while a collision needs the **resolved** table,
+Two precedents, both exact in shape. `ptp-github-projects-gh`'s **completeness verdict** also has
+resolution never throw, has the fact computed and carried as a verdict, and leaves the **refusal** to the
+consumer; it differs only in *where* the fact is computed, and that is forced by the ownership split —
+completeness is decidable from the resolved keys alone, while a collision needs the **resolved table**,
 which needs the default table the transport skill deliberately does not hold. And this skill's own
 **normalized-name collision on a required carrier** applies the same doctrine: *never resolved by picking
 one*.
@@ -358,10 +432,10 @@ Four situations, deliberately landing in four different places:
 |---|---|
 | the selected option's name is **outside the resolved table** (`Needs review`) | `malformed-entry` on `status`, **never coerced** to a nearby value |
 | the item has **no `Status` value set** (a real Projects state) | `malformed-entry` on `status` — `status` is required on read and is **never invented** |
-| the board **has no `Status` field**, or it is not a SINGLE_SELECT | `malformed-file`, **fatal** (above) |
+| the board **has no `Status` field**, or its type is not the transport's single-select type literal | `malformed-file`, **fatal** (above) |
 | the board's `Status` field **lacks an option** for one of the seven values | **not a read defect at all** — no item can carry an option that does not exist. It is the **write path's refusal** (`ptp-backlog-write`, *The commit refuses when the resolved row does not identify exactly one board option*), and the view **notes it** (below) |
 
-**The advisory.** `list_project_fields` already returned the board's `Status` options, so the read is the
+**The advisory.** The field read at READ step 3 already returned the board's `Status` options, so the read is the
 cheapest possible place to tell a user that their configuration and their board disagree: the view emits
 a **note** naming every status the board can carry no option for. Its bounds are absolutes, because a
 note that quietly grew teeth would be worse than no note — it raises **no problem code**, adds **nothing
@@ -565,37 +639,191 @@ absence from this contract is deliberate rather than an omission.
 ```
 READ:
   0. CONFIGURATION COMPLETENESS FIRST — resolve `backlog.*` through
-     `ptp-github-projects-mcp` and read its verdict. Then, in this fixed
-     order, REFUSE non-silently on any of THREE grounds:
+     `ptp-github-projects-gh` and read its verdict. Then, in this fixed
+     order, REFUSE non-silently on any of TWO grounds:
        (1) the configuration is INCOMPLETE — naming the missing keys;
-       (2) `mcpServerInvalid` — naming `backlog.mcpServer`;
-       (3) the RESOLVED status-option table COLLIDES — merge the verdict's
+       (2) the RESOLVED status-option table COLLIDES — merge the verdict's
            `statusOptionOverrides` onto the built-in default table and apply
            the collision rule above, naming `backlog.statusOptions`, the
            colliding name, and every status claiming it.
-     All three are decidable from CONFIGURATION ALONE, so all three precede
-     the preflight and precede every board call. NO Projects tool is called.
+     Both are decidable from CONFIGURATION ALONE, so both precede
+     the preflight and precede every board call. NO `gh` command is run.
      This is NOT the preflight.
-  1. Run `ptp-github-projects-mcp`'s capability preflight.
+  1. Run `ptp-github-projects-gh`'s capability preflight.
        a verdict that does not admit the read → terminate through THAT
        skill's non-silent STOP, cited and never restated here.
        a verdict that admits the read → continue.
-  2. Fetch the PROJECT itself — its title, its URL, and the two strings the
-     version marker may live on (its `shortDescription` and its `readme`).
-     This is the only source of those four values; none of them is inferred
-     from the items.
+  2. Fetch the PROJECT itself:
+       gh project view <backlog.projectNumber> --owner <backlog.projectOwner> --format json
+     → .title (project title) · .url (project URL) · .shortDescription and .readme
+       (the two strings the version marker may live on) · .id (the PROJECT node
+       id, an input to the write path) · .owner.type ("User" | "Organization"),
+       which SELECTS THE ROOT of the raw read in step 2b — that read entering
+       through the organization root or the user root explicitly, the porcelain's
+       owner-agnostic form having no raw equivalent
+       · .items.totalCount and .fields.totalCount, which SIZE the two list reads
+       below. This is the only source of those values; none is inferred from the
+       items and the URL is never composed.
        not obtained → the `unreachable-store` outcome. STOP.
-  2b. Fetch EVERY item page to cursor exhaustion.
-       not pagination-complete → the `unreachable-store` outcome. STOP.
-  3. Map the carriers: the one custom field, the title, the body and its
-     block, the two stamps.
+
+  3. Fetch the BOARD FIELDS, before any item call:
+       gh project field-list <number> --owner <login> --format json
+                              --limit <max(.fields.totalCount from step 2, 1)>
+     Reconcile (.fields | length) against .totalCount per *Explicit limits and the
+     totalCount reconciliation* below. Then establish, over the returned field
+     descriptors and under THIS contract's own normalization (case-insensitive,
+     surrounding whitespace trimmed, nothing further inferred):
+       · the `Status` field's PRESENCE        → absent ⇒ `malformed-file`, FATAL
+       · .type == "ProjectV2SingleSelectField" → otherwise ⇒ `malformed-file`, FATAL
+       · a normalized-name COLLISION           → `malformed-file`, FATAL, naming both
+       · a FLATTENED-KEY COLLISION             → `malformed-file`, FATAL, naming both
+         (*The item object's flattened field keys* below)
+       · .totalCount > 100                     → `unparseable-file`, FATAL (same section)
+       · the `Status` field's NODE ID          → returned by the read
+       · its OPTIONS as {id, name}, in board order, names UNNORMALIZED → returned
+       a page not obtained → the `unreachable-store` outcome. STOP.
+
+  2b. Fetch the ITEMS, in two parts:
+       gh project item-list <number> --owner <login> --format json
+                             --limit <max(.items.totalCount from step 2, 1)>
+     — NO `--query` is ever passed: it is a membership test by another name, it is
+       host-gated, and under it `.totalCount` counts the FILTERED set, which would
+       make the reconciliation self-fulfilling.
+     Reconcile (.items | length) against .totalCount, same rule.
+     This returns the NON-ARCHIVED items only, and carries NEITHER board stamp —
+     both being gh's selection set rather than an API limit.
+       then, in ONE `gh api graphql` QUERY — one query shape rather than two,
+       re-issued once per page round because a cursor only comes back with a
+       completed response — TWO ALIASED item connections over the same project,
+       each passing an EXPLICIT page size PINNED AT THE CONNECTION MAXIMUM of
+       100 — the raw surface returns nothing at all for a connection given
+       neither a forward nor a backward page size, so the explicit-limit rule
+       below binds here too, and pinning it at the maximum is what leaves the
+       traversal no limit to re-size (the no-retry rule below) —
+       each advancing on its OWN cursor until hasNextPage:false and each
+       reconciled against the LOWEST totalCount that alias reported across
+       the rounds of its OWN traversal — a traversal spanning several rounds
+       may see the count move in either direction on a live board, which is
+       the same benign race the join tolerates and is NOT itself a defect,
+       and that floor is the tightest bound no such race can violate:
+         `all`      — items(archivedStates: [ARCHIVED, NOT_ARCHIVED]),
+                      selecting id · isArchived · createdAt · updatedAt
+                      for EVERY item: the roster and the stamp source. It
+                      selects NO content: the porcelain already returned the
+                      non-archived majority's in full.
+         `archived` — items(archivedStates: [ARCHIVED]), selecting id · content
+                      · the single-select field values: the content and status of
+                      exactly the items the porcelain could not return. These rows
+                      are NOT flattened, so an archived item's `Status` is the
+                      single-select field value whose FIELD NODE ID equals the one
+                      step 3 returned — matched on that id, never on a name and
+                      never on a position — and its option NAME then enters the
+                      resolved option table by the same match as any other row.
+                      No such value is the same *no `Status` selected* state as a
+                      missing flattened key on a non-archived row.
+       THREE SELECTIONS THIS SECOND ALIAS MUST CARRY, all load-bearing and
+       none supplied by default — `content` is a UNION on the raw surface, so
+       it has NO default field set and every value below is selected
+       explicitly or is not returned at all:
+         · the content's TYPE NAME, aliased onto the SAME key the porcelain
+           writes it under, so one content-type rule reads both sources; the
+           raw surface names it `__typename` and carries no `type` field, so
+           without the alias every archived entry loses its content type and
+           with it the write path's per-content-type refusal;
+         · the content's TITLE and BODY, on EVERY content type this transport
+           exposes, plus — on a DRAFT-ISSUE content — the DRAFT ISSUE'S OWN
+           NODE ID, which is the sole source of `handle.draftIssueId`. Without
+           the first two an archived entry reaches `epics` with no title and
+           none of the five body-carried slots; without the third an archived
+           draft item's handle reads `null`, which this contract defines as
+           "this item is NOT a draft issue" — a false negative, not a gap;
+         · on each single-select value, its FIELD's NODE ID, which is the only
+           thing the `Status` value is selected by (step 3's id) — never a
+           name, never a position, these rows not being flattened.
+       A raw read that omits ANY of the three is NON-CONFORMANT: it would bind
+       archive reachability while returning archived entries the contract
+       cannot place — the partial archived read a `true` binding forbids.
+       a page not obtained, or a loop not reaching hasNextPage:false
+         → the `unreachable-store` outcome. STOP.
+       a loop that DOES reach hasNextPage:false but whose accumulated rows
+       still fall short of that LOWEST observed totalCount
+         → the `unreachable-store` outcome, DIRECTLY and with NO retry. The
+           re-issue-once step above belongs to a limit-bounded list read, which
+           has a limit to re-size; a cursor traversal is already the exhaustive
+           form that step exists to reach, so there is nothing to retry with.
+
+     Step 3 runs BEFORE step 2b, and the labels are deliberately NOT renumbered:
+     every CARRIER `malformed-file` decision — presence, type, and both collision
+     rules — is a property of the FIELD LIST and is taken before any item call, so
+     a board defect can never be laundered into a transport error. (The
+     VERSION-MARKER `malformed-file` is not one of these: it belongs to the
+     version gate at step 4, unmoved.) And "step 3" (the option data a read returns) and
+     "step 2b" (the item fetch) are cited by name elsewhere. Prose cites a step by
+     what it does, never by its position.
+
   4. Apply the VERSION GATE.
   5. VALIDATE. Readers report the problems; writers apply writer
      eligibility below.
   6. Return the document, the problem list, the unavailable mask, the
-     handle table, and the `Status` field's option names as read at
-     step 3.
+     handle table, the `Status` field's NODE ID together with its
+     options as {id, name} pairs, verbatim and in board order, as read
+     at step 3, and the PROJECT's own node id as read at step 2.
 ```
+
+#### Explicit limits and the `totalCount` reconciliation
+
+**Every list read passes an explicit limit, and an invocation that omits one is non-conformant.** The
+resolved transport's list commands default to **30** results, stop there, and exit **successfully** — so
+a backlog of forty entries reads as thirty, with no warning and no error, and a short read is
+**indistinguishable from a small board**. The only in-band evidence is the `totalCount` each response
+carries beside its rows.
+
+The rule, applied to the field read and the item read alike:
+
+1. pass a limit of `max(<the matching totalCount from the project read>, 1)`. The `1` floor is required
+   because the transport rewrites a **zero** limit to its default of 30, so an empty board would
+   silently request thirty rows;
+2. compare the returned row count against **that response's own** `totalCount` — never against the
+   project read's, which was taken at an earlier instant;
+3. on a shortfall, **re-issue once** at the returned `totalCount`;
+4. a shortfall after that re-issue is the **`unreachable-store` outcome**, under this contract's
+   existing *the paged fetch did not complete* condition — never a short board and never an empty one.
+
+**A board carrying the required field and no items still returns rows and a `totalCount` of zero, at a
+successful exit**, so the reconciliation passes trivially and *no entries yet* keeps its single legal
+source. The transport's own "no results" error is unreachable on the JSON path and must not be treated
+as an empty-backlog signal.
+
+#### The join — three row sets, one entry set
+
+Step 2b produces **three** row sets, read at three instants against a live board: the non-archived rows,
+the **roster** (every item's id, archive flag and both stamps), and the **archived** rows. They are joined
+**on the item's node id**, and the join resolves each id to **exactly one row before any carrier is
+read**, so every produced entry still reads each of its fields from **one** payload and no entry field is
+assembled from two:
+
+| Situation | Binding |
+|---|---|
+| a **roster** id with no row in either content set | **skipped** — a card created, archived, or unarchived between the calls. It cannot be assembled, and the next read sees it whole. It is **not** the no-interpretable-content `unparseable-file` above, which is a **returned row** whose content could not be interpreted rather than a row that was never returned |
+| a **content** row with no roster row | produced, with `createdAt` and `updatedAt` reading **`null`** — the *a stamp the transport omits* case *Timestamps* above already states is **not** a defect, and which the canonical order already places **after** every entry with a usable stamp |
+| an id in **both** the non-archived rows and the archived rows | the **archived** row wins, as the **later** observation — the raw read being issued last |
+
+**Both stamps come from the roster and from nowhere else**, the non-archived read carrying neither. And
+**`isArchived` comes from the roster** wherever a roster row exists — one authoritative source, read last
+— and **by construction of the source connection** otherwise: `false` for a row that came only from the
+non-archived read, whose connection returns non-archived items alone, and `true` for one that came only
+from the archived alias. There is no third case, and the flag is **never** derived from how many archived
+rows came back — that is the inference *Degraded scope* below forbids, and it is forbidden here in the
+same words.
+
+**The join is deliberately tolerant rather than fail-closed, and the asymmetry is the reason.** What a
+fail-closed rule would catch here is a **benign race on a live board**, and its cost would be an
+`unreachable-store` on a healthy board every time a human touches a card mid-read. The direction that
+*is* fail-closed is the one that matters: a raced card carries no `createdAt`, so it **orders last** and
+can never reach the **head** of the ready set — the position the whole degraded-scope machinery exists to
+protect. This contract's determinism claims are already scoped to **the produced document** rather than to
+the board over time, so a race changes *which* document is produced and nothing about what is computed
+from it.
 
 **Three absolutes.**
 
@@ -607,26 +835,54 @@ READ:
 
 ### Why the completeness verdict is step 0 and not part of the preflight
 
-`ptp-github-projects-mcp` is explicit that a `ready` verdict means *the required tools are callable* and
+`ptp-github-projects-gh` is explicit that a `ready` verdict means *the preflight ladder passed* and
 says nothing about whether a board was **named** — board identity is the configuration contract's
 separate completeness verdict. So an unset `projectOwner` / `projectNumber` passes the preflight
 untouched, reaches the transport, and comes back as project-not-found: a transport error standing in for
 a one-line config fix. Folding the two together loses that distinction, which is why the refusal is
 **this** contract's obligation — a resolver that never stops cannot itself refuse.
 
+**Step 0 is discharged by the consuming command's own numbered step or precondition, not by this
+pseudocode alone.** A gate stated only here is reachable only by a reader who has already entered this
+read protocol — and this protocol's own step 1 **is** the preflight, so "before the preflight" and
+"inside this protocol" are the same place. Every `/ptp:backlog*` command therefore takes this gate as a
+**step or precondition of its own**, ahead of consulting this skill and ahead of its branch guard, and
+**names** the two grounds without restating them.
+
+**The ordering claim is exact:** the gate is the first action that reaches the **store**, the
+**transport**, or the **worktree**. A command's own local argument, mode and posture checks keep their
+existing position **ahead** of it — `/ptp:backlog-run` resolves `codex.mode` and parses `rounds:` first,
+`/ptp:backlog-continue` classifies its invocation first, and the two `model:`-taking writers parse and
+validate their arguments first — so a malformed override token is still reported as a malformed token
+rather than masked by a configuration refusal. Do not read the claim as "first action" or "first
+non-argument action"; both are false of the commands just named.
+
+This paragraph **records** the obligation. It adds no ground and changes none, and it does **not**
+renumber this protocol's steps: every command cites **step 0** by that number.
+
 ### What a read returns
 
-Three things, deliberately separate:
+Four things, deliberately separate:
 
 1. the **document** `{ version, epics }` in the in-memory shape the validator and the ready set consume
    unchanged, plus the ordered **problem list** and the **unavailable mask**;
 2. a **handle table keyed by the board item's node id** —
-   `nodeId → { itemId, contentType, isArchived }`;
-3. the **`Status` field's option names, verbatim and in board order** — the values step 3 already read
-   in order to map the carrier.
+   `nodeId → { contentType, isArchived, draftIssueId }`, where `contentType` is the item's content type,
+   `isArchived` is the item's own archived flag, and **`draftIssueId` is the draft issue's own node id
+   on a draft-issue item and `null` on every other content type**;
+3. the **`Status` field's node id, and its options as `{ id, name }` pairs, verbatim and in board
+   order** — the values step 3 already read in order to map the carrier;
+4. the **project's own node id**, as read at step 2.
 
 The handles stay **outside** the entry objects, so the entry model gains no store-specific field for
 unknown-key preservation to reason about.
+
+**The fourth is returned for the same reason as the third and on the same terms.** It describes the
+**board**, not any item and not any field, so it belongs in neither of the first two. It is returned
+because the write path needs it — it is the project coordinate `ptp-backlog-write`'s commits take — and
+because **the project read is the only place it is free**: a consumer that had to obtain it would have to
+issue a second project call for one string. Like the third, it is **returned rather than re-fetched**, and
+no consumer may make a board call of its own for it.
 
 **The third is returned rather than re-fetched, and it is neither a document value nor a handle.** No
 entry carries it — it describes the **field**, not any item — so folding it into either of the first two
@@ -641,6 +897,24 @@ the write refusal must print back to the user.
 The table is keyed by the node id, **which is also the entry's `id`**, so the justification is trivially
 true: every entry has exactly one, no two entries share one, and no derived second lookup exists or is
 needed.
+
+**There is no second identifier, and that is the point.** The board item's node id is the entry's
+**identity** *and* the **address** the transport's item-scoped writes take, so nothing is translated,
+nothing is substituted, and no handle cell holds an address. That is why the table carries no separate
+address cell distinct from `contentType` and `isArchived`.
+
+**`draftIssueId` is a different value and is not an alternative identity.** The transport's title and
+body writes address a **draft issue** rather than a board item and refuse an item id outright, so the
+draft issue's own node id has to reach the write path — and the item payload already carries it, making
+the read the only place it is free. It is `null` for every non-draft content type, which is the concrete
+shape of the content-type refusal the read path already installs: there is **no route at all** to a
+non-draft item's title or body through the item-scoped write.
+
+**The option `id`s are returned alongside the names because the write path takes an id.** The names stay
+**unnormalized** for the advisory and the write refusal, exactly as before; the ids are carried because
+the field read is the only place they are free, and because selection still matches on the **name**
+through the resolved table — matching on an id would put opaque board-generated strings into
+`backlog.statusOptions` and take that key out of the user's hands.
 
 ### Degraded scope — when archived items are unreachable
 
@@ -666,7 +940,7 @@ What *is* established is narrower and sufficient: **a writer that consumes the r
 proceed**. Which writers those are is the write path's question, answered by `ptp-backlog-write`'s own
 derivation rule.
 
-**How the read knows.** Archive reachability is read from `ptp-github-projects-mcp`'s preflight record —
+**How the read knows.** Archive reachability is read from `ptp-github-projects-gh`'s preflight record —
 its `archiveReachable` fact — and is **never inferred from the result set**: a complete fetch of a board
 with no archived cards returns exactly what an archive-limited transport returns, so "zero archived items
 came back" establishes nothing. Per that skill's own consumer rule, **only `true` establishes full
@@ -674,6 +948,19 @@ scope**; `false` and `"unknown"` are treated **identically** as *not established
 two being distinguished only so the reported reason is honest. Where the record publishes no such fact at
 all, the read degrades rather than claiming a scope it cannot establish — withholding costs a user a
 ready set, whereas wrongly assuming full scope costs them a runner taking the **wrong epic**.
+
+**Archive reachability is a property of the resolved transport, not a constant of GitHub Projects, and
+this machinery is retained for transports that lack it.** Where a transport can address the item
+connection's archived-state filter directly — as one that admits a raw GraphQL read can — archived
+items come back **whole**, `archiveReachable` is `true`, and **this section's withholding does not
+fire**: the ready set is produced, an archived item is an ordinary entry in the canonical order, and a
+consumer of the ready set proceeds. **Recovering only an archived item's stamps would not be enough and
+must not be mistaken for enough** — an archived entry reaching `epics` with no `title` and no `status`
+raises two `malformed-entry` problems, which are structural, which withholds the ready set anyway. A
+transport establishes reachability only when it returns archived items **as complete entries**.
+
+Nothing above is relaxed by this: **only `true` establishes full scope**, `false` and `"unknown"` are
+still treated identically, and reachability is still **never inferred from the result set**.
 
 ### Concurrency
 
@@ -794,7 +1081,7 @@ failed:
 
 | Exit | Rendering |
 |---|---|
-| the preflight did not admit the read | the **full STOP message** in `ptp-github-projects-mcp`'s specified shape — its seven labels in order — **alongside** the header verdict line |
+| the preflight did not admit the read | the **full STOP message** in `ptp-github-projects-gh`'s specified shape — its **six** labels in order — **alongside** the header verdict line |
 | post-preflight failure to obtain the board | the **short fatal form** naming the `unreachable-store` outcome and its transport detail |
 | obtained but uninterpretable | the **same short fatal form**, naming an `unparseable-file` problem row instead |
 

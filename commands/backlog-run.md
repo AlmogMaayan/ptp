@@ -18,12 +18,27 @@ while it had not is the **shape** of the refusal, not its wording:
 - **Exactly one refusal exists in this file**, issued **non-silently and up front**, naming the
   **specific** reason it cannot write. No second, divergently-worded refusal is added beside it.
 - The grounds are their owning contracts' and are **cited, never restated**: `ptp-backlog`'s
-  **writer-eligibility** rule; `ptp-github-projects-mcp`'s **`read-only`** and **`unavailable`**
-  preflight verdicts (precondition 3 below); the read path's **degraded-scope** withholding, which this
+  **writer-eligibility** rule; the **`gh` transport contract**'s (`ptp-github-projects-gh`)
+  **`read-only`** and **`unavailable`**
+  preflight verdicts (precondition 3b below); the read path's **degraded-scope** withholding, which this
   command consumes because it **consumes the ready set**, refusing at the top of the iteration and
-  never classifying a withheld ready set as an empty one; an entry whose **content type offers no
-  path to update a carrier** a planned field rides; and `ptp-backlog-write`'s refusal when **the
-  resolved status-option row does not identify exactly one board `Status` option**. Each is a
+  never classifying a withheld ready set as an empty one; an **issue- or pull-request-backed** entry on
+  an operation that **plans a row on the title or the body carrier** — `ptp-backlog-write`'s
+  per-content-type table records that only a **draft-backed** item has an in-board title/body write
+  path, so this ground is **per carrier, not per entry**, and such an entry's **`Status` writes are
+  untouched**. **What that means for this command specifically:** **WRITE 0**'s `runBaseline`
+  write-back and **WRITE 1** / **WRITE 2**'s body writes all ride the **co-dispatched title/body
+  route**, so such an entry's **take is refused before anything is dispatched** and the epic lands in
+  the runner's **existing `take-failed`** bucket under its **existing `store-write halt`** terminal
+  state — **no new bucket, terminal state, verdict or skip-and-continue behaviour** — while each write
+  group's `status` commit uses the **field-value route**, which works on every content type;
+  `ptp-backlog-write`'s refusal when **the
+  resolved status-option row does not identify exactly one board `Status` option**; and the
+  `ptp-backlog` skill's *Read protocol* **step-0 configuration grounds, both of them** — an
+  **incomplete `backlog.*` configuration** (its missing keys being only ever `backlog.projectOwner`
+  and/or `backlog.projectNumber`)
+  and a **colliding resolved status-option table**, taken at
+  **precondition 3a below**, ahead of the preflight and ahead of the branch guard. Each is a
   **condition within this one refusal contract**, naming its own cause when it fires.
 - **No ground is worded over the write path being unshipped**, that antecedent having lapsed.
 - **No fallback of any kind.** No local backlog file is read, created, or written, and no other store
@@ -42,20 +57,40 @@ Check before doing any work, **in this order**:
    non-whitespace argument text refuses, naming the residue. Both the token's grammar (by reference to
    `ptp-run-at-model`'s `fast:` switch section) and the refusal live in the **`ptp-backlog-run`**
    skill.
-3. **Resolve the backlog configuration and evaluate the capability preflight verdict**, per
-   **`ptp-github-projects-mcp`** — that skill owns the `backlog.*` keys, the completeness verdict, the
-   namespace, the preflight, its three verdicts and its STOP message, and **none of them is restated
-   here**. The **verdict disposition table** — a verdict permitting only reads STOPs a writer, and the
-   verdict is resolved **once per invocation, never per epic** — lives in the **`ptp-backlog-run`**
-   skill.
+3. **The transport preconditions, taken as an ordered pair — never as one conjoined check**, because
+   "resolve X **and** evaluate Y" cannot express that a failing X precludes Y, and because the
+   configuration resolver is contractually forbidden from stopping anything itself:
+
+   **3a. Take the configuration gate.** Resolve the `backlog.*` configuration per
+   **`ptp-github-projects-gh`** — that skill owns the `backlog.*` keys and the completeness verdict —
+   and take **`ptp-backlog`**'s *Read protocol* **step 0**, refusing non-silently on either of its
+   **two** grounds: an **incomplete `backlog.*` configuration** (its missing keys being only ever
+   `backlog.projectOwner` and/or `backlog.projectNumber`) and a
+   **colliding resolved status-option table** (which names `backlog.statusOptions`, the colliding
+   option name, and every status claiming it). **Name the ground; do not restate the rule.** **No
+   `gh` command is run.** This precedes 3b **absolutely**: the resolver never STOPs, so the refusal
+   is this command's obligation, and running the preflight on a configuration that names no board
+   would report a transport failure in place of a one-line configuration fix. Any board identity
+   rendered here carries its **provenance**, per `ptp-github-projects-gh` §*The acting
+   identity*.
+
+   **3b. Evaluate the capability preflight verdict**, per the **`gh` transport contract**
+   (**`ptp-github-projects-gh`**) — that skill
+   owns the acting identity, the `gh` surface, the preflight, its three verdicts and its STOP message,
+   and **none of them is
+   restated here** — reached **only** when 3a passed. The **verdict disposition table** — a verdict
+   permitting only reads STOPs a writer, and the verdict is resolved **once per invocation, never per
+   epic** — lives in the **`ptp-backlog-run`** skill.
 4. **Resolve the `parallel` posture once** from `parallel.mode` in layered ptp config. This command
    accepts **no** `parallel:` token; the resolved posture is held fixed for the whole invocation and
    supplied to every inline `ptp-full` invocation.
 5. **Run the `ptp-branch-guard` preamble exactly once**, for the whole run, per that skill — never per
    epic. Every epic lands on that one feature branch.
 
-Steps 1, 2, and 3 are the **three** aborting preconditions and **all three precede the branch guard**,
-so no invalid invocation, and no invocation that provably cannot write, causes a branch to be cut.
+Steps 1, 2, 3a, and 3b are the **four** aborting preconditions and **all four precede the branch
+guard**, so no invalid invocation, and no invocation that provably cannot write, causes a branch to be
+cut. An unactionable `backlog.*` configuration is exactly such an invocation — decided at 3a from
+configuration alone, at zero transport cost.
 
 ## What this command does
 
