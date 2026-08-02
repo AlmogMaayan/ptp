@@ -1,6 +1,6 @@
 ---
 name: ptp-backlog-continue
-description: Own the halted-epic resume path behind /ptp:backlog-continue — the one command that finishes a backlog epic left `blocked` by /ptp:backlog-run's halt gate once a human has performed the manual verification no agent could. Owns the target-selection rule (the candidate predicate `status === "blocked"` with a non-empty `changeEpics`, and the zero / one / many outcomes, refusing rather than guessing), the invocation-shape split under which a bare invocation is the user's sign-off and free text is a problem report, the unwrapped outer-session execution contract that keeps `/ptp:review-full`'s and `/ptp:archive`'s own spawns at one nesting level, the bare flow (per-prefix folder lookup, checkbox sign-off, re-verification before the sign-off is trusted, the review-full convergence gate, archive, then the single `blocked → done` write once every prefix has archived), the issue-text fix-pass flow that transitions nothing, and the four terminal report shapes. Delegates the backlog store identity, entry model, read protocol, validator vocabulary, and the status transition table with its row 8 and guard 3 to the shared ptp-backlog skill; the reviewer gate to ptp-codex-mode; branch safety to ptp-branch-guard; the spawn-and-relay mechanics to ptp-run-at-model; and review and archival to /ptp:review-full and /ptp:archive, which it drives rather than reimplements.
+description: Own the settle-the-epic path behind /ptp:backlog-continue — the one command that finishes a backlog epic left `blocked` or `in-review` by /ptp:backlog-run once a human has performed the manual verification no agent could. Owns the target-selection rule (the candidate predicate `status === "blocked" || status === "in-review"` with a non-empty `changeEpics`, `blocked` taking precedence with its zero / one / many outcomes refusing rather than guessing, and several `in-review` candidates resolving to the canonical-order head), the invocation-shape split under which a bare invocation is the user's sign-off and free text is a problem report, the unwrapped outer-session execution contract that keeps `/ptp:review-full`'s and `/ptp:archive`'s own spawns at one nesting level, the bare flow (per-prefix folder lookup, checkbox sign-off, re-verification before the sign-off is trusted, the review-full convergence gate, archive, then the single `blocked → done` or `in-review → done` write once every prefix has archived), the issue-text fix-pass flow that transitions nothing, and the four terminal report shapes. Delegates the backlog store identity, entry model, read protocol, validator vocabulary, and the status transition table with its `blocked → done` and `in-review → done` rows under guard 3 to the shared ptp-backlog skill; the reviewer gate to ptp-codex-mode; branch safety to ptp-branch-guard; the spawn-and-relay mechanics to ptp-run-at-model; and review and archival to /ptp:review-full and /ptp:archive, which it drives rather than reimplements.
 ---
 
 # ptp-backlog-continue — finish (or fix) the epic `/ptp:backlog-run` halted on
@@ -8,15 +8,17 @@ description: Own the halted-epic resume path behind /ptp:backlog-continue — th
 ## Purpose
 
 `/ptp:backlog-run` halts an epic whose `/ptp:full` did not converge, marks it `blocked`, and records
-the change-epic prefixes that attempt produced in `changeEpics` (`ptp-backlog-run`, row 3 of
-`ptp-backlog`'s transition table). The most common cause is not a broken implementation: it is an
+the change-epic prefixes that attempt produced in `changeEpics` (`ptp-backlog-run`, `ptp-backlog`'s
+`in-progress` → `blocked` row). A converged epic it leaves **`in-review`** — converged but neither
+archived nor committed, since the runner performs neither. Both are this command's to settle.
+The most common cause of a halt is not a broken implementation: it is an
 apply agent that correctly refused to check off a **manual-only** verification task — a live-app
 walkthrough no tool in the session can perform — so `agents/ptp-apply.md`'s "every task shows `[x]`"
 rule made `completed` unreachable and the halt was recorded.
 
-Once a human actually performs that walkthrough, there was no way back. `ptp-backlog`'s table permits
-only `blocked → pending` out of `blocked` (a full reset that discards nothing but re-runs
-everything), and `done` was reachable only from `in-progress`, written by the runner alone. This
+Once a human actually performs that walkthrough, there was no way back: out of `blocked` the table
+offered only `blocked → ready` (a full reset that discards nothing but re-runs everything), and no row
+into `done` existed for a human to take. This
 skill is the contract for the missing path: **finish the halted epic from where it stopped**, or, if
 the walkthrough surfaced a real problem, **drive one scoped fix pass** and leave it halted for the
 next check.
@@ -86,8 +88,9 @@ any **fatal** problem, and on **no structural problem at all** — having
 written nothing. **Proceed** over **every** structural defect, and **name every
 outstanding structural problem in the report**: the candidate predicate is per-entry, and no ready set
 is ever computed to choose an action, so such a defect cannot mislead it, and refusing over one would
-make a halted epic unfinishable until an unrelated repair happened. The one place a ready set is *mentioned* at all is report shape 1's
-closing newly-ready pointer, and that naming is **withheld** under exactly `ptp-backlog`'s own rule
+make a halted epic unfinishable until an unrelated repair happened. The one place a ready set is
+*mentioned* at all is report shape 1's closing pointer at the rest of the ready set **as the store
+already holds it**, and that naming is **withheld** under exactly `ptp-backlog`'s own rule
 (*Fatal vs. structural*: a structural problem withholds the ready set) — see *Report contract*.
 
 Two exclusions the read applies before the predicate:
@@ -100,26 +103,67 @@ Two exclusions the read applies before the predicate:
 The candidate set:
 
 ```
-candidates = epics.filter(e => e.status === "blocked" && e.changeEpics.length > 0)
+candidates = epics.filter(e => (e.status === "blocked" || e.status === "in-review")
+                            && e.changeEpics.length > 0)
+blocked    = candidates.filter(e => e.status === "blocked")
 ```
 
-| Candidates | Outcome |
+Resolve in **two steps**:
+
+**`blocked` takes precedence.** If `blocked` is non-empty, selection proceeds over **`blocked` alone**
+under the table below — exactly one proceeds; **zero** cannot occur on this branch; **more than one**
+refuses, naming every `blocked` candidate's `id`, `title`, and `changeEpics`. The report
+**additionally names every `in-review` candidate it did not select**, so they are never silently
+ignored. Selection is therefore **byte-identical to its pre-`0046_03` behavior whenever a `blocked`
+candidate exists**, and the `in-review` path is purely additive.
+
+| `blocked` candidates | Outcome |
 |---|---|
 | **exactly one** | proceed, acting on it |
-| **zero** | **refuse** — "no halted epic found: no `blocked` entry carries a recorded change." Point at `/ptp:backlog-edit` when the user believes one should exist and the store disagrees (e.g. it was already reset to `pending`, or its `changeEpics` was dispositioned away) |
-| **more than one** | **refuse**, naming **every** candidate's `id`, `title`, and `changeEpics`, and acting on none |
+| **more than one** | **refuse**, naming **every** `blocked` candidate's `id`, `title`, and `changeEpics`, and acting on none |
 
-**No tie-break exists and none may be invented.** `ptp-backlog` persists no attempt id, no attempt
+**Otherwise, among the `in-review` candidates, take the head of `ptp-backlog`'s canonical order.** No
+refusal for multiplicity. The report names the entry chosen, the count remaining, and
+`/ptp:backlog-continue` as the way to take the next one.
+
+**Zero candidates of either status** **refuse** — "no epic is waiting to be settled: no `blocked`
+entry carries a recorded change, and no `in-review` entry carries one either." Point at
+`/ptp:backlog-edit` when the user believes one should exist and the store disagrees (e.g. it was
+already reset to `ready`, or its `changeEpics` was dispositioned away). **Both limbs are worded over
+the recorded change**, not over the status alone — an `in-review` entry with an empty `changeEpics` is
+not a candidate, so a message saying *no entry is `in-review`* would be false in exactly the case
+`/ptp:backlog`'s Recommendation qualifier exists for.
+
+**Why `blocked` first:** a `blocked` entry is the one that **halted the run**, so settling it is what
+unblocks further progress — and the command's own purpose is to continue that halt. An `in-review`
+entry blocks nothing.
+
+**No tie-break exists among `blocked` candidates, and none may be invented.** `ptp-backlog` persists
+no attempt id, no attempt
 boundary, and no per-attempt grouping of `changeEpics` (guard 1 states this explicitly), so there is
-no field on which "the most recent halt" could be computed. Ranking candidates by folder mtime,
-`updatedAt`, or id order would be exactly the undocumented heuristic `ptp-backlog-run`'s *Antichain
-reading note* warns against replicating ad hoc. The user resolves the ambiguity — with
+no field on which "the most recent halt" could be computed. Ranking `blocked` candidates by folder
+mtime, `updatedAt`, or id order would be exactly the undocumented heuristic `ptp-backlog-run`'s
+*Antichain reading note* warns against replicating ad hoc. The user resolves the ambiguity — with
 `/ptp:backlog-edit` on the entry they do not mean — and re-invokes.
+
+**That argument is about `blocked`, and it does not reach `in-review`.** Among `blocked` candidates
+the open question is **which halt the user means** — a question of *intent* that no stored field can
+answer, the store persisting no attempt id, no attempt boundary, and no per-attempt grouping of
+`changeEpics`. Among `in-review` candidates there is **no question of intent**: every one of them
+needs the identical treatment — review-full, archive, settle — and the only open question is *which
+one first*. That is a **schedule**, and `ptp-backlog` already owns a total order for it: the
+**canonical order** — `createdAt` ascending, an entry whose `createdAt` is unusable ordering after
+every entry with a usable one, and the node id as the final tie-break in every case — the same order
+the ready set and the entries table use. Taking its head is therefore **not** an invented heuristic;
+it is the order this contract already publishes. **The order is cited, never redefined**: this
+paragraph names it, and `ptp-backlog`'s own *Order* section remains the sole definition of its
+components — the unusable-stamp clause and the exact node-id comparison included. Nothing new is
+defined here.
 
 **The store is the only memory.** This command holds no state across invocations and has no notion of
 which halt is "current" beyond what the store says at the moment it reads. A stale `blocked` entry
 left over from an old session is therefore as eligible as a fresh one — intentional, and the reason
-the multi-candidate case refuses instead of guessing.
+the multiple-`blocked`-candidate case refuses instead of guessing.
 
 **A prefix in `changeEpics` may expand to several change folders.** The recorded `id` is a **4-digit
 change-epic prefix** (`ptp-backlog`'s schema), and a multi-slice `/ptp:full` run produces
@@ -175,6 +219,14 @@ folders in ascending story order:
 2. **Check off the remaining tasks.** Re-read `tasks.md` and flip every remaining `- [ ]` to `- [x]`.
    The bare invocation **is** the sign-off for exactly those boxes and for nothing else. **No task
    line is invented, reworded, reordered, or removed** — only existing checkboxes are toggled.
+
+   **On an `in-review` target this step is expected to be a no-op.** Convergence required **every**
+   slice in `ptp-full-apply`'s `processed` bucket, so every box should already be `- [x]`. A residual
+   `- [ ]` is a **contradiction with the convergence that produced `in-review`**: the bare invocation
+   is still the sign-off and the box is still flipped, and the report **names it prominently** — the
+   entry, the change folder, and the task line — rather than passing over it. It is **not** a refusal:
+   refusing would strand the entry with no writer able to move it, and the sign-off is genuine either
+   way.
 3. **Re-verify before the sign-off is trusted**, in that change's context:
    - `npx -y openspec validate <change-id> --strict`
    - the project's build and test suites, discovered the same way `ptp-apply` discovers them (the
@@ -204,7 +256,8 @@ confirmations, which are reachable because this command stayed unwrapped:
   moments earlier, as its **evidence**. That terminal state supplies the confirmation's *substance*,
   not its *answer* — keeping it reachable is the whole point of staying unwrapped, and auto-answering
   it would hollow that rationale out. **Withheld or declined → that prefix stops** exactly as an
-  archive gate refusal does, and the entry stays `blocked`. The report names the terminal state that
+  archive gate refusal does, and the entry stays in its existing status (`blocked` or `in-review`).
+  The report names the terminal state that
   was offered as evidence. This is the same durable proof guard 3 rests on.
 - **Confirm-action** — the user's own `/ptp:backlog-continue` invocation is the intent, mirroring
   `/ptp:archive` step 5's own "the user invoking this command counts as intent, but show the summary
@@ -220,12 +273,14 @@ does.
 ### The transition, and only then
 
 **Only once every prefix in `changeEpics` has been settled** — archived in this invocation, or found
-absent at step 1 — does the command perform the `blocked → done` write. If **any** prefix stalls at
-step 3, 4, or 5, the entry stays `blocked`, its `changeEpics` is untouched, and the report says
-exactly which prefixes finished and which did not.
+absent at step 1 — does the command perform the `blocked → done` **or** `in-review → done` write, per
+the target's own source status. If **any** prefix stalls at
+step 3, 4, or 5, the entry stays in its existing status (`blocked` or `in-review`), its `changeEpics`
+is untouched, and the report says exactly which prefixes finished and which did not.
 
 Immediately before the write, **re-read and re-validate the store** and re-confirm the target is still
-`blocked` with the same `changeEpics`. If it changed under the command, **refuse** rather than write:
+in **the status it was selected in** with the same `changeEpics`. If it changed under the command,
+**refuse** rather than write:
 the store contract has no locking, and a blind write would be exactly the never-a-blind-write violation
 `ptp-backlog` forbids.
 
@@ -234,10 +289,12 @@ them.** The **pre-dispatch snapshot** *is* the re-read-and-re-confirm; the **pre
 covers `status` and `runBaseline`. `changeEpics` needs **no check**, because **no write is planned for
 it**.
 
-**The write shape is `ptp-backlog`'s row 8 under guard 3**, which **owns** it; the recap below adds
-nothing to that skill and `ptp-backlog` wins outright on any divergence. One
+**The write shape is `ptp-backlog`'s `blocked → done` / `in-review → done` row under guard 3**, which
+**owns** it;
+the recap below adds nothing to that skill and `ptp-backlog` wins outright on any divergence. One
 single write group setting `status: done`, clearing `runBaseline` (already `null` on
-an entry reached through row 3, so a no-op in the common case), and **retaining `changeEpics` as-is**
+an entry reached through either `in-progress` → `blocked` or `in-progress` → `in-review`, so a no-op
+in the common case), and **retaining `changeEpics` as-is**
 — sending **no** `updatedAt`, which `ptp-backlog` makes board-maintained. **No `notes` line is appended** — unlike the runner's WRITE 2 — and **no other
 entry and no other field is touched**. There is no second write group and no deferred write.
 
@@ -253,13 +310,14 @@ The **guard owns the write shape**; this adds **only** the dispatch mapping onto
 **Retain means plan no write.** *Retain `changeEpics` exactly as-is* means **plan no row for that
 field**: it therefore **never appears in the journal**, can **never be a `failed` row**, and needs
 **no pre-write check**. The payoff is what makes the retry shape work with no new machinery: the
-**candidate predicate** — `blocked` with a non-empty `changeEpics` — therefore **survives every partial
-failure of this write**.
+**candidate predicate** — `blocked` **or** `in-review` with a non-empty `changeEpics` — therefore
+**survives every partial failure of this write**, from either source.
 
 #### When the resume write does not complete
 
-A resume write whose verdict is neither `complete` **nor `unresolved-commit`** leaves the entry
-`blocked` with `changeEpics` **intact** — which is **exactly what the guard already prescribes** when a
+A resume write whose verdict is neither `complete` **nor `unresolved-commit`** leaves the entry in its
+existing status (`blocked` or `in-review`) with `changeEpics` **intact** — which is **exactly what the
+guard already prescribes** when a
 prefix fails to settle. Recovery is this command's own § *Retry shape*, cited and not rewritten: a
 later **bare** re-invocation re-selects the same candidate, finds every prefix absent (step 1 skips
 them and notes them as already-archived), and reaches the write again, where the baseline clear
@@ -267,7 +325,8 @@ re-dispatches as `skipped-identical`. **No new flow is added.**
 
 **`unresolved-commit` is the exception**, per `ptp-backlog-write`'s scoping rule. The `done` commit
 **may or may not** have landed, so the report **names both possible statuses**, **asserts neither**,
-does **not** claim the entry remains `blocked`, does **not** promise convergence — that promise rests on
+does **not** claim the entry remains in its existing status (`blocked` or `in-review`), does **not**
+promise convergence — that promise rests on
 the candidate predicate still holding, which a landed `done` would falsify — does **not** report the
 epic finished, and **directs the user to inspect the entry** before re-invoking.
 
@@ -317,11 +376,13 @@ all**.
    **If *no* prefix has a surviving folder, this flow REFUSES** — every recorded change was already
    archived (by hand, or by an earlier bare run), so there is nothing to fix a pass against and there
    is no folder in which a fix could even be written. **No fix pass runs, nothing changes, and the
-   entry stays `blocked` with its `changeEpics` untouched.** The refusal names every prefix and says
+   entry stays in its existing status (`blocked` or `in-review`) with its `changeEpics` untouched.**
+   The refusal names every prefix and says
    it was found absent, and points at the two real next steps: a **bare** `/ptp:backlog-continue` if
    the archived work is in fact finished (its step 1 skips absent prefixes, so it can still settle the
    entry), or `/ptp:plan` for a **new** change if the reported issue needs work that no longer has a
-   home. This is the one asymmetry with the bare flow, and it is forced: an absent folder is a
+   home (the entry stays in its existing status, `blocked` or `in-review`). This is the one asymmetry
+   with the bare flow, and it is forced: an absent folder is a
    *settled* prefix there and an *unworkable* one here.
 2. **Run one fix pass.** Invoke `ptp-run-at-model` with the target read from that change's
    `effort.md` (the same target `/ptp:apply` uses), carrying:
@@ -347,14 +408,17 @@ all**.
 4. **Check off nothing manual.** The fix pass **never** re-checks a manual-only task box on the user's
    behalf. That box needs a human, and refusing to fabricate that verification is the whole reason
    this command exists.
-5. **No status transition, no review, no archive.** The entry stays exactly `blocked` with
+5. **No status transition, no review, no archive.** The entry stays exactly as it was, `blocked` or
+   `in-review`, with
    `changeEpics` unchanged, and `/ptp:review-full` and `/ptp:archive` are **not** invoked on this
    path. The report states what was fixed and that the epic is waiting on another manual check,
-   followed by a **bare** `/ptp:backlog-continue` once that check is done.
+   followed by a **bare** `/ptp:backlog-continue` — the next step from **either** status — once that
+   check is done.
 
 A fix pass that itself fails — cannot validate, or hits work it cannot do without inventing a task —
 is reported as a **refusal**, mirroring the bare flow's step-3 failure and `ptp-full-apply`'s
-"convergence gate halts the run" posture. Either way the entry stays `blocked`.
+"convergence gate halts the run" posture. Either way the entry stays in its existing status
+(`blocked` or `in-review`).
 
 ## Codex mode
 
@@ -376,50 +440,63 @@ Every report names the **branch the command ran on** and **every outstanding str
 load-time validation found. It also names the **candidate entry** (`id` and `title`) **whenever one
 was resolved** — which is every shape except the refusals that fire before or instead of a resolution:
 a **token-only argument** (refused at classification, before the store is even read), **zero
-candidates** (there is no entry to name — the report says so), and **multiple candidates** (none is
+candidates** (there is no entry to name — the report says so), and **multiple `blocked` candidates**
+(none is
 selected — the report names them **all** instead, per *Target selection*). Beyond that, four shapes:
 
-1. **Bare flow, full success** — every prefix and story processed, each one's `/ptp:review-full`
+1. **Bare flow, full success** — the target's **source status** (`blocked` or `in-review`), so a
+   reader can tell which proof the guard supplied; every prefix and story processed, each one's
+   `/ptp:review-full`
    terminal state (with a mode-skip kept visibly distinct from `BOTH PHASES DONE`, never flattened),
    each archive result and whether specs were synced or `--skip-specs` applied, any prefix skipped as
    already-archived, and that the backlog entry is now **`done`** with its `changeEpics` retained.
+   When `in-review` candidates remain **unselected**, it names them and points at a further
+   `/ptp:backlog-continue` to take the next one.
    Closes by pointing at `/ptp:backlog-run` — **without invoking it** — and, when the store carries
-   **no** outstanding structural problem, by naming the epics the transition made ready per
-   `ptp-backlog`'s ready-set definition. When a structural problem **is** outstanding, that naming is
+   **no** outstanding structural problem, by naming **the rest of the ready set as the store already
+   holds it** per `ptp-backlog`'s ready-set definition: those entries are ready because they already
+   carry the `ready` status, and this transition made no entry ready. When a structural problem **is** outstanding, that naming is
    **withheld** exactly as `ptp-backlog` requires (the graph is not trustworthy), the report says so
    and points at `/ptp:backlog` for the view once the defect is repaired — the transition itself is
    unaffected, since it never depended on the graph.
 2. **Bare flow, partial** — which prefixes finished, which stalled and **exactly why** (the failing
    `openspec validate` / build / test check by name, a review non-convergence and its terminal state,
    or an archive gate refusal), **which change folders were signed off** (see *The sign-off is
-   durable*), and that the entry **remains `blocked`** with `changeEpics` unchanged.
+   durable*), and that the entry **remains in its existing status (`blocked` or `in-review`)** with
+   `changeEpics` unchanged.
 
    **Where the resume write itself did not complete**, this shape additionally carries the write
    group's **verdict**, its **journal**, and the entry's **status — phrased as what this invocation
    knows**: it committed no transition, so the entry is at the status the snapshot observed, normally
-   `blocked`, with the **actual** value printed where the group halted on a `status` pre-write-check
-   difference. It is **never** phrased as a claim that the entry is certainly still `blocked`. It also
+   the status it was selected in, with the **actual** value printed where the group halted on a
+   `status` pre-write-check
+   difference. It is **never** phrased as a claim that the entry is certainly still at that status. It also
    states that a later **bare** re-invocation converges — except under `unresolved-commit`, where the
    scoping rule above governs instead and no convergence is promised.
 3. **Issue-text flow** — the change the fix pass ran against and **why it was chosen** (including, when
    the flow had to ask, which candidates were listed and which the user named). Its **unresolved
    variant**: the ambiguity was raised and no answer was given, so **no fix pass ran** and nothing at
    all changed. Otherwise: what it changed, its re-verification result, any manual-only task boxes left
-   deliberately unchecked, that the entry **remains `blocked`**, and the reminder that a **bare**
+   deliberately unchecked, that the entry **remains in its existing status (`blocked` or
+   `in-review`)**, and the reminder that a **bare**
    `/ptp:backlog-continue` is the next step once the user has re-verified.
-4. **No candidate / multiple candidates / an excluded entry / a token-only argument / an issue-text
+4. **No candidate / multiple `blocked` candidates / an excluded entry / a token-only argument / an issue-text
    invocation whose every recorded prefix is already archived** — the refusal exactly as *Target
-   selection*, *Invocation shape*, and *The issue-text flow* step 1 specify, naming every candidate
-   where there is more than one and every absent prefix where none survives, and performing no action
-   on any entry.
+   selection*, *Invocation shape*, and *The issue-text flow* step 1 specify, naming every `blocked`
+   candidate where there is more than one — **and, in that same refusal, every `in-review` candidate it
+   did not select**, per *Target selection*, so they are never silently ignored — and every absent
+   prefix where none survives, and performing
+   no action on any entry. **Several `in-review` candidates are not a refusal** — they resolve to the
+   canonical-order head and produce a shape-1 or shape-2 report.
 
 **A refusal is never relayed as success**, and a partial run is never reported as a full one.
 
 ## Hard rules
 
-- **Never act on an entry that is not `blocked` with a non-empty `changeEpics`.**
+- **Never act on an entry that is not `blocked` or `in-review` with a non-empty `changeEpics`.**
 - **Never write more than one backlog entry per invocation**, and never more than **one** write.
-- **Never perform `blocked → done`** except as the direct, same-invocation result of this command's own
+- **Never perform `blocked → done` or `in-review → done`** except as the direct, same-invocation result
+  of this command's own
   review-full → archive sequence settling **every** recorded prefix. There is no free "mark it done".
 - **Never invent, remove, reword, or reorder a `tasks.md` task** on either flow — the bare flow toggles
   existing checkboxes only.
@@ -435,7 +512,8 @@ selected — the report names them **all** instead, per *Target selection*). Bey
   only as **this invocation's own result**, and an uncommitted-partial write has not produced it.
 - **Never own or amend `ptp-backlog`'s contract here** — the entry model, the read protocol, the problem
   codes, the writer-eligibility rule, the transition table, and the recovery machinery are **that
-  skill's**. Where this file recaps one of them (the writer-eligibility STOP set, row 8's write shape)
+  skill's**. Where this file recaps one of them (the writer-eligibility STOP set, the
+  `blocked → done` / `in-review → done` write shape)
   the recap is a **pointer, never a second source**: it adds no rule, and on **any** divergence
   `ptp-backlog` is correct and this file is the bug. Never copy the transition table, the problem-code
   list, or the recovery machinery here at all.
@@ -448,8 +526,8 @@ selected — the report names them **all** instead, per *Target selection*). Bey
 | the ordered write sequence, the two re-reads, the journal, its six outcomes and six terminal verdicts, fail-stop, and the no-compensating-writes rule | `ptp-backlog-write` |
 | the `backlog.*` configuration, the tool namespace, and the capability preflight with its verdict record | `ptp-github-projects-mcp` |
 | the preflight **verdict disposition table** this command reuses by citation | `ptp-backlog-run` |
-| the status transition table, **row 8** and **guard 3**, and every other row's guard | `ptp-backlog` |
-| the halt that produces a `blocked` entry, its `changeEpics` write, and the terminal-state vocabulary | `ptp-backlog-run` |
+| the status transition table, the **`blocked → done`** and **`in-review → done`** rows under **guard 3**, and every other row's guard | `ptp-backlog` |
+| the halt that produces a `blocked` entry, the convergence write that produces an `in-review` one, its `changeEpics` write, and the terminal-state vocabulary | `ptp-backlog-run` |
 | branch safety and the `ptp-branch-prep` workflow | `ptp-branch-guard` |
 | the reviewer gate, `codex.model` / `codex.reasoningEffort`, and the mode-skip terminal state | `ptp-codex-mode` |
 | spawn-and-relay, effort directives, the nesting caveat | `ptp-run-at-model` |

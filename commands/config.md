@@ -79,7 +79,7 @@ or wrong-shape existing file is never overwritten.
   is rejected and re-prompted, never written. There is no upper bound — project numbers are unbounded
   per owner.
 - **Validated row writes for `backlog.statusOptions`.** This is a **map** parameter: a member menu picks
-  one of the five entry status values, and only that one row is written per invocation. Only a
+  one of the seven entry status values, and only that one row is written per invocation. Only a
   non-empty, comma-separated, case-insensitively de-duplicated row — every element non-empty after
   trimming — that does **not** collide with another row may be written. That collision check is
   **single-layer**, per `ptp-config`: the **target layer** merged onto `ptp-backlog`'s built-in default

@@ -165,8 +165,10 @@ parameters = [
     jsonPath: ["backlog", "statusOptions"],       // a PREFIX; the member is appended
     kind:     "map",
     members: [                                    // the schema's canonical status order
-      { member: "pending",     label: "pending",     default: ["pending", "Todo"] },
+      { member: "backlog",     label: "backlog",     default: ["backlog", "Backlog"] },
+      { member: "ready",       label: "ready",       default: ["ready", "Ready"] },
       { member: "in-progress", label: "in-progress", default: ["in-progress", "In Progress"] },
+      { member: "in-review",   label: "in-review",   default: ["in-review", "In Review"] },
       { member: "done",        label: "done",        default: ["done", "Done"] },
       { member: "blocked",     label: "blocked",     default: ["blocked", "Blocked"] },
       { member: "cancelled",   label: "cancelled",   default: ["cancelled", "Cancelled", "Canceled"] }
@@ -238,14 +240,16 @@ registry entry, no other edits to this flow.
 runs exactly as before.
 
 When the selected entry's `kind` is `map`, use `AskUserQuestion` to offer that entry's `members`, each
-shown with its **current or default** row — for `backlog.statusOptions`, the five entry status values in
+shown with its **current or default** row — for `backlog.statusOptions`, the seven entry status values in
 the schema's canonical order:
 
-1. **pending** (default row: `pending`, `Todo`)
-2. **in-progress** (default row: `in-progress`, `In Progress`)
-3. **done** (default row: `done`, `Done`)
-4. **blocked** (default row: `blocked`, `Blocked`)
-5. **cancelled** (default row: `cancelled`, `Cancelled`, `Canceled`)
+1. **backlog** (default row: `backlog`, `Backlog`)
+2. **ready** (default row: `ready`, `Ready`)
+3. **in-progress** (default row: `in-progress`, `In Progress`)
+4. **in-review** (default row: `in-review`, `In Review`)
+5. **done** (default row: `done`, `Done`)
+6. **blocked** (default row: `blocked`, `Blocked`)
+7. **cancelled** (default row: `cancelled`, `Cancelled`, `Canceled`)
 
 **Where the *current* row in that menu comes from, since the file is not read until step 3.** Read the
 target file **for display only** at this point: where it exists, parses as JSON, has an object root, and
@@ -302,7 +306,7 @@ turns one invocation into several writes. The idempotency/no-op report, the `wri
        `{"backlog":"github"}` or `{"backlog":null}`), STOP.
      - For `backlog.statusOptions`, **the same rule at a second level** — not a second rule: if
        `backlog` exists but is not an object, STOP; **and** if `backlog.statusOptions` exists but is
-       not an object (e.g. `{"backlog":{"statusOptions":"Todo"}}` or
+       not an object (e.g. `{"backlog":{"statusOptions":"Ready"}}` or
        `{"backlog":{"statusOptions":null}}`), STOP.
    - Absent parents (`codex`, `review`, `roles`, `telemetry`, `parallel`, or `backlog` not present in
      the root — and, for `backlog.statusOptions`, an absent `statusOptions` under a present `backlog`)
@@ -573,7 +577,7 @@ that member's current or default row as the suggested value). Then validate the 
     rejection **names the colliding option name and the other status**.
 
 **The collision check is evaluated against the target layer merged onto the default table.** Build the
-other four rows **the way the resolver would**: take the target file's own `backlog.statusOptions` value
+other six rows **the way the resolver would**: take the target file's own `backlog.statusOptions` value
 for a status only where that value is **valid** under `ptp-github-projects-mcp`'s per-status-key rules
 (after trimming, dropping empty elements, and dropping case-insensitive duplicates it still yields at
 least one name), and take `ptp-backlog`'s built-in default row for that status otherwise. Do not read
@@ -581,9 +585,9 @@ the other config layer.
 
 **A present-but-invalid sibling row falls back to its default here, exactly as it does in the resolver —
 and reading it as an empty row instead would open the hole this check exists to close.** With a
-hand-edited `"pending": []` in the target file, `pending` resolves to its **default** row `pending`,
-`Todo`; an editor that treated the present `[]` as the `pending` row would see no collision and happily
-write `done: Todo`, which the consumer would then refuse on. The doctrine that **the editor's writable
+hand-edited `"ready": []` in the target file, `ready` resolves to its **default** row `ready`,
+`Ready`; an editor that treated the present `[]` as the `ready` row would see no collision and happily
+write `in-review: Ready`, which the consumer would then refuse on. The doctrine that **the editor's writable
 set is a subset of what the resolver accepts** requires the check to model the resolver's validity rules,
 not merely the file's key presence.
 
@@ -698,7 +702,7 @@ Examples:
 | `backlog.mcpServer` input empty or whitespace-only | Reject, re-prompt; do NOT write. |
 | `backlog.projectOwner` input empty, whitespace-only, or containing `/`, internal whitespace, or `://` | Reject, re-prompt; do NOT write. |
 | `backlog.projectNumber` input non-integer (`7.5`, `abc`), string-typed (`"7"`), zero, or negative | Reject, re-prompt; do NOT write. |
-| `backlog.statusOptions` present but not an object (`"statusOptions":"Todo"`, `"statusOptions":null`) | STOP, report, do **not** overwrite. |
+| `backlog.statusOptions` present but not an object (`"statusOptions":"Ready"`, `"statusOptions":null`) | STOP, report, do **not** overwrite. |
 | `backlog.statusOptions` absent (under a present or absent `backlog`) | Created as `{}` on write; not clobbering. |
 | `backlog.statusOptions` row input empty, whitespace-only, or containing an empty element (`,Doing`, `Doing,`, `Doing,,WIP`) | Reject, re-prompt; do NOT write. |
 | `backlog.statusOptions` row that would collide with another row of the resolved table | Reject, re-prompt, naming the colliding name and the other status; do NOT write. |

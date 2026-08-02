@@ -1,6 +1,6 @@
 ---
 name: ptp-backlog
-description: Own the epic backlog board contract — the store being one GitHub Projects v2 board per repository, resolved through ptp-github-projects-mcp's configuration and capability preflight with no local backlog file, no second store and no fallback; the rule that every board item is an entry, no membership test being performed; the ten-field entry model and its tolerant read; the field mapping of those ten slots onto five board carriers — the one required custom field Status (SINGLE_SELECT), the item's title and body, and the board's own stamps — with the status option table, the sentinel-fenced metadata block and its malformed-body boundaries, and unknown-key preservation in both scopes; the ptp-backlog-version: marker and its gate, whose absent-marker-reads-as-v1 divergence is justified in place; the read-only read protocol with its configuration-completeness-then-preflight precondition, its returned handle table and its degraded scope; the node-id identity rule, under which nothing is allocated, minted or written and two ids can neither collide nor be malformed; the validator and its fixed four-code problem vocabulary with the fatal/structural split, the writer-eligibility rule that refuses past fatal problems only, and the distinct unreachable-store outcome; and the ready-set definition — the pending entries in the board's creation-stamp order — with its order deterministic over the produced document. A pure prose contract in the single-source-of-truth pattern of ptp-branch-guard (branch safety), ptp-codex-mode (the reviewer gate), ptp-agent-roles (role resolution), and ptp-parallel-fanout (fan-out safety) — it reads nothing on its own, writes nothing, and edits nothing. Also owns the status transition table — eight rows, each naming its performer — with its three guards (the gated blocked-to-pending reset that retains the prior attempt's changeEpics, the any-to-cancelled guard, and the blocked-to-done resume row available only as the same-invocation result of /ptp:backlog-continue's own review-full-then-archive sequence), and the recovery-and-reconciliation machinery every writer that settles a stale in-progress entry runs: the stale definition and its deliberately conditional wording, the single change-prefix-set definition both the runBaseline snapshot and the reconciliation diff cite, the additive-only reconciliation, the gate, the availability table and the disposition outcomes (claim / disown / rerun anyway, and per-prefix promote / dismiss) with their combination rules, the every-settling-edit-clears-runBaseline rule, and the never-yields-done rule. The contract was defined over a local file by 0036_01, which ships no writer; the transitions and recovery machinery by 0036_03 alongside /ptp:backlog-edit, the runner in 0036_04; the store became a GitHub Projects board in 0042_03, which ships the read half and leaves every writer refusing.
+description: Own the epic backlog board contract — the store being one GitHub Projects v2 board per repository, resolved through ptp-github-projects-mcp's configuration and capability preflight with no local backlog file, no second store and no fallback; the rule that every board item is an entry, no membership test being performed; the ten-field entry model and its tolerant read; the field mapping of those ten slots onto five board carriers — the one required custom field Status (SINGLE_SELECT), the item's title and body, and the board's own stamps — with the status option table, the sentinel-fenced metadata block and its malformed-body boundaries, and unknown-key preservation in both scopes; the ptp-backlog-version: marker and its gate, whose absent-marker-reads-as-v1 divergence is justified in place; the read-only read protocol with its configuration-completeness-then-preflight precondition, its returned handle table and its degraded scope; the node-id identity rule, under which nothing is allocated, minted or written and two ids can neither collide nor be malformed; the validator and its fixed four-code problem vocabulary with the fatal/structural split, the writer-eligibility rule that refuses past fatal problems only, and the distinct unreachable-store outcome; and the ready-set definition — the `ready` entries in the board's creation-stamp order — with its order deterministic over the produced document. A pure prose contract in the single-source-of-truth pattern of ptp-branch-guard (branch safety), ptp-codex-mode (the reviewer gate), ptp-agent-roles (role resolution), and ptp-parallel-fanout (fan-out safety) — it reads nothing on its own, writes nothing, and edits nothing. Also owns the status transition table — eleven rows, each naming its performer, cited by from-to pair and never by number — with its three guards (the gated blocked-to-ready reset that retains the prior attempt's changeEpics, the any-to-cancelled guard, and the two resume rows blocked-to-done and in-review-to-done, both available only as the same-invocation result of /ptp:backlog-continue's own review-full-then-archive sequence), the in-progress-to-in-review convergence row that makes in-review the resting state of a converged-but-unarchived epic and leaves /ptp:backlog-run writing done nowhere, and the recovery-and-reconciliation machinery every writer that settles a stale in-progress entry runs: the stale definition and its deliberately conditional wording, the single change-prefix-set definition both the runBaseline snapshot and the reconciliation diff cite, the additive-only reconciliation, the gate, the availability table and the disposition outcomes (claim / disown / rerun anyway, and per-prefix promote / dismiss) with their combination rules, the every-settling-edit-clears-runBaseline rule, and the never-yields-done rule. The contract was defined over a local file by 0036_01, which ships no writer; the transitions and recovery machinery by 0036_03 alongside /ptp:backlog-edit, the runner in 0036_04; the store became a GitHub Projects board in 0042_03, which ships the read half and leaves every writer refusing.
 ---
 
 # ptp-backlog — the epic backlog board and everything that defines it
@@ -102,7 +102,7 @@ place.
 | 1 | `id` | string, opaque board node id | **yes** | — | **nobody — board-supplied** (*Identity* below) |
 | 2 | `title` | string, non-empty | **yes** | — | add / edit |
 | 3 | `description` | string | no | `""` | add / edit |
-| 4 | `status` | enum | **yes** | — | add sets `pending`; transitions in `0036_03` / `0036_04` |
+| 4 | `status` | enum | **yes** | — | add sets `backlog` (wired in `0046_02`); transitions below |
 | 5 | `changeEpics` | array of `{ id, attribution }` | no | `[]` | runner (`0036_04`), reconciliation (`0036_03`) |
 | 6 | `attributionWarnings` | array of 4-digit change-epic prefixes | no | `[]` | runner (`0036_04`) |
 | 7 | `runBaseline` | `null` or array of 4-digit change-epic prefixes | no | `null` | runner (`0036_04`), cleared by `0036_03` / `0036_04` |
@@ -113,9 +113,21 @@ place.
 **`id`'s requirement is satisfied by construction:** the transport supplies a node id on every board
 item, so a read cannot produce an entry without one.
 
-**`status`** is exactly one of `pending`, `in-progress`, `done`, `blocked`, `cancelled`. This change
-treats status as **data**: it reads it, renders it, and uses it in the ready-set rule. It performs no
-transition and defines no transition table — that is `0036_03` / `0036_04`.
+**`status`** is exactly one of `backlog`, `ready`, `in-progress`, `in-review`, `done`, `blocked`,
+`cancelled`, in that canonical order. The first five are the **pipeline** values; the last two —
+`blocked` and `cancelled` — are **auxiliary** values that are not pipeline stages.
+
+**`backlog`** means *accepted but not yet ready to run*; **`ready`** means *ready to run*. The two are
+the split of the single value `pending` that preceded them, with `ready` inheriting every behavior
+`pending` carried and `backlog` expressing a state the previous version could not. **`pending` is no
+longer a value of the enum.**
+
+**`in-review`** means *converged but not yet archived*. It is written by exactly one row —
+`in-progress` → `in-review`, `/ptp:backlog-run`'s convergence write — and left by exactly two:
+`in-review` → `done` under guard 3 (`/ptp:backlog-continue`) and the unconditional any → `cancelled`
+row. `0046_01` added the value to the schema, the default option table, and the configuration surface
+with no performer on any row; `0046_03` supplied its two transitions without re-opening any of them.
+See *Status transitions and their guards* below, which owns all three rows.
 
 **`changeEpics` element** — an object, never a bare string:
 
@@ -251,11 +263,36 @@ Matched on the selected option's **name**, case-insensitively and whitespace-tri
 
 | Entry `status` | Default accepted option names |
 |---|---|
-| `pending` | `pending`, `Todo` |
+| `backlog` | `backlog`, `Backlog` |
+| `ready` | `ready`, `Ready` |
 | `in-progress` | `in-progress`, `In Progress` |
+| `in-review` | `in-review`, `In Review` |
 | `done` | `done`, `Done` |
 | `blocked` | `blocked`, `Blocked` |
 | `cancelled` | `cancelled`, `Cancelled`, `Canceled` |
+
+**The recommended board layout** is the first five rows' Title-Case names, in the order declared —
+`Backlog` | `Ready` | `In Progress` | `In Review` | `Done`. That order is **documentation, not a rule**:
+nothing in the read path, the ready set, the transition table, or the write path reads a board option's
+position, index, or color, and the existing prohibition on inferring anything from option order,
+position, or color is untouched.
+
+**`blocked` and `cancelled` are deliberately not columns.** They are exceptional, terminal-ish states
+rather than pipeline stages, and a board carrying no `Blocked` or `Cancelled` option is **not a defect on
+that ground**: it simply has no writable option for those statuses, which the write path's existing
+zero-match refusal governs and the read view's existing missing-option advisory already names. No new
+rule, code, or verdict is added for the omission — it is stated only so the advisory is not read as a
+misconfiguration.
+
+**`Todo` appears on no row — a deliberate breaking change.** It is **not** retained as an alias on the
+`backlog` row: retaining it would make it **impossible to stop** `Todo` meaning `backlog` on a board that
+uses that column for something else, which is the same ground on which a configured row replaces rather
+than extends its default. A board still running a `Todo` column, **whose resolved table no
+`backlog.statusOptions` override re-admits `Todo` into**, reads `malformed-entry` on `status` for every
+card in it, which is structural, so the ready set is withheld. Two recovery paths already exist and
+neither is new machinery: **configuration** — `backlog.statusOptions` re-admits `Todo` on whichever row
+that column meant, with no board rename — and **repair** — the unset/out-of-enum repair below moves
+individual cards through `/ptp:backlog-edit`.
 
 > **The resolved table** is the built-in default table with each status's row replaced by that status's
 > resolved override where one exists, and left at its default row where none does.
@@ -267,7 +304,7 @@ the key itself; its validity rules are **not** restated here. This skill owns th
 
 Matching is unchanged: on the selected option's **name**, **case-insensitively** and
 **whitespace-trimmed**, with no fuzzy matching and no near-match. Configuration changes *which names are
-in the table*; it never changes *how a name is matched*, and it never adds a sixth status — the five
+in the table*; it never changes *how a name is matched*, and it never adds an eighth status — the seven
 entry `status` values are the schema's.
 
 #### Replace, not extend
@@ -275,10 +312,11 @@ entry `status` values are the schema's.
 A configured row **replaces** its default row rather than being unioned with it. Extension can never
 lose a spelling that used to work, which is genuinely attractive, and it is rejected for two reasons:
 
-1. It makes it **impossible to stop** `Todo` meaning `pending`. A board that uses `Todo` for something
-   else — a triage column, say — would have every card in it read as a `pending` epic.
-2. It would make a collision **permanently unfixable**. A user whose pending column is literally named
-   `Done` configures `pending: "Done"`; under extension the `done` row still contains `Done`, and there
+1. It makes it **impossible to stop** `Backlog` meaning `backlog`. A board that uses `Backlog` for
+   something else — a triage column for non-epic work, say — would have every card in it read as a
+   `backlog` epic.
+2. It would make a collision **permanently unfixable**. A user whose ready column is literally named
+   `Done` configures `ready: "Done"`; under extension the `done` row still contains `Done`, and there
    is no configuration that removes it. The collision rule below would then refuse a configuration the
    user has no way to repair.
 
@@ -296,8 +334,8 @@ Three refinements:
 
 - **It is a property of the *resolved* table, not of the configured fragment.** A configured row
   colliding with an **unconfigured default** row counts — and that is in fact the realistic case
-  (`pending: "Done"` against the untouched `done` row).
-- **Duplicates within one row are not a collision.** `["Todo","todo"]` normalizes to one name on one
+  (`ready: "Done"` against the untouched `done` row).
+- **Duplicates within one row are not a collision.** `["Backlog","backlog"]` normalizes to one name on one
   row; only two **distinct** statuses claiming one normalized name collide.
 - **It is a configuration defect, not a board defect**, and therefore **not** `malformed-file`: raising a
   board problem code for a JSON typo would report the fault in the board's problem table and send the
@@ -321,7 +359,7 @@ Four situations, deliberately landing in four different places:
 | the selected option's name is **outside the resolved table** (`Needs review`) | `malformed-entry` on `status`, **never coerced** to a nearby value |
 | the item has **no `Status` value set** (a real Projects state) | `malformed-entry` on `status` — `status` is required on read and is **never invented** |
 | the board **has no `Status` field**, or it is not a SINGLE_SELECT | `malformed-file`, **fatal** (above) |
-| the board's `Status` field **lacks an option** for one of the five values | **not a read defect at all** — no item can carry an option that does not exist. It is the **write path's refusal** (`ptp-backlog-write`, *The commit refuses when the resolved row does not identify exactly one board option*), and the view **notes it** (below) |
+| the board's `Status` field **lacks an option** for one of the seven values | **not a read defect at all** — no item can carry an option that does not exist. It is the **write path's refusal** (`ptp-backlog-write`, *The commit refuses when the resolved row does not identify exactly one board option*), and the view **notes it** (below) |
 
 **The advisory.** `list_project_fields` already returned the board's `Status` options, so the read is the
 cheapest possible place to tell a user that their configuration and their board disagree: the view emits
@@ -610,7 +648,7 @@ The state: the resolved transport can enumerate items but **cannot return archiv
 **transport capability limit, not a document defect**: it raises **no problem code**, and the read still
 proceeds, because a view that refuses over a limit it can describe is useless.
 
-**Exactly one thing is withheld, and the view says why: the ready set.** An incomplete `pending` set can
+**Exactly one thing is withheld, and the view says why: the ready set.** An incomplete `ready` set can
 put the **wrong entry at the head** of the canonical order, and the head is exactly what a runner
 consumes. This is an **additional** withholding condition standing alongside the problem-based one, not
 a re-derivation of it: the inherited suppression rule is one-directional (*display a ready set only when
@@ -814,8 +852,19 @@ This rule is defined here and **first consumed by `0036_02`**.
 
 ## Ready set
 
-An entry is **ready** when its `status` is **`pending`**. The ready set is the `pending` entries in the
+An entry is **ready** when its `status` is **`ready`**. The ready set is the `ready` entries in the
 **canonical order** below. **No topological pass is performed.**
+
+**An entry whose status is `backlog` is *not* ready**, whatever its age, its position in the canonical
+order, or the emptiness of the ready set. The predicate remains a **single equality** on `status`: it
+gains **no** second disjunct, **no** fallback to `backlog` when no `ready` entry exists, and **no**
+promotion performed by a reader.
+
+**An empty ready set no longer implies an empty backlog of un-run work.** A board may hold any number of
+`backlog` entries and an empty ready set. That is a **deliberate triage state** — entered by a human
+deferring an entry or never promoting one, exited by a human promoting one — not a starvation condition,
+and it raises **no problem code**. How `/ptp:backlog` *renders* that state is **not** settled here; it
+lands in `0046_02`.
 
 Two readings are wrong, and both are ruled out here:
 
@@ -837,7 +886,7 @@ first-in-first-out order.
 pass never constrained it (every member of a ready set already had its predecessors settled), so the
 canonical tie-break was always the whole visible order. Removing the pass removed **ordering**
 machinery, not ordering behavior. **Ready-set *membership* is a different matter and did change** — a
-backlog that carried edges now admits every `pending` entry at once, so one that used to run in a
+backlog that carried edges now admits every `ready` entry at once, so one that used to run in a
 dependency-derived order now runs in the canonical order. That is a deliberate behavior change, recorded
 as such in the release notes.
 
@@ -866,23 +915,61 @@ wrong entry at the **head** of the order.
 
 **This skill owns the status transition table.** `status` is a field of the schema above, so its legal
 transitions are a property of the same schema and belong in the same place. Three commands perform rows
-of this table — `/ptp:backlog-edit` (`0036_03`) performs the four **user** rows, `/ptp:backlog-run`
-(`0036_04`) performs the three **runner** rows, and `/ptp:backlog-continue` (`0038_01`) performs the
-single **resume** row 8 — and all three **reference** the table rather than restating any part of it.
-(`0036_01` deliberately defined no transition table; this section is where it lands.)
+of this table — `/ptp:backlog-edit` (`0036_03`) performs the **six** user rows
+(`in-progress` → `blocked` \| `ready` as a recovery disposition, `blocked` → `ready`, any →
+`cancelled`, `cancelled` → `ready`, `backlog` → `ready`, `ready` → `backlog`), `/ptp:backlog-run`
+(`0036_04`) performs the three **runner** rows — `ready` → `in-progress`, `in-progress` → `in-review`,
+and `in-progress` → `blocked` — and writes `done` **nowhere**, and `/ptp:backlog-continue` (`0038_01`)
+performs the **two resume** rows, `blocked` → `done` and `in-review` → `done` — and all three
+**reference** the table rather than restating any part of it. (`0036_01` deliberately defined no
+transition table; this section is where it lands.)
+
+**The `#` column is sequential, and no row is renumbered or reordered by hand.** `0046_03` replaced the
+single row that ran from `in-progress` straight to `done` with two rows, so every row after it moved
+by one — arithmetic the
+sequential column itself produces, not an edit. Because a row **number** in prose is unreliable across
+such an insertion, **prose cites a row by its from → to pair, never by its number**, in this skill, in
+the backlog skills, and in the backlog commands alike. The table is **not** renumbered into pipeline
+order.
 
 The complete table. Every row names its **performer**; there are no other rows:
 
 | # | From → To | Trigger | Performer |
 |---|---|---|---|
-| 1 | `pending` → `in-progress` | the runner takes the epic (writes `runBaseline` in the same write) | `/ptp:backlog-run` |
-| 2 | `in-progress` → `done` | every slice landed in `processed` | `/ptp:backlog-run` |
-| 3 | `in-progress` → `blocked` | `/ptp:full` did not converge; the run halts | `/ptp:backlog-run` |
-| 4 | `in-progress` → `blocked` \| `pending` | **recovery only**, via the reconciliation gate below (`claim` → `blocked`; `disown` / `rerun anyway` → `pending`). **Never `done`.** | `/ptp:backlog-edit` |
-| 5 | `blocked` → `pending` | explicit user reset, gated (**guard 1**) | `/ptp:backlog-edit` |
-| 6 | any → `cancelled` | the user abandons the epic; from `blocked` or a stale `in-progress` it carries guard 1's acknowledgement (**guard 2**) | `/ptp:backlog-edit` |
-| 7 | `cancelled` → `pending` | explicit user revival | `/ptp:backlog-edit` |
-| 8 | `blocked` → `done` | **only** as the direct, same-invocation result of `/ptp:backlog-continue`'s own bare-flow review-full → archive sequence settling **every** prefix recorded in `changeEpics` (**guard 3**) | `/ptp:backlog-continue` |
+| 1 | `ready` → `in-progress` | the runner takes the epic (writes `runBaseline` in the same write) | `/ptp:backlog-run` |
+| 2 | `in-progress` → `in-review` | `/ptp:full` converged — **every** slice in `ptp-full-apply`'s `processed` bucket — written at WRITE 2 **before** any archive or deploy, of which the runner performs **neither** | `/ptp:backlog-run` |
+| 3 | `in-review` → `done` | **every** prefix recorded in `changeEpics` settled by this same `/ptp:backlog-continue` invocation's own review-full → archive sequence (**guard 3**) | `/ptp:backlog-continue` |
+| 4 | `in-progress` → `blocked` | `/ptp:full` did not converge; the run halts | `/ptp:backlog-run` |
+| 5 | `in-progress` → `blocked` \| `ready` | **recovery only**, via the reconciliation gate below (`claim` → `blocked`; `disown` / `rerun anyway` → `ready`). **Never `done`.** | `/ptp:backlog-edit` |
+| 6 | `blocked` → `ready` | explicit user reset, gated (**guard 1**) | `/ptp:backlog-edit` |
+| 7 | any → `cancelled` | the user abandons the epic; from `blocked` or a stale `in-progress` it carries guard 1's acknowledgement (**guard 2**) | `/ptp:backlog-edit` |
+| 8 | `cancelled` → `ready` | explicit user revival | `/ptp:backlog-edit` |
+| 9 | `blocked` → `done` | **only** as the direct, same-invocation result of `/ptp:backlog-continue`'s own bare-flow review-full → archive sequence settling **every** prefix recorded in `changeEpics` (**guard 3**) | `/ptp:backlog-continue` |
+| 10 | `backlog` → `ready` | the user promotes an accepted epic into the run queue | `/ptp:backlog-edit` |
+| 11 | `ready` → `backlog` | the user defers a queued epic without abandoning it | `/ptp:backlog-edit` |
+
+> `in-review` is the honest resting state of a **converged but not yet archived** epic.
+> `/ptp:backlog-run` performs no archive and no deploy, so the epic's change folders are still under
+> `openspec/changes/` and its code is still uncommitted on the run's feature branch when the runner
+> finishes with it. Splitting the old single row from `in-progress` straight to `done` in two is what preserves the
+> invariant that **`/ptp:backlog-run` never writes `done` for work it did not archive** — after this
+> change it writes `done` **nowhere at all** — and it collapses `done` back to a single meaning:
+> **archived**.
+
+**`backlog` → `ready` and `ready` → `backlog` are unconditional and carry no guard.** Neither endpoint implies a run attempt: **no
+writer of this contract produces a `backlog` or `ready` entry holding a non-null `runBaseline`** — the
+runner writes the baseline only in the same write as `in-progress`, and every settling edit clears it
+*before* the settling status commit — so there is nothing to reconcile and no prior attempt to
+acknowledge.
+
+**That is a statement about writers, not an impossibility claim.** A hand edit on the board can leave a
+`ready` entry holding a baseline, exactly as it can produce the `in-progress`-with-null-baseline shape
+the recovery contract already names. This version adds **no** guard, gate, or trigger for it: the gate's
+trigger set stays exactly the two the *hand-edited entry* material below already enumerates, and
+`backlog` → `ready` and `ready` → `backlog` pass such an entry's `runBaseline` through untouched. That
+is precisely what the pre-split rows into the runnable state (`blocked` → `ready`, `cancelled` →
+`ready`, and the recovery row's `disown` / `rerun anyway`) already did with the same hand-edited
+shape, so the split adds no exposure.
 
 **Explicit user edits may target an entry in any status**, `done` and `in-progress` included — on a
 `done` target such an edit documents history rather than schedules work.
@@ -890,17 +977,29 @@ The complete table. Every row names its **performer**; there are no other rows:
 ### Refusals
 
 - **Every runner-only row requested through `/ptp:backlog-edit` is refused**, and the refusal **names
-  the row and its performer**: row 1 (`pending` → `in-progress`), row 2 (`in-progress` → `done`), and
-  row 3 (`in-progress` → `blocked`) other than as row 4's recovery disposition.
-- **Every transition absent from this table is refused** — in particular `done` → `pending`, `done` →
-  `in-progress`, `cancelled` → `done`, `cancelled` → `blocked`, and `pending` → `done`.
-- **`blocked` → `done` is refused except via row 8's guarded path.** It is **not** absent from the
-  table, but it is reachable **only** by row 8's performer under **guard 3** below; requested through
-  any other command — `/ptp:backlog-edit` in particular — it is refused exactly as it was before row 8
+  the row and its performer**: `ready` → `in-progress`, `in-progress` → `in-review`, and
+  `in-progress` → `blocked` other than as the recovery row's disposition.
+- **Every transition absent from this table is refused** — first and foremost **`backlog` →
+  `in-progress`**: the runner takes only `ready` entries, and that separation is the whole purpose of the
+  split. Also absent and therefore refused: `backlog` → `done`, `ready` → `done`, `done` → `ready`,
+  `done` → `backlog`, `done` → `in-progress`, `cancelled` → `done`, `cancelled` → `blocked`, `cancelled`
+  → `backlog` (revival lands on `ready` via `cancelled` → `ready`; deferring it is then `ready` →
+  `backlog`), and `blocked` → `backlog` (reset via `blocked` → `ready`, then defer via `ready` →
+  `backlog`).
+- **Every transition out of `in-review` other than `in-review` → `done` and `any` → `cancelled` is
+  refused** as absent from the table — `in-review` → `blocked`, `in-review` → `ready`, `in-review` →
+  `backlog`, and `in-review` → `in-progress` in particular, each with the reason and the two remedies
+  *`in-review`'s outgoing edges* below states. The only transition **into** `in-review` is
+  `in-progress` → `in-review`, the runner-only row above.
+- **`blocked` → `done` and `in-review` → `done` are refused except via their guarded path.** Neither is
+  absent from the table, but both are reachable **only** by their performer
+  **`/ptp:backlog-continue`** under **guard 3** below; requested through any other command —
+  `/ptp:backlog-edit` in particular — each is refused exactly as `blocked` → `done` was before that row
   existed, naming the row and its performer.
 - **A status write that changes nothing is refused as a no-op**, never reported as success.
 
-**`done` → `cancelled` is permitted and unconditional.** Row 6 is written "any → `cancelled`", and its
+**`done` → `cancelled` is permitted and unconditional.** The cancellation row is written "any →
+`cancelled`", and its
 two **gated** sources are named exhaustively as `blocked` and a stale `in-progress`; `done` is neither,
 so no guard applies. This does not contradict the refusal list above: that list names `cancelled` →
 `done`, the opposite direction, which stays refused. Cancelling a `done` epic documents abandonment of
@@ -908,7 +1007,7 @@ shipped work — and discards no link (`changeEpics` survives).
 
 ### Repairing a `status` that is unset or out of enum — a repair, not a transition
 
-Every row of the table above is defined over the **five enum values**, so an entry whose stored `status`
+Every row of the table above is defined over the **seven enum values**, so an entry whose stored `status`
 is **out of enum** has **no *from* row at all** — and so does an item with **no `Status` selected at
 all**, which is the same defect reached by a shorter path. The rule is therefore worded over a `status`
 that is **unset or out of enum**, both cases governed identically. Both states are a `malformed-entry` on
@@ -929,10 +1028,15 @@ it **as a repair**, quoting the invalid value found or naming the `Status` as un
 destinations, the `runBaseline` routing, the disposition-outcome-is-binding rule with its `cancelled`
 exception, the same-write `runBaseline` clear, and the still-named-in-the-report rule:
 
-- The repair may set **`pending`**, **`blocked`**, or **`cancelled`** only. **`in-progress`** is row 1's
-  runner-owned outcome and **`done`** is never written by this command at any time; requesting either is
-  **refused naming this rule**, so a corrupted `status` is never a back door into a status the table
-  denies.
+- The repair may set **`backlog`**, **`ready`**, **`blocked`**, or **`cancelled`** only.
+  **`in-progress`** is the take row's runner-owned outcome, **`in-review`** is the convergence row's
+  runner-owned outcome, and **`done`** is never written by this command at
+  any time; requesting any of the three is **refused naming this rule**, so a corrupted `status` is
+  never a back door into a status the table denies.
+
+  **`in-review` is excluded for the same reason `in-progress` is**: `in-progress` → `in-review` is a
+  runner-only row, so a repair landing there would manufacture a claim that a `/ptp:full` converged —
+  the claim the whole guard-3 proof exists to require — out of a corrupted field.
 - **With a null `runBaseline`** there is nothing to reconcile and nothing for the recovery gate to key
   on: the repair is the whole edit.
 - **With a non-null `runBaseline` the repair is a settlement, and the full recovery machinery of the
@@ -944,16 +1048,18 @@ exception, the same-write `runBaseline` clear, and the still-named-in-the-report
   possible and necessary.
 
   **The disposition's own status outcome is binding, with `cancelled` the single exception.** Where the
-  repair's destination is `pending` or `blocked`, it MUST equal the status the settled disposition
-  prescribes — `claim` → `blocked`, `disown` → `pending`, `rerun anyway` → `pending`, and the
-  *Combining* table's result where warning dispositions are involved — and a destination that
-  disagrees is **refused**, naming both the requested status and the one the disposition prescribes.
-  Otherwise a repair to `pending` combined with `claim` would keep and confirm the recovered work while
-  slipping past the `blocked` landing that forces an explicit re-run. Only **`cancelled`** overrides,
+  repair's destination is any permitted status **other than `cancelled`** — `backlog`, `ready`,
+  or `blocked` — it MUST equal the status the settled disposition prescribes — `claim` →
+  `blocked`, `disown` → `ready`, `rerun anyway` → `ready`, and the *Combining* table's result where
+  warning dispositions are involved — and a destination that disagrees is **refused**, naming both the
+  requested status and the one the disposition prescribes. Otherwise a repair to `ready` combined with
+  `claim` would keep and confirm the recovered work while slipping past the `blocked` landing that
+  forces an explicit re-run — and a repair to `backlog` would do the same by a longer road, since
+  `backlog` → `ready` returns it to `ready` unguarded. Only **`cancelled`** overrides,
   exactly as in a cancellation edit: there the disposition governs the ids while the cancellation
   governs the status, under guard 2 in full. When the entry falls on the availability table's **ungated
-  first row** no disposition exists to prescribe anything, and any of the three permitted destinations
-  may be repaired to.
+  first row** no disposition exists to prescribe anything, and any permitted destination may be repaired
+  to.
 - **The settlement clears `runBaseline` in the same write, and the report names the value it cleared** —
   after reconciliation has already consumed it, never before. This is the *Every settling edit clears
   `runBaseline`* rule reaching its last case: after the repair the entry is not `in-progress`, so **no**
@@ -964,7 +1070,7 @@ exception, the same-write `runBaseline` clear, and the still-named-in-the-report
 - Every other rule of this contract is unchanged by the repair — in particular the defect is **still named
   in the report** as an outstanding structural problem until the repairing write lands.
 
-### Guard 1 — `blocked` → `pending`
+### Guard 1 — `blocked` → `ready`
 
 A `blocked` entry is the residue of a halted `/ptp:full` whose slices sat in
 `applied (review pending)` — applied but unreviewed code. A bare reset would let a *later* attempt reach
@@ -991,7 +1097,8 @@ applied-but-unreviewed code, so abandoning the epic without acknowledging that t
 resolved discards that record's only reader — guard 1's hazard reached by a shorter path. Per source
 status:
 
-- From **`pending`** — no attempt, nothing applied: **unconditional**.
+- From **`backlog`** or **`ready`** — no attempt, nothing applied: **unconditional** in both cases, for
+  the same reason.
 - From **`done`** — **unconditional**, per the rule above.
 - From **`blocked`** — **guard 1's acknowledgement, identically**, with the same refusal when it is
   absent. The retained `changeEpics` and `attributionWarnings` survive the cancellation **unchanged**,
@@ -1018,33 +1125,53 @@ Two rules this contract pins for a cancellation edit:
   each other. `claim`, `disown` (subject to the availability table), `promote`, and `dismiss` are all
   offered.
 
-### Guard 3 — `blocked` → `done` (the resume row)
+### Guard 3 — `blocked` → `done` and `in-review` → `done` (the resume rows)
 
-Row 8 exists for one situation and no other: `/ptp:backlog-run` halted an epic (row 3) whose work was
-in fact finished, most often because the apply agent correctly refused to check off a **manual-only**
-verification task. Once a human performs that verification, the work is done — but nothing in the store
-proves it, so the row is available **only** when this invocation itself produces the proof:
+**Guard 3 governs both rows that reach `done`**, and both are available **only** when this invocation
+itself produces the proof. `blocked` → `done` exists for one situation and no other:
+`/ptp:backlog-run` halted an epic (`in-progress` → `blocked`) whose work was in fact finished, most
+often because the apply agent correctly refused to check off a **manual-only** verification task. Once
+a human performs that verification, the work is done — but nothing in the store proves it.
+`in-review` → `done` exists for the complementary situation: the epic's `/ptp:full` **did** converge,
+but `/ptp:backlog-run` performs no archive, so the epic's work converged while the epic itself is
+still unarchived and unsettled — converged is not finished, and only the archive makes it so. The
+predicate is one, over both sources:
 
-- the entry's `status` is **`blocked`** and its `changeEpics` is **non-empty** — the same predicate
-  that made it `/ptp:backlog-continue`'s target; **and**
+- the entry's `status` is **`blocked`** or **`in-review`**, and its `changeEpics` is **non-empty** —
+  the same predicate that made it `/ptp:backlog-continue`'s target; **and**
 - the write happens **in the same `/ptp:backlog-continue` invocation** whose bare flow has just
   settled **every** prefix in `changeEpics` — each one run through `/ptp:review-full` to convergence
   (`BOTH PHASES DONE`, or `ptp-codex-mode`'s mode-skip terminal state) and then `/ptp:archive`
   successfully, or found already absent from `openspec/changes/`.
 
-**It is never available as a standalone disposition.** There is no "mark this done" free action on an
-already-`blocked` entry from a prior session, and no recovery path, disposition, or combination of
-dispositions may produce it. This is the load-bearing difference from a hypothetical
+**The two sources differ only in what the entry's history proves, and this guard says so:**
+
+- From **`blocked`**, the epic's `/ptp:full` did **not** converge, and the guard's proof supplies the
+  convergence the run never had.
+- From **`in-review`**, the epic's `/ptp:full` **did** converge, and the guard's proof supplies the
+  **archive** the runner is forbidden to perform.
+
+In both cases the proof is **this invocation's own** successful review-full report plus a completed
+`/ptp:archive` — never an assertion about the past.
+
+**It is never available as a standalone disposition, from either source.** There is no "mark this
+done" free action on an already-`blocked` or already-`in-review` entry from a prior session, and no
+recovery path, disposition, or combination of dispositions may produce it. This is the load-bearing
+difference from a hypothetical
 `/ptp:backlog-edit` disposition: a recovery disposition reasons about a **stranded, possibly-crashed**
 run with no durable proof of review convergence — which is exactly why *Recovery and reconciliation*
-below never yields `done` — whereas row 8's proof is **this invocation's own successful review-full
+below never yields `done` — whereas guard 3's proof is **this invocation's own successful review-full
 report**, not an assertion about the past. `/ptp:backlog-edit` has no review-full/archive machinery of
-its own and therefore can never satisfy this guard; its refusal of `blocked` → `done` is unchanged.
+its own, can therefore never satisfy this guard from **either** source, and refuses `in-review` →
+`done` exactly as it refuses `blocked` → `done`; both refusals are unchanged.
 
-**Write shape**, mirroring row 2's (the runner's own convergence write):
+**Write shape**, mirroring the **shape** of the runner's own convergence write
+(`in-progress` → `in-review`) — the shape, not its value, that write now committing `in-review` while
+this one commits `done`:
 
 1. set `status: done`;
-2. **clear `runBaseline`** — already `null` on an entry reached through row 3, so a no-op in the common
+2. **clear `runBaseline`** — already `null` on an entry reached through either `in-progress` →
+   `blocked` or `in-progress` → `in-review`, so a no-op in the common
    case, stated for completeness in case a hand edit left it non-null, and consistent with *every
    settling edit clears `runBaseline`*;
 3. **retain `changeEpics` exactly as-is** — it already records every prefix now archived, so unlike
@@ -1054,16 +1181,48 @@ its own and therefore can never satisfy this guard; its refusal of `blocked` →
    "bumps" it in memory has changed nothing durable, and no caller may read that bump back as stored.
 
 One single write **group**, dispatched through `ptp-backlog-write`'s ordered sequence exactly as every
-other writer's is — the clear a payload row, `done` the commit — touching no other entry. If **any** prefix fails to settle, **no** transition occurs: the
-entry stays `blocked` with its `changeEpics` unchanged, and the partial progress lives in the archived
-change folders alone.
+other writer's is — the clear a payload row, `done` the commit — touching no other entry. **No second
+write shape enters the contract.** If **any** prefix fails to settle, **no** transition occurs: the
+entry stays in its existing status (`blocked` or `in-review`) with its `changeEpics` unchanged, and the
+partial progress lives in the archived change folders alone.
+
+### `in-review`'s outgoing edges — exactly two
+
+`in-review` has **exactly two** outgoing edges:
+
+1. **`in-review` → `done`** — the resume row above, under **guard 3**.
+2. **`in-review` → `cancelled`** — the existing unconditional **any → `cancelled`** row, and it is
+   **ungated**. That row's gated sources are named exhaustively as `blocked` and a **stale**
+   `in-progress`; an `in-review` entry is neither, and its `runBaseline` is null, so there is nothing to
+   reconcile and no acknowledgement to collect. `changeEpics` survives the cancellation, as it does from
+   every source.
+
+**`in-review` → `blocked` is absent from the table and refused.** The reason:
+
+> `blocked` means one specific thing — **a `/ptp:full` did not converge and the run halted**. It is
+> written by `/ptp:backlog-run` at WRITE 2 and by `/ptp:backlog-edit`'s recovery dispositions on a
+> **stale** `in-progress` entry, and it is the input the recovery machinery keys on. An `in-review`
+> entry has a **converged** `/ptp:full` and a **null** `runBaseline`: there is no run to reconcile and
+> no halt to record. Admitting this edge would give `blocked` a second meaning, which is precisely the
+> defect splitting `done` exists to remove.
+
+**Every other outgoing edge is absent and refused too** — `in-review` → `ready`, `in-review` →
+`backlog`, `in-review` → `in-progress`. **The refusal names the two real remedies**, so it is never a
+lockout:
+
+- **A problem was found in the converged work** → `/ptp:backlog-continue "<what is wrong>"`, the
+  **issue-text flow**. It runs one scoped fix pass and writes **no** status; the entry stays
+  `in-review`, and the bare flow's `/ptp:review-full` re-reviews the fix before any archive.
+- **The epic should be re-run from scratch** → `in-review` → `cancelled` (edge 2 above), then the
+  existing unconditional `cancelled` → `ready` revival. Two explicit user acts, both rows that already
+  exist, with the cancellation itself serving as the acknowledgement.
 
 ## Recovery and reconciliation
 
 **A stale `in-progress` entry** is one whose `status` is `in-progress` **and** whose `runBaseline` is
 **non-null**. The invariant this contract keeps is that, **once no backlog run is live**, a lingering
-`runBaseline` means an **un-reconciled crashed run and nothing else**: the runner clears it on `done`
-and on `blocked` alike, and every settling edit below clears it too.
+`runBaseline` means an **un-reconciled crashed run and nothing else**: the runner clears it on
+`in-review` and on `blocked` alike, and every settling edit below clears it too.
 
 **A live run presents the identical on-disk state, and nothing here claims otherwise.** The runner
 writes `in-progress` and `runBaseline` in a **single** write **before** its work begins, so a read of
@@ -1143,7 +1302,7 @@ attribution — or any undispositioned `attributionWarnings` entry**. Both halve
   already exist for this epic*, and a `terminal-report` id proves that as well as a provisional one does.
   The runner writes `changeEpics` **before** the status write, so a crash **in that window** leaves an
   entry carrying **only** `terminal-report` ids and no provisional id at all — which an unconfirmed-only
-  gate would wave straight through to `pending`, silently re-running work that already landed.
+  gate would wave straight through to `ready`, silently re-running work that already landed.
 - Keyed on **warnings too**, because a stale entry carrying only warnings would otherwise slip through
   ungated, and an undispositioned warning is an unexamined *"did this epic mint that folder?"*.
 
@@ -1156,12 +1315,12 @@ Evaluated on the **post-reconciliation** state. An id is **confirmed** when its 
 | Entry holds | Gate | Dispositions offered |
 |---|---|---|
 | no `changeEpics` ids and no `attributionWarnings` | none | ordinary reset — nothing to reconcile |
-| `attributionWarnings` only (no `changeEpics` ids) | gated | **promote** each warned prefix → `changeEpics` as `user-confirmed-reconciliation`, status → `blocked`; or **dismiss** it as another session's work, status → `pending`. The id-level dispositions do not apply — there is no id to claim, disown, or re-run against |
+| `attributionWarnings` only (no `changeEpics` ids) | gated | **promote** each warned prefix → `changeEpics` as `user-confirmed-reconciliation`, status → `blocked`; or **dismiss** it as another session's work, status → `ready`. The id-level dispositions do not apply — there is no id to claim, disown, or re-run against |
 | provisional ids only | gated | **claim**, **disown**, **rerun anyway** |
 | any **confirmed** id (alone or alongside provisional ones) | gated | **claim**, **rerun anyway** — **`disown` is withheld** |
 
 **`disown` is withheld the moment a confirmed link exists** because it is the one disposition that
-returns the entry to `pending` while asserting *nothing was done here* — and a confirmed id is direct
+returns the entry to `ready` while asserting *nothing was done here* — and a confirmed id is direct
 evidence that something was. Dropping only the provisional ids and resetting would leave a confirmed
 link proving prior work while the entry re-enters the ready set unacknowledged: a silent duplicate run.
 A user who wants to re-run regardless does so through **rerun anyway**, which carries the duplication
@@ -1179,24 +1338,28 @@ crash in that window leaves exactly this shape.
 | Disposition | `changeEpics` outcome | Status |
 |---|---|---|
 | **claim** | **only** `folder-diff-unconfirmed` ids are relabelled, to `user-confirmed-reconciliation`. Every already-**confirmed** id — `terminal-report` *and* any pre-existing `user-confirmed-reconciliation` — keeps its existing attribution **untouched** (never downgraded, never re-stamped: vouching for the recovered ids says nothing about the authoritative ones, and re-stamping an already-vouched id would be a write with no meaning) | `blocked` |
-| **disown** | **only** `folder-diff-unconfirmed` ids are dropped; every **confirmed** id (`terminal-report` or `user-confirmed-reconciliation`) is **retained with its attribution unchanged** — disowning an inferred link cannot un-say a `/ptp:full` report, or a human, that named the id, and dropping those would destroy the one authoritative backlog↔change link the schema exists to hold. Offered only per the table above | `pending` |
-| **rerun anyway** | **every** id retained, **no** id relabelled | `pending`, with the duplication acknowledged in the report |
+| **disown** | **only** `folder-diff-unconfirmed` ids are dropped; every **confirmed** id (`terminal-report` or `user-confirmed-reconciliation`) is **retained with its attribution unchanged** — disowning an inferred link cannot un-say a `/ptp:full` report, or a human, that named the id, and dropping those would destroy the one authoritative backlog↔change link the schema exists to hold. Offered only per the table above | `ready` |
+| **rerun anyway** | **every** id retained, **no** id relabelled | `ready`, with the duplication acknowledged in the report |
 | **promote** (**per warned prefix**) | the prefix is removed from `attributionWarnings` and appended to `changeEpics` as `user-confirmed-reconciliation`. If the prefix is **already** in `changeEpics` — a state reconciliation cannot create, but a runner write or a hand edit can — the warning is **still removed**, the **existing element keeps its attribution**, and **no second element is appended**, since ids are unique within the array and provenance is never downgraded | see *Combining* below |
 | **dismiss** (**per warned prefix**) | the prefix is removed from `attributionWarnings` and is **not** added to `changeEpics` | see *Combining* below |
 
 **`promote` and `dismiss` are per-prefix**: an entry carrying three warnings may promote one and dismiss
 two in a single edit.
 
+**No disposition lands an entry in `backlog`.** A disposition that returns an entry to the run queue
+restores the state the runner took it from, and the runner takes only `ready` entries; landing recovery
+in `backlog` would silently demote work a human had already promoted.
+
 ### Combining an id disposition with warning dispositions
 
 | Combination | Status |
 |---|---|
 | `claim` + any warning disposition | `blocked` |
-| `rerun anyway` + any warning disposition | `pending` (duplication explicitly accepted) |
-| `disown` + `dismiss` only | `pending` |
+| `rerun anyway` + any warning disposition | `ready` (duplication explicitly accepted) |
+| `disown` + `dismiss` only | `ready` |
 | `disown` + any `promote` | **refused as self-contradictory** — `disown` asserts nothing here was this epic's work; `promote` asserts a warned prefix was |
 | warnings only, any `promote` present | `blocked` |
-| warnings only, all `dismiss` | `pending` |
+| warnings only, all `dismiss` | `ready` |
 
 Any `promote` is evidence of prior work, which is why it pulls toward `blocked` — the same reasoning
 that lands `claim` on `blocked` — except under `rerun anyway`, which explicitly accepts duplication.
@@ -1222,14 +1385,16 @@ Left set, the baseline would have three consequences, each worse than the last:
 **No recovery path, no disposition, and no combination of dispositions may set `done`.** An instruction
 asking for it is **refused with the reason**, never silently downgraded.
 
-`done` means *every slice landed in `processed`*, and `processed` means applied **and code-review
-converged**. A crashed run has no in-session terminal report, and there is **no durable artifact that
+*Every slice landed in `processed`* — `processed` meaning applied **and code-review converged** — is
+what defines **`in-review`**; `done` requires, on top of that convergence, the **archive** only
+`/ptp:backlog-continue` performs. Recovery can prove **neither**. A crashed run has no in-session
+terminal report, and there is **no durable artifact that
 could substitute**: `ptp-review-loop` writes review-convergence markers for
 `kind ∈ { brainstorm, artifact, prd }` and **none at all for `kind = code`**. Code-review convergence
 therefore leaves **no on-disk trace**, and no inspection of the recovered folders can prove it after the
 fact. Rather than invent an evidence rule that cannot be satisfied, v1 forbids the outcome: `claim` —
 the only disposition that *keeps* the recovered work — lands on `blocked`, and the user re-runs
-explicitly; the other two land on `pending` precisely because they discard the claim that the work is
+explicitly; the other two land on `ready` precisely because they discard the claim that the work is
 finished. A wrongly-`done` epic would **record shipped work that was never reviewed**, and both
 `/ptp:backlog` and `/ptp:backlog-continue` would stop offering it as work a human still needs to
 finish.
@@ -1237,12 +1402,13 @@ finish.
 **A durable code-review-convergence marker is the named v2 seam** that would make an evidence-based
 `accept` disposition possible. It is not a v1 gap.
 
-**Row 8 does not weaken this rule — it sidesteps it.** `/ptp:backlog-continue` reaches `done` from
-`blocked` **not** by accepting evidence about a past run but by **performing** `/ptp:review-full` and
+**Guard 3's two rows — `blocked` → `done` and `in-review` → `done` — do not weaken this rule; they
+sidestep it.** `/ptp:backlog-continue` reaches `done` from either source **not** by accepting evidence
+about a past run but by **performing** `/ptp:review-full` and
 `/ptp:archive` itself, in the same invocation, so the convergence it relies on is observed in-session
 rather than inferred from disk (see **guard 3**). Nothing here becomes reachable from recovery: a
-disposition still lands on `blocked` or `pending`, and a stale `in-progress` entry still has no path to
-`done` at all.
+disposition still lands on `blocked` or `ready`, and a stale `in-progress` entry still has no path to
+`done` — or to `in-review` — at all.
 
 ### An ambiguous instruction against a gated entry is refused
 

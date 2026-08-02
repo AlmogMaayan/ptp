@@ -198,14 +198,20 @@ human did.
 ## Delegated methodology — do not restate it here
 
 The **status transition table**, **guards 1–2** — the guards this command is subject to (`blocked` →
-`pending`; any → `cancelled`); **guard 3** (`blocked` →
-`done`) belongs to `/ptp:backlog-continue` alone and this command refuses that transition
+`ready`; any → `cancelled`); **guard 3** (`blocked` →
+`done` **and** `in-review` → `done`) belongs to `/ptp:backlog-continue` alone and this command refuses
+both transitions
 unconditionally — and the whole **recovery and reconciliation machinery**
 (the stale definition and its conditional wording, the prefix-set definition, the reconciliation
 algorithm, the gate, the **availability table**, the **disposition outcomes**, the combination rules, the
 `runBaseline`-clear rule, the never-`done` rule, and the refuse-don't-ask rule for an ambiguous
 instruction) live in **`skills/ptp-backlog/SKILL.md`**. Reference them **by name**; this file carries
 **no copy** of the transition table, the availability table, or the disposition outcomes.
+
+This command also performs the table's two **user-parking** rows, the `backlog` → `ready` row and the
+`ready` → `backlog` row. Both are **ungated** — they are a user parking or unparking work with no
+attempt behind them, so no guard applies and none is added. They are named here **by row only**; the
+table itself stays `ptp-backlog`'s.
 
 The **ordered write sequence** and its stages, the **status-commit invariant** and its **backstop
 refusal**, the **pre-dispatch snapshot** and the **pre-write field check**, the **write journal** with
@@ -242,8 +248,11 @@ The terminal report names, for one invocation:
   operations — stash, checkout, pull, branch — before the main run; those are the guard's, not this
   command's edits, and they are the reason the atomicity guarantee above is scoped as it is.)
 - **Exactly one entry is modified per invocation** — the resolved target. No other entry is written.
-- **Never set `done`.** No recovery path, disposition, or combination of dispositions may produce it;
-  the request is refused with the reason.
+- **Never set `done`, and never set `in-review`.** No recovery path, disposition, or combination of
+  dispositions may produce either; the request is refused with the reason. `in-review` is a
+  runner-owned outcome, exactly as `in-progress` is, so it is **not** among the permitted destinations
+  of the skill's unset-or-out-of-enum `status` **repair** either — a corrupt `status` is never a back
+  door into a runner-owned stage.
 - **Never ask clarifying questions.** Do not use AskUserQuestion and do not pause for approval. Where an
   instruction is ambiguous in a way that could defeat a guard, **refuse and print what is available** —
   a refusal, not a question.
