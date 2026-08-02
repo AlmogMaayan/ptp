@@ -1,6 +1,6 @@
 ---
 name: ptp-backlog-run
-description: Own the epic backlog runner behind /ptp:backlog-run — the rounds:{count} per-invocation token (default 5), the unwrapped outer-session execution contract under which the runner consumes zero Agent nesting levels and is never wrapped in a ptp-run-at-model main run (its own or per-epic), the five-step precondition order whose three aborting steps — codex.mode, the rounds:/residual refusals, and the backlog capability preflight gate — all precede the one branch guard, the recompute-after-every-epic loop over the ready set whose definition and deterministic order this skill does not own but references from ptp-backlog, the per-epic inline ptp-full skill invocation, the non-convergence halt gate, the two-write status write-back after the take (WRITE 1 records changeEpics and attributionWarnings, WRITE 2 persists the terminal status and clears runBaseline) with each of the three write points dispatched as one write group through ptp-backlog-write's ordered sequence, the three halt rules for a write group that does not complete, the five loop-terminal states including store-write halt at rung 0 and the store-defect halt rename, and the four-bucket terminal report — processed, halted, take-failed, never-started — with each epic's ptp-full-apply per-slice report nested verbatim and an every-rung listing of entries left in-progress. Delegates the backlog store identity, entry model, read protocol, validator vocabulary, change-prefix set, status transition table, recovery machinery, and ready-set rule to the shared ptp-backlog skill; the ordered write sequence, the re-reads, the journal, its outcomes and its terminal verdicts to ptp-backlog-write; the backlog configuration and the capability preflight to ptp-github-projects-mcp; and the rounds: grammar mechanics to ptp-run-at-model's fast: switch section.
+description: Own the epic backlog runner behind /ptp:backlog-run — the rounds:{count} per-invocation token (default 5), the unwrapped outer-session execution contract under which the runner consumes zero Agent nesting levels and is never wrapped in a ptp-run-at-model main run (its own or per-epic), the five-step precondition order whose four aborting steps — codex.mode, the rounds:/residual refusals, the backlog configuration gate and the backlog capability preflight gate — all precede the one branch guard, the recompute-after-every-epic loop over the ready set whose definition and deterministic order this skill does not own but references from ptp-backlog, the per-epic inline ptp-full skill invocation, the non-convergence halt gate, the two-write status write-back after the take (WRITE 1 records changeEpics and attributionWarnings, WRITE 2 persists the terminal status and clears runBaseline) with each of the three write points dispatched as one write group through ptp-backlog-write's ordered sequence, the three halt rules for a write group that does not complete, the five loop-terminal states including store-write halt at rung 0 and the store-defect halt rename, and the four-bucket terminal report — processed, halted, take-failed, never-started — with each epic's ptp-full-apply per-slice report nested verbatim and an every-rung listing of entries left in-progress. Delegates the backlog store identity, entry model, read protocol, validator vocabulary, change-prefix set, status transition table, recovery machinery, and ready-set rule to the shared ptp-backlog skill; the ordered write sequence, the re-reads, the journal, its outcomes and its terminal verdicts to ptp-backlog-write; the backlog configuration, the acting identity and the capability preflight to ptp-github-projects-gh; and the rounds: grammar mechanics to ptp-run-at-model's fast: switch section.
 ---
 
 # ptp-backlog-run — run backlog epics through `/ptp:full`, one at a time
@@ -182,17 +182,28 @@ All five run in the outer session, in **exactly this order**:
    Without it, the first epic's own `ptp-full` STOP would land *after* that entry was already taken.
 2. **Parse and strip `rounds:`**, then apply the *Residual-argument refusal*. An invalid token or a
    residue **refuses here**.
-3. **Resolve the backlog configuration and evaluate the capability preflight verdict**, per
-   `ptp-github-projects-mcp` — that skill owns the `backlog.*` keys, the completeness verdict, the
-   namespace, the preflight algorithm, its three verdicts, its record, and its STOP-message shape, and
-   **none of them is restated here**. See *Step 3 — the preflight gate* below.
+3. **The transport preconditions, as an ordered pair — never as one conjoined check**, because
+   "resolve X **and** evaluate Y" cannot express that a failing X precludes Y, and because the
+   configuration resolver is contractually forbidden from stopping anything itself:
+
+   **3a. Take the configuration gate.** Resolve the `backlog.*` configuration per
+   `ptp-github-projects-gh` — that skill owns the `backlog.*` keys and the completeness verdict — and
+   take `ptp-backlog`'s *Read protocol* **step 0**, refusing non-silently on either of its **two**
+   grounds: an **incomplete `backlog.*` configuration** and a **colliding resolved status-option
+   table**. **Name the ground; do not restate the rule** — each ground's content is that skill's. **No
+   `gh` command is run**, and this precedes 3b absolutely.
+
+   **3b. Evaluate the capability preflight verdict**, per `ptp-github-projects-gh` — that skill owns
+   the acting identity, the `gh` surface, the preflight algorithm, its three verdicts, its record, and
+   its STOP-message shape, and **none of them is restated here** — reached **only** when 3a passed.
+   See *Step 3 — the preflight gate* below.
 4. **Resolve the `parallel` posture once** — see below.
 5. **Run the `ptp-branch-guard` preamble exactly once**, for the whole run, per that skill. Every epic
    in the invocation runs on that **one** feature branch. The guard is **not** re-run per epic and
    **no** branch is cut per epic.
 
-**All three aborting preconditions — steps 1, 2, and 3 — precede the branch guard**, so no invalid
-invocation, and no invocation that provably cannot write, causes a branch to be cut.
+**Steps 1, 2, 3a, and 3b are the four aborting preconditions, and all four precede the branch guard**,
+so no invalid invocation, and no invocation that provably cannot write, causes a branch to be cut.
 
 **The placement is derived, not arbitrary.** Pure-argument refusals cost nothing and must precede any
 act that touches the outside world, and the preflight is the **first such act**; the `parallel` posture
@@ -200,7 +211,7 @@ aborts nothing, so it stays adjacent to the guard.
 
 ### Step 3 — the preflight gate
 
-The verdict dispositions, using `ptp-github-projects-mcp`'s own verdict names:
+The verdict dispositions, using `ptp-github-projects-gh`'s own verdict names:
 
 | Verdict | This runner |
 |---|---|
@@ -255,9 +266,9 @@ behavior, not an oversight.
 
 **Scoping note.** This gate runs **after** the branch guard, which may already have stashed the
 working tree and cut a feature branch. **Every "nothing was written" claim from here on is scoped to
-the backlog store**, and none of them is described as leaving the repository untouched. The **three**
-aborting preconditions — steps 1, 2, and 3 — sit **before** the guard precisely to keep that window as
-small as the ordering allows.
+the backlog store**, and none of them is described as leaving the repository untouched. The **four**
+aborting preconditions — steps 1, 2, 3a, and 3b — sit **before** the guard precisely to keep that
+window as small as the ordering allows.
 
 ## The ready set — referenced, never defined here
 
@@ -308,12 +319,21 @@ and **no caching is introduced** — a mid-run hand edit is *more* likely on a b
 a file, and re-reading is exactly what catches it. Nothing here permits treating the ready set as
 static and cacheable.
 
-**A withheld ready set is not an empty one.** When the recomputed read runs under `0042_03`'s
-**degraded scope** — archived items unreachable, so the ready set is **withheld** — the runner
+**A withheld ready set is not an empty one.** When the recomputed read runs under **degraded scope** —
+the resolved transport cannot return archived items, so the ready set is **withheld** — the runner
 **refuses at the top of that iteration**, naming **archived unreachability** as the cause, per
 `ptp-backlog-write`'s degraded-scope dispositions. It **does NOT** classify the iteration as the
 empty-recomputed-ready-set terminal state: reporting the backlog exhausted when it is merely unreadable
 in part would be false. The empty-ready-set rung's own trigger is otherwise unchanged.
+
+**This refusal is conditional on what the preflight record establishes, not a standing state of the
+backlog.** Archive reachability is a property of the **resolved transport**, so under a transport that
+returns archived items as complete entries the ready set is **not** withheld on this ground and the
+refusal does not fire at all; under one that cannot, it fires on the run's **first** recomputation and
+is therefore the run's terminal state, and the refusal says so — that the ready set is withheld for the
+whole invocation rather than for this iteration, and what would lift it. A message worded for a
+transient hiccup, repeated against a permanent condition, reads as a bug in the runner rather than a
+limit of the transport. Neither wording is ever clean exhaustion.
 
 ## Terminal states
 

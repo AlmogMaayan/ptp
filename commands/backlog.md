@@ -1,5 +1,5 @@
 ---
-description: Read-only view of the epic backlog — renders the board's entries table, the computed ready set in run order (or the stated reason it is withheld), stale in-progress and provisional-attribution flags, a scope note, and any validation problems. Delegates the store contract, the field mapping, validation, and the ready-set rules to the shared ptp-backlog skill, and the board coordinates, the namespace and the capability preflight to ptp-github-projects-mcp. Creates nothing — not on the board, not on disk.
+description: Read-only view of the epic backlog — renders the board's entries table, the computed ready set in run order (or the stated reason it is withheld), stale in-progress and provisional-attribution flags, a scope note, and any validation problems. Delegates the store contract, the field mapping, validation, and the ready-set rules to the shared ptp-backlog skill, and the board coordinates, the acting gh account and the capability preflight to ptp-github-projects-gh. Creates nothing — not on the board, not on disk.
 argument-hint: "(no arguments — read-only)"
 ---
 
@@ -7,12 +7,31 @@ You are running **`/ptp:backlog`** — a **read-only** view of the epic backlog,
 **GitHub Projects v2 board**. It renders what the board says and what the `ptp-backlog` skill computes
 from it, and it writes nothing at all — not on the board, not on disk. It is a thin front door: the
 store contract, the field mapping, the validation vocabulary, the identity rule, and the ready-set
-definition all live in the `ptp-backlog` skill; the board coordinates, the tool namespace, the
-capability preflight and its STOP message all live in `ptp-github-projects-mcp`.
+definition all live in the `ptp-backlog` skill; the board coordinates, the acting `gh` account, the
+capability preflight and its STOP message all live in `ptp-github-projects-gh`.
 
 ## Steps
 
-1. **Invoke / consult the `ptp-backlog` skill** via the Skill tool. The skill holds the complete
+1. **Take the configuration gate — before the `ptp-backlog` skill is consulted and before any `gh`
+   command is run.** Resolve the `backlog.*` configuration per **`ptp-github-projects-gh`** and take
+   **`ptp-backlog`**'s *Read protocol* **step 0**, refusing non-silently on either of its **two**
+   grounds — an **incomplete `backlog.*` configuration** (naming the missing keys, which are only ever
+   `backlog.projectOwner` and/or `backlog.projectNumber`) and a **colliding resolved status-option
+   table**. Each
+   ground's content is that skill's — **name the ground, do not restate the rule.** **No `gh` command
+   is run on either**, and **no board header is rendered** on the incomplete ground. This
+   step is **this command's own**, taken **ahead of** step 2, precisely because a gate reachable only
+   through the skill's read protocol is a gate the read protocol's own step 1 — the preflight — can be
+   reached without.
+   **"Before the `ptp-backlog` skill is consulted" scopes step 2's consultation of the whole contract
+   and any entry into the read protocol — never the reading of the two rules this step cites.** The
+   collision ground is decided against `ptp-backlog`'s **built-in status-option table**, its merge, and its
+   collision rule, which `ptp-github-projects-gh` deliberately does not hold, so this step reads
+   exactly those rules and decides the ground **here**. What it must never do is reach the gate
+   **through** the read protocol, or defer either ground to step 3 — deferring the collision ground
+   would put a configuration ground behind the preflight, which is the failure this step exists to
+   prevent.
+2. **Invoke / consult the `ptp-backlog` skill** via the Skill tool. The skill holds the complete
    contract: the store identity, the entry model and its tolerant read, the field mapping onto board
    carriers, the version marker and its gate, the read protocol with its configuration-completeness
    and preflight preconditions, the validation problem codes with their fatal / structural
@@ -20,10 +39,10 @@ capability preflight and its STOP message all live in `ptp-github-projects-mcp`.
    deterministic order. **Do not restate any of it here** — not the field list, not the mapping table,
    not the read protocol, not the problem-code table, not the identity rule, and not the
    ready-set rule.
-2. **Read** the backlog through the skill's read protocol and **compute** the validation problems and
+3. **Read** the backlog through the skill's read protocol and **compute** the validation problems and
    (subject to the suppression rule below) the ready set.
-3. **Render the output sections** below.
-4. **STOP** with the rendered view. Write nothing, and create nothing on the board.
+4. **Render the output sections** below.
+5. **STOP** with the rendered view. Write nothing, and create nothing on the board.
 
 ## Output
 
@@ -31,7 +50,7 @@ When the backlog carries **no fatal** validation problem, render these six secti
 
 | # | Section | Contents |
 |---|---|---|
-| 1 | **Header** | the resolved **board** — owner, project number, project title, and URL — the `version`, and the entry count, **alongside** the preflight verdict line (below) |
+| 1 | **Header** | the resolved **board** — owner, project number, project title, and URL — the resolved **acting account and host**, the `version`, and the entry count, **alongside** the preflight verdict line (below). The board-identity values carry their **provenance** — owner and project number the configuration layer that supplied them, account and host the fact that `gh` resolved them — while the project title and the URL carry none (see *The header's board identity and verdict line*) |
 | 2 | **Entries** | one row per entry, in the **canonical creation-stamp order**: the entry's **board item node id rendered verbatim in its own column**, title, status, the entry's `changeEpics` links **counted by `attribution`**, and a flags cell |
 | 3 | **Ready set** | the ready entries **in run order** — or the reason it is withheld (see *The ready-set suppression rule*) |
 | 4 | **Attention** | stale `in-progress` entries, entries holding a `folder-diff-unconfirmed` change-epic link, entries holding an undispositioned `attributionWarnings` prefix. **`in-review` raises no flag here** — see below |
@@ -58,17 +77,18 @@ mirroring `/ptp:backlog-continue`'s own selection precedence.
 - **The version renders per the skill's gate**, including the assumed case: a board with no marker
   renders `1 (assumed — no version marker on the board)` rather than a bare `1`.
 - **The preflight verdict line is rendered here, and this command installs it.**
-  `ptp-github-projects-mcp` defines the preflight and its record but installs **no rendering of its
+  `ptp-github-projects-gh` defines the preflight and its record but installs **no rendering of its
   own**, so the verdict line is this view's to place — **alongside**, never instead of, the board
-  identity. Take the **verdict** and the **namespace** from the preflight record; **compose no
-  `mcp__` literal** of your own.
+  identity. Take the **verdict**, the **account**, and the **host** from the preflight record; render
+  the account annotated as **resolved by `gh`**, with **no configuration key named as its source**;
+  derive none of them.
 - **The board identity's parts differ in where they come from, and the rendering must respect that.**
   The **owner** and the **project number** come from the resolved configuration, so on every path
   **past the configuration-completeness gate** — which is every read exit, the failing ones included —
   both have resolved and are **always shown**. The one path where they have not is the pre-read
   refusal below, on its **incomplete-configuration** ground — precisely the case of one of them not
   resolving: that refusal renders **no
-  board header at all**, only the non-silent refusal naming the missing or invalid keys, because a
+  board header at all**, only the non-silent refusal naming the missing keys, because a
   header identifying a board no configuration named would be an invention. **On the gate's
   colliding-status-option-table ground the owner and the project number *have* resolved**, so naming
   them is no invention and they are shown alongside that refusal. The **project title** and the
@@ -76,6 +96,30 @@ mirroring `/ptp:backlog-continue`'s own selection precedence.
   not admit the read, or a post-preflight failure to obtain it — they render as `unavailable`.
   Rendering them `unavailable` satisfies the always-show-the-store-identity rule; guessing or omitting
   them does not.
+
+  **Where the resolved transport's project payload carries the URL, it is rendered from the payload.** It
+  is **never composed** from the owner, the owner type and the project number — a composed link that is
+  wrong points the user at someone else's board — and with the payload carrying it, composing is
+  unnecessary as well as forbidden.
+- **Every configuration-sourced value in the header carries its provenance.** The **owner** and the
+  **project number** each render **together with where the value came from**,
+  per `ptp-github-projects-gh` §*The acting identity* — **cited, not restated**:
+  the configuration layer that supplied it, named **by role** (`global config` / `project config`) and
+  never as a resolved filesystem path. A value that **no** configuration layer and **no** contract constant supplied has
+  **no legal rendering**, so the header can never name a board that no configuration named. Provenance
+  does **not** attach to the project title or the URL — those come from a board call, and their
+  existing `unavailable` rendering already discloses that they were not obtained. Nothing above is
+  weakened by this: owner and number are still **always shown** on every path past the gate, the
+  incomplete-configuration refusal still renders **no board header at all**, and on the
+  colliding-status-option ground they are still shown — each simply now carries its source.
+- **The acting identity is a third rendered value, and its provenance is not a configuration layer.**
+  The resolved **account** and **host** render **together with the fact that `gh` resolved them** —
+  never a configuration layer, never a contract constant, and **no configuration key named as their
+  source**, none having supplied them. Where the preflight stopped **before authentication passed**,
+  the header **discloses that the acting identity was not established** and **names the stage that did
+  not pass**, rendering **no** account, **no** host, and **no** placeholder in their place: naming an
+  absence is a disclosure, whereas rendering a value nothing supplied is what the provenance rule
+  forbids.
 
 ### The scope note
 
@@ -88,6 +132,8 @@ Render a **scope note** section listing, **when each is non-empty**:
   `dependencyRejected` are the ones a hand-edited or pre-`0042_01` board most often carries — they are
   **examples, not the whole list**, and a key outside them is reported exactly the same way;
 - the **degraded-scope** state and exactly what it withholds (the ready set);
+- entries whose **`createdAt` could not be established** — reported as ordering **last** rather than as
+  having no creation stamp on the board, the two being different claims.
 - the **missing-status-option advisory** below;
 - the **legacy-file line** below.
 
@@ -153,7 +199,7 @@ is computed at all (that is what *fatal* means in the `ptp-backlog` skill). Thos
 
 **The advisory is withheld under the short output, and that bound is load-bearing rather than
 incidental.** The fatal problem that most often produces the short output is exactly *the board has no
-`Status` field, or it is not a SINGLE_SELECT* — under which the board offers **no options at all**, so an
+`Status` field, or its type is not the transport's single-select type literal* — under which the board offers **no options at all**, so an
 advisory computed anyway would name **every status in the schema's `status` enum** and send the user
 chasing a configuration mismatch that does not exist. The `malformed-file` problem already names the real defect.
 
@@ -161,18 +207,21 @@ chasing a configuration mismatch that does not exist. The `malformed-file` probl
 
 | Exit | Rendering |
 |---|---|
-| the **preflight did not admit the read** | the **full STOP message** in `ptp-github-projects-mcp`'s specified shape — its seven labels in order — **alongside**, never instead of, the header verdict line |
-| a **post-preflight failure to obtain the board** | the **short fatal form** naming the `unreachable-store` outcome, the tool, and the transport error |
+| the **preflight did not admit the read** | the **full STOP message** in `ptp-github-projects-gh`'s specified shape — its **six** labels in order — **alongside**, never instead of, the header verdict line |
+| a **post-preflight failure to obtain the board** | the **short fatal form** naming the `unreachable-store` outcome, the `gh` call that failed, and the transport error |
 | the board was **obtained but is uninterpretable** | the **same short fatal form**, naming an `unparseable-file` problem row instead |
 
 **Alongside, never instead of** — substituting one of these renderings for another is the error.
 
 A fourth case is deliberately **not** in that table: the `ptp-backlog` read protocol's **step-0
-configuration gate**, refused **before any read is attempted** and calling **no** Projects tool. It is a
+configuration gate**, refused **before any read is attempted** and running **no** `gh` command. It is a
 pre-read refusal, not a read exit, and it must never surface as an `unreachable-store` or a
-project-not-found error. Its **three** grounds are that skill's, cited and not restated, and each names
-its own cause: an **incomplete `backlog.*` configuration** (the missing keys), an **invalid
-`backlog.mcpServer`**, and a **colliding resolved status-option table** — which names
+project-not-found error. **This command takes that gate at its own Step 1**, ahead of consulting the
+skill — this paragraph explains why the refusal is not a read exit; Step 1 is where the gate is taken.
+(The **step 0** named here is `ptp-backlog`'s read-protocol step, which does **not** renumber.) Its
+**two** grounds are that skill's, cited and not restated, and each names
+its own cause: an **incomplete `backlog.*` configuration** (the missing keys), and a **colliding
+resolved status-option table** — which names
 `backlog.statusOptions`, the colliding option name, and every status claiming it, rather than any
 missing key.
 
@@ -250,5 +299,5 @@ verified") rather than overclaiming.
   command without running it.
 - **Never restate the skill's contract here** — the entry model, the field mapping, the read protocol,
   the problem codes, the identity rule, and the ready-set definition are defined once, in
-  `ptp-backlog`; the namespace, the tool set, the preflight and its STOP message once, in
-  `ptp-github-projects-mcp`. **Compose no `mcp__` literal.**
+  `ptp-backlog`; the acting identity, the `gh` surface, the preflight and its STOP message once, in
+  `ptp-github-projects-gh`.

@@ -176,16 +176,29 @@ change folder in ascending story order — never only the first.
 In the outer session, in **exactly this order**:
 
 1. **Classify the invocation** — bare vs issue-text, and the token-only refusal above.
-2. **Resolve the backlog configuration and evaluate the capability preflight verdict**, per
-   `ptp-github-projects-mcp`. The **verdict disposition table is `ptp-backlog-run`'s**, reused here
-   **by citation** and not copied: `ready` proceeds, and `read-only` and `unavailable` both **STOP**
-   through that skill's non-silent STOP message. **The gate precedes selection on purpose:** a command
-   that provably cannot write should not select a target and thereby imply it might act.
+2. **The transport preconditions, as an ordered pair — never as one conjoined check**, because
+   "resolve X **and** evaluate Y" cannot express that a failing X precludes Y, and because the
+   configuration resolver is contractually forbidden from stopping anything itself. **The gate
+   precedes selection on purpose:** a command that provably cannot write should not select a target
+   and thereby imply it might act — and that rationale covers the configuration gate as well as the
+   preflight.
+
+   **2a. Take the configuration gate.** Resolve the `backlog.*` configuration per
+   `ptp-github-projects-gh` — that skill owns the `backlog.*` keys and the completeness verdict — and
+   take `ptp-backlog`'s *Read protocol* **step 0**, refusing non-silently on either of its **two**
+   grounds: an **incomplete `backlog.*` configuration** and a **colliding resolved status-option
+   table**. **Name the ground; do not restate the rule.** **No `gh` command is run**, and this
+   precedes 2b absolutely.
+
+   **2b. Evaluate the capability preflight verdict**, per `ptp-github-projects-gh` — reached **only**
+   when 2a passed. The **verdict disposition table is `ptp-backlog-run`'s**, reused here **by
+   citation** and not copied: `ready` proceeds, and `read-only` and `unavailable` both **STOP**
+   through that skill's non-silent STOP message.
 3. **Read, validate, and select the target** — every refusal in *Target selection* fires here.
 4. **Run the `ptp-branch-guard` preamble**, once, per that skill.
 
-All three aborting preconditions — steps 1, 2, and 3 — **precede the branch guard**, so no refusable
-invocation cuts a branch or edits a file.
+Steps 1, 2a, 2b, and 3 are **all** aborting preconditions and **all of them precede the branch
+guard**, so no refusable invocation cuts a branch or edits a file.
 
 **`codex.mode` is deliberately *not* resolved here.** It is `/ptp:review-full`'s to resolve and apply,
 per `ptp-codex-mode`; this command neither re-resolves it nor gates on it, the same discipline every
@@ -524,7 +537,7 @@ selected — the report names them **all** instead, per *Target selection*). Bey
 |---|---|
 | backlog store identity, entry model, tolerant read, read protocol, validator vocabulary, writer eligibility | `ptp-backlog` |
 | the ordered write sequence, the two re-reads, the journal, its six outcomes and six terminal verdicts, fail-stop, and the no-compensating-writes rule | `ptp-backlog-write` |
-| the `backlog.*` configuration, the tool namespace, and the capability preflight with its verdict record | `ptp-github-projects-mcp` |
+| the `backlog.*` configuration, the acting identity and the `gh` surface, and the capability preflight with its verdict record | `ptp-github-projects-gh` |
 | the preflight **verdict disposition table** this command reuses by citation | `ptp-backlog-run` |
 | the status transition table, the **`blocked → done`** and **`in-review → done`** rows under **guard 3**, and every other row's guard | `ptp-backlog` |
 | the halt that produces a `blocked` entry, the convergence write that produces an `in-review` one, its `changeEpics` write, and the terminal-state vocabulary | `ptp-backlog-run` |

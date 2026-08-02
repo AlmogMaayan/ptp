@@ -21,11 +21,20 @@ while it had not is the **shape** of the refusal, not its wording:
 - **Exactly one refusal exists in this file**, and it is issued **non-silently and up front**, naming
   the **specific** reason it cannot write. No second, divergently-worded refusal is added beside it.
 - The grounds are their owning contracts' and are **cited, never restated**: the `ptp-backlog` skill's
-  **writer-eligibility** rule; `ptp-github-projects-mcp`'s **`read-only`** and **`unavailable`**
-  preflight verdicts; an entry whose **content type offers no path to update a carrier** a planned
-  field rides; and `ptp-backlog-write`'s refusal when **the resolved status-option row does not identify
+  **writer-eligibility** rule; the **`gh` transport contract**'s (`ptp-github-projects-gh`)
+  **`read-only`** and **`unavailable`** preflight verdicts; an **issue- or pull-request-backed** entry
+  on an operation that **plans a row on the title or the body carrier** — `ptp-backlog-write`'s
+  per-content-type table records that only a **draft-backed** item has an in-board title/body write
+  path, so this ground is **per carrier, not per entry**, and such an entry's **`Status` writes are
+  untouched**; and `ptp-backlog-write`'s refusal when **the resolved status-option row does not identify
   exactly one board `Status` option** — taken before the existence stage, so a creation under it leaves
-  **no item** on the board. **Degraded scope is not a ground**: this command establishes no identifier and consumes
+  **no item** on the board. **The `ptp-backlog` skill's *Read protocol* step-0 configuration grounds
+  are among them, both of them**: an **incomplete `backlog.*` configuration** (its missing keys being
+  only ever `backlog.projectOwner` and/or `backlog.projectNumber`) and a **colliding resolved
+  status-option table**. Both are
+  decided from configuration alone, so they fire at **step 1b** of **Steps** below, in the outer
+  session, before the branch guard and before any `gh` command is run. **Degraded scope is not a
+  ground**: this command establishes no identifier and consumes
   no ready set, so `ptp-backlog-write`'s degraded-scope dispositions let it proceed. Each is a
   **condition within this one refusal contract**, and each names its own cause when it fires.
 - **No ground is worded over the write path being unshipped**, that antecedent having lapsed.
@@ -42,9 +51,13 @@ this command's `opus.high` default for this invocation only; see step 1 of **Ste
 
 ## Branch safety (first step)
 
-**Ordering note:** the cheap read-only `model:` override parse (step 1 of **Steps** below) and the
-non-empty-request check (step 1a) run in the outer session **before** this guard — an invalid token or
-an empty request STOPs the command before the guard evaluates or cuts any branch.
+**Ordering note:** the cheap read-only `model:` override parse (step 1 of **Steps** below), the
+non-empty-request check (step 1a), and the **configuration gate** (step 1b) all run in the outer
+session **before** this guard — an invalid token, an empty request, or an unactionable `backlog.*`
+configuration STOPs the command before the guard evaluates or cuts any branch. Steps 1 and 1a stay
+**ahead of** 1b deliberately: they are free argument checks that reach neither the store, the transport,
+nor the worktree, so a malformed `model:` token is still reported as a malformed token rather than
+masked by a configuration refusal.
 
 Before creating or updating **any** file, run the **`ptp-branch-guard`** preamble: check
 `git rev-parse --abbrev-ref HEAD`; if it is the base branch (`master`/`main`), derive a feature-branch
@@ -72,6 +85,18 @@ proceed as-is. The full rule (branch naming, the workflow contract, the hard rul
    compose an entry from — **STOP in the outer session**, before the branch guard and before any main
    run, and report that a free-text epic request is required. **Never invent an epic** to fill an
    empty request.
+   **Step 1b — take the configuration gate (outer session, still before the branch guard).** Resolve
+   the `backlog.*` configuration per **`ptp-github-projects-gh`** and take **`ptp-backlog`**'s *Read
+   protocol* **step 0**. On either of its **two** grounds — an **incomplete `backlog.*` configuration**
+   or a **colliding resolved status-option table** — **STOP in the
+   outer session**, before the branch guard and before any main run, naming the ground through this
+   file's one refusal contract: the missing keys, or `backlog.statusOptions` with
+   its colliding option name and every status claiming it. **Name the ground; do not restate the
+   rule** — each ground's content is that skill's. **No `gh` command is run**, and **no branch is
+   cut**: an incomplete configuration is an invocation that provably cannot write, decided from
+   configuration alone at zero transport cost, so it must abort where the other aborting checks do. Any
+   board identity this refusal renders carries its **provenance**, per
+   `ptp-github-projects-gh` §*The acting identity*.
 2. **Run the branch guard** (the *Branch safety* preamble above), in the outer session.
 3. **Run the remaining work as one `ptp-run-at-model` main run** at the resolved target (`opus.high` by
    default, or the valid `model:` override), per the **`ptp-run-at-model`** skill — reference it for
@@ -97,11 +122,13 @@ proceed as-is. The full rule (branch naming, the workflow contract, the hard rul
       The subject entry's **`status: backlog` is the commit**, not part of *Entry composition*'s write;
       *Entry composition* below is otherwise unchanged.
 
-      **The actual dispatch count, from the skill's carrier record:** the create call carries **title
-      and body**, so it writes `title`, `description`, `changeEpics`, `attributionWarnings`,
-      `runBaseline`, and `notes` **at once**; there is **no identity write**, the entry's `id` being the
-      node id the creation returns; `status` is the commit. **The payload stage is therefore empty**, and
-      a creation is **two dispatches** — not one per field.
+      **The actual dispatch count, from the skill's carrier record:** the create call is
+      `gh project item-create`, which carries **title and body in one dispatch** — the two carriers being
+      **co-dispatched** on this transport — so it writes `title`, `description`, `changeEpics`,
+      `attributionWarnings`, `runBaseline`, and `notes` **at once**; there is **no identity write**, the
+      entry's `id` being the **board item node id that arrives with the item** in the create's
+      `--format json` response; `status` is the commit, a separate field-value dispatch. **The payload
+      stage is therefore empty**, and a creation is **two dispatches** — not one per field.
 
       **Refusals and failures are different, and both statements stand.** If any step **refuses**,
       nothing was written to the store — that guarantee is unchanged. A **failure** mid-sequence is

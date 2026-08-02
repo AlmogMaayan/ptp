@@ -139,13 +139,6 @@ parameters = [
     default:  3
   },
   {
-    key:      "backlog.mcpServer",
-    label:    "Backlog MCP server",
-    jsonPath: ["backlog", "mcpServer"],
-    kind:     "string",
-    default:  undefined  // unset = the fixed official GitHub-plugin MCP server
-  },
-  {
     key:      "backlog.projectOwner",
     label:    "Backlog project owner",
     jsonPath: ["backlog", "projectOwner"],
@@ -179,7 +172,7 @@ parameters = [
 ]
 ```
 
-**Parameter menu:** The registry currently holds sixteen entries. Step 2 builds an `AskUserQuestion`
+**Parameter menu:** The registry currently holds fifteen entries. Step 2 builds an `AskUserQuestion`
 menu from each entry's `label` value and presents it to the user. The flow is data-driven: adding
 a new entry to the registry automatically adds it to the menu with no further edits to this flow.
 
@@ -225,10 +218,9 @@ Build an `AskUserQuestion` menu from the registry entries' `label` values:
 10. **Telemetry raw-store retention (days)** (`telemetry.retentionDays`)
 11. **Run planning stages in parallel** (`parallel.mode`)
 12. **Max parallel fan-out members** (`parallel.maxConcurrency`)
-13. **Backlog MCP server** (`backlog.mcpServer`)
-14. **Backlog project owner** (`backlog.projectOwner`)
-15. **Backlog project number** (`backlog.projectNumber`)
-16. **Backlog status option names** (`backlog.statusOptions`)
+13. **Backlog project owner** (`backlog.projectOwner`)
+14. **Backlog project number** (`backlog.projectNumber`)
+15. **Backlog status option names** (`backlog.statusOptions`)
 
 Use the selected entry's `jsonPath`, `kind`, `values` (for enum entries), and `default` for the
 remaining steps. This is data-driven off the registry — adding a parameter requires only a new
@@ -301,8 +293,8 @@ turns one invocation into several writes. The idempotency/no-op report, the `wri
      - For `parallel.mode` or `parallel.maxConcurrency` (they share the same `parallel` parent): if
        `parallel` exists but is not an object (e.g. `{"parallel":"on"}` or `{"parallel":null}`),
        STOP.
-     - For `backlog.mcpServer`, `backlog.projectOwner`, or `backlog.projectNumber` (all three share
-       the same `backlog` parent): if `backlog` exists but is not an object (e.g.
+     - For `backlog.projectOwner` or `backlog.projectNumber` (they share the same `backlog`
+       parent): if `backlog` exists but is not an object (e.g.
        `{"backlog":"github"}` or `{"backlog":null}`), STOP.
      - For `backlog.statusOptions`, **the same rule at a second level** — not a second rule: if
        `backlog` exists but is not an object, STOP; **and** if `backlog.statusOptions` exists but is
@@ -456,14 +448,10 @@ validate the input:
 When rejecting, report that the value must be non-empty and ask again. Only proceed to step 5 once a
 non-empty, non-whitespace-only string is in hand.
 
-#### kind = `string` (e.g. `backlog.mcpServer`, `backlog.projectOwner`)
+#### kind = `string` (e.g. `backlog.projectOwner`)
 
 Prompt the user for a free-text value (no fixed options). Then validate the input:
 
-- **`backlog.mcpServer`** — **Accept:** any non-empty string after trimming leading/trailing
-  whitespace (the `codex.model` rule verbatim). The value is written as a JSON **string**, trimmed.
-  **Reject and re-prompt** on empty input or input that is only whitespace — do NOT write an empty
-  value.
 - **`backlog.projectOwner`** — **Accept:** a non-empty trimmed string that additionally contains **no
   `/`**, **no internal whitespace**, and **no `://`**. The value is written as a JSON **string**,
   trimmed. **Reject and re-prompt** on empty or whitespace-only input, or on any value containing
@@ -474,16 +462,10 @@ Prompt the user for a free-text value (no fixed options). Then validate the inpu
   negative. No GitHub-login charset gate is imposed beyond that, because a charset guess could reject
   a legitimate login.
 
-**What the `backlog.mcpServer` prompt must say**, because this key's default carries meaning:
-
-1. leaving it **unset means the fixed official GitHub-plugin MCP server**;
-2. setting it names **your own** server (e.g. a per-account Docker MCP server running under a
-   different GitHub token);
-3. **returning to the official server means deleting the key by hand** — this editor writes values and
-   never removes them, the same limitation `codex.model` and `codex.reasoningEffort` already carry.
-
-**What these keys do now.** They resolve, through `ptp-github-projects-mcp`, the **board the epic
-backlog lives on** — there is no local backlog file. `/ptp:backlog` reads that board on every
+**What these keys do now.** They resolve, through `ptp-github-projects-gh`, the **board the epic
+backlog lives on** — there is no local backlog file. The **acting GitHub identity is not one of these
+keys**: it is `gh`'s own active account, resolved by `gh` and never configured, selected, or overridden
+by ptp. `/ptp:backlog` reads that board on every
 invocation and refuses non-silently, naming the missing keys, when the configuration is incomplete. The
 writers `/ptp:backlog-add`, `-edit`, `-run`, and `-continue` write that same board, and each refuses up
 front — naming its own cause — when these keys are incomplete or the capability preflight does not
@@ -491,7 +473,7 @@ admit a write. State both halves at the point of selection, so the user expects 
 view and a writer that names exactly what it needs.
 
 As with every other ptp parameter, the two surfaces are complementary: this editor is **STRICT**
-(reject and re-prompt, so an invalid value is never written) while the `ptp-github-projects-mcp`
+(reject and re-prompt, so an invalid value is never written) while the `ptp-github-projects-gh`
 reader is **FORGIVING** (an invalid layer's value is ignored; it never throws and never STOPs). Do not
 align one to the other.
 
@@ -536,9 +518,9 @@ configuration that disables the cap or invites a rate-limit incident. A value of
 means "effectively serial". The suggested default is `3`.
 
 **`backlog.projectNumber` is a `backlog.*` key, so the *What these keys do now* statement in the
-`backlog.mcpServer` / `backlog.projectOwner` string subsection above applies to it verbatim** — state
-it here too when this is the selected parameter. The note lives in one place because it covers all
-three keys at once, but the flow reaches `backlog.projectNumber` down the integer path, which would
+`backlog.projectOwner` string subsection above applies to it verbatim** — state
+it here too when this is the selected parameter. The note lives in one place because it covers both
+keys at once, but the flow reaches `backlog.projectNumber` down the integer path, which would
 otherwise never pass the note at all.
 
 **`backlog.projectNumber` carries no upper bound**, deliberately: it is the board's project number,
@@ -578,7 +560,7 @@ that member's current or default row as the suggested value). Then validate the 
 
 **The collision check is evaluated against the target layer merged onto the default table.** Build the
 other six rows **the way the resolver would**: take the target file's own `backlog.statusOptions` value
-for a status only where that value is **valid** under `ptp-github-projects-mcp`'s per-status-key rules
+for a status only where that value is **valid** under `ptp-github-projects-gh`'s per-status-key rules
 (after trimming, dropping empty elements, and dropping case-insensitive duplicates it still yields at
 least one name), and take `ptp-backlog`'s built-in default row for that status otherwise. Do not read
 the other config layer.
@@ -605,13 +587,13 @@ a semantically empty rewrite.
    own default row.
 2. **Returning a row to its default requires deleting that key by hand** — this editor writes values and
    never removes them, the same limitation `codex.model`, `codex.reasoningEffort`, and
-   `backlog.mcpServer` already carry. Re-typing the default row's names is **equivalent in effect**.
+   `backlog.projectOwner` already carry. Re-typing the default row's names is **equivalent in effect**.
 3. **An option name containing a comma cannot be entered here** and must be hand-edited into the config
    file, which the forgiving resolver accepts. There is no separator that cannot appear in a GitHub
    option name, so an escape hatch was always required.
 
 As with every other ptp parameter, the two surfaces are complementary: this editor is **STRICT** (reject
-and re-prompt, so an invalid or colliding value is never written) while the `ptp-github-projects-mcp`
+and re-prompt, so an invalid or colliding value is never written) while the `ptp-github-projects-gh`
 reader is **FORGIVING** (an invalid status key is ignored, leaving that row at its own default; it never
 throws and never STOPs). **The residual is honest and stated rather than hidden:** the editor's collision
 check is **single-layer**, so a **cross-layer** collision can still arise — it is covered by the
@@ -633,7 +615,7 @@ With the resolved path, the base JSON object (from step 3), and the chosen value
      create `roles` as `{}`; for
      `telemetry.mode`, `telemetry.root`, `telemetry.port`, or `telemetry.retentionDays`: create
      `telemetry` as `{}`; for `parallel.mode` or `parallel.maxConcurrency`: create `parallel` as
-     `{}`; for `backlog.mcpServer`, `backlog.projectOwner`, or `backlog.projectNumber`: create
+     `{}`; for `backlog.projectOwner` or `backlog.projectNumber`: create
      `backlog` as `{}`; for `backlog.statusOptions`: create `backlog` as `{}` and then
      `statusOptions` as `{}` when absent, in the same manner as the existing parents.
    - Set the targeted key to the chosen value.
@@ -697,9 +679,8 @@ Examples:
 | `parallel` absent | Created as `{}` on write; not clobbering. |
 | `parallel.mode` selection outside `off\|on` | Not offered — the enum menu only presents the two valid values. |
 | `parallel.maxConcurrency` input non-integer (`2.5`, `"3"`, `abc`), zero, negative, or outside `1..10` (`11`) | Reject, re-prompt; do NOT write. |
-| `backlog` present but not an object (`"backlog":"github"`, `"backlog":null`) — applies to `backlog.mcpServer`, `backlog.projectOwner`, and `backlog.projectNumber` alike | STOP, report, do **not** overwrite. |
+| `backlog` present but not an object (`"backlog":"github"`, `"backlog":null`) — applies to `backlog.projectOwner` and `backlog.projectNumber` alike | STOP, report, do **not** overwrite. |
 | `backlog` absent | Created as `{}` on write; not clobbering — applies to all three `backlog.*` keys alike. |
-| `backlog.mcpServer` input empty or whitespace-only | Reject, re-prompt; do NOT write. |
 | `backlog.projectOwner` input empty, whitespace-only, or containing `/`, internal whitespace, or `://` | Reject, re-prompt; do NOT write. |
 | `backlog.projectNumber` input non-integer (`7.5`, `abc`), string-typed (`"7"`), zero, or negative | Reject, re-prompt; do NOT write. |
 | `backlog.statusOptions` present but not an object (`"statusOptions":"Ready"`, `"statusOptions":null`) | STOP, report, do **not** overwrite. |
@@ -763,10 +744,6 @@ Examples:
   range 1 to 10 may be written. Any non-integer, non-numeric, string-typed, zero, negative, or
   above-10 input is rejected and re-prompted — never written, so the editor can never produce a
   configuration that disables the cap or invites a rate-limit incident.
-- **Never write an empty or whitespace-only string for `backlog.mcpServer`.** Only a non-empty,
-  trimmed string may be written; empty/whitespace-only input is rejected and re-prompted. An empty
-  value would not mean "the official server" — unset means that, and only deleting the key by hand
-  restores it.
 - **Never write a `backlog.projectOwner` containing `/`, internal whitespace, or `://`.** Only a
   non-empty, trimmed login may be written; a pasted board URL is rejected and re-prompted, never
   written.
