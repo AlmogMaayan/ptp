@@ -1,6 +1,6 @@
 ---
 name: ptp-backlog-write
-description: Own how a backlog write is dispatched onto the GitHub Projects board and what a partial failure means — the deterministic ordered write sequence (existence, payload, commit) with `status` last and the single justification for that order stated here and nowhere else; the status-commit invariant that replaces atomicity, together with its backstop refusal of any operation writing `status` on more than one entry; the field-is-the-unit-of-planning / carrier-is-the-unit-of-dispatch rule and the compose-from-a-fresh-read-of-the-carrier rule that keeps it from losing an update; the two re-read rules — the pre-dispatch snapshot every decision binds to, and the per-field pre-write check over exactly two field categories with deliberately no third — and the degraded-scope dispositions derived from what the read path withholds; the write journal with its one-row-per-planned-field shape, its six exhaustive outcomes and its six terminal verdicts; fail-stop with no compensating writes on three independent grounds; the ambiguous-create board scan read against the snapshot's match set, and the single orphan repair shape; and the `runBaseline`-clear dispatch decision with its accepted residual, its two-layer detection rule and its four-part report obligation. A pure prose contract in the single-source-of-truth pattern of ptp-branch-guard (branch safety), ptp-codex-mode (the reviewer gate), ptp-agent-roles (role resolution), ptp-parallel-fanout (fan-out safety), and ptp-backlog (the board contract): it states obligations, performs none of them, reads nothing on its own, writes nothing, and edits nothing. Delegates the schema and its canonical field order, the validator and its problem codes, writer eligibility, the status transition table and its guards, and the whole recovery-and-reconciliation machinery to ptp-backlog; the field mapping, the identity rule and the read path to 0042_03's read contract; and the transport with its invocation mechanics, the acting identity, the gh surface and the capability preflight with its verdicts to ptp-github-projects-gh. Defined by 0042_04, and consumed by /ptp:backlog-add, /ptp:backlog-edit, /ptp:backlog-run, and /ptp:backlog-continue.
+description: Own how a backlog write is dispatched onto the GitHub Projects board and what a partial failure means — the deterministic ordered write sequence (existence, payload, commit) with `status` last and the single justification for that order stated here and nowhere else; the payload stage's per-content-type payload route — the draft item-edit call, and the transport's admitted content mutation for an issue- or pull-request-backed item, addressed by the content node id and never by the item node id — together with the two fail-closed leaves that replace the retired content-type refusal, and the repository-edit disclosure and per-entry report obligation that come with widening the route; the status-commit invariant that replaces atomicity, together with its backstop refusal of any operation writing `status` on more than one entry; the field-is-the-unit-of-planning / carrier-is-the-unit-of-dispatch rule and the compose-from-a-fresh-read-of-the-carrier rule that keeps it from losing an update; the two re-read rules — the pre-dispatch snapshot every decision binds to, and the per-field pre-write check over exactly two field categories with deliberately no third — and the degraded-scope dispositions derived from what the read path withholds; the write journal with its one-row-per-planned-field shape, its six exhaustive outcomes and its six terminal verdicts; fail-stop with no compensating writes on three independent grounds; the ambiguous-create board scan read against the snapshot's match set, and the single orphan repair shape; and the `runBaseline`-clear dispatch decision with its accepted residual, its two-layer detection rule and its four-part report obligation. A pure prose contract in the single-source-of-truth pattern of ptp-branch-guard (branch safety), ptp-codex-mode (the reviewer gate), ptp-agent-roles (role resolution), ptp-parallel-fanout (fan-out safety), and ptp-backlog (the board contract): it states obligations, performs none of them, reads nothing on its own, writes nothing, and edits nothing. Delegates the schema and its canonical field order, the validator and its problem codes, writer eligibility, the status transition table and its guards, and the whole recovery-and-reconciliation machinery to ptp-backlog; the field mapping, the identity rule and the read path to 0042_03's read contract; and the transport with its invocation mechanics, the acting identity, the gh surface and the capability preflight with its verdicts to ptp-github-projects-gh. Defined by 0042_04, and consumed by /ptp:backlog-add, /ptp:backlog-edit, /ptp:backlog-run, and /ptp:backlog-continue.
 ---
 
 # ptp-backlog-write — how a backlog write is dispatched, and what a partial failure means
@@ -49,6 +49,15 @@ were verified at **`gh` 2.89.0**:
    mutation fields execute **serially, with no transaction and no rollback**, so a mid-document
    failure leaves earlier mutations applied.
 
+**A fourth backend fact is recorded by CITATION rather than verified here.** The `gh` transport contract
+admits a **content mutation** — `updateIssue` / `updatePullRequest` over `gh api graphql` — which writes
+a non-draft item's content **title and/or body in one mutation** (both inputs are optional there, which is
+what the send-set rule below turns on), addressed by the **content node id**. Its
+verification provenance, its closed scope, its argument construction and its emission rules are **that
+contract's** and are cited here, never restated. It carries **no** whole-document write either, so the
+conclusion below is untouched by it: it widens **which objects** a title/body write can reach, not
+**how much** any one write can carry.
+
 **The conclusion is a consequence of those three, not an assertion beside them: there is no
 whole-document write on this store at any layer under any client.** A write is therefore
 **necessarily many dispatches**, and the **dispatch-ordering** derivation below follows from that and
@@ -93,14 +102,68 @@ restated** here.
 | Stage | Concrete invocation |
 |---|---|
 | **W1** | `gh project item-create <projectNumber> --owner <projectOwner> --title <composed title> --body <composed body> --format json` |
-| **W2** — the title/body carriers | `gh project item-edit --id <DI_…> --title <composed title> --body <composed body> --format json` |
+| **W2** — the title/body carriers, on a **`DraftIssue`**-backed item | `gh project item-edit --id <DI_…> --title <composed title> --body <composed body> --format json` |
+| **W2** — the title/body carriers, on an **`Issue`**-backed item | the `gh` transport contract's admitted **content mutation `updateIssue`**, dispatched through `gh api graphql` against the item's **content node id**, carrying the planned carriers' values in **one** mutation |
+| **W2** — the title/body carriers, on a **`PullRequest`**-backed item | the same admitted route's **`updatePullRequest`**, dispatched through `gh api graphql` against the item's **content node id**, likewise in **one** mutation |
 | **W3** | `gh project item-edit --id <PVTI_…> --project-id <PVT_…> --field-id <Status field id> --single-select-option-id <resolved option id> --format json` |
 
+**W2 has one route per content type, and the route is selected from the content type the compose read
+OBSERVED immediately before the dispatch — never from the pre-dispatch snapshot.** A card converted
+between the snapshot and the dispatch is therefore written through the route its **observed** type
+requires; the content type **selects a route** and no longer decides a refusal.
+
+**The content mutation's own mechanics are cited and never restated here.** Its admission, its closed
+scope, its query document and variable arguments, the **two mutations' differing target input field
+spellings**, the body's emission on that route, and the token-scope disclosure are the **`gh` transport
+contract**'s (`ptp-github-projects-gh`, *The content-body mutation route*). This table names the route
+**by role**; an implementer builds it there.
+
+**W3 is untouched by all of this.** `Status` is written by the **field-value route on all three content
+types**, that route carrying **no content-type check** of any kind, and no content-type branch is added
+to the commit stage.
+
+**W1 is untouched too, and it stays draft-only.** `gh project item-create` creates a **draft**, so a
+non-draft entry exists only because a human added a repository item to the board. The **existence**
+stage, the node-id capture boundary, the ambiguous-create board scan, its completeness test,
+`unresolved-create` and the orphan repair therefore gain **no content-type branch whatever**, and **no
+non-draft creation path exists or is to be invented** — there is no caller for one.
+
 Each identifier is **named by role** and resolved elsewhere, never re-derived here: the `PVTI_` **item
-node id** is the entry's own `id`; the `DI_` **draft-content id** is a **dispatch coordinate** obtained
-from the compose read (*A carrier write is composed from a fresh read of the carrier*); and the `PVT_`
-**project node id**, the **`Status` field id** and the **option ids** come from the read path
-(`0047_06`), which publishes them so that no consumer makes a board call of its own for them.
+node id** is the entry's own `id` and is the **only** identity this contract recognizes; the `DI_`
+**draft-content id** is the **dispatch coordinate of the draft route**, obtained from the compose read
+(*A carrier write is composed from a fresh read of the carrier*); the **content node id** of an `Issue`-
+or `PullRequest`-backed item is the **dispatch coordinate of the content-mutation route**, obtained from
+that **same compose read**; and the `PVT_` **project node id**, the **`Status` field id** and the
+**option ids** come from the read path (`0047_06`), which publishes them so that no consumer makes a
+board call of its own for them.
+
+**No two of those four are interchangeable, and it is their ROLE that keeps them apart.** A `PVTI_` id
+addresses the **board item** and is dispatched **only** by W3; a `DI_` id and a non-draft **content node
+id** address the item's **content object** and are dispatched **only** by their own W2 route; a `PVT_` id
+addresses the **project**. **The content mutation is never addressed by the `PVTI_` item node id**, and a
+route that received one would be writing against the wrong object entirely.
+
+**The prefixes are a reading aid here and nothing more.** They are written above so a reader can tell the
+three spelled-out identifiers apart on sight; **a non-draft content node id's prefix is not stated by any
+contract and is not to be assumed**. No route is selected, and no content type is inferred, from any
+identifier's prefix: **the route comes from the content type the compose read observed**, and from
+nothing else. The one prefix check that exists anywhere is `gh`'s own, inside the draft route, and it is
+the backend's rather than ptp's.
+
+**Two fail-closed leaves, both refusing BEFORE anything is dispatched on that carrier:**
+
+> **An item whose observed content type is none of `DraftIssue`, `Issue`, `PullRequest` has NO ROUTE.**
+> The operation refuses before dispatching on that carrier, naming the **observed** content type.
+
+> **An item whose observed content type HAS a route but for which the compose read returned NO content
+> node id has no ADDRESS.** The operation refuses before dispatching on that carrier, naming the content
+> type and the missing id, and reports it as a **transport defect** — never as a configuration problem.
+> It is the same shape as the fail-closed leaf for a selected `Status` option name for which the read
+> published no id.
+
+Both land on the **existing** verdicts — `refused` where nothing had been dispatched, `uncommitted-partial`
+otherwise — and every non-`skipped-identical` row of the prevented dispatch is `not-dispatched`, exactly
+as for any other pre-dispatch halt. **No new outcome, verdict or stage is added by either.**
 
 **W2 has no other carrier in v1.** The field mapping puts **every** non-`status` field on the item's
 title or its body, so the title/body dispatch is W2's **only** dispatch. A future ptp-owned board custom
@@ -110,7 +173,8 @@ it stands rather than an open slot inviting one.
 
 **`--project-id` is not a flag of `item-create`.** W1 addresses the project **positionally, by number,
 together with `--owner`**. Only `item-edit`'s **field-value** route takes `--project-id`, which is why
-W3 carries it and W2 does not.
+W3 carries it and W2 does not — on **none** of W2's three routes, the content mutation taking no project
+identifier of any spelling either.
 
 **`--title` is required by `gh` on `item-create`**, and that requirement **agrees with** the schema's
 non-empty `title`. It therefore adds **no new refusal**: a creation composing an empty title is already
@@ -218,10 +282,14 @@ mapping.** Every mandatory `runBaseline` clear — the one a settling edit perfo
   invocation. How that empty value is represented is the **field mapping's** and is `ptp-backlog`'s,
   cited here and **not restated**.
 
-**The backend reason the two cannot be blurred:** `gh project item-edit` tests `--clear` **before** it
-takes the title/body route, so a `--clear` invocation would never reach the draft mutation at all. A
-body-carried clear routed through `--clear` would therefore not be a slower way of doing the same
-thing — it would write **nothing the body needs** and would target a field value that does not exist.
+**The backend reason the two cannot be blurred, on BOTH title/body routes:** on the **draft** route
+`gh project item-edit` tests `--clear` **before** it takes the title/body route, so a `--clear`
+invocation would never reach the draft mutation at all; and on the **content-mutation** route there is
+**no clear flag at all** — the admitted mutation carries a title and a body and nothing else. So on
+**neither** route can a body-carried clear be expressed as one. A body-carried clear routed through
+`--clear` would therefore not be a slower way of doing the same thing — it would write **nothing the body
+needs** and would target a field value that does not exist. **The board-field rule above and its vacuity
+are unchanged by the second route**, which writes no field value.
 
 The inherited canonical-write rules resolve, each explicitly, as one of three things:
 
@@ -294,34 +362,71 @@ exposes no setter for, while `id` has **nothing to write to**.
 
 ### On this transport the title and body carriers are dispatched together
 
-> **The item's content TITLE carrier and the item BODY carrier are ALWAYS dispatched together** — on W1
-> (`item-create`) and on W2 (`item-edit --title --body`) alike.
+> **ONE dispatch carries BOTH the item's content TITLE carrier and the item BODY carrier, on EVERY
+> content type** — on W1 (`item-create`), on W2's draft route (`item-edit --title --body`), and on W2's
+> content-mutation route (`updateIssue` / `updatePullRequest`) alike. The two carriers are **never split
+> across two dispatches**.
 
 This **generalizes to W2** the sentence this contract already applies to W1 — *the create call is one
-carrier write of two carriers* — and it is a **backend fact, not a convention**: `gh` puts both values
-into **one** `UpdateProjectV2DraftIssueInput` and mutates **once**, as `EditDraftIssueItem`. There is no
-invocation that writes one of the two and leaves the other alone.
+carrier write of two carriers* — and it is a **backend fact on each route, not a convention**: on the
+draft route `gh` puts both values into **one** `UpdateProjectV2DraftIssueInput` and mutates **once**, as
+`EditDraftIssueItem`; on the content-mutation route the admitted mutation likewise takes the title and
+the body in **one input object** and applies them in **one** mutation (the `gh` transport contract's,
+cited and not restated). On neither route is there an invocation that writes one carrier as a separate
+call from the other.
 
-**Consequence 1 — both flags are always passed**, even when only one carrier has a planned row.
-Omitting one makes `gh` **fetch and re-send the other from its own read**, which would write back a body
-**ptp never composed**, over a body a concurrent hand edit may have changed. The value sent for a
-carrier with no planned row is therefore the one composed from the **fresh read of that carrier**, and
-the compose-from-a-fresh-read rule below is **load-bearing, not prudent**: it is what makes the
-unavoidable second value correct rather than destructive.
+**Consequence 1 — WHICH VALUES ARE SENT is derived per route, and the draft route's answer is NOT
+carried across.** The joint dispatch above holds everywhere; this consequence does not, because its
+ground is a property of `gh`'s draft route alone.
 
-**Consequence 2 — the skip rule takes the joint dispatch as its unit.** The title/body dispatch is
-omitted **only** when **every** planned row on **both** carriers is `skipped-identical`; and a row whose
-**own** value already matched is **still** `skipped-identical` even when the joint dispatch went out for
-a sibling row **on the other carrier**. That is the two skip rules above, read with the joint dispatch
-rather than a single carrier as the unit.
+- **On the draft route both flags are always passed**, even when only one carrier has a planned row.
+  Omitting one makes `gh` **fetch and re-send the other from its own read**, which would write back a
+  body **ptp never composed**, over a body a concurrent hand edit may have changed. The value sent for a
+  carrier with no planned row is therefore the one composed from the **fresh read of that carrier**, and
+  the compose-from-a-fresh-read rule below is **load-bearing, not prudent**: it is what makes the
+  unavoidable second value correct rather than destructive.
+- **On the content-mutation route only the carriers with a planned row are sent.** An **omitted** input
+  field is left **unchanged** by that mutation, so the hazard the draft rule exists to answer **does not
+  arise**: nothing is re-sent from a read of `gh`'s own, and nothing can be written back that ptp never
+  composed. A title-only edit therefore sends **the title alone** and leaves the repository object's body
+  untouched.
 
-**Consequence 3 — halt propagation covers both carriers.** A **pre-write-check halt** on any planned row
-of the joint dispatch marks every **other** non-`skipped-identical` row of **both** carriers
-`not-dispatched`, because **nothing was sent**; a **dispatched-then-failed** or
-**dispatched-then-ambiguous** joint write is **shared by every non-`skipped-identical` planned row of
-both**, because those are the rows that **were** sent. **The two rules stay disjoint** — *nothing sent*
-versus *sent and failed* — and both leave a **`skipped-identical`** row at its own outcome, exactly as
-consequence 2 requires, so every planned row still carries **exactly one** outcome.
+  **That omitted-is-unchanged behaviour is a BACKEND FACT OF THE MUTATION, and it is the one fact of
+  this route this contract states in its own name.** It is the patch semantics of `updateIssue` /
+  `updatePullRequest`: the mutation applies **the input fields it was given** and touches no other field
+  of the object. What the `gh` transport contract publishes is the mutation's **input shape** — both
+  `title` and `body` **optional**, so one may be sent without the other — and its **closed scope**; it
+  states nothing about what an omitted field does, so **no reader may take the sentence above for a cited
+  fact, and no reader may derive it from the optionality alone**. It is recorded here, unverified at this
+  contract's `gh` version, precisely so that a reader who doubts it knows exactly which sentence to test.
+  **It is the sole ground of this bullet, and of nothing else in this contract** — the joint dispatch
+  above, the route table, the fail-closed leaves and every outcome rule stand without it, so a
+  falsification is confined to which values one route sends.
+
+**Rejected: send both values on every content type, for uniformity.** Its appeal is real — one rule, no
+case split, and the consequences below stay verbatim. It is rejected because on a non-draft entry it
+would make a title-only edit **rewrite a live repository object's body** with a recomposed value **no
+instruction asked for** — an extra external write, an extra entry in that object's edit history, and an
+extra notification to its subscribers, bought with nothing but tidiness. And it is **irreversible**: a
+repository edit cannot be withdrawn.
+
+**Where a value IS sent for a carrier with no planned row — which on this contract means the draft route
+— it is composed from the fresh read of that carrier**, and that rule is load-bearing exactly there.
+
+**Consequence 2 — the skip rule takes the DISPATCH as its unit.** The title/body dispatch is omitted
+**only** when **every** planned row it would carry — on **both** carriers — is `skipped-identical`; and a
+row whose **own** value already matched is **still** `skipped-identical` even when the dispatch went out
+for a sibling row, whether that sibling sits on the same carrier or on the other one. That is the two
+skip rules above, read with the **dispatch** rather than a single carrier as the unit, so a dispatch
+carrying only one carrier's rows is covered by the same sentence.
+
+**Consequence 3 — halt propagation covers every carrier the dispatch carries.** A **pre-write-check
+halt** on any planned row of the dispatch marks every **other** non-`skipped-identical` row **of that
+dispatch** `not-dispatched`, because **nothing was sent**; a **dispatched-then-failed** or
+**dispatched-then-ambiguous** write is **shared by every non-`skipped-identical` planned row of that
+dispatch**, because those are the rows that **were** sent. **The two rules stay disjoint** — *nothing
+sent* versus *sent and failed* — and both leave a **`skipped-identical`** row at its own outcome, exactly
+as consequence 2 requires, so every planned row still carries **exactly one** outcome.
 
 **What does not change, stated so the generalization is not over-read.** Title and body remain **two
 carriers**: the carrier table's five rows stand, *a carrier is the unit of dispatch* stands as the
@@ -457,14 +562,20 @@ For the **title** and **body** carriers the compose read is **one `gh api graphq
 item, selecting
 
 ```
-content { __typename ... on DraftIssue { id title body } }
+content { __typename ... on DraftIssue { id title body } ... on Issue { id title body } ... on PullRequest { id title body } }
 ```
 
-**The shape is precise and the asymmetry is deliberate.** The **content type comes back for every
-content type**, because `__typename` sits outside the fragment; the **`id`, `title` and `body` come back
-inside the `DraftIssue` fragment only**. That is correct rather than a gap: a **non-draft** item is
-**refused on its content type before anything is composed**, so it needs neither a dispatch coordinate
-nor any carrier contents.
+**The shape is precise and it is now symmetric across the three content types.** The **content type
+comes back for every content type**, because `__typename` sits outside the fragments; and the **`id`,
+`title` and `body` triple comes back for every content type too**, one inline fragment per type.
+
+**The draft-only selection this replaced was not a gap either, and it is retired with its ground rather
+than corrected.** It was justified by a **content-type refusal that fired before anything was composed**
+for any item that was not a draft, so such an item needed neither a dispatch coordinate nor any carrier
+contents.
+This contract retires that refusal — every content type now has a payload route (*The dispatch table*) —
+so every content type now needs **both**, and the selection widens with it. No reader may reinstate the
+narrower selection on the retired justification.
 
 **Two spellings, one value set.** On the **GraphQL** surface this read uses, the content type is the
 meta-field **`__typename`**; on the **`--format json`** surface the read path (`0047_06`) consumes, the
@@ -477,22 +588,31 @@ payload, nor `type` as a GraphQL selection.**
 
 1. the **carrier contents** every constituent with no planned row is carried through from, verbatim —
    `description`, `notes`, the unrecognized block keys, the in-region prose and the post-`end` text;
-2. the **`DI_` dispatch coordinate** that `item-edit`'s title/body route requires;
-3. the **content type** on which the per-content-type refusal below is decided **immediately before
-   dispatch**, which is what catches a card converted from draft to issue **after** the snapshot.
+2. the **content node id** that content type's payload route dispatches against — the `DI_`
+   draft-content id on `item-edit`'s title/body route, and the issue's or the pull request's **own
+   content node id** on the content-mutation route;
+3. the **content type**, which is established **immediately before dispatch** — catching a card
+   converted from draft to issue **after** the snapshot — and which **selects the payload route** that
+   dispatch takes. It no longer decides a refusal: a converted card is written through the route its
+   **observed** type requires rather than stopping the operation. Its two fail-closed leaves — an
+   **unrecognized** content type, and a routable type for which this read returned **no content node
+   id** — are stated once, with the route table.
 
-**The `DI_` id is a dispatch coordinate, never an identity.** It never enters the entry model, never
-enters `/ptp:backlog-edit`'s argument grammar, and never appears in any report as an identifier. The
-entry's `id` remains the **`PVTI_` item node id**, and every report names an entry by that node id and
-its title.
+**The content node id is a dispatch coordinate, never an identity — on all three content types.** The
+`DI_` draft-content id and the issue's or pull request's content node id are alike in this: none of them
+ever enters the entry model, none enters `/ptp:backlog-edit`'s argument grammar, and none appears in any
+report as an identifier. The entry's `id` remains the **`PVTI_` item node id**, and every report names an
+entry by that node id and its title.
 
 **Why the coordinate is not taken from the pre-dispatch snapshot, nor from a read-path handle.** A
 snapshot-era coordinate goes stale exactly where staleness is **destructive**: a card converted from
 draft to issue between the snapshot and the dispatch would otherwise be written through a `DI_` id that
-no longer addresses it. The read path (`0047_06`) **does** publish this value — its handle-table cell
-`draftIssueId`, `null` on every non-draft content type — and that cell may be consumed as a **hint**;
-the **compose read remains authoritative** for the coordinate actually dispatched. Nothing here says the
-read path cannot publish it; what is said is that the read path's copy does not decide.
+no longer addresses it — and, now that the other route exists, through the **wrong route** as well. The
+read path (`0047_06`) **does** publish this value — its handle-table cell `contentNodeId`, published on
+**every** content type the transport exposes — and that cell may be consumed as a **hint** on every
+content type alike; the **compose read remains authoritative** for the coordinate actually dispatched and
+for the route actually taken. Nothing here says the read path cannot publish it; what is said is that the
+read path's copy does not decide.
 
 **The residual is unchanged:** the compose-to-write window is still one round trip, and the check is
 still a detector, not a lock.
@@ -711,7 +831,9 @@ is inherited unchanged, and its attestation rule extends by **exactly one clause
 
 > **Invoking a backlog writer is the user's attestation that no human is concurrently editing the
 > board**, and the pre-write check is a best-effort **detector** layered on that attestation — never a
-> substitute for it.
+> substitute for it. **On a non-draft entry the concurrently-edited surface includes the repository
+> object itself** — a bot, a template or a maintainer editing that issue's or pull request's title or
+> body — and the compose-from-a-fresh-read rule is what preserves such an editor's text.
 
 **No sentence of this contract describes the check as preventing, serializing, or excluding a concurrent
 edit.**
@@ -740,7 +862,7 @@ FIELD, in dispatch order**:
 | Column | Meaning |
 |---|---|
 | `#` | the ordinal — ordered by **dispatch**, and within one dispatch by canonical field order |
-| `dispatch` | the **carrier write** that carries this row, shared by every row of **that dispatch** |
+| `dispatch` | the **carrier write** that carries this row, shared by every row of **that dispatch**, the cell naming the **route** that carried it — the create, the draft item-edit, the content mutation, or the field-value write |
 | `entry` | the item's **board node id** — the entry's `id` — or, on a creating operation before that id exists, the literal **`unidentified`** (see below) |
 | `field` | the mapped field |
 | `intended` | the intended value, elided past a stated length |
@@ -1003,6 +1125,11 @@ One operation is now **O(fields)** calls instead of one write, so transport fail
   **neither** that the write landed nor that it did not. Settling the matching rows `landed` and the
   others `failed` is **forbidden**: it would assert a split the store cannot produce, and it would make
   *rows sharing a dispatch share that write's outcome* false exactly where it is load-bearing.
+- **The mixed-verification rule is UNCHANGED by the per-content-type routes, and its re-read now has a
+  readable surface on all three of them.** The compose read returns a **title and a body for every
+  content type**, so the verification re-read of a content mutation's planned fields is the **same**
+  re-read it already was on a draft — the rule reaches the new route **unchanged** rather than by
+  extension, and nothing about it is weakened, narrowed or made content-type-conditional.
 - **When the verification read itself cannot be completed within its bounded budget, the row is
   `unresolved`** — the honest floor — and the operation halts. For a **payload** row the verdict is
   `uncommitted-partial`; for the **commit** row it is `unresolved-commit`.
@@ -1390,38 +1517,91 @@ requests** alike, the body carries five of the ten fields including all three me
 and the three content types are **not one case**. On this transport that is no longer a table of
 possibilities but a table of **verified facts**:
 
-| Content type | In-board **title/body** write path | **`Status`** write path |
+| Content type | **title/body** write path | **`Status`** write path |
 |---|---|---|
 | **DraftIssue** | `gh project item-edit --id <DI_…> --title … --body …` — **one** mutation, **both** flags, and **no `--project-id`** | the field-value route |
-| **Issue** | **none in-board** — the route refuses a non-`DI_` id by an **explicit prefix check** | the field-value route, **works** |
-| **PullRequest** | **none in-board**, same reason | the field-value route, **works** |
+| **Issue** | the admitted **content mutation `updateIssue`**, addressed by the item's **content node id** — **one** mutation carrying both carriers | the field-value route, **works** |
+| **PullRequest** | the admitted **content mutation `updatePullRequest`**, likewise addressed by the item's **content node id** | the field-value route, **works** |
 
-**The field-value route carries no `DI_` check at all.** So an issue- or PR-backed entry is
-**`Status`-writable and body-unwritable** — not wholly unwritable, and no artifact may say that it is.
+**Every content type therefore has a title/body path, and every content type has a `Status` path.** An
+issue- or pull-request-backed entry is **both `Status`-writable and title/body-writable**, and **no
+artifact may describe it as partially writable, or as ineligible on its content type**.
 
-**The refusal is therefore per CARRIER, not per entry.**
+**The draft route stays draft-scoped, and its prefix check is why.** `gh project item-edit`'s title/body
+route refuses a non-`DI_` id by an **explicit prefix check**, so it is the draft content type's route and
+not a general one — which is what makes the second and third rows a **different route** rather than the
+same one with a different argument. **The field-value route carries no `DI_` check at all**, which is why
+`Status` needs no content-type branch anywhere.
 
-> **It fires IFF the operation plans a row on the TITLE or the BODY carrier.**
+**No content-type refusal survives on the title/body carriers.** An entry backed by an issue or a pull
+request is written like any other:
 
-**Four consequences, stated rather than left to inference:**
+- `/ptp:backlog-edit`'s **pure status transitions** work on such an entry, as they always did — and that
+  is now **unremarkable** rather than a consequence of anything;
+- its **`title` / `description` / `notes` edits dispatch**, through its content type's route;
+- **every settling edit dispatches**, the mandatory `runBaseline` clear being a **body** row that route
+  carries;
+- the runner's **take dispatches**, WRITE 0's `runBaseline` (a body row) and its `status` commit alike.
 
-- `/ptp:backlog-edit`'s **pure status transitions still work** on such an entry;
-- its **`title` / `description` / `notes` edits refuse**;
-- **every settling edit refuses**, the mandatory `runBaseline` clear being a **body** row;
-- the runner's **take is refused before anything is dispatched**, WRITE 0 writing `runBaseline` (a body
-  row) together with its `status` commit — so the epic lands in the runner's **existing `take-failed`
-  bucket** under its **existing `store-write halt`** terminal state, with its entry status unchanged.
-  **No new bucket, terminal state, verdict or skip-and-continue behaviour is added.**
+**Retiring the refusal removes NO bucket, terminal state, verdict, outcome, stage or skip-and-continue
+behaviour.** The runner's **`take-failed` bucket** and its **`store-write halt`** terminal state stand
+exactly as they were, and a genuine transport failure still lands in them. What is removed is one
+**cause** of landing there: an entry's content type. Nothing downstream is renamed, merged or deleted,
+and the runner's own contract text is not this contract's to write.
 
-**The refusal names** the **content type**, the **carrier**, the **entry fields riding it**, and the
-**missing in-board mutation**, and offers **no workaround ptp performs**.
+**There is no missing in-board mutation left to name**, so the refusal that named one is gone with it.
+The two fail-closed leaves that **do** refuse before dispatch — an **unrecognized content type**, and a
+routable content type for which the compose read returned **no content node id** — are stated once, with
+the dispatch table, and neither is that refusal renamed.
 
-**Rejected, as a decision rather than as an absence: `gh issue edit` / `gh pr edit`.** They write a
-**real repository issue or pull request, outside the board** — the blast radius this premise already
-flags in terms — and they need repository coordinates the board read does not publish. **Not taking that
-path IS the decision**; the per-carrier refusal is its consequence. **No backlog write reaches a
-repository issue or pull request**, and **no fallback is invented**. No refusal anywhere is weakened to
-make a write path fit.
+**A reversal, recorded rather than deleted: `gh issue edit` / `gh pr edit`.** This contract previously
+rejected them **as a decision rather than as an absence**, on **two** grounds, and closed with an
+**absolute**: that no write of this backlog's would ever reach a repository issue or pull request. The
+two grounds settle **differently**, and collapsing them would misstate what the new capability costs:
+
+- **The coordinate ground DISSOLVED.** It read *they need repository coordinates the board read does not
+  publish*. The admitted content mutation needs **none**: it addresses the object by its **content node
+  id**, which the read path publishes and which the compose read returns.
+- **The blast-radius ground was ACCEPTED, not answered.** It read *they write a real repository issue or
+  pull request, outside the board*. That is still exactly true of the route this contract now takes.
+
+**The blast radius, in terms, because it is a cost and not a footnote:** a title or body write on an
+`Issue`- or `PullRequest`-backed entry **edits that live repository object** — that is what the dispatch
+does **when it lands**, and what it **may** have done when it comes back ambiguous. Whichever of its title
+and body the dispatch carried **changes for every viewer**, the edit is recorded in the object's **own
+edit history**, and its **subscribers are notified**. And **wherever the dispatch carries the BODY
+carrier** — which, by the send-set rule above, is wherever the operation plans a body row — the backlog's
+**sentinel-fenced metadata block is written into that object's body**, where it is **visible to everyone
+who can see the repository**. A **title-only** edit sends no body and so writes no metadata block; it
+still edits the repository object, still enters its history and still notifies its subscribers, so it is
+**no less a repository edit** for it. **None of this is undoable by ptp**, which issues no compensating
+write of any kind.
+
+**The old absolute is retired AS A REVERSAL, not quietly dropped.** It claimed that no write of this
+backlog's would ever reach a repository issue or pull request, and under this contract that claim is
+**false**. This paragraph is what stops a later reader taking its absence for an oversight and
+reinstating either the absolute or the refusal that served it.
+
+**`gh issue edit` / `gh pr edit` remain rejected AS MECHANISMS.** They address an object by owner,
+repository and number — coordinates the board read does not publish — and they reach **nothing** the
+admitted content mutation does not already reach by node id. The reversal is about the **capability**,
+never about those two commands.
+
+**The report obligation that comes with the capability, in this contract and not a later one:** an
+operation that dispatched a content mutation SHALL name, **per entry**, the **content type** and the fact
+that a **repository object was edited**. It is a statement of **what happened**, delivered with the
+operation's report; it is **never** a pre-write warning and **never** a confirmation prompt, this contract
+being non-interactive throughout.
+
+**It is stated at the honesty that entry's OUTCOME supports, and never above it** — the obligation adds a
+disclosure, it does not overrule the outcome rules. Where the dispatch **`landed`**, the report states
+that a repository object **was** edited. Where it was **`dispatched-then-ambiguous`** or the row settled
+**`unresolved`**, the report states that a repository object **may have been** edited and that the store
+cannot say which — the same honest floor those outcomes already require, now carrying an **external**
+consequence, which is a reason to state it rather than to soften it. Where the row is **`failed`**,
+**`not-dispatched`** or **`skipped-identical`**, **no repository edit is claimed at all**. Reporting an
+ambiguous content mutation as a completed repository edit is **forbidden**, exactly as reporting it as a
+landed board write is. **No refusal anywhere is weakened to make a write path fit.**
 
 ---
 

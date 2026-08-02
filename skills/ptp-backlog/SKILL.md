@@ -709,8 +709,27 @@ READ:
          `all`      — items(archivedStates: [ARCHIVED, NOT_ARCHIVED]),
                       selecting id · isArchived · createdAt · updatedAt
                       for EVERY item: the roster and the stamp source. It
-                      selects NO content: the porcelain already returned the
-                      non-archived majority's in full.
+                      also selects, of the content, its TYPE NAME and its OWN
+                      `id` and NOTHING ELSE — no title and no body — so that a
+                      NON-ARCHIVED item, whose winning payload is the
+                      porcelain's, has a source for `handle.contentNodeId`
+                      with NO additional per-item call. `content` is a UNION,
+                      on which nothing but the type name is selectable
+                      directly, so that `id` is selected INSIDE ONE INLINE
+                      FRAGMENT PER CONTENT TYPE this transport exposes — the
+                      same union argument the second alias makes; a bare
+                      `content { __typename id }` is NOT a valid shape and is
+                      not what this prescribes. That TYPE NAME is selected
+                      ONLY to enumerate the union's fragments and is NOT a
+                      content-type source: an item's content type still
+                      comes from the row the join resolved it to, so the one
+                      content-type rule the second alias's aliasing exists
+                      to preserve still reads that alias and the porcelain
+                      and no third source. It still selects none of the
+                      CONTENT THE PORCELAIN ALREADY RETURNED IN FULL, which the
+                      type name and the content's own id are not. Nothing else
+                      is added to it: no title, no body, no new call and no new
+                      page round.
          `archived` — items(archivedStates: [ARCHIVED]), selecting id · content
                       · the single-select field values: the content and status of
                       exactly the items the porcelain could not return. These rows
@@ -731,12 +750,17 @@ READ:
            without the alias every archived entry loses its content type and
            with it the write path's per-content-type refusal;
          · the content's TITLE and BODY, on EVERY content type this transport
-           exposes, plus — on a DRAFT-ISSUE content — the DRAFT ISSUE'S OWN
-           NODE ID, which is the sole source of `handle.draftIssueId`. Without
-           the first two an archived entry reaches `epics` with no title and
-           none of the five body-carried slots; without the third an archived
-           draft item's handle reads `null`, which this contract defines as
-           "this item is NOT a draft issue" — a false negative, not a gap;
+           exposes, plus the CONTENT'S OWN NODE ID, likewise on EVERY content
+           type this transport exposes — `id` selected INSIDE the `Issue` and
+           `PullRequest` INLINE FRAGMENTS exactly as it already is inside
+           `DraftIssue`, a union being enumerated per type — which is this
+           alias's source of `handle.contentNodeId`. Without the first two an
+           archived entry reaches `epics` with no title and none of the five
+           body-carried slots; without the third an archived draft, issue or
+           pull-request item's handle reads `null` although this transport
+           exposes that content — a false negative, not a gap. A selection
+           carrying the id inside one fragment and not the others is
+           NON-CONFORMANT on exactly that ground;
          · on each single-select value, its FIELD's NODE ID, which is the only
            thing the `Status` value is selected by (step 3's id) — never a
            name, never a position, these rows not being flattened.
@@ -816,6 +840,14 @@ from the archived alias. There is no third case, and the flag is **never** deriv
 rows came back — that is the inference *Degraded scope* below forbids, and it is forbidden here in the
 same words.
 
+**`handle.contentNodeId` comes from the row the join already resolved that item to.** Both the roster and
+the archived alias can return a coordinate for the same item, and where both do they return **the same
+value** — it is the content object's own node id in either payload. The **winning row's** coordinate is
+authoritative, and the roster is the source **only** for an item whose winning payload carries none —
+today, every **non-archived** item, whose winning payload is the porcelain's. This assembles **no entry
+field from two payloads**: the coordinate is a **handle**, kept **outside** the entry objects, and the
+one-payload rule above governs **entry fields** and is unchanged by it.
+
 **The join is deliberately tolerant rather than fail-closed, and the asymmetry is the reason.** What a
 fail-closed rule would catch here is a **benign race on a live board**, and its cost would be an
 `unreachable-store` on a healthy board every time a human touches a card mid-read. The direction that
@@ -867,9 +899,10 @@ Four things, deliberately separate:
 1. the **document** `{ version, epics }` in the in-memory shape the validator and the ready set consume
    unchanged, plus the ordered **problem list** and the **unavailable mask**;
 2. a **handle table keyed by the board item's node id** —
-   `nodeId → { contentType, isArchived, draftIssueId }`, where `contentType` is the item's content type,
-   `isArchived` is the item's own archived flag, and **`draftIssueId` is the draft issue's own node id
-   on a draft-issue item and `null` on every other content type**;
+   `nodeId → { contentType, isArchived, contentNodeId }`, where `contentType` is the item's content type,
+   `isArchived` is the item's own archived flag, and **`contentNodeId` is the node id of the object the
+   item's content is, published on every content type the transport exposes — draft issue, issue and pull
+   request alike**;
 3. the **`Status` field's node id, and its options as `{ id, name }` pairs, verbatim and in board
    order** — the values step 3 already read in order to map the carrier;
 4. the **project's own node id**, as read at step 2.
@@ -900,15 +933,26 @@ needed.
 
 **There is no second identifier, and that is the point.** The board item's node id is the entry's
 **identity** *and* the **address** the transport's item-scoped writes take, so nothing is translated,
-nothing is substituted, and no handle cell holds an address. That is why the table carries no separate
-address cell distinct from `contentType` and `isArchived`.
+nothing is substituted, and no handle cell holds an **item** address. That is why the table carries no
+separate item-address cell distinct from `contentType` and `isArchived`. A **content node id is not an
+item address**: it addresses the **content object** through a **content-scoped** route, it grants no
+item-scoped write, and it is never passed anywhere an item id is expected.
 
-**`draftIssueId` is a different value and is not an alternative identity.** The transport's title and
-body writes address a **draft issue** rather than a board item and refuse an item id outright, so the
-draft issue's own node id has to reach the write path — and the item payload already carries it, making
-the read the only place it is free. It is `null` for every non-draft content type, which is the concrete
-shape of the content-type refusal the read path already installs: there is **no route at all** to a
-non-draft item's title or body through the item-scoped write.
+**`contentNodeId` is a different value and is not an alternative identity.** A content-scoped write
+addresses the **content object** rather than the board item, so that object's own node id has to reach
+the write path — and the item payload the read already fetches carries it, making the read the only place
+it is free. It is published on **every content type the transport exposes** rather than on one of them.
+
+**A `null` cell means exactly one thing: the read obtained no content node id for that item.** It is not
+a content type, not a refusal, and not a writability verdict, and no consumer may infer any of the three
+from the cell's presence, absence or value — the content type is taken from the handle's own
+`contentType`, and the authoritative content type remains the one the compose read returns immediately
+before dispatch. The cell stays **present and `null`** rather than absent, so *no content node id for this
+item* stays distinguishable from *this handle was never populated*. A `null` cell on a returned,
+interpretable item raises **no problem code** and is no new fatal; an item returned without interpretable
+content remains the existing fatal, unchanged. What the board's write surface offers per content type,
+and what refuses, is the **write-surface contract's** to state and is never derived from the presence or
+absence of a handle cell.
 
 **The option `id`s are returned alongside the names because the write path takes an id.** The names stay
 **unnormalized** for the advisory and the write refusal, exactly as before; the ids are carried because

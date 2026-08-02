@@ -33,14 +33,7 @@ while it had not is the **shape** of the refusal, not its wording:
 - The grounds are their owning contracts' and are **cited, never restated**: `ptp-backlog`'s
   **writer-eligibility** rule; the **`gh` transport contract**'s (`ptp-github-projects-gh`)
   **`read-only`** and **`unavailable`**
-  preflight verdicts (precondition 2b below); an **issue- or pull-request-backed** entry on an
-  operation that **plans a row on the title or the body carrier** — `ptp-backlog-write`'s
-  per-content-type table records that only a **draft-backed** item has an in-board title/body write
-  path, so this ground is **per carrier, not per entry**, and such an entry's **`Status` writes are
-  untouched**. **What that means for this command specifically:** the **resume write**'s `runBaseline`
-  clear rides the **co-dispatched title/body route** while its `done` commit uses the **field-value
-  route**, so an issue- or PR-backed target **refuses at the same point every other body write does** —
-  the operation's own pre-dispatch evaluation, not a new precondition;
+  preflight verdicts (precondition 2b below);
   `ptp-backlog-write`'s refusal when **the resolved
   status-option row does not identify exactly one board `Status` option**; and the `ptp-backlog`
   skill's *Read protocol* **step-0 configuration grounds, both of them** — an **incomplete `backlog.*`
