@@ -34,14 +34,24 @@ When the backlog carries **no fatal** validation problem, render these six secti
 | 1 | **Header** | the resolved **board** — owner, project number, project title, and URL — the `version`, and the entry count, **alongside** the preflight verdict line (below) |
 | 2 | **Entries** | one row per entry, in the **canonical creation-stamp order**: the entry's **board item node id rendered verbatim in its own column**, title, status, the entry's `changeEpics` links **counted by `attribution`**, and a flags cell |
 | 3 | **Ready set** | the ready entries **in run order** — or the reason it is withheld (see *The ready-set suppression rule*) |
-| 4 | **Attention** | stale `in-progress` entries, entries holding a `folder-diff-unconfirmed` change-epic link, entries holding an undispositioned `attributionWarnings` prefix |
+| 4 | **Attention** | stale `in-progress` entries, entries holding a `folder-diff-unconfirmed` change-epic link, entries holding an undispositioned `attributionWarnings` prefix. **`in-review` raises no flag here** — see below |
 | 5 | **Validation** | one row per problem — code, affected entries, message — or an explicit "no problems found" |
-| 6 | **Recommendation** | the next ptp command, in `/ptp:status`'s style |
+| 6 | **Recommendation** | the next ptp command, in `/ptp:status`'s style — **`/ptp:backlog-continue` when any entry is `blocked` with a non-empty `changeEpics`, or any entry is `in-review` with a non-empty `changeEpics`**, the `blocked` case named first |
 
 The entries table renders in **canonical order, not ready order**, so section 2 is a stable picture of
 the board and section 3 is the derived answer. **The node id column is rendered verbatim so it can be
 copied**: it is exactly what `/ptp:backlog-edit` takes as its target. A **scope note** (below) is rendered above the
 recommendation whenever it has anything to say.
+
+**`in-review` is a healthy resting state, not a defect and not un-reconciled residue, so it raises no
+Attention flag.** It renders in the entries table's status column like any other status, through the
+resolved option table. The Attention section carries defects and residue only.
+
+**The Recommendation's `changeEpics` qualifier is on both limbs deliberately.** Nothing guarantees an
+`in-review` entry carries a recorded change — a hand edit, or a WRITE 1 that failed before a later
+attempt's WRITE 2 succeeded, can leave it empty — and recommending `/ptp:backlog-continue` for an entry
+its own candidate predicate excludes would send the user into a refusal. `blocked` is named first,
+mirroring `/ptp:backlog-continue`'s own selection precedence.
 
 ### The header's board identity and verdict line
 
@@ -144,8 +154,8 @@ is computed at all (that is what *fatal* means in the `ptp-backlog` skill). Thos
 **The advisory is withheld under the short output, and that bound is load-bearing rather than
 incidental.** The fatal problem that most often produces the short output is exactly *the board has no
 `Status` field, or it is not a SINGLE_SELECT* — under which the board offers **no options at all**, so an
-advisory computed anyway would name **all five** statuses and send the user chasing a configuration
-mismatch that does not exist. The `malformed-file` problem already names the real defect.
+advisory computed anyway would name **every status in the schema's `status` enum** and send the user
+chasing a configuration mismatch that does not exist. The `malformed-file` problem already names the real defect.
 
 ### The three read exits and their two renderings
 
@@ -200,9 +210,11 @@ as a problem:
 - **An empty backlog** (no entries at all) — a **no-op**, not a defect. Report it as such, naming the
   board and how entries are added.
 
-**No dependency cell is rendered in any entry row**, and **an empty ready set means no `pending` entry
-remains** — readiness is `status` alone, per the `ptp-backlog` skill's ready-set definition, so there
-is nothing else for the view to explain in its place.
+**No dependency cell is rendered in any entry row**, and **an empty ready set means no entry carries the
+`ready` status** — readiness is `status` alone, per the `ptp-backlog` skill's ready-set definition, so
+there is nothing else for the view to explain in its place. **That is not the same as an empty backlog**:
+entries may still sit in `backlog`, and the view SHALL point at `/ptp:backlog-edit` performing
+`backlog` → `ready` as the promotion.
 
 ### The stale `in-progress` flag
 

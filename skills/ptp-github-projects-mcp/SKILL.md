@@ -145,7 +145,7 @@ for path in [ ~/.claude/ptp/config.json,        # global first
     b   = obj.backlog;      if b is not an object:    continue
     m   = b.statusOptions;  if m is not an object:    continue   # supplies NO status key
 
-    for s in [ "pending", "in-progress", "done", "blocked", "cancelled" ]:   # canonical order
+    for s in [ "backlog", "ready", "in-progress", "in-review", "done", "blocked", "cancelled" ]:   # canonical order
         if s is a key of m:
             raw = (m[s] is a string) ? [ m[s] ] : (m[s] is an array ? m[s] : nothing)
             if raw is nothing: continue                       # wrong type -> ignore THIS key only
@@ -157,15 +157,15 @@ for path in [ ~/.claude/ptp/config.json,        # global first
                 overrides[s] = names
             # else: leave the prior value in force (ultimately the default row)
 
-# keys of `m` outside the five are IGNORED — never an error, never written by the editor
+# keys of `m` outside the seven are IGNORED — never an error, never written by the editor
 # resolution never throws and never STOPs
 ```
 
 Four consequences, each separately load-bearing:
 
-- **(a) Per-status independence.** Each of the five status keys is validated and applied
-  **independently**: an invalid `pending` in a layer does not discard that same layer's valid `done`, and
-  does not reset an earlier layer's valid `pending`. The whole map is never discarded because one status
+- **(a) Per-status independence.** Each of the seven status keys is validated and applied
+  **independently**: an invalid `ready` in a layer does not discard that same layer's valid `done`, and
+  does not reset an earlier layer's valid `ready`. The whole map is never discarded because one status
   key is invalid.
 - **(b) The default applies per row, last — and it is applied by `ptp-backlog`'s merge, never
   substituted by this resolver.** A status for which no layer supplied a valid override simply gets **no
@@ -685,9 +685,9 @@ Three absolutes:
 the eight tool spellings are themselves unverified against a live server. Nothing may infer it upward
 from a result set.
 
-**Why the field exists.** The backlog's **ready set** is the `pending` entries in the backlog's
+**Why the field exists.** The backlog's **ready set** is the `ready` entries in the backlog's
 canonical order, and a runner consumes its **head**. If the item-listing tool silently omits archived
-items, an archived `pending` entry that belongs at that head is missing from the order and the runner can
+items, an archived `ready` entry that belongs at that head is missing from the order and the runner can
 take the **wrong epic**. The read path therefore withholds the ready set unless archive coverage is
 affirmatively established from this record, and this field is its only admissible source.
 

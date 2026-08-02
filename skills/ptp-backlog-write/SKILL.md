@@ -221,7 +221,8 @@ exposes no setter for, while `id` has **nothing to write to**.
 ### Which `Status` option the commit writes
 
 The `Status` carrier is the one carrier whose **content** is not simply the field's value: the entry
-`status` is an enum of five values, while the board carries a SINGLE_SELECT **option** whose accepted
+`status` is one of the values of the schema's `status` enum (`ptp-backlog`'s, never restated here), while
+the board carries a SINGLE_SELECT **option** whose accepted
 names come from `ptp-backlog`'s **resolved status-option table** (its default table merged with the
 `backlog.statusOptions` overrides). So the carrier's content needs a rule, and this is it:
 
@@ -235,10 +236,12 @@ Three properties, in order of importance:
   board option **order**, **position**, and **color** not at all.
 - **User-controlled.** The row is an ordered list the user writes, so *which spelling do you prefer* is
   answered by the configuration rather than by a preference of ptp's own.
-- **Correct on a README-shaped board.** Under the default table the `pending` row is `pending`, `Todo`;
-  a board created per the documented setup offers `Todo` and not `pending`, so the rule selects `Todo`.
-  **A rule of *always write the row's first name* is rejected** — it would select `pending` and fail on
-  the most common board there is.
+- **Correct on a README-shaped board.** Under the default table (`ptp-backlog`'s, cited and not
+  reproduced) the `ready` row resolves to `ready`, `Ready`; a board created per the documented setup
+  offers `Ready` and not `ready`, so the rule selects `Ready`. **A rule of *always write the row's first
+  name* is rejected** — it would select `ready`, which that board does not offer, and fail on the most
+  common board there is. The **`backlog`** row behaves identically and is `/ptp:backlog-add`'s commit,
+  which makes it the most common commit on a fresh board.
 
 ### The commit refuses when the resolved row does not identify exactly one board option
 
@@ -263,10 +266,10 @@ option normalizes into the same row, so a **read** of that item yields an unambi
 **Why before W1 rather than at the commit.** On a **creation**, refusing at the commit would mean W1 had
 already landed, leaving an item on the board with **no `Status`** — which is an **entry** carrying a
 `malformed-entry` on `status`, withholding the ready set for the whole backlog and requiring the orphan
-repair. And the repair would not work: the orphan repair *sets the item's `Status` to `pending`*, which
-is the very write that has no option to select. A commit-time refusal would therefore manufacture an
-**unrepairable** orphan out of a configuration typo. Refusing before W1 creates nothing and leaves
-nothing behind.
+repair. And the repair would not work: the orphan repair *sets the item's `Status` to the intended
+`backlog`*, which is the very write that has no option to select. A commit-time refusal would therefore
+manufacture an **unrepairable** orphan out of a configuration typo. Refusing before W1 creates nothing
+and leaves nothing behind.
 
 **Two non-interactions, stated so neither rule is read into the other.**
 
@@ -837,10 +840,16 @@ withheld**. It is not an unmanaged item — there are none — and it is not a d
 And unlike the id-less card the old contract carried, it **does** block: the withheld ready set is
 exactly what forces the repair.
 
-**The repair the report directs:** **set the item's `Status` on the board to the intended `pending`**, or
+**The repair the report directs:** **set the item's `Status` on the board to the intended `backlog`**, or
 repair it through **`/ptp:backlog-edit` against the item's node id**. The report names the item by
 **board node id and title**, states that its `Status` is unset and that an unset `Status` withholds the
 ready set for the whole backlog.
+
+**Why this destination is `backlog` while the recovery dispositions settle to `ready`.** An orphan
+completes an **interrupted creation** — W1 landed and the commit did not — and `/ptp:backlog-add` is the
+only creating writer in the plugin, so the *intended* status is the one that add commits; the recovery
+dispositions act instead on an epic a human has asked to resume, and their destinations are the ones
+`ptp-backlog`'s transition and disposition tables name — cited here, never restated.
 
 **Applying the landed carrier record.** Where **every** payload field rides the carrier the creation call
 itself wrote — which is the case under the landed mapping, the create carrying title **and** body — the
@@ -858,7 +867,7 @@ offered**.
 **Where the board's own automation stamps `Status` on add**, premise 1 below does not hold and the item
 will carry a `Status` this operation never committed. That case is **reported, never worked around**: the
 report names the **observed** value, does **not** claim the commit landed, does **not** assert the value
-is the intended `pending`, and directs the user to **inspect the item before any repair**. No new
+is the intended `backlog`, and directs the user to **inspect the item before any repair**. No new
 detection step, no automation probe, and no compensating write is introduced — the obligation is on the
 report's honesty, not on a new branch of behavior.
 
@@ -940,9 +949,9 @@ would then be the wrong place to discover that it had.
 
 - Settled to **`cancelled`** → a **permanent phantom no writer could ever clear**, which is the exact
   state the cancellation guard's mandatory clear exists to prevent.
-- Settled to **`pending`** → the baseline is **silently destroyed by the next take**.
+- Settled to **`ready`** → the baseline is **silently destroyed by the next take**.
 - Settled to **`blocked`** → destroyed by **`/ptp:backlog-continue`'s resume clear, or by a
-  reset-then-take** — **never** by a take directly, the runner taking only `pending` entries. The two
+  reset-then-take** — **never** by a take directly, the runner taking only `ready` entries. The two
   routes are stated separately, and *"the next take overwrites it"* must **not** be written of a
   `blocked` entry.
 - And **decisively**: the reverse order leaves a **settled** entry that has **left the gate**, so the
@@ -950,7 +959,7 @@ would then be the wrong place to discover that it had.
 
 **Ground 4 — the reverse order would be a per-operation exception whose boundary leaks.** Writing
 `status` first at the runner's take leaves an `in-progress` entry with a **null baseline holding no
-`changeEpics`** — genuinely stranded, needing a hand repair — whereas the chosen order leaves `pending`
+`changeEpics`** — genuinely stranded, needing a hand repair — whereas the chosen order leaves `ready`
 with a baseline that the next take simply overwrites.
 
 ## What is honestly given up

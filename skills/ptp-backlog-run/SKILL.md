@@ -247,7 +247,7 @@ eligibility exists so the **repair** path stays reachable: `/ptp:backlog-edit` i
 a refusal there would make a defect permanent. **The runner repairs nothing.** It consumes
 **`status`** to compute the ready set, and the `malformed-entry` on `status` — which explicitly covers
 an **unset or out-of-enum `status`** — corrupts exactly that **input**, not merely its output. A runner
-that guessed past an unreadable `status` could take an epic that is not `pending`, or skip one that
+that guessed past an unreadable `status` could take an epic that is not `ready`, or skip one that
 is. `0036_01`'s own read-only view is already calibrated against this posture — it withholds
 the ready set on the same problems "so that the view can never present a ready set that a backlog
 runner would refuse to consume". Declining an eligibility that is granted is therefore the designed
@@ -284,7 +284,7 @@ processed so far (see *store-defect halt* below).
 Load-bearing, not an optimization, for two reasons — **mid-run defect detection** and the
 **no-in-memory-model rule** — neither of which is about promotion:
 
-> On a backlog holding three `pending` entries A, B, C, a `rounds:3` run
+> On a backlog holding three `ready` entries A, B, C, a `rounds:3` run
 > processes all three. The re-read before each iteration is what lets a **hand edit** or a **store
 > defect** arriving between epics be seen at all: without it the run would execute a picture of the
 > backlog taken before the first epic started.
@@ -327,8 +327,8 @@ in part would be false. The empty-ready-set rung's own trigger is otherwise unch
 | **halted** | an epic's `/ptp:full` did not converge | run halted; at most one per invocation |
 | **store-defect halt** | a **mid-run** re-read failed `ptp-backlog` validation | **yes** — a store defect, mid-loop rather than pre-loop |
 
-**Two former starvation states are gone**, and neither can recur: the ready set **is** the `pending`
-entries, so "the ready set is empty **and** `pending` entries remain" is a contradiction and both
+**Two former starvation states are gone**, and neither can recur: the ready set **is** the `ready`
+entries, so "the ready set is empty **and** `ready` entries remain" is a contradiction and both
 states were unsatisfiable.
 
 ### `halted` takes control-flow priority over rungs 2–4, which is what makes "exactly one" well defined
@@ -340,7 +340,7 @@ same classification without the loop ever iterating. The ladder, in full:
 0. If a store **write group** returned a verdict other than `complete` → **`store-write halt`**.
 1. Otherwise, if an epic's `/ptp:full` did not converge, the loop exits **immediately** at WRITE 2 and
    the state is **`halted`** — the cap and the ready set are **not consulted**. A `rounds:1` run whose
-   single epic failed is `halted`, **not** rounds exhausted; a halt that happens to leave no `pending`
+   single epic failed is `halted`, **not** rounds exhausted; a halt that happens to leave no `ready`
    entries is `halted`, **not** under-supply.
 2. Otherwise, if the round cap was consumed → **rounds exhausted**.
 3. Otherwise, if a mid-run re-read failed `ptp-backlog` validation → **store-defect halt**.
@@ -377,10 +377,10 @@ in flight when it fires**, so it leaves **no `in-progress` entry of the runner's
 - **rounds exhausted** — the effective and consumed round counts, and the remaining-ready count, so
   the user can re-run to continue.
 - **under-supply** — how many rounds were consumed of how many requested, and that the backlog holds
-  no further `pending` epics. **But under-supply is not reported as clean exhaustion while an
-  `in-progress` entry lingers**: its condition tests `pending` **only**, so a backlog whose sole
+  no further `ready` epics. **But under-supply is not reported as clean exhaustion while an
+  `in-progress` entry lingers**: its condition tests `ready` **only**, so a backlog whose sole
   remaining work is an entry left `in-progress` by an earlier crashed run satisfies it. That entry is
-  un-reconciled work, not exhaustion — so when `pending` is empty and `in-progress` is not, the report
+  un-reconciled work, not exhaustion — so when `ready` is empty and `in-progress` is not, the report
   **names those entries as un-reconciled and points at `/ptp:backlog-edit`** rather than calling the
   backlog exhausted.
 - **halted** — the halted epic and the terminal state that halted it (see *Terminal report*).
@@ -401,7 +401,7 @@ own.
 
 | Failed group | The report SHALL also state |
 |---|---|
-| **WRITE 0** | the epic was **not taken** and `ptp-full` was **not invoked**; whether a `runBaseline` was stranded on a **`pending`** entry; and that the stranded value is **inert** and the next take overwrites it — **except on `unresolved-commit`**, where the entry's status is **unknown**, both possibilities are named and neither asserted, no inertness and no next-take promise is made, and inspection is directed before any repair |
+| **WRITE 0** | the epic was **not taken** and `ptp-full` was **not invoked**; whether a `runBaseline` was stranded on a **`ready`** entry; and that the stranded value is **inert** and the next take overwrites it — **except on `unresolved-commit`**, where the entry's status is **unknown**, both possibilities are named and neither asserted, no inertness and no next-take promise is made, and inspection is directed before any repair |
 | **WRITE 1** | the entry is left **`in-progress` with `runBaseline` set**, **deliberately**, and WRITE 2 was **not dispatched**; **which dispatch failed** and therefore whether a durable link landed at all — or, where its rows are **`unresolved`**, that whether one landed is **unknown**, asserting neither, and where **nothing was dispatched at all** (verdict `refused`, every row `not-dispatched`), that **no dispatch failed because none was made**, naming instead the **halt cause** and the field or carrier it halted on; on a failed `attributionWarnings` dispatch, the **prefixes it was carrying** and the residual below; that a resuming `/ptp:backlog-run` **cannot take** the entry and will report it as un-reconciled, **naming which clause** will do so; and `/ptp:backlog-edit` as the repair |
 | **WRITE 2** | the epic's **convergence verdict**; the entry's **actual status** — or, on `unresolved-commit`, both possible statuses with neither asserted; **which of the two shapes** resulted — the `notes` line's presence **following from that shape**, never reported as an independent fact — or, where the body row is **`unresolved`**, both shapes with neither asserted; and, for the null-baseline shape, `ptp-backlog-write`'s **full four-part report obligation**, its **part 3 scoped as below** |
 
@@ -469,7 +469,7 @@ mapping onto that sequence's stages, whose names are **cited, never redefined**.
 |---|---|---|
 | **WRITE 0** — take the epic | `runBaseline` (set) | `status: in-progress` |
 | **WRITE 1** — record the link | `changeEpics`, `attributionWarnings` | — |
-| **WRITE 2** — settle the run | the `runBaseline` **field-value clear**, and on the halt path the appended `notes` line | `status: done` \| `blocked` |
+| **WRITE 2** — settle the run | the `runBaseline` **field-value clear**, and on the halt path the appended `notes` line | `status: in-review` \| `blocked` |
 
 **WRITE 1 has no commit stage at all.**
 
@@ -578,7 +578,7 @@ Two asymmetries, easy to get backwards:
 **`attributionWarnings` is persisted, not printed.** A print-only warning would be lost the moment the
 run ends, and with `runBaseline` cleared nothing could reconstruct it.
 
-**WRITE 1 merges; it never replaces.** An epic re-taken after a `blocked` → `pending` reset still
+**WRITE 1 merges; it never replaces.** An epic re-taken after a `blocked` → `ready` reset still
 carries the prior attempt's `changeEpics`: `0036_03` retains them "in full — never clearing, pruning,
 or relabelling them" and persists **no** attempt id, boundary, or grouping, so those ids are the
 **only** durable record that the epic is not a clean slate. A replacing write would destroy that
@@ -619,7 +619,7 @@ runner start the *next* epic on top of unreviewed code — the exact hazard `ptp
 
 ### WRITE 2 — persist the terminal status
 
-- **converged** → `status: done`, **clear `runBaseline`**, write.
+- **converged** → `status: in-review`, **clear `runBaseline`**, write.
 - **not converged** → `status: blocked`, **append** a single line recording the terminal state to
   `notes`, **clear `runBaseline`**, write, and **HALT the run**: no further epic is taken and no ready
   set is recomputed.
@@ -673,7 +673,7 @@ so the runner must leave exactly these shapes in the fields it writes:
 Row 1 is why WRITE 0 must not be read as a reset: a re-taken entry arrives carrying the prior
 attempt's ids, so WRITE 1 **merges**. Row 2 is why the gate keys on *any* id rather than on
 "unconfirmed ids exist" — an unconfirmed-only gate would wave that entry straight through to
-`pending` and silently re-run work that already landed. Row 3 is the gate's warnings-only limb, and it
+`ready` and silently re-run work that already landed. Row 3 is the gate's warnings-only limb, and it
 is this runner that produces it — the **non-empty diff** in its condition is what makes it that limb,
 since the same kill point over an **empty** diff adds nothing at all (WRITE 1 row 6) and so presents as
 row 1.
@@ -683,9 +683,12 @@ row 1.
 The status transition table is **owned by `ptp-backlog`** and is **cited, never restated**. The runner
 performs **only the three rows whose performer is `/ptp:backlog-run`**:
 
-- `pending` → `in-progress` (WRITE 0),
-- `in-progress` → `done` (WRITE 2, converged),
+- `ready` → `in-progress` (WRITE 0),
+- `in-progress` → `in-review` (WRITE 2, converged),
 - `in-progress` → `blocked` (WRITE 2, not converged).
+
+**The runner writes `done` nowhere at all.** That value is reachable only through **guard 3**, whose
+performer is `/ptp:backlog-continue`.
 
 It introduces **no transition rule of its own**. And it **never resets an entry**, **never revives a
 `cancelled` entry**, **never retries a `blocked` entry**, and **never dispositions an
@@ -709,8 +712,8 @@ Two independent reasons re-dispatch is forbidden:
   attempted-but-incomplete take.
 - The run **halts rather than skipping** to the next ready epic. The transport is a **shared** resource,
   so the next epic almost certainly fails identically; skipping would burn rounds silently and scatter
-  stranded baselines across several `pending` entries.
-- A stranded `runBaseline` on a **`pending`** entry is **inert** — WRITE 0 precedes `ptp-full`, so **no
+  stranded baselines across several `ready` entries.
+- A stranded `runBaseline` on a **`ready`** entry is **inert** — WRITE 0 precedes `ptp-full`, so **no
   work was done**. It is deliberately **not** a stale entry (staleness requires `in-progress`), **not**
   gated (the gate's trigger is `in-progress` with a status-changing instruction, or a non-null baseline
   under an out-of-enum repair), and **not** flagged; the next take overwrites it. **The report SHALL
@@ -720,7 +723,7 @@ Two independent reasons re-dispatch is forbidden:
   as much as at WRITE 2: WRITE 0 **has** a commit (`status: in-progress`), so this is the one WRITE-0
   verdict on which the take may in fact have landed. The entry's status is then **unknown**, and the
   report SHALL name **both** possibilities and assert **neither**. In particular it SHALL NOT state
-  that the entry is `pending`, SHALL NOT describe the baseline as inert, and SHALL NOT promise that
+  that the entry is `ready`, SHALL NOT describe the baseline as inert, and SHALL NOT promise that
   *the next take overwrites it* — none of which holds on the `in-progress` branch, where the entry is
   instead the ordinary **stale** shape (`in-progress` with its baseline set) that the runner never
   takes. The report SHALL direct **inspection before any repair or retry**. Every other WRITE-0
@@ -828,9 +831,12 @@ case resolving to one of them once the entry is inspected. **No disposition, gat
 
 ### The never-yields-`done` check
 
-A **check**, not a restatement: a partial write can **never** reach `done`, because `status` is the
-**single last dispatch** of its group, so `done` is either **fully committed or never written**. This
-cites `ptp-backlog`'s *recovery never yields `done`* and **adds no rule to it**.
+A **check**, not a restatement: this runner writes `done` **nowhere**, so no write of its — partial or
+complete — can reach it. The narrower pre-`0046_03` form of this check (a partial write can never
+reach `done` because `status` is the **single last dispatch** of its group) is **subsumed**, and the
+mechanism it named still governs `in-review`: `in-review` is WRITE 2's **commit**, so it is either
+**fully committed or never written**. This cites `ptp-backlog`'s *recovery never yields `done`* and
+**adds no rule to it**.
 
 ## Recovery is inherited whole
 
@@ -856,10 +862,14 @@ one `/ptp:full` run**; the runner needs buckets describing **backlog epics acros
 
 | Backlog-level bucket | Meaning | Entry status |
 |---|---|---|
-| `processed` | the epic's `/ptp:full` converged end to end | `done` |
+| `processed` | the epic's `/ptp:full` converged end to end | `in-review` |
 | `halted` | the epic whose `/ptp:full` did not converge and stopped the run, **or** whose post-`ptp-full` write group failed **whether or not its `/ptp:full` converged** (at most one per invocation) | nominally `blocked` — but the entry's **actual** status is printed wherever a write group failed |
-| `take-failed` | the epic whose **take** write group did not complete | **unchanged by this runner** — normally `pending`; the entry's **actual** status wherever the take halted on a `status` pre-write-check difference; and **unknown, with both possibilities named and neither asserted**, where the take ended `unresolved-commit` |
-| `never-started` | ready or pending epics the invocation never reached (rounds exhausted or a halt) | unchanged `pending` |
+| `take-failed` | the epic whose **take** write group did not complete | **unchanged by this runner** — normally `ready`; the entry's **actual** status wherever the take halted on a `status` pre-write-check difference; and **unknown, with both possibilities named and neither asserted**, where the take ended `unresolved-commit` |
+| `never-started` | ready epics the invocation never reached (rounds exhausted or a halt) | unchanged `ready` |
+
+**`processed` means the runner finished with the epic, not that the epic is finished.** Its entry is
+`in-review`: converged, **unarchived**, and **uncommitted**. `/ptp:backlog-continue` is what settles it
+to `done`.
 
 **`take-failed` — at most one per invocation, and mutually exclusive with `halted`**: a take failure
 halts **before** `ptp-full` runs, so no epic can both fail its take and fail to converge in one
@@ -880,8 +890,8 @@ bucket's **meaning** is widened above precisely because such a failure can happe
 with no epic-level meaning; a backlog epic is either finished, the one that halted, or untouched. It
 appears **only** inside an epic's nested per-slice report.
 
-**Entries already `done`, `cancelled`, or `blocked` before the invocation began are outside the four
-buckets** — the invocation neither processed them nor could have reached them. They appear only where
+**Entries already `backlog`, `in-review`, `done`, `cancelled`, or `blocked` before the invocation began are outside
+the four buckets** — the invocation neither processed them nor could have reached them. They appear only where
 a terminal-state report names them (a lingering un-reconciled `in-progress` entry under
 under-supply).
 
@@ -927,9 +937,11 @@ Alongside the buckets, the report carries **every one of these**:
 4. the **remaining-ready count**, with the as-of-last-validated-read semantics below;
 5. **every `attributionWarnings` prefix recorded this run**;
 6. **every entry flagged attribution-unconfirmed**;
-7. a restatement that **nothing was committed and nothing was archived**;
+7. a restatement that **nothing was committed and nothing was archived** — and therefore that every
+   epic in `processed` is `in-review` rather than `done`, awaiting `/ptp:backlog-continue`;
 8. the **next-step pointers** — `/ptp:backlog` to view; `/ptp:backlog-edit <id>` to disposition a
-   halted entry; re-run `/ptp:backlog-run` once the halt or the remaining work is resolved;
+   halted entry; **`/ptp:backlog-continue` to settle an `in-review` epic**; re-run `/ptp:backlog-run`
+   once the halt or the remaining work is resolved;
 9. **on every terminal state**, any entry left **`in-progress`** that this invocation did **not** take,
    named as **un-reconciled**, **distinguishing the baseline-set shape from the null-baseline residual**
    (`ptp-backlog-write`'s layer-2 predicate), and pointing at `/ptp:backlog-edit`. This is **one report
@@ -949,7 +961,7 @@ processing an epic can never promote another:
 > the last validated read's ready set, **less the epics processed since that read**.
 
 **The subtrahend is *the epics processed since that read*** — **not** the epics the whole invocation
-processed. After a multi-round run that larger set's earlier members are already `done` in the last
+processed. After a multi-round run that larger set's earlier members are already `in-review` in the last
 validated read and therefore already absent from its ready set, so subtracting them again would
 double-count. Which epics count is decided by where each terminal state exits:
 

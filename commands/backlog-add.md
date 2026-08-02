@@ -1,5 +1,5 @@
 ---
-description: Add one epic to the backlog from a free-text request — writes a single pending entry, modifying no other entry, and establishes no identifier of its own, the entry's id being the board item's node id. Autonomous: asks no clarifying questions. Delegates the schema, IO, the identity rule, and validation rules to the shared ptp-backlog skill.
+description: Add one epic to the backlog from a free-text request — writes a single `backlog` entry that is not yet ready to run, modifying no other entry, and establishes no identifier of its own, the entry's id being the board item's node id. Autonomous: asks no clarifying questions. Delegates the schema, IO, the identity rule, and validation rules to the shared ptp-backlog skill.
 argument-hint: "<free-text description of the epic to add> [model:<model>.<effort>]"
 ---
 
@@ -94,7 +94,7 @@ proceed as-is. The full rule (branch naming, the workflow contract, the hard rul
       the write journal, per **`skills/ptp-backlog-write/SKILL.md`** — cited, not restated. **No earlier
       step writes anything**, and nothing is created on disk, at any step.
 
-      The subject entry's **`status: pending` is the commit**, not part of *Entry composition*'s write;
+      The subject entry's **`status: backlog` is the commit**, not part of *Entry composition*'s write;
       *Entry composition* below is otherwise unchanged.
 
       **The actual dispatch count, from the skill's carrier record:** the create call carries **title
@@ -117,9 +117,16 @@ proceed as-is. The full rule (branch naming, the workflow contract, the hard rul
       Where the skill's verdict is `unresolved-create` there is **no node id to name** and the report
       SHALL say so — carrying the journal's `unidentified` rows and the observed candidates — rather
       than printing an identity it does not have; where the verdict is `unresolved-commit` the entry's
-      **`status` is unknown** and the report SHALL NOT assert `pending`. In both cases the report is the
+      **`status` is unknown** and the report SHALL NOT assert `backlog`. In both cases the report is the
       skill's journal and terminal verdict, and this command **asserts nothing the write did not
       establish**.
+
+      **On a settled creation the report SHALL also state that the entry is not yet ready to run**, and
+      name **`/ptp:backlog-edit` performing `backlog` → `ready`** as the promotion that makes
+      `/ptp:backlog-run` able to take it. The transition is `ptp-backlog`'s table's, cited here and
+      never copied. That statement is scoped exactly as the naming obligation above is, and for the same
+      reason: it presupposes the entry carries `backlog`, so under `unresolved-create` or
+      `unresolved-commit` it is **withheld with the status** rather than printed beside an unknown one.
 5. **STOP** with the report.
 
 ## Entry composition
@@ -129,7 +136,8 @@ This is the **only** methodology this command owns — everything else is the sk
 
 - Its `id` is the **board item's node id the creation returns**. It is **not composed** and **not
   written** — it joins `createdAt` and `updatedAt` as a board-supplied value.
-- The new entry's `status` is **`pending`**.
+- The new entry's `status` is **`backlog`**. This is deliberate: the entry is **recorded, not
+  scheduled**, and `/ptp:backlog-run` will not take it.
 - Its `title` is a short **derived** label — **one to eight words, never empty** — for the
   `/ptp:backlog` view.
 - Its `description` carries the user's request text **substantively verbatim**. Do **not** paraphrase

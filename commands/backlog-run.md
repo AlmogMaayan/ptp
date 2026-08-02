@@ -62,7 +62,8 @@ so no invalid invocation, and no invocation that provably cannot write, causes a
 Drive the **`ptp-backlog-run`** skill: it loads and validates the backlog store through
 `ptp-backlog`, announces the blast radius — **six** items, the sixth naming the shared-board
 consequence — then loops, recomputing the ready set before every iteration, taking one epic, running it
-through `/ptp:full`, writing the outcome back through `ptp-backlog-write`'s ordered write sequence, and
+through `/ptp:full`, writing the outcome back through `ptp-backlog-write`'s ordered write sequence — a
+converged epic landing on `in-review`, never `done` — and
 halting the whole run on the first epic that does not converge **or whose write group does not
 complete**. It finally emits the **four-bucket** terminal report — `processed`, `halted`,
 **`take-failed`**, `never-started` — classified into **five** loop-terminal states, which now include
@@ -86,7 +87,8 @@ restated in this file or in the runner skill.
 - **Never fan out across backlog epics** — one epic at a time. (`/ptp:full`'s own per-slice fan-out
   inside an epic is unchanged and still governed by `parallel.mode`.)
 - **Never commit, push, merge, archive, or deploy** — the work piles up on one branch, uncommitted and
-  unarchived, and the pre-run announcement says so.
+  unarchived, and the pre-run announcement says so — which is why a converged epic lands on
+  `in-review`, never `done`; `/ptp:backlog-continue` is what reaches `done`.
 - **Halt the whole run on a non-converged epic** — mark it `blocked` and take no further epic.
 - **One branch guard per run**, never one per epic.
 - **No selector and no other token** — no change id, no `epic:`/`story:` selector, no entry
