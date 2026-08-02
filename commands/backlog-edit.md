@@ -29,14 +29,7 @@ while it had not is the **shape** of the refusal, not its wording:
   the **specific** reason it cannot write. No second, divergently-worded refusal is added beside it.
 - The grounds are their owning contracts' and are **cited, never restated**: the `ptp-backlog` skill's
   **writer-eligibility** rule; the **`gh` transport contract**'s (`ptp-github-projects-gh`)
-  **`read-only`** and **`unavailable`** preflight verdicts; an **issue- or pull-request-backed** entry
-  on an operation that **plans a row on the title or the body carrier** — `ptp-backlog-write`'s
-  per-content-type table records that only a **draft-backed** item has an in-board title/body write
-  path, so this ground is **per carrier, not per entry**, and such an entry's **`Status` writes are
-  untouched**. **What that means for this command specifically:** its `title` / `description` / `notes`
-  edits and **every settling edit** — the mandatory `runBaseline` clear being a body row — ride the
-  **co-dispatched title/body route** and therefore **refuse** on such an entry, while its **pure status
-  transitions still work** there. And, on an invocation that commits a `status`, `ptp-backlog-write`'s refusal when **the
+  **`read-only`** and **`unavailable`** preflight verdicts; and, on an invocation that commits a `status`, `ptp-backlog-write`'s refusal when **the
   resolved status-option row does not identify exactly one board `Status` option**; and the
   `ptp-backlog` skill's *Read protocol* **step-0 configuration grounds, both of them** — an
   **incomplete `backlog.*` configuration** (its missing keys being only ever `backlog.projectOwner`

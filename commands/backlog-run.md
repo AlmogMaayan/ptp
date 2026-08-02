@@ -22,17 +22,7 @@ while it had not is the **shape** of the refusal, not its wording:
   **`read-only`** and **`unavailable`**
   preflight verdicts (precondition 3b below); the read path's **degraded-scope** withholding, which this
   command consumes because it **consumes the ready set**, refusing at the top of the iteration and
-  never classifying a withheld ready set as an empty one; an **issue- or pull-request-backed** entry on
-  an operation that **plans a row on the title or the body carrier** — `ptp-backlog-write`'s
-  per-content-type table records that only a **draft-backed** item has an in-board title/body write
-  path, so this ground is **per carrier, not per entry**, and such an entry's **`Status` writes are
-  untouched**. **What that means for this command specifically:** **WRITE 0**'s `runBaseline`
-  write-back and **WRITE 1** / **WRITE 2**'s body writes all ride the **co-dispatched title/body
-  route**, so such an entry's **take is refused before anything is dispatched** and the epic lands in
-  the runner's **existing `take-failed`** bucket under its **existing `store-write halt`** terminal
-  state — **no new bucket, terminal state, verdict or skip-and-continue behaviour** — while each write
-  group's `status` commit uses the **field-value route**, which works on every content type;
-  `ptp-backlog-write`'s refusal when **the
+  never classifying a withheld ready set as an empty one; `ptp-backlog-write`'s refusal when **the
   resolved status-option row does not identify exactly one board `Status` option**; and the
   `ptp-backlog` skill's *Read protocol* **step-0 configuration grounds, both of them** — an
   **incomplete `backlog.*` configuration** (its missing keys being only ever `backlog.projectOwner`

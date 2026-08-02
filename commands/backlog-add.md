@@ -22,11 +22,7 @@ while it had not is the **shape** of the refusal, not its wording:
   the **specific** reason it cannot write. No second, divergently-worded refusal is added beside it.
 - The grounds are their owning contracts' and are **cited, never restated**: the `ptp-backlog` skill's
   **writer-eligibility** rule; the **`gh` transport contract**'s (`ptp-github-projects-gh`)
-  **`read-only`** and **`unavailable`** preflight verdicts; an **issue- or pull-request-backed** entry
-  on an operation that **plans a row on the title or the body carrier** — `ptp-backlog-write`'s
-  per-content-type table records that only a **draft-backed** item has an in-board title/body write
-  path, so this ground is **per carrier, not per entry**, and such an entry's **`Status` writes are
-  untouched**; and `ptp-backlog-write`'s refusal when **the resolved status-option row does not identify
+  **`read-only`** and **`unavailable`** preflight verdicts; and `ptp-backlog-write`'s refusal when **the resolved status-option row does not identify
   exactly one board `Status` option** — taken before the existence stage, so a creation under it leaves
   **no item** on the board. **The `ptp-backlog` skill's *Read protocol* step-0 configuration grounds
   are among them, both of them**: an **incomplete `backlog.*` configuration** (its missing keys being

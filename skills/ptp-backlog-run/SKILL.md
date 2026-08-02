@@ -459,7 +459,13 @@ Emitted **after the ready set is computed and before the first epic runs**, stat
    team**, and are **not undone by discarding the feature branch**. Item 4 is true of the **code** and
    is now **false of the backlog**, which is why this item exists. Where an entry's content type is an
    **issue** or a **pull request**, a backlog write to a body-carried field also edits **that issue's or
-   pull request's own body**, outside the board (see `ptp-backlog-write`).
+   pull request's own body** — a repository artifact, **outside the board**, and likewise **not undone by
+   discarding the feature branch** (see `ptp-backlog-write`). This is a **live consequence of every run
+   over such an entry, not an aside**: all three write points dispatch body-carried fields —
+   `runBaseline` at the take, `changeEpics` and `attributionWarnings` at WRITE 1, the `runBaseline` clear
+   and any `notes` line at WRITE 2. Such an entry is **taken and run like any other**: it is **not
+   unwritable**, **not un-takeable**, and its take is **never refused** for its content type. The item
+   discloses a consequence, never a limitation.
 
 **This is an announcement, not a confirmation gate** — the run proceeds without waiting for user
 input. **Judgment call recorded:** the counter-precedent is real, since `/ptp:full-apply` performs a

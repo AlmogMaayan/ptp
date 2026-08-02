@@ -1,6 +1,6 @@
 ---
 name: ptp-github-projects-gh
-description: Own the GitHub-Projects backlog transport contract and the backlog.* configuration schema — the layered resolution of backlog.projectOwner, backlog.projectNumber, and backlog.statusOptions (the map-kind key whose members sit at the schema's first three-level path, resolved per status key and published as validated overrides on the verdict, with the default table, the merge, and the collision rule left to ptp-backlog) with its forgiving per-key reader and its once-on-the-combination completeness verdict; the acting identity, which has exactly one source — gh's own resolved active account for the resolved host — and is read and disclosed, never chosen, ptp setting no host or token environment variable and running no credential-changing command; the enumerated-never-probed gh surface, a subcommand's existence being a property of the binary rather than of the session; the four-stage capability preflight (binary, authentication, token scope, board reachability) and its three verdicts (ready | read-only | unavailable); the eleven-field preflight record every consumer reads; the archiveReachable fact, whose field name and three literals are unchanged; the fixed six-label non-silent STOP message and its self-naming repair ladder; and the shell-invocation contract every concrete gh call is built from. A pure prose contract in the single-source-of-truth pattern of ptp-branch-guard (branch safety), ptp-codex-mode (the reviewer gate), ptp-agent-roles (role resolution), ptp-parallel-fanout (fan-out safety), and ptp-backlog (the backlog board contract): it reads no file on its own, writes nothing, runs no git, starts nothing, and changes nothing. Defined by 0047_05, which retires the MCP transport contract it replaces; consumed by 0047_06 (the read path) and 0047_07 (the write path).
+description: Own the GitHub-Projects backlog transport contract and the backlog.* configuration schema — the layered resolution of backlog.projectOwner, backlog.projectNumber, and backlog.statusOptions (the map-kind key whose members sit at the schema's first three-level path, resolved per status key and published as validated overrides on the verdict, with the default table, the merge, and the collision rule left to ptp-backlog) with its forgiving per-key reader and its once-on-the-combination completeness verdict; the acting identity, which has exactly one source — gh's own resolved active account for the resolved host — and is read and disclosed, never chosen, ptp setting no host or token environment variable and running no credential-changing command; the enumerated-never-probed gh surface, a subcommand's existence being a property of the binary rather than of the session; the four-stage capability preflight (binary, authentication, token scope, board reachability) and its three verdicts (ready | read-only | unavailable); the twelve-field preflight record every consumer reads; the archiveReachable fact, whose field name and three literals are unchanged; the closed two-mutation content-body route addressed by the content node id, and the contentScope disclosure that discloses the repository token scope while stopping nothing; the fixed six-label non-silent STOP message and its self-naming repair ladder; and the shell-invocation contract every concrete gh call is built from. A pure prose contract in the single-source-of-truth pattern of ptp-branch-guard (branch safety), ptp-codex-mode (the reviewer gate), ptp-agent-roles (role resolution), ptp-parallel-fanout (fan-out safety), and ptp-backlog (the backlog board contract): it reads no file on its own, writes nothing, runs no git, starts nothing, and changes nothing. Defined by 0047_05, which retires the MCP transport contract it replaces; consumed by 0047_06 (the read path) and 0047_07 (the write path).
 ---
 
 # ptp-github-projects-gh — which board, as which identity, and can I reach it
@@ -342,7 +342,27 @@ The surface this contract's calls are built from is therefore **enumerated**, on
 | `gh project item-create` | `0047_07_backlog-gh-write-path` — create a draft entry |
 | `gh project item-edit` | `0047_07_backlog-gh-write-path` — title, body, and field writes |
 | `gh project item-archive` | `0047_07_backlog-gh-write-path` — archive an entry |
-| `gh api graphql` | archive reachability, and whatever `0047_06` / `0047_07` cannot express through `gh project` |
+| `gh api graphql` | archive reachability, the **write path's content-body write**, and whatever `0047_06` / `0047_07` cannot express through `gh project` |
+
+**The one row per subcommand property is preserved, so the admitted *operations* of the one
+non-porcelain row are enumerated separately** — this companion table, one row per admitted mutation:
+
+| Admitted mutation | Target input field | Carries | Path admitted to issue it |
+|---|---|---|---|
+| `updateIssue` | `id` (`ID!`) | the `title` and/or `body` of an **issue**-backed item's content | the write path (`skills/ptp-backlog-write/SKILL.md`), and no other |
+| `updatePullRequest` | `pullRequestId` (`ID!`) | the `title` and/or `body` of a **pull-request**-backed item's content | the write path (`skills/ptp-backlog-write/SKILL.md`), and no other |
+
+**Why a companion table rather than a second surface row.** The two tables answer **different
+questions** — *which binary surface is called* versus *which operations of one surface are admitted, and
+to whom*. Separating them is what lets the mutation admission be **closed and enumerable** while the
+subcommand table stays a plain **inventory**; a second `gh api graphql` row would break the one-row-per-
+subcommand property, and naming the mutations inside that row's *Used by* cell — which names the
+**path**, deliberately, and not the operations — would overload an inventory cell with per-operation
+detail. The admission itself is specified in
+[The content-body mutation route](#the-content-body-mutation-route).
+
+**Both tables are documentation, and neither is a probe target** — the rule immediately below and the
+version rule after it bind them both.
 
 **This table is documentation of the surface, not a probe target.** Nothing in this contract asks
 whether a row exists before calling it; a call that fails is handled by the exit-code rule in
@@ -354,6 +374,110 @@ Every flag in this contract was verified against **`gh` version 2.89.0**. A lowe
 **reported, never refused**: the captured version rides the record and is rendered on the `gh:` line of
 every failure report, and the preflight never refuses on version alone — refusing against a floor that
 was never tested would reject working configurations to guard a hypothetical.
+
+---
+
+## The content-body mutation route
+
+> An existing **non-draft** board item's content **title** and **body** are written by `gh api graphql`
+> invoking the content type's **own update mutation** against the **content node id**, carrying the
+> **title and the body in one mutation**.
+
+That is the whole admission, and it is **closed**: the two mutations below are the only mutations this
+contract admits through the passthrough, and no other mutation SHALL be issued through it.
+
+| Admitted mutation | Target input field | Type | Carries |
+|---|---|---|---|
+| `updateIssue` | **`id`** | `ID!` | `title: String`, `body: String` |
+| `updatePullRequest` | **`pullRequestId`** | `ID!` | `title: String`, `body: String` |
+
+The same two mutations are enumerated as **admitted operations** in
+[the companion table beneath the surface table](#the-gh-surface); that table records **who may issue
+them**, and this section records **what they are and how they behave**. The set is the same set in both
+places and SHALL NOT diverge.
+
+**The two target field spellings differ and are not interchangeable.** `updateIssue` takes its target
+under `id`; `updatePullRequest` takes its under `pullRequestId`. Nothing about the two mutations warns
+you of that asymmetry, so an implementation that assumed one spelling for both fails on **exactly one**
+of the two content types — and only against a **pull-request-backed** board item, the rarer case, so the
+failure is discovered late. Both spellings are therefore named here, and a generic *"the update
+mutation's id field"* description is explicitly not sufficient.
+
+**Verification provenance.** Both input shapes were **introspected first-hand against the live GitHub
+GraphQL schema**, at **`gh` 2.89.0** — the same version [The gh surface](#the-gh-surface) records the
+rest of the surface as verified against.
+
+**`updateProjectV2DraftIssue` is deliberately not admitted.** A draft item already has a working
+**in-board** route through `gh project item-edit`, and admitting a second route to the same carrier would
+leave two ways to write one thing with **no rule choosing between them** — precisely the ambiguity a
+closed admission exists to avoid.
+
+### The admission's closed scope
+
+The admitted mutations write **a title and/or a body, and nothing else**.
+
+- **No** state, labels, assignees, milestones, or project membership. `UpdateIssueInput` accepts several
+  of those; every one of them is **outside** the admission.
+- **No** create, close, delete, lock, or transfer of an issue or pull request.
+- **No board field value.** A board field value stays on the **field-value route**, which is
+  `gh project item-edit`'s and is untouched by this admission.
+
+**The board node identifier is not an input to these mutations.** `projectId` is the field-value route's
+required argument and belongs to that route alone.
+
+A closed admission is what keeps this route from becoming *"the backlog can edit your issues."*
+
+### The content node id is a dispatch coordinate, never an entry identity
+
+The content node id is a **transport dispatch coordinate**, exactly as `projectId` is (see
+[Why `projectId` is added](#why-projectid-is-added)). It **SHALL NOT** enter the entry model, any report,
+or any identifier comparison. It is **not** the board item's own node id — which remains the entry's
+identity — and it is **not** the board node identifier; the three SHALL NOT be conflated.
+
+**This contract does not say how the content node id is obtained.** That is the read path's, and stating
+it here would put a read-protocol fact into a transport contract that binds itself to state none.
+
+### Why `gh issue edit` / `gh pr edit` remain not admitted
+
+Their rejection is a **decision rather than an absence**, and it rests on **two grounds that resolve
+differently**. Both are recorded, because recording only the one that dissolves would misstate what the
+admission costs.
+
+- **Repository coordinates — this ground dissolves.** The porcelain addresses its target as a
+  `<number>` plus `--repo <owner>/<repo>`, which is exactly what `skills/ptp-backlog-write/SKILL.md`
+  cites as **unobtainable from the board read**. A global node id **is** the address and needs none of
+  those coordinates, so this ground does not stand against the node-id route at all.
+- **Blast radius — this ground is accepted, not dissolved.** The admitted mutation writes **the same
+  real repository issue or pull request** the porcelain would have: the same object, with a body visible
+  outside the board to that repository's watchers, and the edit recorded in that object's **own edit
+  history**.
+
+**The consequence, stated in terms:** admitting this route means backlog content lands in a **real
+repository object outside the board**. **The node-id route does not make the write board-confined**, and
+nothing in this contract is to be read as saying that it does. A later reader could otherwise infer —
+reasonably, from the porcelain having been rejected and this route admitted — that the admitted route is
+somehow contained to the board. It is not, and blocking that inference is what this paragraph is for.
+
+Two further reasons the node-id route is the better one **even where the porcelain would work**: one
+mutation carries **both** carriers, preserving in shape the joint title/body dispatch the draft route
+already has; and `gh api graphql` is **already** an enumerated row whose version is verified, where
+admitting the porcelain would add two subcommands with a second flag set to verify and a second failure
+vocabulary to interpret.
+
+### A GraphQL error list is a failure regardless of exit status
+
+A passthrough response carrying a **non-empty GraphQL `errors` list is a failure**, whatever the exit
+status was. It is **never** reported as a partial success and **never** reported as a landed write. This
+is the passthrough's form of rule 4's *only a zero exit is success*: the passthrough can exit **zero**
+while reporting that the call did not succeed, so the error list is read rather than the exit status
+alone.
+
+**The classification is *failed*, and that is not the same claim as *nothing landed*.** GraphQL admits a
+response carrying **both** `data` and `errors`, so an error list establishes that the call **failed**; it
+does **not** establish that the target object was left untouched. The contract therefore says only what
+the response supports: the outcome is a failure, and the object's resulting state is **not established by
+this response**. What a failed content mutation obliges its caller to do next — re-read, re-dispatch, or
+stop — is the **write path's**, and this transport contract states none of it.
 
 ---
 
@@ -371,13 +495,16 @@ GH-PREFLIGHT(resolved backlog configuration):
   ghVersion = account = host = tokenSource = projectId = null
   scopes    = []
   writeScope = "indeterminate"
-  archiveReachable = "unknown"   # SET AT INIT, NOT AFTER THE VERDICT. Every stage
-                                 # below RETURNs, so a field first assigned after
-                                 # the verdict branches would be assigned on NO
-                                 # stopping path — leaving it undefined under
-                                 # exactly the verdicts the record requires it to
-                                 # carry a value under. Initializing it here is
-                                 # what makes "never null" true on every path.
+  contentScope = "indeterminate"
+  archiveReachable = "unknown"   # ALL THREE SET AT INIT, NOT AFTER THE VERDICT.
+                                 # Every stage below RETURNs, so a field first
+                                 # assigned after the verdict branches would be
+                                 # assigned on NO stopping path — leaving it
+                                 # undefined under exactly the verdicts the record
+                                 # requires it to carry a value under. Initializing
+                                 # them here is what makes "never null" true on
+                                 # every path, for contentScope exactly as for
+                                 # archiveReachable and writeScope.
 
   ── S1 BINARY ────────────────────────────────────────────────────────────────
   stage = "binary"
@@ -446,6 +573,16 @@ GH-PREFLIGHT(resolved backlog configuration):
                            #   the reader's never-throw prohibition is absolute, and
                            #   an uninterpretable scope list is exactly the
                            #   "indeterminate" case below
+     # contentScope rides the SAME S2 payload and the SAME `scopes` list — no
+     # second call and no second observation, so property (e) "S3 costs no call"
+     # is preserved. It is bound BEFORE the writeScope branches below, so S3's own
+     # stopping RETURN carries S3's value out with it rather than the init value.
+     # It NEVER sets a verdict and NEVER returns.
+     "repo"        in scopes                    -> contentScope = "yes"
+     "public_repo" in scopes, "repo" not        -> contentScope = "indeterminate"
+     neither in scopes AND scopes is non-empty  -> contentScope = "no"
+     scopes is []  (absent, empty, unparseable) -> contentScope = "indeterminate"
+
      "project"      in scopes                  -> writeScope = "yes"
      "read:project" in scopes, "project" not   -> writeScope = "no"
      neither in scopes AND scopes is non-empty -> verdict = unavailable,
@@ -520,6 +657,30 @@ undefined under exactly the verdicts the record requires it to carry a value und
 later and relying on it to run is the bug this property exists to prevent, and **the init line is not to
 be dropped while reproducing the pseudocode** — a reader who tidies it away reintroduces the defect.
 
+### `contentScope` discloses; it stops nothing
+
+`contentScope` is bound **inside S3, from S2's own payload** — no extra stage, no extra call, no extra
+observation — and it is a **disclosure**. It **introduces no stopping branch**: unlike `writeScope`'s
+absent-both case, it never sets a verdict and never returns.
+
+**The asymmetry against `writeScope` is deliberate and is not leniency.** With **neither** Projects
+scope, **no** backlog operation can reach the store at all, so `writeScope`'s absent-both case correctly
+stops. With **no repository scope**, **every draft entry write and every board field-value write still
+works** — the whole store stays readable and largely writable — so refusing on that ground would refuse a
+**provably working configuration**. That is the same argument S3's indeterminate branch already makes one
+layer up.
+
+`contentScope` is therefore an **input to no branch**, exactly the property `archiveReachable` already
+carries: it **changes no verdict**, **adds no verdict** to the closed set of three, **adds no stage** to
+the four, and **adds no label** to the STOP message's invariant set of six. The repository scope it
+reports is `repo` — or `public_repo`, public repositories only — which is **not** a Projects scope and is
+**not** what the Projects-scope mapping decides.
+
+**Why `public_repo` alone resolves `"indeterminate"` rather than `"yes"` or `"no"`.** Whether the target
+repository is public is a fact **no stage reads** — S4 reads the board, never a repository — so both
+determinate answers would be guesses. `"indeterminate"` is the honest cell, and because it authorizes
+nothing it fails closed without refusing.
+
 ### Verdict mapping
 
 | Verdict | Reached when | Reader | Writers |
@@ -590,7 +751,7 @@ none. Later backlog operations in the same invocation reuse the verdict.
 ## The preflight record
 
 This record is the **seam** `0047_06_backlog-gh-read-path` and `0047_07_backlog-gh-write-path` consume.
-Eleven fields:
+Twelve fields:
 
 ```jsonc
 {
@@ -600,6 +761,7 @@ Eleven fields:
   "tokenSource":      "keyring",                      // null ONLY when S2 not passed
   "scopes":           ["gist", "read:org", "repo"],   // ALWAYS an array; [] when unestablished
   "writeScope":       "yes" | "no" | "indeterminate", // never null
+  "contentScope":     "yes" | "no" | "indeterminate", // never null
   "stage":            "binary" | "authentication" | "scope" | "board",  // last stage REACHED
   "projectId":        "<board node id>" | null,       // null ONLY when S4 not passed
   "verdict":          "ready" | "read-only" | "unavailable",
@@ -614,11 +776,11 @@ none (see [The acting identity](#the-acting-identity)).
 
 Per-verdict field table — *"unspecified" is not an available answer, because the record is a seam*:
 
-| Verdict | `ghVersion` | `account` / `host` / `tokenSource` | `scopes` | `writeScope` | `stage` | `projectId` | `cause` | `archiveReachable` |
-|---|---|---|---|---|---|---|---|---|
-| `ready` | set | set | non-empty | `"yes"` | `"board"` | set | `null` | `true` \| `false` |
-| `read-only` | set | set | non-empty or `[]` | `"no"` \| `"indeterminate"` | `"board"` | set | non-null | `true` \| `false` |
-| `unavailable` | set unless S1 failed (`null` there) | set unless S2 not passed (`null` there) | `[]` unless S3 ran (the split list there) | `"indeterminate"` unless S3 ran and S4 then failed (S3's own `"yes"` \| `"no"` \| `"indeterminate"` there) | the failing stage | `null` | non-null | `"unknown"` |
+| Verdict | `ghVersion` | `account` / `host` / `tokenSource` | `scopes` | `writeScope` | `contentScope` | `stage` | `projectId` | `cause` | `archiveReachable` |
+|---|---|---|---|---|---|---|---|---|---|
+| `ready` | set | set | non-empty | `"yes"` | `"yes"` \| `"no"` \| `"indeterminate"` | `"board"` | set | `null` | `true` \| `false` |
+| `read-only` | set | set | non-empty or `[]` | `"no"` \| `"indeterminate"` | `"yes"` \| `"no"` \| `"indeterminate"` | `"board"` | set | non-null | `true` \| `false` |
+| `unavailable` | set unless S1 failed (`null` there) | set unless S2 not passed (`null` there) | `[]` unless S3 ran (the split list there) | `"indeterminate"` unless S3 ran and S4 then failed (S3's own `"yes"` \| `"no"` \| `"indeterminate"` there) | `"indeterminate"` unless S3 ran (S3's own `"yes"` \| `"no"` \| `"indeterminate"` there) | the failing stage | `null` | non-null | `"unknown"` |
 
 ### Why each dropped field is dropped
 
@@ -664,10 +826,50 @@ item's own node id, per `openspec/specs/backlog/spec.md` §*The entry identifier
 node id*, which this contract does not touch. `projectId` does not enter the entry model, any report, or
 any identifier comparison.
 
+### Why `contentScope` is added, and what it is not
+
+Writing a body onto a **repository issue or pull request** — the route
+[The content-body mutation route](#the-content-body-mutation-route) admits — needs the **repository**
+token scope: `repo`, or `public_repo` for public repositories only. That is **not** a Projects scope, so
+it is **not** what `writeScope`'s mapping decides, and a consumer that read `writeScope` as covering it
+would be wrong in both directions.
+
+`contentScope` publishes that determination as a **disclosure**, resolved inside S3 from S2's own payload
+and stopping nothing — see [`contentScope` discloses; it stops nothing](#contentscope-discloses-it-stops-nothing)
+for the mapping and the asymmetry. Its **field name and its three literals are the seam** a later write
+path reads and are used **verbatim** by every consumer, exactly as `archiveReachable`'s name and literals
+are.
+
+**It is a disclosure, not an authorization guarantee — even at `"yes"`.** This is the same refinement
+[Once per invocation](#once-per-invocation)'s *It is not an authorization guarantee* bullet already makes
+for `writeScope`, applied to this field rather than restated as a competing rule: `contentScope: "yes"`
+means **the token carries `repo`**, never *the acting account may write that repository*. Repository- and
+organization-level permissions are **not** token scopes, so a **403 remains a runtime error of the write
+path**, handled by that path's own failure machinery and **never retro-classified** as a preflight
+failure.
+
+**What a consumer may and may not do with it.**
+
+- **MAY** refuse a **planned content write** ahead of dispatch on a determinate `"no"` — cheap and
+  fail-closed, and better than a 403 midway through an ordered sequence on a store with no compensating
+  writes.
+- **SHALL NOT** treat `"indeterminate"` as `"no"`. A token reporting no scopes at all is **ordinary**,
+  and reading it as a refusal would refuse every such session.
+- **SHALL NOT** convert either value into a **preflight stop**, and **SHALL NOT** render such a refusal
+  through the **six-label STOP message**, which renders **preflight-stopping verdicts only**. A refusal a
+  consumer chooses to make is its **own** message, and it names `gh auth refresh -s repo` as the
+  **user's** action — ptp running a credential-changing command remains prohibited with **no exception**.
+
+**Adding this field changes no existing field's name, type, or meaning**, so a consumer that reads the
+record's fields **by name** is unaffected. A consumer that instead depends on the record's **shape or
+cardinality** — one stating the field count, treating the field set as closed, or rejecting an
+unrecognized key — is corrected by the change that owns it **before** it consumes the widened record; the
+growth of this seam is **not** to be described as breaking nothing.
+
 ### Invariants a consumer may rely on
 
 - `scopes` is **always an array**, so it is iterated without a nullity check.
-- `writeScope`, `stage`, `verdict`, and `archiveReachable` are **never null**.
+- `writeScope`, `contentScope`, `stage`, `verdict`, and `archiveReachable` are **never null**.
 - `cause` is null **only** under `ready`, and is non-null under both stopping verdicts.
 - Every field has a **defined value under every verdict**, so the record defines **no** "value not
   produced" state and no consumer is required to render one.
@@ -920,6 +1122,49 @@ POSIX shell, and an entry body carries newlines plus a sentinel-fenced JSON bloc
   sentinel-fenced region is unaffected — its closing sentinel is content, not a terminator — so the
   metadata block's preservation rule still binds exactly as written.
 
+**3a. The same body on a GraphQL variable argument — the same five obligations, and no sixth.** The
+composed body's **five** emission obligations bind **identically** whether the body arrives as a
+body-carrying flag value on `gh project item-edit` or as a **GraphQL variable argument** on
+`gh api graphql`, and **no sixth obligation is added** for either route.
+
+Their **one normative home** is `skills/ptp-backlog-write/SKILL.md` §*The composed body's emission
+obligations*. They are **cited here, never restated and never renumbered** — a second statement of them
+would be a second home, and two homes eventually disagree about what they are and how many there are.
+
+What this contract states is the **argv shape they bind to on the passthrough**: the whole `name=value`
+field argument is the **one argument** those obligations govern, so each of them has an unambiguous
+subject on this route. Three passthrough-specific **applications** follow. Each is an application of a
+rule that already exists; **none is a new obligation**.
+
+1. **The body rides a variable; the query document is a constant.** Interpolating a composed body into a
+   query string is the GraphQL form of interpolating a value into a command string, which **rule 2**
+   already prohibits for exactly the same reason: a body carrying `"`, `{`, `}`, or `$` would otherwise
+   change the document's **meaning** rather than its data. So the query document carries **no** value of
+   configuration, board, or entry origin, and every such value rides a **variable**.
+2. **The variable argument is a raw string field (`-f`), never a typed one (`-F`).** A typed field reads
+   a leading `@` as a **file path** and coerces number- and boolean-shaped values. A body beginning `@`
+   is ordinary prose and a title of `true` is an ordinary title, so either coercion would silently change
+   ordinary content.
+3. **A `name=value` argument's value is everything after the *first* `=`.** A body or a title containing
+   `=` therefore needs **no escaping rule of its own** — the same *no per-value escaping rule* property
+   rule 2 exists to deliver.
+
+**Both of rule 3's body-construction forms carry over unchanged, and rule 1's exception is read by what
+it materializes rather than by which flag carries it.** The heredoc capture is a statement executed
+before the call, so it never engages rule 1 on either route. The temp-file form is a call-site
+substitution on either route, and rule 1 admits it for the property it names — it materializes an
+already-composed body from a file the caller itself just wrote, verbatim, computing nothing — so
+`-f body="$(cat "$f")"` is admitted **exactly as** `--body "$(cat "$f")"` is, and by the same exception
+rather than by a new one. Reading that exception as bound to the `--body` **spelling** would leave the
+route this contract just admitted with only one of the two forms, which is not what rule 1 turns on. No
+other substitution becomes admissible on this route, at the call site or in a statement feeding it.
+
+**The typed field's `@file` form is deliberately deferred, not forbidden on principle.** It is genuinely
+attractive: it would remove the `$( … )` substitution entirely, and with it the trailing-newline caveat
+above. It is deferred because **whether the typed field coerces *file* contents was not verified
+first-hand**, and an unverified form has no place on the carrier that holds the metadata fence. A later
+change may admit it, on verification.
+
 **4. Exit-code handling.** `gh help exit-codes` states the whole vocabulary:
 
 ```
@@ -953,15 +1198,34 @@ failure's reported detail is `gh`'s stderr **verbatim, untruncated and unparaphr
 this contract quotes are self-repairing *because* they name their own fix, and paraphrasing destroys
 that property.
 
-**7. The closed prohibited-verb list**, binding every call this contract admits outside
-`0047_07_backlog-gh-write-path`'s write path: `item-create`, `item-edit`, `item-add`, `item-archive`,
-`item-delete`, `field-create`, `field-delete`, `create`, `edit`, `delete`, `close`, `copy`, `link`,
-`unlink`, `mark-template` — and, with **no exception at all and in no slice**, `gh auth refresh`,
-`gh auth login`, `gh auth switch`, and `gh auth logout`.
+**7. The closed prohibited-verb list**, binding every call this contract admits outside **the write
+path** — the write path being `skills/ptp-backlog-write/SKILL.md` (defined by
+`0047_07_backlog-gh-write-path`, kept here as **provenance only**: a live prohibition is anchored on the
+live skill that holds the exception, never on an archived change id): `item-create`, `item-edit`,
+`item-add`, `item-archive`, `item-delete`, `field-create`, `field-delete`, `create`, `edit`, `delete`,
+`close`, `copy`, `link`, `unlink`, `mark-template` — and, with **no exception at all and in no slice**,
+`gh auth refresh`, `gh auth login`, `gh auth switch`, and `gh auth logout`.
 
-**8. `gh api graphql` is admitted, read-only.** A `gh api graphql` call in this contract is a **query**,
-never a mutation, and `gh api` with `--method` / `-X` set to anything other than `GET` is prohibited
-outside `0047_07_backlog-gh-write-path`.
+**The fifteen verbs are unchanged in membership by the content-mutation admission**, which adds no
+`gh project` verb at all. The credential-changing limb takes **no** exception either — not the write
+path's, not any other's.
+
+**8. `gh api graphql` is a query everywhere, and a mutation only on the write path.**
+
+- **Query everywhere.** The passthrough is admitted as a **query on every path**, and **outside the
+  write path it is a query and never a mutation** — the preflight's calls, archive reachability's, and
+  the read path's alike, all unchanged by this admission.
+- **Mutation only on the write path, and only from the closed enumerated set.** The write path
+  (`skills/ptp-backlog-write/SKILL.md`) may issue a mutation through the passthrough, and **only** one of
+  the admitted mutations enumerated in the companion table under [The gh surface](#the-gh-surface) and
+  specified in [The content-body mutation route](#the-content-body-mutation-route). Issuing any other
+  mutation through the passthrough is a contract violation, anywhere.
+- **The non-`GET` prohibition binds an *explicitly set* method.** `gh api` with `--method` / `-X` **set**
+  to anything other than `GET` is prohibited outside the write path. The GraphQL endpoint's **own
+  intrinsic** HTTP method is **not** such a setting, so this rule does not read as forbidding the very
+  call the contract admits. That is a **clarification of what the rule always meant, not a new
+  permission**: a `gh api` call that sets a non-`GET` method **by flag** is still prohibited outside the
+  write path.
 
 **9. No `--web` and no interactive call.** `--web` opens a browser. Every contract call is fully
 specified on argv, and a call that would prompt is a contract violation.
@@ -992,8 +1256,9 @@ reporting `read-only` distinctly rather than as an undifferentiated failure.
 
 The remaining obligations:
 
-- Take the **verdict**, the **account**, the **host**, **`projectId`**, and **`archiveReachable`**
-  **from the record**. Re-derive none of them, re-fetch none of them, and infer none of them.
+- Take the **verdict**, the **account**, the **host**, **`projectId`**, **`contentScope`**, and
+  **`archiveReachable`** **from the record**. Re-derive none of them, re-fetch none of them, and infer
+  none of them.
 - Refuse **non-silently**. Never warn-and-continue, never perform a partial operation, never substitute
   a different identity or board, and **never read, create, or write a local backlog file in place of
   the configured board** — under any verdict, and with no override.
