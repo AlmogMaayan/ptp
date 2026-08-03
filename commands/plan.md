@@ -135,6 +135,8 @@ When a change straddles two levels on either dial, round up to the safer (more c
 
 `commands/effort.md` step 4 is the authoritative statement of this rubric; if this mirror ever disagrees with it, `commands/effort.md` wins.
 
+**This mirror covers `apply` scoring only.** `/ptp:effort <selector> mode:fix` scores a different job — fixing a **frozen set of confirmed review findings** — under a different rubric, built on four fix-specific signals: finding count, severity mix, file count and spread, and transcription vs open design judgment. That fix rubric is defined **only** in `commands/effort.md` (its `## Fix mode (mode:fix)` section), which remains authoritative; nothing of it is copied here, so the two files cannot drift on fix content.
+
 ## Hard rules
 
 - Do **not** call `/opsx:propose` (nor the vendored `ptp:openspec-propose` skill) to generate proposal/design text. Superpowers produced the thinking; you are just transcribing it into OpenSpec's file format.

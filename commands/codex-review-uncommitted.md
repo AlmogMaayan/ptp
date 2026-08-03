@@ -5,6 +5,9 @@ argument-hint: "[change-selector] — any selector resolving to exactly one chan
 
 You are running a fast, **Codex-powered** review of the **uncommitted** changes in the working tree — what `git status` shows as modified, staged, or untracked. Use this mid-implementation, before committing, to catch issues early without reviewing already-committed history.
 
+This command never fixes, so the fix-target contract in `ptp-review-loop` is a **no-op** here: no
+fix pass is dispatched and this command's `opus.high` review target is unchanged.
+
 ## Inputs
 
 Change id: $ARGUMENTS  *(optional)* — if given, use `openspec/changes/<change-id>/` as the contract to grade against. If omitted, review the uncommitted diff for general correctness/quality with no spec context.

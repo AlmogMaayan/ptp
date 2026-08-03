@@ -597,6 +597,7 @@ reviewer) while a read-only reviewer shell-out is `agent_role=codex`. Collapsing
 | `ptp-full-apply` apply agent | `stageReached: failed` | `refused` |
 | `ptp-full-apply` review agent | `terminalState: BOTH_PHASES_DONE` | `completed` |
 | `ptp-full-apply` review agent | `terminalState: PHASE1_CAP` / `PHASE2_CAP` | `needs-human-action` |
+| `ptp-full-apply` review agent | `terminalState: FIX_TARGET_ESCALATION` | `needs-human-action` |
 | Any `ptp-full-apply` agent | `null` / unparseable result | `needs-human-action` |
 
 No case is left unmapped, so **no close line can ever carry an empty `outcome`**.

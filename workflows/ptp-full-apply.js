@@ -27,6 +27,35 @@ function fastNote() {
   return 'Fast mode was requested for this run (a session-level Claude Code setting this run does not control); it changes neither your model nor the effort directive above — mention it in `notes` only if relevant.'
 }
 
+// Parse a review agent's `{model}.{effort}` fix target into its two halves, or null when it is
+// absent, not a string, or not exactly two dot-joined tokens drawn from the closed vocabularies.
+// The vocabularies are passed in from the call site (REVIEW_MODELS / REVIEW_EFFORTS) rather than
+// restated here, so this script carries exactly one copy of each.
+function parseFixTarget(raw, models, efforts) {
+  if (typeof raw !== 'string') return null
+  const parts = raw.trim().toLowerCase().split('.')
+  if (parts.length !== 2) return null
+  if (models.indexOf(parts[0]) < 0 || efforts.indexOf(parts[1]) < 0) return null
+  return { model: parts[0], effort: parts[1] }
+}
+
+// The review agent's prompt, used for BOTH the first review spawn and the (at most one) escalated
+// re-spawn — the escalated run gets the identical protocol with the target's model/effort
+// substituted plus one extra directive line. The running model is stated explicitly because an
+// agent cannot otherwise know it, and the ladder comparison in agents/ptp-review.md depends on it.
+function reviewPromptLines(id, model, effort, escalated) {
+  return [
+    `Run the review-full protocol (the main-agent loop then the reviewer-agent loop; at the default roles.main=claude this is the Superpowers loop then the Codex loop) on the OpenSpec change \`${id}\`, per your system prompt.`,
+    `Change folder: openspec/changes/${id}/`,
+    `You are running at model \`${model}\`.`,
+    `Work at **${effort}** effort: ${effortDirective(effort)} Fix only confirmed findings inline. Do NOT commit. Do NOT archive.`,
+    ...(escalated
+      ? [`This is the escalated fix run for this story. Run the whole protocol from a fresh review pass at this model. You MUST NOT return \`FIX_TARGET_ESCALATION\`; if your fix-target evaluation names a still-more-capable model, note it and fix at this model anyway.`]
+      : []),
+    `Return the JSON object.`,
+  ]
+}
+
 // --- Telemetry measurement (gated from OUTSIDE by args.telemetry) -----------------------------
 //
 // Why this script never writes the run ledger itself: the sandbox injects only agent(), log(),
@@ -74,8 +103,13 @@ const REVIEW_SCHEMA = {
   type: 'object',
   properties: {
     // Machine enum values are load-bearing: workflows/gates key on terminalState.
-    // These values (and the BOTH_PHASES_DONE gate below) are intentionally unchanged.
-    terminalState: { type: 'string', enum: ['BOTH_PHASES_DONE', 'PHASE1_CAP', 'PHASE2_CAP'] },
+    // The first three values (and the BOTH_PHASES_DONE gate below) are intentionally unchanged.
+    // FIX_TARGET_ESCALATION is a DISPATCH signal, not an outcome: the review agent returns it,
+    // having made no edit, when its freshly evaluated fix target names a model more capable than
+    // the one it is running on. It is consumed by the escalation block below — BEFORE the gate —
+    // and is never gate-success. terminalState remains the ONLY gate key and BOTH_PHASES_DONE the
+    // ONLY gate-success value.
+    terminalState: { type: 'string', enum: ['BOTH_PHASES_DONE', 'PHASE1_CAP', 'PHASE2_CAP', 'FIX_TARGET_ESCALATION'] },
     // Internal telemetry only (not read by the gate). These are the fix counts the
     // ptp-review agent (agents/ptp-review.md) actually returns; keep the names matching
     // that producer's contract. The fields are agent-named, not phase-named:
@@ -90,6 +124,13 @@ const REVIEW_SCHEMA = {
     // string rather than an enum: the load-bearing enum is terminalState, and a malformed value
     // here must never fail an otherwise converged story. Optional; absence reads as "low".
     minSeverity: { type: 'string' },
+    // The fix target the review agent's fix-target evaluation produced, lowercase and dot-joined
+    // (`{model}.{effort}`), and whether the fix work actually ran at it. Reporting plus the
+    // escalation dispatch input — no gate keys on either. Both optional: an iteration with no fix
+    // work to size omits both, and a degraded evaluation sets fixTargetHonored false and omits
+    // fixTarget. See agents/ptp-review.md § Fix-target evaluation.
+    fixTarget: { type: 'string' },
+    fixTargetHonored: { type: 'boolean' },
     notes: { type: 'string' },
   },
   required: ['terminalState'],
@@ -114,7 +155,22 @@ for (let i = 0; i < stories.length; i++) {
   const s = stories[i]
   const eff = s.effort || 'high'
   const mdl = s.model || 'opus'
-  log(`Story ${i + 1}/${stories.length}: ${s.id} — apply at ${mdl}.${eff}${fast ? ' (fast requested)' : ''}`)
+  // The review target is a per-story arg, not a literal. STRICT MEMBERSHIP, never `||`
+  // truthiness: an absent, null, non-string, or unrecognized value falls back to `opus` / `high`
+  // — exactly the constants this capability replaced — so a resume, a hand-built launch, or any
+  // caller predating these fields spawns the review agent at the same model and renders the same
+  // effort level as before. REVIEW_MODELS is also the escalation ladder, in ascending order of
+  // capability (haiku < sonnet < opus).
+  const REVIEW_MODELS = ['haiku', 'sonnet', 'opus']
+  const REVIEW_EFFORTS = ['low', 'medium', 'high', 'xhigh']
+  const revMdl = REVIEW_MODELS.indexOf(s.reviewModel) >= 0 ? s.reviewModel : 'opus'
+  const revEff = REVIEW_EFFORTS.indexOf(s.reviewEffort) >= 0 ? s.reviewEffort : 'high'
+  // Only a value that was actually SUPPLIED and then rejected is worth reporting; an omitted
+  // field is the documented default path, not a fallback.
+  const revFellBack = []
+  if (s.reviewModel !== undefined && s.reviewModel !== null && s.reviewModel !== revMdl) revFellBack.push(`reviewModel=${JSON.stringify(s.reviewModel)}`)
+  if (s.reviewEffort !== undefined && s.reviewEffort !== null && s.reviewEffort !== revEff) revFellBack.push(`reviewEffort=${JSON.stringify(s.reviewEffort)}`)
+  log(`Story ${i + 1}/${stories.length}: ${s.id} — apply at ${mdl}.${eff}, review at ${revMdl}.${revEff}${revFellBack.length ? ` (unrecognized supplied ${revFellBack.join(', ')} — fell back to the default)` : ''}${fast ? ' (fast requested)' : ''}`)
 
   const applyLabel = `apply:${s.id}`
   const applyStart = telemetry ? nowIso() : null
@@ -158,37 +214,100 @@ for (let i = 0; i < stories.length; i++) {
   const reviewRunId = telemetry ? mintRunId(reviewLabel, reviewStart) : null
 
   const reviewPrompt = [
-    `Run the review-full protocol (the main-agent loop then the reviewer-agent loop; at the default roles.main=claude this is the Superpowers loop then the Codex loop) on the OpenSpec change \`${s.id}\`, per your system prompt.`,
-    `Change folder: openspec/changes/${s.id}/`,
-    `Work at **high** effort. Fix only confirmed findings inline. Do NOT commit. Do NOT archive.`,
-    `Return the JSON object.`,
-    ...(fast ? [fastNote()] : []),
+    ...reviewPromptLines(s.id, revMdl, revEff, false),
+    ...(fast && revMdl === 'opus' ? [fastNote()] : []),
     ...(telemetry ? [telemetryNote(reviewRunId)] : []),
   ].join('\n\n')
 
   const review = await agent(reviewPrompt, {
     agentType: 'ptp:ptp-review',
-    model: 'opus',
+    model: revMdl,
     phase: 'Review',
     label: reviewLabel,
     schema: REVIEW_SCHEMA,
   })
 
   const reviewEnd = telemetry ? nowIso() : null
+  const reviewTiming = telemetry
+    ? { run_id: reviewRunId, t_start: reviewStart, t_end: reviewEnd, agent_label: reviewLabel }
+    : null
 
-  const storyRecord = { id: s.id, applyOk: true, apply, review: review || null }
+  // --- Fix-target escalation: AT MOST ONE re-spawn per story, and never a loop -----------------
+  //
+  // The review agent evaluates its fix target inside itself and adopts the EFFORT half on its own
+  // (effort is only ever a prompt directive here). The MODEL half can only be honored at an
+  // agent() spawn, which is this script's boundary — so an agent whose target outranks the model
+  // it runs on makes no edit and hands the decision back as FIX_TARGET_ESCALATION. The ladder has
+  // three rungs and the producer floors reviewModel at `sonnet`, so at most one strict ascent is
+  // possible; a second one is evidence of a contract violation, not a case to service.
+  let finalReview = review
+  let escalatedFrom = null
+  let escTiming = null
+  let escalationHalt = null
+
+  if (review && review.terminalState === 'FIX_TARGET_ESCALATION') {
+    const target = parseFixTarget(review.fixTarget, REVIEW_MODELS, REVIEW_EFFORTS)
+    if (target && REVIEW_MODELS.indexOf(target.model) > REVIEW_MODELS.indexOf(revMdl)) {
+      const escLabel = `review:${s.id}#esc`
+      const escStart = telemetry ? nowIso() : null
+      const escRunId = telemetry ? mintRunId(escLabel, escStart) : null
+
+      const escPrompt = [
+        ...reviewPromptLines(s.id, target.model, target.effort, true),
+        ...(fast && target.model === 'opus' ? [fastNote()] : []),
+        ...(telemetry ? [telemetryNote(escRunId)] : []),
+      ].join('\n\n')
+
+      log(`Story ${i + 1}/${stories.length}: ${s.id} — review escalating once from ${revMdl} to fix target ${target.model}.${target.effort}`)
+
+      const escReview = await agent(escPrompt, {
+        agentType: 'ptp:ptp-review',
+        model: target.model,
+        phase: 'Review',
+        label: escLabel,
+        schema: REVIEW_SCHEMA,
+      })
+
+      const escEnd = telemetry ? nowIso() : null
+      escTiming = telemetry
+        ? { run_id: escRunId, t_start: escStart, t_end: escEnd, agent_label: escLabel }
+        : null
+
+      escalatedFrom = review
+      finalReview = escReview
+
+      if (escReview && escReview.terminalState === 'FIX_TARGET_ESCALATION') {
+        escalationHalt = `review requested a fix-target escalation that cannot be honored (the escalated run at ${target.model} escalated again; fixTarget=${escReview.fixTarget === undefined || escReview.fixTarget === null ? 'absent' : JSON.stringify(escReview.fixTarget)})`
+      }
+    } else {
+      // Absent, unparseable, or non-escalating fixTarget — including any escalation reported by a
+      // run already at the `opus` ceiling, where nothing can outrank it. Halt; do NOT re-spawn.
+      escalationHalt = `review requested a fix-target escalation that cannot be honored (running model=${revMdl}, fixTarget=${review.fixTarget === undefined || review.fixTarget === null ? 'absent' : JSON.stringify(review.fixTarget)})`
+    }
+  }
+
+  const storyRecord = { id: s.id, applyOk: true, apply, review: finalReview || null }
+  // An escalated story keeps the ESCALATED run's result in `review` — that is the one the gate
+  // reads — and retains the first run's result for reporting only.
+  if (escalatedFrom) storyRecord.reviewEscalatedFrom = escalatedFrom
   // One timing entry per agent() call, in call order, so a story that ran two agents surfaces two
-  // windows rather than one ambiguous pair.
+  // windows rather than one ambiguous pair, and an escalated story surfaces three.
   if (telemetry) {
-    storyRecord.timings = [
-      applyTiming,
-      { run_id: reviewRunId, t_start: reviewStart, t_end: reviewEnd, agent_label: reviewLabel },
-    ]
+    storyRecord.timings = escTiming
+      ? [applyTiming, reviewTiming, escTiming]
+      : [applyTiming, reviewTiming]
   }
   results.push(storyRecord)
 
-  if (!review || review.terminalState !== 'BOTH_PHASES_DONE') {
-    halted = { id: s.id, reason: `review did not converge (terminalState=${review ? review.terminalState : 'null'})` }
+  // The unhonorable escalation is consumed HERE, before the gate, so the gate below keeps its
+  // exact existing form and FIX_TARGET_ESCALATION never appears in a green-state list.
+  if (escalationHalt) {
+    halted = { id: s.id, reason: escalationHalt }
+    break
+  }
+
+  if (!finalReview || finalReview.terminalState !== 'BOTH_PHASES_DONE') {
+    halted = { id: s.id, reason: `review did not converge (terminalState=${finalReview ? finalReview.terminalState : 'null'})` }
     break
   }
 }

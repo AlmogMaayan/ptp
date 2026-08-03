@@ -24,7 +24,7 @@ It does not restate the detail of the two underlying flows. The plan phase **is*
 | `fast` | `true` \| `false` — the resolved fast-mode posture for this invocation (default `false`) | Resolved once by `commands/full.md`'s outer session (token parsed and stripped, preflight run once); consumed here without re-parsing |
 | `parallel` | `on` \| `off` — the resolved parallel posture for this invocation (absent token → the resolved `parallel.mode`) | Resolved once by `commands/full.md`'s outer session (token parsed and stripped there); consumed here without re-parsing. **Phase A only** — it is threaded into the delegated `ptp:plan-multiple` and governs Phase A's per-slice review fan-out; **Phase B receives no parallel input** and stays strictly sequential. |
 
-Apart from `fast` and `parallel` above — session/orchestration posture flags, not model or effort selectors — there is no effort/model input. The plan phase runs at the session model (expected `opus.high`); the apply phase reads each slice's `effort.md` for its apply model and reviews at `opus.high`. There is **no effort gate** — see *Model/effort posture*.
+Apart from `fast` and `parallel` above — session/orchestration posture flags, not model or effort selectors — there is no effort/model input. The plan phase runs at the session model (expected `opus.high`); the apply phase reads each slice's `effort.md` for **both** its apply model and its resolved review target (`reviewModel` = that model floored at `sonnet`, `reviewEffort` = that effort floored at `high`), and each review's fix work is sized by a freshly evaluated fix target. There is **no effort gate** — see *Model/effort posture*.
 
 ## Precondition (checked once, up front)
 
@@ -59,13 +59,13 @@ Phase A is read-only: it never applies code and never archives. It always writes
 
 Enter Phase B **only if every** captured slice reached a green plan-convergence state in Phase A (`BOTH PHASES DONE` **or** `PHASE 1 DONE — CODEX SKIPPED (mode=…)` — both are gate-success per `ptp-codex-mode`). Then run the `ptp-full-apply` skill's flow with the captured slice ids treated as an **explicit, ordered id list** (the plan order *is* the apply/dependency order):
 
-1. **Read each slice's effort.** For each captured id, `Read` `openspec/changes/<id>/effort.md` and parse line 1 as `{model}.{effort}`. Missing or unparseable → default to `opus.high` and **note the defaulting** (never crash, never stop on it). This yields `{ id, model, effort }` per slice.
+1. **Read each slice's effort.** For each captured id, `Read` `openspec/changes/<id>/effort.md` and parse line 1 as `{model}.{effort}`. Missing or unparseable → default to `opus.high` and **note the defaulting** (never crash, never stop on it). Then derive that slice's **review target** from the same pair: `reviewModel` = `model` floored at `sonnet` (`haiku` → `sonnet`), `reviewEffort` = `effort` floored at `high` (`low`/`medium` → `high`); the defaulted `opus.high` yields `opus` / `high` for the review too. This yields `{ id, model, effort, reviewModel, reviewEffort }` per slice.
 2. **Run the `ptp-workflow-cache-heal` step** (see that skill for the canonical Bash command) via the
    Bash tool, then **launch the run workflow** with the slices in plan order:
    ```
    Workflow({ name: 'ptp:ptp-full-apply', args: { stories, fast } })
    ```
-   where `stories = [{ id, model, effort }, …]` and `fast` is the top-level resolved boolean from this skill's `fast` input (not per story) — an omitted `fast` is read as `false` by the script. The workflow loops the slices in order, spawning `agentType:'ptp:ptp-apply'` at each slice's `model` (effort injected as a prompt directive) then `agentType:'ptp:ptp-review'` at `opus`, one slice fully before the next, and returns `{ results, halted, total }`.
+   where `stories = [{ id, model, effort, reviewModel, reviewEffort }, …]` and `fast` is the top-level resolved boolean from this skill's `fast` input (not per story) — an omitted `fast` is read as `false` by the script, and an omitted or unrecognized `reviewModel` / `reviewEffort` falls back to `opus` / `high`. The workflow loops the slices in order, spawning `agentType:'ptp:ptp-apply'` at each slice's `model` then `agentType:'ptp:ptp-review'` at that slice's `reviewModel` (each agent's effort injected as a prompt directive), one slice fully before the next, and returns `{ results, halted, total }`. If a review's freshly evaluated fix target names a **more capable** model than the one it is running on, the workflow re-spawns that slice's review **once** at that model and the gate reads the escalated run's terminal state; an escalation that cannot be honored halts that slice.
 3. **Apply-convergence gate (the workflow's `halted`).** A slice whose apply does not reach `stageReached === 'completed'`, or whose review `terminalState !== 'BOTH_PHASES_DONE'`, halts the **whole run** — the workflow stops the loop. This is the apply phase's own gate, identical to `/ptp:full-apply`; it is independent of the plan-convergence gate.
 
 **No scope-confirmation stop.** Because the captured slice ids are passed as an explicit id list, the apply phase skips the one-time no-arg scope confirmation that `ptp-full-apply` performs only on discovery. This is what makes the handoff seamless — there is no second user invocation between planning and running.
@@ -80,7 +80,7 @@ Report at whichever terminal point is reached:
 
 ## Model/effort posture
 
-There is **no effort gate** and no model/effort-switch suggestion. The plan phase targets `opus.high` (the policy default for all non-apply stages); the apply phase's apply agents each carry their own model from `effort.md` and review agents run at `opus` — both inside workflow agents, so there is no single-dial session thrash to gate against. If the *session* model is below `opus.high` when the plan phase runs, **note a reminder** but do **not** stop. There is deliberately no `full-effort` variant.
+There is **no effort gate** and no model/effort-switch suggestion. The plan phase targets `opus.high` (the policy default for all non-apply stages); the apply phase's apply agents each carry their own model from `effort.md` and its review agents each carry that slice's resolved review target derived from the same file — both inside workflow agents, so there is no single-dial session thrash to gate against. If the *session* model is below `opus.high` when the plan phase runs, **note a reminder** but do **not** stop. There is deliberately no `full-effort` variant.
 
 ## Hard rules
 

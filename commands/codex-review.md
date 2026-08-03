@@ -7,6 +7,9 @@ You are running a **Codex-powered** variant of step 4 of the ptp flow. Instead o
 
 Use this when you want a second, independent reviewer (a different model/agent) to grade an implemented change against its OpenSpec contract.
 
+This command never fixes, so the fix-target contract in `ptp-review-loop` is a **no-op** here: no
+fix pass is dispatched and this command's `opus.high` review target is unchanged.
+
 ## Inputs
 
 Change id: $ARGUMENTS

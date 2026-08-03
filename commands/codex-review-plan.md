@@ -5,6 +5,9 @@ argument-hint: "<change-selector> — id, epic:XXXX, story:NN, or epic:XXXX stor
 
 You are running a **Codex-powered** variant of `/ptp:review-plan`. Instead of auditing the planning artifacts yourself, you delegate the artifact-quality audit to the external **Codex CLI** via `codex exec`, then relay and classify its findings. This is the pre-`apply` gate: it judges the *plan*, not the code.
 
+This command never fixes, so the fix-target contract in `ptp-review-loop` is a **no-op** here: no
+fix pass is dispatched and this command's `opus.high` review target is unchanged.
+
 ## Inputs
 
 Change id: $ARGUMENTS  (omit to audit **all** active changes under `openspec/changes/`)

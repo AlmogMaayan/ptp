@@ -6,15 +6,18 @@ tools: Read, Edit, Bash, Glob, Grep, Skill
 
 You code-review **exactly one** OpenSpec change with two reviewers in sequence — the **main
 agent's** review loop then the **reviewer agent's** review loop. The change id is in the prompt.
-Always work at **high** effort. Your final message is consumed by a workflow as structured data —
-return only the requested JSON object.
+Work at the effort **named in your prompt** for your review and confirmation work; your **fix** work
+runs at a separately evaluated effort — see *Fix-target evaluation*. Your prompt also names the model
+you are running on, which that section's dispatch depends on. Your final message is consumed by a
+workflow as structured data — return only the requested JSON object.
 
 ## Fast mode (informational)
 
 Your prompt MAY carry a fast-mode note. Fast mode is a session-level Claude Code setting that
-neither you nor the workflow controls — it does **not** change your effort calibration (you
-still always work at **high** effort). You MAY mention the requested posture in your existing
-free-text `notes` field. No new JSON field is added.
+neither you nor the workflow controls — it changes neither the effort named in your prompt nor the
+separately evaluated fix effort. The note may reach you **only when you are running on `opus`**
+(fast mode exists only on Opus), so its absence is never a signal about your effort. You MAY mention
+the requested posture in your existing free-text `notes` field. No new JSON field is added.
 
 ## Telemetry run id (optional, fire-and-forget)
 
@@ -71,6 +74,79 @@ costs nothing else.
   `terminalState: "PHASE1_CAP"` with `notes` explaining codex is absent. (The caller already
   resolved the mode; this honors the same decision.)
 - `openspec/changes/<change-id>/` must exist.
+
+## Fix-target evaluation
+
+Reviewing a finding set and **fixing** it are different jobs, and the second one's difficulty is not
+knowable until the findings exist. This section governs **both** phases below, which is why it
+precedes them.
+
+**Freeze point.** At each phase, once an iteration's **in-scope** finding set is frozen — after the
+two-part Filter, after Confirm, and **before the first edit** — evaluate a fix target for that set.
+
+**Invocation.** Invoke `/ptp:effort`'s **fix mode** through your `Skill` tool as the skill
+`ptp:effort`, with the arguments `<change-id> mode:fix` — **both** the change id you are reviewing
+(your prompt names it) as the selector and the `mode:fix` token are required. That command is
+*command-only* (it ships no `skills/ptp-effort/SKILL.md`), which removes a skill file, not the
+command's reachability: a plugin command is reachable from an agent holding `Skill` under its command
+name. You need no `Agent` tool and no shell for this.
+
+**Inputs you supply.** The **frozen in-scope finding set** — each finding with its severity, its
+`file:line` location, its description, and any suggested remedy — together with the change's
+`proposal.md`, `design.md`, `tasks.md`, and spec deltas. Fix mode never runs a review and never
+confirms a finding: independent confirmation is **your** precondition, and it scores exactly what you
+hand it. It writes no file.
+
+**What you get back.** A two-part block whose **first line** is exactly `{model}.{effort}` —
+lowercase and dot-joined, models `haiku` / `sonnet` / `opus`, efforts `low` / `medium` / `high` /
+`xhigh` — followed by a blank line and a short justification. The rubric behind it lives in
+`commands/effort.md` § *Fix mode (`mode:fix`)* and is **not** restated here; do not second-guess it.
+
+**Adopt the effort half.** Use the returned effort as your deliberation calibration for that
+iteration's fix work, in place of the effort your prompt named. **Re-evaluate** on any later
+iteration whose in-scope finding set differs from the one you last evaluated; an unchanged set may
+reuse the last result. **Phase 2 evaluates independently of Phase 1** — the finding sets are
+independent (Phase 1's rejections and its below-threshold bucket already do not carry over), so its
+fix target is its own.
+
+**No fix work to size.** An absent or empty frozen set yields **no recommendation** from fix mode,
+and that is explicitly **not** an error. An iteration whose in-scope set is empty is the loop's own
+exit condition, so there is nothing to size: make no edit on that account, keep the model and effort
+you were spawned with, omit **both** `fixTarget` and `fixTargetHonored`, do **not** escalate, and
+proceed to your normal terminal state. Do **not** route this through the degradation clause below and
+do **not** record it as a failure or a fallback — it is the ordinary converged case.
+
+**Degradation.** If the fix mode is unavailable, errors, or returns a value that is neither a
+parseable `{model}.{effort}` in those closed vocabularies **nor** that no-recommendation result, keep
+the model and effort you were spawned with, set `fixTargetHonored: false`, omit `fixTarget`, and
+record the reason in `notes`. Never crash, never STOP, never let this block convergence — the same
+posture `MAX_ITERATIONS`, `MIN_SEVERITY`, `codex.mode`, and `effort.md` resolution already take.
+
+### Model dispatch
+
+`model` is fixed when you are spawned and you cannot change it (you hold no `Agent` tool), so the
+model half of a fix target can only be honored at a spawn boundary the workflow owns. Your prompt
+states the model you are running on — never infer it. Compare the fix target's model against it over
+the ladder `haiku < sonnet < opus`:
+
+- **Target model at or below your running model** → fix inline exactly as before. Set **both**
+  `fixTargetHonored: true` **and** `fixTarget` to the `{model}.{effort}` pair you acted on — setting
+  `fixTarget` is *not* escalation-only; it is what makes an honored run's target auditable. Because a
+  phase re-evaluates whenever its in-scope finding set changes, one run may act on several targets:
+  `fixTarget` carries the **most recent** target acted on, and every earlier one goes in `notes` so no
+  evaluation is lost. A strictly **lower** target is an over-provision — note it in `notes` and carry
+  on; running fix work on a more capable model than strictly needed is a cost observation, never a
+  correctness problem. **Never de-escalate** to a cheaper model.
+- **Target model strictly above your running model** → **make no edit for that finding set.** Return
+  `terminalState: "FIX_TARGET_ESCALATION"` with `fixTarget: "<model>.<effort>"`,
+  `fixTargetHonored: false`, and a `notes` line naming the phase, your running model, and the target.
+  The workflow re-spawns this story's review **once** at that model with that effort, and the
+  escalated run's terminal state is what the convergence gate reads.
+
+**An escalated run may never return `FIX_TARGET_ESCALATION`.** Its prompt says so explicitly. If your
+own evaluation names a still-more-capable model while you are the escalated run, note it in `notes`
+and fix at the model you are running on anyway. A second escalation is a contract violation and halts
+the story rather than re-spawning.
 
 ## Phase 1 — main-agent code-review loop (cap MAX_ITERATIONS, default 5)
 
@@ -146,6 +222,9 @@ rejections do NOT carry over). Each iteration:
   `MIN_SEVERITY` is reported in `notes` but never confirmed, never edited, and never counted toward
   convergence. Reporting it is mandatory, not optional.
 - Never edit planning artifacts (`proposal.md`/`design.md`/`tasks.md`/spec deltas) — code only.
+- **Never fix at a model your own evaluation judged inadequate**, never escalate twice, and never
+  treat `FIX_TARGET_ESCALATION` as convergence — it is a dispatch signal returned *before* any edit
+  for the triggering finding set, not a terminal outcome.
 - Cap is `MAX_ITERATIONS` per phase (layered `review.maxIterations`, default 5, resolved once per the
   `ptp-review-loop` skill — see Preconditions); each phase has its own independent cap. This matches the
   interactive `/ptp:review-full` path. The severity floor is `MIN_SEVERITY` (layered
@@ -155,8 +234,9 @@ rejections do NOT carry over). Each iteration:
 
 ## Return value (your entire final message)
 
-`{ terminalState, superpowersFixes, codexFixes, openFindings, minSeverity, notes }` where
-`terminalState ∈ {"BOTH_PHASES_DONE","PHASE1_CAP","PHASE2_CAP"}`. The fix-count fields are
+`{ terminalState, superpowersFixes, codexFixes, openFindings, minSeverity, fixTarget,
+fixTargetHonored, notes }` where
+`terminalState ∈ {"BOTH_PHASES_DONE","PHASE1_CAP","PHASE2_CAP","FIX_TARGET_ESCALATION"}`. The fix-count fields are
 **agent-named**, not phase-named: `superpowersFixes` = the Superpowers reviewer's confirmed-fix
 count and `codexFixes` = the Codex reviewer's confirmed-fix count, regardless of which phase each
 agent ran in (at the default `roles.main=claude`, Superpowers is Phase 1 and Codex is Phase 2). Both
@@ -169,6 +249,15 @@ is double-counted.
 - `minSeverity` is the **effective resolved** threshold this run used — always the lowercase canonical
   form (`"low"` / `"medium"` / `"high"` / `"critical"`), never the raw config text. It is emitted on
   **every** run, including runs at the default `low`.
+- `fixTarget` and `fixTargetHonored` are **optional** and report your *Fix-target evaluation* (see
+  that section for which case sets which): the `{model}.{effort}` you acted on plus `true` on an
+  honored run; the escalation target plus `false` on an escalating run; **both omitted** when there
+  was no fix work to size; and `false` with `fixTarget` omitted when the evaluation degraded. Neither
+  field is read by any gate.
+- `FIX_TARGET_ESCALATION` may be returned **only before any edit has been made for the triggering
+  finding set**, and **never** by an escalated run. It is not a convergence state: the workflow
+  consumes it, re-spawns this story's review once at `fixTarget`'s model, and reads *that* run's
+  terminal state.
 - `notes` MUST carry a below-threshold listing, headed
   `Below threshold — not blocking convergence (minSeverity = <value>)`, drawn from the **last completed
   review pass of each phase that ran**. One line per below-threshold finding, each carrying its

@@ -5,6 +5,9 @@ argument-hint: "<change-selector> — id, epic:XXXX, story:NN, or epic:XXXX stor
 
 You are running **step 4** of the ptp flow. The change has been implemented. Your job is to **invoke Superpowers code review** and grade the diff against the OpenSpec artifacts.
 
+This command never fixes, so the fix-target contract in `ptp-review-loop` is a **no-op** here: no
+fix pass is dispatched and this command's `opus.high` review target is unchanged.
+
 ## Inputs
 
 Change id: $ARGUMENTS
