@@ -1071,19 +1071,26 @@ substitution **that produces, filters, or transforms the call's data**, inside a
 performs in-process the filtering a pipe to `jq` would, so no second binary is required and no quoting
 crosses a pipe boundary.
 
-**Two body-construction forms are admitted, and they sit on opposite sides of that boundary.** Rule 3's
+**Exactly one body-construction form is admitted, and it sits outside a contract call.** Rule 3's
 heredoc capture, `body=$(cat <<'PTP_BODY' … )`, is a **separate statement executed before the call** —
 the call itself then passes only `"$body"`, so no substitution occurs inside it and rule 1's prohibition
-never engages. Rule 3's temp-file form, `--body "$(cat "$f")"`, **is** a substitution at the call site,
-and it is admitted narrowly and **by name**: it reads a file the caller itself just wrote, verbatim, and
-computes nothing. Neither is a second process participating in the call's meaning; both deliver the same
-already-composed bytes by a different route, which is why they are safe where a pipeline is not. Stating
-this reconciliation is not optional — without it the contract reads as forbidding its own prescribed
-example.
+never engages. Stating this reconciliation is not optional — without it the contract reads as forbidding
+its own prescribed example.
 
-**No other substitution is admitted** on either side of that boundary — in particular none that invokes
-`gh`, `jq`, `git`, or any command whose output the call would then act on, whether at the call site or
-in a statement feeding it.
+**The temp-file form, `--body "$(cat "$f")"`, is retired and is admitted no longer.** It was once
+admitted here by name; that admission contradicted the write path, which had already rejected the same
+form with its reasons stated. That rejection lives at `skills/ptp-backlog-write/SKILL.md` §*The composed
+body's emission obligations*, under **Rejected: a temp file plus `--body "$(cat <file>)"`** — read its
+grounds there. It is the **governing rule**, and it is **cited here, never restated**: it sits in the one
+normative home of the obligations it belongs to, and a second statement of its grounds, here, would be a
+second home that could later drift from it.
+
+**No command substitution is admitted inside a contract call, and there is no exception** — not for a
+just-written file, not for any other materialization, and on neither route. A statement **feeding** a
+call is not itself a contract call, and rule 3's heredoc capture — the only body construction this
+contract prescribes — is the **one** substitution such a statement may perform. **Any substitution other
+than that one** is prohibited in a feeding statement, in particular one invoking `gh`, `jq`, `git`, or
+any command whose output the call would then act on.
 
 **2. Argument construction.** Every value originating in configuration, on the board, or in an entry is
 passed as **its own argv element**, never interpolated into a single command string. That is what makes
@@ -1107,25 +1114,30 @@ POSIX shell, and an entry body carries newlines plus a sentinel-fenced JSON bloc
   gh project item-edit --id "$item" --body "$body"
   ```
 
-  — or write the body to a temp file and pass `--body "$(cat "$f")"`.
 - **Never** a PowerShell here-string (`@'…'@`); **never** a double-quoted heredoc (`<<EOF`, which
-  expands `$`); **never** `echo -e`.
+  expands `$`); **never** `echo -e`; **never** a temp file plus `--body "$(cat "$f")"` — retired under
+  rule 1, and rejected at its home in `skills/ptp-backlog-write/SKILL.md`.
 - **CRLF is prohibited in a body.** Bodies are **LF-only**. A carriage return that survives into
   `--body` is stored on the board and then breaks the metadata block's byte-for-byte preservation rule
   on the next read — the same CRLF discipline `ptp-workflow-cache-heal` already applies to cached
   scripts, applied here to board content.
-- **A composed body SHALL NOT depend on a trailing newline**, because **both** admitted forms are
-  command substitutions and POSIX `$( … )` strips **every** trailing newline. That is the one byte a
-  composed body cannot carry through either route, so *byte-for-byte as composed* is to be read over a
-  body with no trailing-newline significance: compose the body so its last byte is its last meaningful
-  character, and never treat a differing trailing newline on read-back as a changed body. The
-  sentinel-fenced region is unaffected — its closing sentinel is content, not a terminator — so the
-  metadata block's preservation rule still binds exactly as written.
+- **A composed body SHALL NOT depend on a trailing newline**, because the one admitted form is a command
+  substitution and POSIX `$( … )` strips **every** trailing newline. That is the one byte a composed body
+  cannot carry through this route, so *byte-for-byte as composed* is to be read over a body with no
+  trailing-newline significance: compose the body so its last byte is its last meaningful character, and
+  never treat a differing trailing newline on read-back as a changed body. The sentinel-fenced region is
+  unaffected — its closing sentinel is content, not a terminator — so the metadata block's preservation
+  rule still binds exactly as written.
 
-**3a. The same body on a GraphQL variable argument — the same five obligations, and no sixth.** The
-composed body's **five** emission obligations bind **identically** whether the body arrives as a
+**3a. The same body on a GraphQL variable argument — the same six obligations, and none added per route.**
+The composed body's **six** emission obligations bind **identically** whether the body arrives as a
 body-carrying flag value on `gh project item-edit` or as a **GraphQL variable argument** on
-`gh api graphql`, and **no sixth obligation is added** for either route.
+`gh api graphql`, and **no obligation is added for either route beyond the six the home states**.
+
+**That last clause is a PER-ROUTE prohibition, and it survives the home gaining a sixth obligation.** What
+it forbids is one route acquiring an obligation the other does not have; it has never forbidden the
+**home** from stating more of them. Obligation 6 was added in the home and binds both routes identically,
+exactly as 1–5 do, so this contract still adds none.
 
 Their **one normative home** is `skills/ptp-backlog-write/SKILL.md` §*The composed body's emission
 obligations*. They are **cited here, never restated and never renumbered** — a second statement of them
@@ -1133,8 +1145,27 @@ would be a second home, and two homes eventually disagree about what they are an
 
 What this contract states is the **argv shape they bind to on the passthrough**: the whole `name=value`
 field argument is the **one argument** those obligations govern, so each of them has an unambiguous
-subject on this route. Three passthrough-specific **applications** follow. Each is an application of a
-rule that already exists; **none is a new obligation**.
+subject on this route.
+
+**With one qualification, and it is load-bearing rather than pedantic.** That sentence is right for the
+obligations whose subject **is** the argv encoding. It is **wrong** for any obligation whose subject is
+the composed **value**, and wrong in the one direction that matters:
+
+> **Where an obligation's subject is the composed VALUE rather than its argv encoding, its subject on this
+> route is the VALUE PORTION AFTER THE FIRST `=`, never the whole `name=value` element.**
+
+An argument spelled `body=` is a **present, non-empty argument whose VALUE is empty** — *empty* and not
+*absent*, the two being distinguished everywhere the obligations speak of a failed limb. Reading a
+presence-or-integrity obligation over the **element** would therefore satisfy it on
+**precisely the input it exists to reject**, the element being non-empty exactly when the value it
+carries is not. **This fixes the obligation's SUBJECT and decides no outcome** — an empty value portion
+is not refused *by this rule*, a value composed empty passing here exactly as it does on any other route.
+This is a **further application of the rule stated below as application 3** — *a `name=value` argument's
+value is everything after the first `=`* — and, exactly like the three applications that follow, it is an
+application of an existing rule and **not a new obligation**.
+
+Three passthrough-specific **applications** follow. Each is an application of a rule that already exists;
+**none is a new obligation**.
 
 1. **The body rides a variable; the query document is a constant.** Interpolating a composed body into a
    query string is the GraphQL form of interpolating a value into a command string, which **rule 2**
@@ -1149,21 +1180,25 @@ rule that already exists; **none is a new obligation**.
    `=` therefore needs **no escaping rule of its own** — the same *no per-value escaping rule* property
    rule 2 exists to deliver.
 
-**Both of rule 3's body-construction forms carry over unchanged, and rule 1's exception is read by what
-it materializes rather than by which flag carries it.** The heredoc capture is a statement executed
-before the call, so it never engages rule 1 on either route. The temp-file form is a call-site
-substitution on either route, and rule 1 admits it for the property it names — it materializes an
-already-composed body from a file the caller itself just wrote, verbatim, computing nothing — so
-`-f body="$(cat "$f")"` is admitted **exactly as** `--body "$(cat "$f")"` is, and by the same exception
-rather than by a new one. Reading that exception as bound to the `--body` **spelling** would leave the
-route this contract just admitted with only one of the two forms, which is not what rule 1 turns on. No
-other substitution becomes admissible on this route, at the call site or in a statement feeding it.
+**Rule 3's one body-construction form carries over unchanged, and rule 1's prohibition binds this route
+identically.** The heredoc capture is a statement executed before the call, so it never engages rule 1 on
+either route; the call then passes `-f body="$body"` exactly as the flag route passes `--body "$body"`.
+The retired temp-file form is **not** admitted here either: `-f body="$(cat "$f")"` is a call-site command
+substitution, which rule 1 now prohibits without exception, on this route as on the other. Reading the
+retirement as bound to the `--body` **spelling** would re-admit on this route precisely the form the write
+path rejects — rule 1 turns on what a construct **is**, not on which flag carries it, which is the same
+property that made the extension to this route obvious while the form was still admitted. Beyond that one
+heredoc capture, no command substitution is admissible on this route — not at the call site, and not in a
+statement feeding it.
 
 **The typed field's `@file` form is deliberately deferred, not forbidden on principle.** It is genuinely
 attractive: it would remove the `$( … )` substitution entirely, and with it the trailing-newline caveat
 above. It is deferred because **whether the typed field coerces *file* contents was not verified
-first-hand**, and an unverified form has no place on the carrier that holds the metadata fence. A later
-change may admit it, on verification.
+first-hand**, and an unverified form has no place on the carrier that holds the metadata fence.
+**Verification alone would no longer suffice to admit it.** An `@file` form reads a file that something
+must first have written, so it would also put a composed body on disk — the very ground the temp-file
+form was retired on, and what `skills/ptp-backlog-write/SKILL.md` rejects at its home. A later change may
+admit it only by clearing **both** bars, and the second is not a verification question.
 
 **4. Exit-code handling.** `gh help exit-codes` states the whole vocabulary:
 
