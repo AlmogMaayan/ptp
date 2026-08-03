@@ -653,7 +653,7 @@ must arrive as an **argv element**. That body is not a token: it carries the use
 the two HTML-comment sentinels, a fenced JSON block and any preserved post-`end` text — so backticks,
 `$`, backslashes and newlines are all **ordinary content**, never syntax.
 
-**Five obligations, and all five bind together:**
+**Six obligations, and all six bind together:**
 
 1. the composed body SHALL arrive at `gh` as **exactly one argument**;
 2. it SHALL be **byte-identical** to the composed value except for **trailing** newlines, which the
@@ -666,6 +666,15 @@ the two HTML-comment sentinels, a fenced JSON block and any preserved post-`end`
 5. where the body is carried by a **delimited** construct, the delimiter SHALL be a **nonce**, its
    **absence from the body SHALL be verified before dispatch**, and a collision SHALL **refuse before
    dispatching** rather than truncate or re-encode.
+6. **immediately before the dispatch that carries it, the composed value SHALL be verified to be the
+   value that was composed** — **present** rather than absent, unbound or unreadable, and
+   **byte-identical to what was composed**, which where a **non-empty** value was composed makes it
+   **non-empty** as well. This limb is read over **exactly obligation 2's** notion of byte-identity —
+   **trailing** newlines excepted, as obligation 2 already excepts them, so a value differing from what
+   was composed **only** in trailing newlines satisfies it. Nothing else is excepted, and the limb is
+   **not** otherwise conditioned. A value that cannot be so verified SHALL cause a **refusal before dispatch**,
+   never a dispatch of the unverified value. **A value that is empty because it could not be read
+   SHALL NEVER be treated as an intentionally empty one.**
 
 **W1's `--body` and W2's `--body` are bound identically.** The create and the edit differ in nothing
 here.
@@ -676,13 +685,134 @@ every expansion, the surrounding `"$( … )"` making the result exactly one argu
 substitution stripping **trailing** newlines only, which obligation 2 already permits. The quoting rules
 themselves are the **`gh` transport contract**'s and are **not restated here**; and where that contract
 offers a dispatch that does **not** pass through a shell at all, **that supersedes this realization
-while obligations 1–5 still bind**.
+while obligations 1–6 still bind**.
 
 **Rejected: a temp file plus `--body "$(cat <file>)"`.** Its advantage is genuine and is recorded rather
 than waved away — it removes delimiter collision entirely. It is rejected because it **writes composed
 backlog content to disk**, needs cleanup on every fail-stop path, and creates an artifact a reader can
 mistake for the **second store `ptp-backlog` forbids absolutely**. The nonce check of obligation 5 is
 what is adopted in its place.
+
+#### Obligation 6 — the presence guard, and where it sits
+
+**What obligation 6 adds that 1–5 did not is a SUBJECT, not more rigour.** Obligations 1–4 govern how a
+value that **exists** is **encoded** on its way to `gh`; obligation 5 governs one construction form's
+**delimiter**. **None of them asks whether the value is there.** An **empty string passes every one of
+1–4 that anything ever evaluated** — it is exactly one argument, it contains no `\r`, and no expansion
+was applied to any of its zero bytes — and it falls outside obligation 5, which is scoped to a body
+*carried by a delimited construct*. **Obligation 2 is the one it does not satisfy, and that is exactly
+the point**: an empty value where a non-empty one was composed **violates** obligation 2 outright, and it
+reached the board anyway because obligation 2 stated a requirement that **nothing anywhere evaluated**.
+*Unverified* is the word, never *satisfied*. Obligation 6 is the only obligation whose subject is the
+value's **existence and integrity** rather than its **encoding**.
+
+**It is deliberately construction-form-agnostic.** It names no heredoc, no file, no substitution, and no
+shell. Whatever composed the value — an admitted form, a form a later change admits, or a form nobody has
+thought of — the value is checked at the same moment, against the same standard. **A contract that
+enumerated safe forms would have to be re-opened for every new one; this one does not.**
+
+**It also VERIFIES obligation 2, which nothing previously did.** Obligation 2 already requires the
+dispatched body to be **byte-identical to the composed value**, which means the operation must already
+hold that composed value. It states the requirement and **nothing anywhere checks it**. Obligation 6 is
+that check, plus the presence question obligation 2 does not ask — an absent value being trivially not
+byte-identical to a non-empty composed one, so presence falls out of the same comparison rather than
+needing a second one.
+
+**It binds the TITLE carrier too, on every route.** *One dispatch carries both the item's content title
+carrier and the item body carrier, on every content type* — so a guard covering only the body would leave
+the **other carrier of the same dispatch** unguarded, and an empty title blanks a live issue's title
+exactly as an empty body blanks its body. The guard's subject is therefore **both composed carrier values
+that dispatch carries — the title carrier as well as the body carrier**, on every route. It reaches no
+**further** than that: W3's `status` commit dispatches a **resolved option id** rather than a composed
+carrier value, so the status-write machinery is untouched. This section keeps its name because the `gh`
+transport contract cites it **by name**; the extension is stated here rather than by renaming it.
+
+**Emptiness is admissible only when it was COMPOSED — an empty value is never self-certifying.** The
+operation must hold, **from the composition step**, the fact that the value it composed was empty. **That
+fact has a provenance requirement, and without it the guard admits the very incident it is written for**:
+it SHALL come from a composition step that **completed successfully and produced no content**, and it
+SHALL NOT be derived from the value the dispatch is about to carry, nor from any read, materialization or
+substitution that **failed, could not be completed, or produced its result by default**. A step that
+yields an empty value **because it went wrong** has composed **nothing**, not an empty value, and the
+operation holds no such fact. Given
+that fact an empty value at dispatch **is** byte-identical to what was composed and is dispatched
+normally — and a **non-empty** value at dispatch is not, and refuses, the byte-match limb binding in
+that direction too. **Absent** that fact an empty value at dispatch is an **unverifiable** value and
+refuses. That is the whole of *never conflate empty-because-unreadable with
+intentionally empty*, and it is what keeps obligation 6 from degenerating into a blanket *no empty bodies*
+prohibition — which would be **wrong**. An entry whose `description` is empty and for which the
+**inherited** body grammar's sentinel-pair conditions are **all** unmet is a legitimate state the store
+must be able to hold: no sentinel pair is written, there is **no block at all**, and the composed body is
+genuinely empty. **Those conditions are `ptp-backlog`'s and are not enumerated here** — in particular the
+absence of a non-empty block-carried field is **not** on its own enough, that grammar writing the pair for
+**preserved text bound to the region** as well, so an entry carrying in-region prose or post-`end` text
+composes a **non-empty** body and never reaches this case. (Cited, not restated: the grammar is
+`ptp-backlog`'s, and only that grammar decides when the pair is written.)
+
+Two consequences, stated so neither is discovered the hard way:
+
+- **The mandatory `runBaseline` clear is untouched.** That clear is a **block key emitted with its empty
+  value inside the composed body**; the **body** is not empty, and the guard's subject is the **carrier
+  value**, never a constituent of it. No settling edit and no `/ptp:backlog-continue` resume write is
+  affected by obligation 6.
+- **An empty composed TITLE always refuses, on every route.** This is a **rule about that carrier**, not
+  a derivation from the paragraph above, and it must not be read as one: `ptp-backlog`'s schema makes
+  `title` **non-empty**, so *composed empty* is an **inadmissible input** on this carrier rather than the
+  admissible-emptiness case — the **non-empty** limb therefore binds it **unconditionally**, alongside the
+  byte-match limb, and no provenance fact can license an empty title. Stated any weaker, the guard would
+  admit a title the **composition step itself** emptied. This **strengthens** — and does not contradict — the note above that `gh`'s own
+  `--title` requirement on `item-create` *adds no new refusal*: that note is about the **creation** path
+  and about a **composition rule upstream of this contract**, while obligation 6 is a different check at a
+  different moment on **all** routes. It is the first thing anywhere that would notice an **edit**
+  composing an empty title, which a create-only flag requirement cannot reach.
+
+**Where it sits among the pre-dispatch machinery — four steps, FOUR DIFFERENT SUBJECTS, never merged:**
+
+| # | Pre-dispatch step | Its subject |
+|---|---|---|
+| 1 | the **pre-dispatch snapshot**, and every state-derived refusal computed on it | the **board's** state |
+| 2 | the **pre-write field check** — two categories, and no third | the **board's** value of a checked field, against the snapshot's |
+| 3 | the **compose read** — three purposes, and explicitly not a check | the **board's** current carrier contents |
+| 4 | **obligation 6's presence guard** | **ptp's OWN composed value** |
+
+**It is strictly last, and necessarily so** — the composed value does not exist until the compose read has
+produced the constituents it is composed from — so there is no ordering to negotiate and no rule above it
+moves.
+
+**It reads no board state and adds no round trip.** **Both of its operands are ptp's own**: the value the
+dispatch is about to carry, against the composed value the operation **retained at the composition step**
+and has held ever since. Neither operand is read from the board, which is what makes the comparison
+non-trivial without costing a round trip — *against itself* means *against ptp's own retained value*, and
+never *against a value taken from the same place the dispatch takes it*, which would compare nothing.
+**It is therefore not a third check in the sense *Why there is no third check* forecloses**: that claim is
+about **which board fields are COMPARED** to decide a halt, and its four-bucket table is **unchanged** —
+no field becomes checked, and `title`, `description` and `notes` remain in the written-but-excluded bucket
+for the reason recorded there. **It does not weaken the snapshot rule** either: every *decision* still
+binds to the snapshot, and this guard makes no decision about board state and consults none. **And it is
+not a lock** — the one-round-trip residual is unchanged in kind, the guard narrowing the window between
+*value composed* and *value dispatched* while claiming nothing whatever about the board.
+
+**It does not duplicate the compose read's failure path; the two are DISJOINT BY TRIGGER.** Where the
+compose read **could not be completed**, that path has already halted and reported and the guard is never
+reached — so that fact is reported **once**. Where the compose read **succeeded** and the composed value
+nevertheless did not arrive intact at the dispatch, the compose-read path is silent **by construction**
+and the guard is the only thing that speaks.
+
+**Obligation 5 and obligation 6 do not overlap either**, both saying *verified before dispatch*: 5 asks
+whether the **body contains** a chosen delimiter and is scoped to delimited constructs; 6 asks whether the
+**value is the composed one** and is scoped to none.
+
+**A guard refusal is an ORDINARY pre-dispatch halt and adds no machinery.** Nothing is sent, so **every
+non-`skipped-identical` row of that dispatch — both carriers' rows — is `not-dispatched`**, by the
+backwards-halt rule read at **dispatch** granularity exactly as every such rule in this contract is; and
+the verdict is **`refused`** where nothing had been dispatched and **`uncommitted-partial`** otherwise.
+The report names **the carrier whose composed value could not be verified** and **which limb failed** —
+absent, empty where a non-empty value was **composed or required** (the `title` carrier's unconditional
+non-empty limb being the *required* case, and it covers a title the composition step **itself** emptied),
+or differing from the composed value — and reports it
+as a **composition defect**: never as a board problem, never as a configuration problem, and **never as a
+difference**, no board value having been observed to differ. **No new outcome, verdict, stage, carrier or
+journal column is added**, exactly as the two fail-closed route/address leaves add none.
 
 ---
 
