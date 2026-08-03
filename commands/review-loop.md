@@ -34,6 +34,14 @@ The subagent invokes the `ptp-review-loop` skill with:
 - `kind = code`
 - `reviewer = superpowers`
 - `change-id = <the resolved change id>` (the single id being processed this pass — not the raw `$ARGUMENTS` selector)
+- `fixDispatch = inline`
+- `runningTarget = <this command's resolved main-run target per ptp-agent-roles>`
+
+**Fix target.** The fix pass runs at a freshly evaluated fix target rather than at this command's
+review target; because this whole orchestration already runs inside one `ptp-run-at-model` main run,
+it passes `fixDispatch = inline` and never spawns a second run. The evaluation rule, the dispatch
+modes, the fallback, and the reporting obligation live in `ptp-review-loop` — this command does not
+restate them.
 
 The skill drives the full loop: per-iteration Superpowers code review, manual/test-only finding filter, rejection carry-over check, confirmation via `superpowers:receiving-code-review`, inline fix pass on confirmed findings, test/lint/typecheck verification, and termination at DONE or ITERATION CAP REACHED.
 
@@ -41,6 +49,7 @@ The skill drives the full loop: per-iteration Superpowers code review, manual/te
 
 ## Hard rules
 
+- Do **not** spawn a second `ptp-run-at-model` run for the fix pass — this command's orchestration already occupies the one Agent-nesting level.
 - Do **not** invoke `/ptp:apply`. Code fixes are applied inline; the loop is never a substitute for the apply step.
 - Do **not** archive the change, no matter the terminal state. Archiving is always an explicit user action (`/ptp:archive <change-id>`).
 - Do **not** auto-commit any edits made during the loop.

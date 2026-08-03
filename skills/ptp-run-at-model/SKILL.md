@@ -36,6 +36,17 @@ looks a command up in a table; the **caller always supplies the target** (see *T
 | `opus.high` | `brainstorm`, `brainstorm-only`, `plan`, `plan-multiple`, the review family (`review`, `review-loop`, `review-full`, `review-plan*`, `review-brainstorm*`, `review-prd*`), and the PRD stage (`prd`, `prd-full`) |
 | read line 1 of `effort.md` | `apply` |
 
+**Fix-work carve-out (review family).** The `opus.high` row above governs each review-family command's
+**review** work only. It does **not** govern the **fix** work, which runs at a separately evaluated fix
+target — a `{model}.{effort}` evaluated per fix pass from the frozen CONFIRMED in-scope finding set,
+falling back to `opus.high` with the defaulting noted. Concretely: `/ptp:review-fix`'s single
+standalone confirm-and-fix run takes that evaluated target in place of the literal `opus.high`, while
+every other review-family command still wraps its own run at `opus.high` and re-targets its inline fix
+pass **within** that run rather than by a second one. The five read-only reviewers (`/ptp:review`,
+`/ptp:review-plan`, `/ptp:codex-review`, `/ptp:codex-review-plan`, `/ptp:codex-review-uncommitted`) are
+unaffected — they never fix. The evaluation rule, the dispatch-mode contract, the fallback, and the
+reporting obligation live in `skills/ptp-review-loop/SKILL.md` and are not restated here.
+
 **Read-only commands skip the branch-guard step but still wrap** — they have no working-tree writes,
 so step 2 of the contract is a no-op for them, but they still run their work in the target-model
 main run (the Claude subagent, or the `codex exec` shell-out when `main=codex`) and relay the result.
@@ -112,11 +123,12 @@ The skill then runs, **in this order**:
 
    | Candidate | Assessment | Verdict |
    |---|---|---|
-   | Every `opus.high` site, named in full: `commands/` — `brainstorm`, `brainstorm-full`, `brainstorm-only`, `plan`, `plan-multiple` (beats 2 and 3), `prd`, `prd-full`, `full`, `full-plan`, `review`, `review-loop`, `review-full`, `review-fix`, `review-plan`, `review-plan-full`, `review-plan-loop`, `review-brainstorm`, `review-brainstorm-full`, `review-prd`, `review-prd-full`, `codex-review`, `codex-review-loop`, `codex-review-plan`, `codex-review-plan-loop`, `codex-review-prd`, `codex-review-prd-loop`, `codex-review-uncommitted`; `skills/` — `ptp-brainstorm-full`, `ptp-prd`, `ptp-prd-full`, `ptp-review-brainstorm-full`, `ptp-review-prd-full`, `ptp-full`, `ptp-full-apply` | Every one of them produces design, decomposition, PRD, or review judgment that a later stage consumes without re-deriving it. The verdict is identical for each, so they share one row rather than being assessed differently. | Judgment-carrying; downgrade forbidden by the rule above. |
+   | Every `opus.high` site, named in full: `commands/` — `brainstorm`, `brainstorm-full`, `brainstorm-only`, `plan`, `plan-multiple` (beats 2 and 3), `prd`, `prd-full`, `full`, `full-plan`, `review`, `review-loop`, `review-full`, `review-plan`, `review-plan-full`, `review-plan-loop`, `review-brainstorm`, `review-brainstorm-full`, `review-prd`, `review-prd-full`, `codex-review`, `codex-review-loop`, `codex-review-plan`, `codex-review-plan-loop`, `codex-review-prd`, `codex-review-prd-loop`, `codex-review-uncommitted`; `skills/` — `ptp-brainstorm-full`, `ptp-prd`, `ptp-prd-full`, `ptp-review-brainstorm-full`, `ptp-review-prd-full`, `ptp-full`, `ptp-full-apply` | Every one of them produces design, decomposition, PRD, or review judgment that a later stage consumes without re-deriving it. The verdict is identical for each, so they share one row rather than being assessed differently. | Judgment-carrying; downgrade forbidden by the rule above. |
    | Every `sonnet.medium` site, named in full: `commands/` — `archive`, `archive-force`, `master`, `deploy`, `deploy-master`, `deploy-pr-approved`, `merge-to-master`; `skills/` — `ptp-archive-and-deploy`, `ptp-deploy-master` | The git plumbing inside them is mechanical, but the *step* is not, and this holds for each one individually: `/ptp:archive` and `/ptp:archive-force` decide whether the gates pass and merge delta specs into the shared `openspec/specs/` tree; `/ptp:master` must distinguish a clean tree from a dirty one and refuse rather than force; `/ptp:deploy`, `/ptp:deploy-pr-approved`, `/ptp:merge-to-master`, `/ptp:deploy-master` and their two skills autonomously diagnose and repair merge conflicts, CI failures, and deploy failures within a retry budget, and decide when a human approval is required. None has a single verifiable correct outcome fixed in advance, so none meets the mechanical test. | Not mechanical; every one stays at `sonnet.medium`. |
    | `/ptp:apply` (`effort.md`-derived per-change target) | The target is the change's own recorded recommendation, and implementation is judgment-carrying by definition. | No fixed target to downgrade; judgment-carrying. |
+   | `/ptp:review-fix` (evaluated per-fix-pass target — see the **Fix-work carve-out** above) | It names no fixed target: its single confirm-and-fix run takes the fix target evaluated over the frozen finding set, with `opus.high` as the documented fallback. This is the `/ptp:apply` shape — a target derived per work item rather than a blanket downgrade — so the rule is satisfied the same way it is there. The **review** judgment it acts on was produced at `opus.high` by a separate review command, and this command's own review target is unchanged because it runs no review. | No fixed target to downgrade; judgment-carrying. |
    | The only `haiku` site: `ptp-branch-prep`, defined in `skills/ptp-branch-guard/SKILL.md` and named by every guarded command that cites it (`brainstorm`, `brainstorm-full`, `plan`, `prd`, `prd-full`, and this skill) | Already runs at `haiku`, and the skill pins it there with a hard no-escalate rule — pure git plumbing (stash/checkout/pull/branch), fully specified, no design judgment, single verifiable outcome. | Already at the cheapest tier; nothing to change. |
-   | The `full` family's workflow agents (`workflows/ptp-full-apply.js`) | Named outside this skill (the family does not use it): the code-review agent is fixed at `opus`, and the apply agent takes the per-story recommendation with `opus` as its default. Both are judgment-carrying stages. | Judgment-carrying; downgrade forbidden. |
+   | The `full` family's workflow agents (`workflows/ptp-full-apply.js`) | Named outside this skill (the family does not use it): the apply agent takes the per-story recommendation with `opus` as its default, and the code-review agent takes that story's resolved review target — the same recommendation floored at `sonnet`/`high`, with `opus`/`high` as its default — and may be re-spawned once at a more capable model when its own fix-target evaluation names one. Both are judgment-carrying stages, and neither names a fixed target to downgrade. | Judgment-carrying; downgrade forbidden. |
    | `ptp-workflow-cache-heal` | A Bash step invoked directly via the Bash tool, not an agent spawn — it has no `model` parameter to choose at all. | Not a spawn site; no model to name. |
    | `plan-multiple`'s cross-reference verification (step 5f) | Runs in the **outer session**, after the beat-3 join, not inside any spawned agent — it has no `model` parameter to choose. | Not a spawn site; no model to name. |
 
@@ -616,6 +628,24 @@ inner spawn would be a second nesting level, which throws (nesting is one level 
 commands (the deploy trio, whose `ptp-deploy` skill may spawn a fix subagent), the wrapping subagent
 must perform that inner work **inline** rather than spawning again, or the command must be wrapped at
 a boundary that keeps the nested spawn in the outer session.
+
+**Worked instance — the review family's re-targeted fix pass.** The review family fixes at a target
+evaluated for the fix work itself, not at the target its review pass runs at. That would be a second
+spawn inside an already-wrapped run for every `-loop`/`-full` caller, so the resolution splits the two
+questions: **evaluation happens where the frozen finding set lives; dispatch happens only where an
+Agent-nesting level is unspent** — and those two need not be the same party. This takes **both**
+escapes named above at once: a caller whose budget is already spent performs the fix **inline**, while
+`/ptp:review-fix` — whose freeze runs in the outer session — keeps the dispatch there and spawns its
+single confirm-and-fix run at the evaluated target. The choice between the two is an **explicit
+caller-supplied input whose default is the inline, non-spawning direction**, so a caller that omits it
+can never cause a throwing second spawn.
+
+That input's name, its domain, the evaluation rule, the fallback, and the reporting obligation live in
+`skills/ptp-review-loop/SKILL.md` (§ *Fix dispatch* and per-iteration step (g)) — they are **not**
+restated here.
+
+The one-level Agent-nesting rule is **not** relaxed by this: the resolution **places** the dispatch,
+it does not exceed the budget. No review-family command reaches a second nesting level.
 
 Commands with **no nested spawn** wrap cleanly — e.g. `archive` is an OpenSpec-CLI call, `master` is
 git, and archive-force delegates to the inline `ptp-archive-force` skill.

@@ -760,7 +760,7 @@ These three commands turn a description into reviewed code with minimal hand-hol
 
 **`/ptp:full-plan "<request-or-big-change-id>"`** — the **read-only planning** half. Decomposes the work into independently-shippable slices (`/ptp:plan-multiple`) and runs the full two-phase (Superpowers + Codex) artifact review on every slice. Never applies code, never archives. Next step is `/ptp:full-apply`.
 
-**`/ptp:full-apply [selector | id …]`** — the **execution** half. Launches the `ptp-full-apply` workflow, which runs `apply → review-full` per story **sequentially** — one story fully finished before the next. Each story's apply agent runs at the model from its `effort.md`; review always runs at `opus.high`. Pass a selector/id list, or omit to run all active changes (with a one-time scope confirmation).
+**`/ptp:full-apply [selector | id …]`** — the **execution** half. Launches the `ptp-full-apply` workflow, which runs `apply → review-full` per story **sequentially** — one story fully finished before the next. Each story's apply agent runs at the model from its `effort.md`; each story's **review target** is derived from the same file — the model floored at `sonnet`, the effort floored at `high` — so a missing or unparseable `effort.md` still yields `opus.high`, and each review's **fix** work runs at a freshly evaluated fix target. Pass a selector/id list, or omit to run all active changes (with a one-time scope confirmation).
 
 ---
 

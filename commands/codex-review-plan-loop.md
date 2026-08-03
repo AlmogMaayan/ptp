@@ -40,6 +40,14 @@ The subagent invokes the `ptp-review-loop` skill with:
 - `kind = artifact`
 - `reviewer = codex`
 - `change-id = $ARGUMENTS`
+- `fixDispatch = inline`
+- `runningTarget = <this command's resolved main-run target per ptp-agent-roles>`
+
+**Fix target.** The fix pass runs at a freshly evaluated fix target rather than at this command's
+review target; because this whole orchestration already runs inside one `ptp-run-at-model` main run,
+it passes `fixDispatch = inline` and never spawns a second run. The evaluation rule, the dispatch
+modes, the fallback, and the reporting obligation live in `ptp-review-loop` — this command does not
+restate them.
 
 The skill drives the full loop. For each iteration's review pass it runs the `codex-review-plan.md` closed-book protocol inline: you (the caller) read all artifacts, run `npx -y openspec validate <change-id> --strict`, collect cited source excerpts, build a single self-contained prompt with all of this inlined, and pipe it to `codex exec -s read-only` over stdin. Findings are confirmed via `superpowers:receiving-code-review` before any artifact is touched.
 
@@ -47,6 +55,7 @@ The skill drives the full loop. For each iteration's review pass it runs the `co
 
 ## Hard rules
 
+- Do **not** spawn a second `ptp-run-at-model` run for the fix pass — this command's orchestration already occupies the one Agent-nesting level.
 - Do **not** invoke `/ptp:apply`. This loop fixes artifacts, not source code.
 - Do **not** archive the change. Archiving is always an explicit user action.
 - Do **not** auto-commit any edits.

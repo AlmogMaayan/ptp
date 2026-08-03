@@ -39,6 +39,12 @@ terminal state (including the mode-skip success state `PHASE 1 DONE — CODEX SK
 relayed back per `ptp-run-at-model`'s *Result relay* — never downgraded to or away from its true
 meaning.
 
+**Fix target.** The fix pass runs at a freshly evaluated fix target rather than at this command's
+review target; because this whole orchestration already runs inside one `ptp-run-at-model` main run,
+it passes `fixDispatch = inline` and never spawns a second run. The evaluation rule, the dispatch
+modes, the fallback, and the reporting obligation live in `ptp-review-loop` — this command does not
+restate them.
+
 ### Phase 1 — main-agent code-review loop
 
 Phase 1 is the **main agent's** review loop (always runs). At the default `roles.main=claude` the main agent is Superpowers, so pass `reviewer = superpowers`; when `roles.main=codex` the main agent is Codex, so pass `reviewer = codex`. Invoke the `ptp-review-loop` skill with:
@@ -46,6 +52,8 @@ Phase 1 is the **main agent's** review loop (always runs). At the default `roles
 - `kind = code`
 - `reviewer = <the main agent>` (`superpowers` by default; `codex` when `roles.main=codex`)
 - `change-id = <the resolved change id>` (the single id being processed this pass — not the raw `$ARGUMENTS` selector)
+- `fixDispatch = inline`
+- `runningTarget = <this command's resolved main-run target per ptp-agent-roles>`
 
 The skill drives the full loop: per-iteration code review by the main agent, manual/test-only finding filter, rejection carry-over check, confirmation via `superpowers:receiving-code-review`, inline fix pass on confirmed findings, test/lint/typecheck verification, and termination at DONE or ITERATION CAP REACHED.
 
@@ -60,6 +68,8 @@ If and only if Phase 1 terminates with `DONE` **and** the gate permits the revie
 - `kind = code`
 - `reviewer = <the reviewer agent>` (`codex` by default; `superpowers` when `roles.main=codex`)
 - `change-id = <the resolved change id>` (the single id being processed this pass — not the raw `$ARGUMENTS` selector)
+- `fixDispatch = inline`
+- `runningTarget = <this command's resolved main-run target per ptp-agent-roles>`
 
 The skill drives the full loop. When the reviewer is Codex, each iteration's review pass runs the `codex-review.md` protocol inline: you (the caller) read the contract, capture the merge-base diff, run `npx -y openspec validate <change-id> --strict` and relevant tests, build a single closed-book prompt with all of this inlined, and pipe it to `codex exec -s read-only` over stdin (assembled per the `ptp-codex-mode` flag-append rule — resolved `-m`/`-c` flags appended before the trailing `-` when `codex.model`/`codex.reasoningEffort` are configured). Findings are confirmed via `superpowers:receiving-code-review` before any fix is applied.
 
@@ -79,6 +89,7 @@ After both phases complete, report:
 
 ## Hard rules
 
+- Do **not** spawn a second `ptp-run-at-model` run for the fix pass — this command's orchestration already occupies the one Agent-nesting level.
 - Do **not** start Phase 2 if Phase 1 did not terminate with `DONE`.
 - Do **not** invoke `/ptp:apply`. Code fixes are applied inline by each loop phase.
 - Do **not** archive the change. Archiving is always an explicit user action (`/ptp:archive <change-id>`).

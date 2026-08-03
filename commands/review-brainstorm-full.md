@@ -82,6 +82,17 @@ do **not** add a nesting guard — every inner step is inline skill work or an e
 subprocess, neither of which spawns an Agent or a Workflow. For a multi-change or empty-argument
 review-all selector, the one subagent handles the whole per-change pass.
 
+**Fix dispatch (both phases).** Each phase's `ptp-review-loop` invocation is additionally passed:
+
+- Phase 1 — `fixDispatch = inline`, `runningTarget = <this command's resolved main-run target per ptp-agent-roles>`
+- Phase 2 — `fixDispatch = inline`, `runningTarget = <this command's resolved main-run target per ptp-agent-roles>`
+
+**Fix target.** The fix pass runs at a freshly evaluated fix target rather than at this command's
+review target; because this whole orchestration already runs inside one `ptp-run-at-model` main run,
+it passes `fixDispatch = inline` and never spawns a second run. The evaluation rule, the dispatch
+modes, the fallback, and the reporting obligation live in `ptp-review-loop` — this command does not
+restate them.
+
 Keep this command **thin**: the two phases, the rubric, the convergence-based Phase-1-gates-Phase-2
 gate, the combined terminal state, the report shape, and the deliberate no-`openspec validate`
 divergence all live in the **`ptp-review-brainstorm-full`** skill (the `commands/config.md` →
@@ -93,6 +104,7 @@ brainstorm-review column.
 
 ## Hard rules
 
+- Do **not** spawn a second `ptp-run-at-model` run for the fix pass — this command's orchestration already occupies the one Agent-nesting level.
 - Do **not** start Phase 2 unless Phase 1 terminated with `DONE`. A Phase 1 `ITERATION CAP REACHED`
   STOPs the run — Phase 2 does not start.
 - This command **edits `brainstorm.md`** inline to resolve confirmed findings. It does **not** archive

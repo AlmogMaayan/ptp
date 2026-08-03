@@ -33,13 +33,33 @@ Reviews in this workflow are **displayed in the conversation, not persisted to a
 
    **If NO review is present in the conversation, STOP — in the outer session, without spawning a subagent.** Tell the user to run a `/ptp:review*` command first. Do **not** run a review yourself, do **not** invent findings, and do **not** fix anything. (This is an abort-guaranteeing precondition — a guaranteed abort must never spawn a subagent.)
 
-2. **Run the confirm-and-fix work at a deterministic model via `ptp-run-at-model` at `opus.high`.**
-   With the branch guard (above) and the frozen findings already established in the outer session,
-   invoke the **`ptp-run-at-model`** skill with target `opus.high`, passing the frozen findings and
-   the resolved change id(s) into the subagent prompt. That spawns one foreground `opus` subagent
-   (high effort directive) which runs the confirm/fix/verify/report steps below (3–6) on the passed
-   findings, and its terminal result is relayed back per `ptp-run-at-model`'s *Result relay*. The
-   subagent never invents findings — it operates only on the frozen set handed to it.
+   **Evaluate the fix target (outer session).** Once the finding set is frozen — and only after the
+   STOP precondition above has passed — evaluate `fixTarget` per the fix-scoped `/ptp:effort` mode
+   (`/ptp:effort mode:fix`, `commands/effort.md` § *Fix mode (`mode:fix`)*) over that frozen set plus
+   the resolved change's artifacts. When the evaluation is unavailable, errors, or returns a value
+   that is not a parseable `{model}.{effort}`, use the literal `opus.high` and **note the
+   defaulting** — never throw, never STOP, never skip the fix. This is the frozen
+   **pre-confirmation** set: confirmation is step 3, *inside* the dispatched run, so the evaluation
+   may score findings that are later `REJECTED`. That is accepted (an over-estimate in the safe
+   direction) and it does **not** license fixing an unconfirmed finding — every finding still passes
+   step 3 on its own merits. The evaluation rule, the dispatch modes, the fallback, and the
+   reporting obligation live in `ptp-review-loop` (§ *Fix dispatch* and step (g)) — this command does
+   not restate them.
+
+2. **Run the confirm-and-fix work at a deterministic model via `ptp-run-at-model` at the evaluated
+   `fixTarget`.**
+   With the branch guard (above), the frozen findings, and the evaluated `fixTarget` already
+   established in the outer session, invoke the **`ptp-run-at-model`** skill with target `fixTarget`,
+   passing the frozen findings and the resolved change id(s) into the subagent prompt. That spawns
+   one foreground main run at `fixTarget`, carrying that target's effort directive, which runs the
+   confirm/fix/verify/report steps below (3–6) on the passed findings, and its terminal result is
+   relayed back per `ptp-run-at-model`'s *Result relay*. The subagent never invents findings — it
+   operates only on the frozen set handed to it. This is the `dispatched` fix mode of
+   `ptp-review-loop` § *Fix dispatch*, which this command adopts directly rather than by passing a
+   loop input (it drives no loop). The dispatched run's prompt carries this command's hard rules
+   **explicitly** — never invoke `/ptp:apply`, never regenerate artifacts via `/ptp:plan` or
+   `/ptp:brainstorm`, never archive, never commit — because a fresh main run does not inherit them
+   by osmosis.
 
 3. **Confirm every finding independently.** Invoke the `superpowers:receiving-code-review` skill via the Skill tool and apply its rigor: for **each** finding, read the actual code or artifact at the cited location and judge whether it describes a **real defect** — not a false positive, not already-correct code, not a misunderstanding of intent or conventions.
    - Mark each finding `CONFIRMED` or `REJECTED`, each with a one-line reason.
@@ -60,6 +80,16 @@ Reviews in this workflow are **displayed in the conversation, not persisted to a
 6. **Report.** Produce a per-finding table with one of: `CONFIRMED + FIXED`, `REJECTED (reason)`, or `CONFIRMED but could not fix (reason)`. Group by severity. Then show the verification results, then the suggested next step:
    - Code fixes → re-run the same review (or `/ptp:review <change-id>`) to confirm resolution, then `/ptp:archive <change-id>` once clean.
    - Artifact fixes → `/ptp:apply <change-id>` (if not yet implemented) or `/ptp:review-plan <change-id>` to re-check the artifacts.
+
+   **Fix-target reporting (an addition to the report above, not a rewrite of it).** This command
+   drives no loop and so keeps no per-iteration summary; its per-finding report is the surface that
+   stands in for one. Record the evaluated `fixTarget`, whether it was **defaulted** to `opus.high`
+   because the evaluation failed, and whether it was **fully honored**. Under `roles.main = codex`
+   the dispatched run is a `codex exec` shell-out taking `codex.model` / `codex.reasoningEffort`, so
+   record `fixTarget` as **advisory** rather than fully honored and emit the divergence line naming
+   the evaluated model alongside the configured `codex.model` — or `unknown` when that key is unset.
+   The obligation itself lives in `ptp-review-loop` (the fix-target reporting rules under step (h))
+   and is referenced here, not restated.
 
 7. **Stamp the review-convergence marker (artifact / brainstorm fixes only).** `/ptp:review-fix` does NOT drive `ptp-review-loop` (no loop, no iteration cap), but on completion it stamps the **same** per-kind marker the loops write, reusing the shared schema / location / **atomic write-temp-then-rename** protocol from `ptp-review-loop`'s **## Review-convergence marker** section. Mapping the single confirm→fix→verify pass to marker fields:
    - **`kind`** — from the **frozen review's** kind: a frozen **artifact** review → `reviews/plan.json`; a frozen **brainstorm** review → `reviews/brainstorm.json`; a frozen **code** review → **NO marker** (there is no code-review column), exactly as a `kind = code` loop writes none.

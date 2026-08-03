@@ -59,6 +59,14 @@ For each resolved epic, the subagent invokes the `ptp-review-loop` skill with:
 - `reviewer = codex`
 - the resolved **epic** and the **PRD file path** `openspec/changes/<id>/prd.md` (the change-folder
   PRD input variant, in place of a brainstorm/artifact change folder)
+- `fixDispatch = inline`
+- `runningTarget = <this command's resolved main-run target per ptp-agent-roles>`
+
+**Fix target.** The fix pass runs at a freshly evaluated fix target rather than at this command's
+review target; because this whole orchestration already runs inside one `ptp-run-at-model` main run,
+it passes `fixDispatch = inline` and never spawns a second run. The evaluation rule, the dispatch
+modes, the fallback, and the reporting obligation live in `ptp-review-loop` — this command does not
+restate them.
 
 The skill drives the full loop. For each iteration's review pass it runs the `codex-review-plan.md`
 closed-book protocol inline, **retargeted to the PRD file and with NO `openspec validate`**: you (the
@@ -75,6 +83,7 @@ per epic. The `openspec/changes/<id>/reviews/` subfolder is created on demand.
 
 ## Hard rules
 
+- Do **not** spawn a second `ptp-run-at-model` run for the fix pass — this command's orchestration already occupies the one Agent-nesting level.
 - Do **not** invoke `/ptp:apply`. This loop fixes the PRD, not source code or OpenSpec artifacts.
 - Do **not** archive any change. Archiving is always an explicit user action.
 - Do **not** auto-commit any edits.

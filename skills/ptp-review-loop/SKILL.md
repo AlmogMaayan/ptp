@@ -32,6 +32,8 @@ the selector to epics and drives this loop **once per epic** over
 |-------|--------|--------|
 | `kind` | `code` \| `artifact` \| `brainstorm` \| `prd` | Supplied by the calling command |
 | `reviewer` | `superpowers` \| `codex` | Supplied by the calling command |
+| `fixDispatch` | `dispatched` \| `inline` | Supplied by the calling command. **Defaults to `inline`** when the caller supplies no value. Only a caller running this loop in the **outer session** with its Agent-nesting level unspent may pass `dispatched`. Its full contract — the two modes, the fail-safe default, and what each mode may and may not do — is under **## Fix dispatch** below. |
+| `runningTarget` | a `{model}.{effort}` literal | Supplied by the calling command: the target the caller's own main run is executing at, passed so the fix pass can detect and report a model divergence under `fixDispatch = inline`. Absent or unparseable → record the running model as **unknown** and emit the divergence line naming the evaluated model and `unknown`; never throw, never stop, never report the target as fully honored. It influences reporting only — never which findings are fixed, how they are fixed, the step (f) exit check, or any terminal state. |
 | `change-id` | string | A single resolved change id passed through from the calling command (for `kind ∈ {code, artifact, brainstorm}`). The caller resolves any selector (e.g. `epic:XXXX`) via `ptp-change-selector` and iterates this skill once per resolved change — this skill receives and processes exactly one change per invocation. |
 | **change-folder input variant** (`kind = prd` only) | `epic` + PRD file path | For `kind = prd` the caller passes a resolved **epic** and the **PRD file path** `openspec/changes/<id>/prd.md` (where `<id>` is the epic's lowest-numbered story, resolved by scanning active + archived changes per `ptp-prd`) **in place of** a brainstorm/artifact change folder. The caller resolves any epic selector via the `ptp-prd` projection and iterates this skill once per resolved epic — this skill receives and processes exactly one epic's PRD per invocation. The `<change-id>` used in the `DONE` next-command recommendation is the epic's lowest-numbered story id. |
 
@@ -155,6 +157,81 @@ verbatim when one was emitted (e.g. `Blocker`), and the sentinel `<unlabeled>` w
 four-value schema is unchanged for the labeled findings it already covers; this only names the
 value to use in the fail-safe case, so carry-over deduplication works on unrankable findings too
 instead of being undefined for them.
+
+## Fix dispatch
+
+`fixDispatch` decides **how** step (g2) carries out the fix at the `fixTarget` step (g1) evaluated. It
+is this loop's resolution of `ptp-run-at-model`'s **Nesting caveat**: **evaluation happens where the
+frozen finding set lives; dispatch happens only where an Agent-nesting level is unspent** — and those
+two need not be the same party.
+
+| `fixDispatch` | Who may pass it | Step (g2) behavior | Fidelity |
+|---|---|---|---|
+| `dispatched` | Only a caller that runs this loop — or an equivalent freeze-then-fix pass — **in the outer session**, with its one Agent-nesting level unspent | Invoke `ptp-run-at-model` **once per fix pass** at `fixTarget`, over the frozen CONFIRMED in-scope set, and relay its terminal result into the iteration record | **Full** at `roles.main = claude` — model and effort both honored. **Advisory** at `roles.main = codex` (see below) |
+| `inline` (**default**) | Any caller | Fix in the running context, restating `fixTarget`'s effort directive verbatim at the head of the fix pass. **Do not spawn.** | **Partial** — the effort half is honored, the model half cannot be |
+
+**`dispatched`.** Step (g2) invokes `ptp-run-at-model` **once per fix pass** at `fixTarget`, over the
+frozen CONFIRMED in-scope finding set, and relays that run's terminal result (`completed` / `refused`
+/ `needs-human-action`) into the iteration record — a refusal is **never** downgraded to success.
+Both halves of the target are honored in the `roles.main = claude` direction only. Under
+`roles.main = codex` the dispatched run is a `codex exec` shell-out whose model and reasoning effort
+come **solely** from `codex.model` / `codex.reasoningEffort`, so `fixTarget` is **advisory** there —
+evaluated and reported as usual, optionally carried as a natural-language prompt hint, and recorded as
+**not fully honored** by the reporting rules in step (h). This is never a licence to introduce a
+`codex exec` invocation for the purpose of re-targeting a fix pass in any other direction.
+
+**`inline`.** Step (g2) **never** invokes `ptp-run-at-model`, **never** spawns an Agent, and **never**
+launches a Workflow — a second nesting level throws. It fixes in the running context and **restates
+`fixTarget`'s effort directive verbatim** — the exact string `ptp-run-at-model`'s *Effort as a prompt
+directive* table maps that effort token to — at the head of the fix pass, so the effort half of the
+target is honored by the same prompt-directive mechanism the `claude` direction uses. Cross-reference
+that table; the directive strings are **not** copied here. The **model** half cannot be honored — a
+running agent cannot change its model — and that is surfaced per the divergence rule in step (h)
+rather than silently absorbed.
+
+**Why the default is `inline`:** it is the mode that **cannot throw**. A caller that forgets to
+declare its budget gets the fail-safe direction rather than a runtime failure at the very moment the
+loop has confirmed findings to fix.
+
+**Who passes what today.** All nine loop-driving callers (`/ptp:review-loop`, `/ptp:review-full`,
+`/ptp:review-plan-loop`, `/ptp:review-plan-full`, `/ptp:review-brainstorm-full`,
+`/ptp:review-prd-full`, `/ptp:codex-review-loop`, `/ptp:codex-review-plan-loop`,
+`/ptp:codex-review-prd-loop`) pass `inline`, because each already runs its whole orchestration inside
+one `ptp-run-at-model` main run. A `codex-*-loop` caller's Codex reviewer does not change this: its
+`codex exec` shell-out belongs to the **review** pass and costs no Agent-nesting level, while its fix
+pass is ordinary inline editing by the wrapping agent.
+
+**How a caller derives `runningTarget`** — direction-dependent, and **never** hardcoded. At
+`roles.main = claude` the caller's main run is a subagent spawned at the target it supplied, so
+`runningTarget` **is** that target (the literal `opus.high` for all nine today, or the resolved value
+should a command ever gain a `model:<model>.<effort>` override). At `roles.main = codex` the main run
+is a `codex exec` shell-out taking `codex.model` / `codex.reasoningEffort`, so the caller-supplied
+`opus.high` has no runtime effect there: `runningTarget` is derived from those two config keys, and is
+`unknown` when `codex.model` is unset. Passing `opus.high` in that direction is a **fabrication** — it
+would let this loop claim a fully-honored target, or suppress a divergence line, on the strength of a
+model that is not running. A caller that *can* determine its running target passes it; the
+absent/unparseable `unknown` fallback exists for callers that genuinely cannot, never as a substitute
+for wiring the value through.
+
+**`/ptp:review-fix` adopts the `dispatched` semantics directly**, without passing a loop input — it
+drives no `ptp-review-loop` invocation, so it has nothing to pass `fixDispatch` to. Its outer session
+already freezes the finding set and dispatches one standalone confirm-and-fix run over it; what
+changes is only that run's target. It is also the one stated **evaluation** exception: it confirms
+findings *inside* the very run whose target is being chosen, so its outer session evaluates over the
+frozen **pre-confirmation** set. That is not a licence to move confirmation outward, and not a licence
+to fix an unconfirmed finding — the target may simply be scored over a set larger than the one
+ultimately fixed, an over-estimate in the safe direction bounded by the same `opus.high` fallback.
+
+**Prohibitions survive dispatch.** A dispatched fix run is bound by every prohibition an inline fix
+pass is bound by, and the dispatched run's prompt carries them **explicitly**, because a fresh main
+run does not inherit this skill's hard rules by osmosis: never invoke `/ptp:apply`, never regenerate
+artifacts via `/ptp:plan` / `/ptp:brainstorm` / `/ptp:prd`, never archive, never commit. Re-targeting
+changes *which party performs the edit*, never *what an edit is permitted to be*.
+
+**Verification stays with the loop.** Step (h) runs in this loop's own context after step (g) returns,
+in **both** modes. A dispatched run performs edits and reports; it does **not** decide convergence,
+does not evaluate the step (f) exit check, does not reach a terminal state, and does not write the
+review-convergence marker.
 
 ## In-conversation state
 
@@ -345,7 +422,48 @@ rendered in the terminal report.
 
 ### (g) Fix pass
 
-Edit inline for every CONFIRMED finding:
+The fix pass runs at a **fix target** of its own — a `{model}.{effort}` evaluated for the fix work
+itself — rather than implicitly inheriting the target the review pass is running at. Two sub-steps,
+following the `(c1)`/`(c2)` sub-numbering precedent so the step letter `(g)` is preserved and every
+in-skill cross-reference to it still names the same step.
+
+#### (g1) Evaluate the fix target
+
+Evaluate `fixTarget` by invoking the **fix-scoped `/ptp:effort` mode** — `/ptp:effort mode:fix`,
+defined in `commands/effort.md` § *Fix mode (`mode:fix`)* — passing:
+
+- this pass's **frozen CONFIRMED in-scope finding set** (the findings step (e) confirmed, after the
+  step (c) filters — never the below-threshold bucket, never a rejected or carried-over finding);
+- the loop `kind`; and
+- the change artifacts for the resolved change (for `kind = prd`, the resolved epic's PRD file).
+
+The result is `fixTarget`, the `{model}.{effort}` on the first line of that mode's output block.
+
+**Evaluated once per fix pass, never once per run.** `MAX_ITERATIONS` and `MIN_SEVERITY` are
+run-scoped policy and stay resolved-once; `fixTarget` is a function of the finding set of the pass it
+serves, and that set differs by iteration by construction. An iteration with zero CONFIRMED in-scope
+findings never reaches step (g) — step (f) exits to `DONE` first — and so performs no evaluation at
+all.
+
+**The evaluation is performed by the party holding the frozen finding set it scores** — within this
+loop, the party that ran step (e) — regardless of which party subsequently performs the fix under
+(g2).
+
+**Fallback.** When the evaluation is unavailable, errors, or returns a value that is not a parseable
+`{model}.{effort}`, use the literal `opus.high` and **note the defaulting** — the identical fallback
+and wording `ptp-run-at-model` already applies to a missing or unparseable `effort.md`. A failed
+evaluation **never** throws, **never** STOPs the loop, and **never** causes the fix pass to be
+skipped; `opus.high` is the target the fix pass inherits today, so the fallback degrades to exactly
+the pre-existing behavior.
+
+The evaluation rubric — its signals, thresholds, anchor table, and decision order — lives in
+`commands/effort.md` § *Fix mode (`mode:fix`)* (introduced by `0049_01_fix-effort-evaluation`) and is
+**not** restated here.
+
+#### (g2) Carry out the fix at `fixTarget`
+
+Fix every CONFIRMED finding at `fixTarget`, under the resolved `fixDispatch` mode (see **## Fix
+dispatch**):
 
 - `kind=code` → edit source files directly. **Never** invoke `/ptp:apply`. **Never** commit.
 - `kind=artifact` → make minimal targeted edits to the affected artifact(s). **Never** regenerate artifacts via `/ptp:plan`. Corrections only (fix a wrong section, add a missing scenario, fill a thin block) — not re-fabrication.
@@ -363,7 +481,23 @@ Run a cheap, fast verification appropriate to `kind`:
 
 A failing verification is **reported in `per_iteration_summary`** but does NOT abort the loop — the next review iteration will pick up regressions. The iteration cap is the backstop.
 
-Append a summary entry to `per_iteration_summary`: iteration number, findings-confirmed count, findings-rejected count, carry-over count, **below-threshold count** (the size of this iteration's `below_threshold` bucket from (c2) — `0` on every run at the default `low`), fixes applied, verification result.
+Append a summary entry to `per_iteration_summary`: iteration number, findings-confirmed count, findings-rejected count, carry-over count, **below-threshold count** (the size of this iteration's `below_threshold` bucket from (c2) — `0` on every run at the default `low`), fixes applied, verification result, and — for an iteration that reached step (g) — the **evaluated `fixTarget`** (lowercase `{model}.{effort}`), whether it was **defaulted** to `opus.high` because the evaluation failed, the resolved **`fixDispatch`** mode, and whether the target was **fully honored**. An iteration that never reached step (g) records **no** fix target rather than a fabricated or carried-over one.
+
+**Divergence rule (mandatory, never silent).** Under `fixDispatch = inline`, when `fixTarget`'s
+**model** differs from `runningTarget`'s model — or when `runningTarget` was absent or unparseable, in
+which case the running model is recorded as `unknown` — emit a line naming **both** the evaluated
+model and the running model, in that iteration's summary entry **and** in both terminal reports:
+
+```
+Fix target partially honored: evaluated sonnet.medium, running on opus (effort directive applied; model cannot be changed in-run).
+```
+
+The target is recorded as **fully honored**, with no divergence line, in exactly two cases:
+`fixDispatch = inline` with `fixTarget`'s model equal to the running model, and
+`fixDispatch = dispatched` in the `roles.main = claude` direction. Under `fixDispatch = dispatched` at
+`roles.main = codex` the target is **advisory** — the shell-out takes `codex.model` /
+`codex.reasoningEffort` — so it is **not** recorded as fully honored, and the divergence line names
+the evaluated model alongside the configured `codex.model`, or `unknown` when that key is unset.
 
 ### (i) Loop
 
@@ -413,7 +547,7 @@ Reached when step (f) finds zero CONFIRMED **in-scope** findings for the current
 
 Report:
 
-1. **Per-iteration summary table** — one row per iteration: iteration number, confirmed, rejected, carry-over, **below-threshold**, fixes applied, verification result.
+1. **Per-iteration summary table** — one row per iteration: iteration number, confirmed, rejected, carry-over, **below-threshold**, fixes applied, verification result, **fix target** (the evaluated `fixTarget`, marked when it was defaulted to `opus.high`), **fix dispatch** (the resolved `fixDispatch` mode), and **fully honored** (yes / no). An iteration that never reached step (g) leaves the three fix columns empty rather than carrying a value over. Every iteration whose target was not fully honored also carries the mandatory **divergence line** from step (h).
 2. **Total findings fixed** across all iterations.
 3. **Rejected / carry-over set** — list every stable key that was rejected or carried over, with the rejection reason from step (e) or `(carry-over)`.
 4. **Below threshold — not blocking convergence (minSeverity = `<value>`)** — the below-threshold
@@ -462,7 +596,10 @@ Report:
 3. **Below threshold — not blocking convergence (minSeverity = `<value>`)** — same section, same
    format, and the same `(unconfirmed)` marker and `None`-when-empty rule as DONE, sourced from the
    **same snapshot** as the "Open findings" section above (the last completed review pass).
-4. **Per-iteration summary table** — including the **below-threshold** column.
+4. **Per-iteration summary table** — including the **below-threshold** column and the **fix target**
+   (`fixTarget`) / **fix dispatch** (`fixDispatch`) / **fully honored** columns, with the same empty-when-step-(g)-was-never-reached
+   rule and the same mandatory **divergence line** for every iteration whose target was not fully
+   honored, exactly as in `DONE`.
 5. Explicit statement: "Do not archive. Do not run `/ptp:apply`. Inspect the open findings manually and decide next steps."
 
 **Marker write (after the report above).** For `kind ∈ {brainstorm, artifact, prd}`, write the per-kind
@@ -483,6 +620,8 @@ reported but does NOT change the terminal state.
 - **Never auto-commit** any edits made during the loop.
 - **Never fix an unconfirmed finding.** If step (e) marks a finding `REJECTED`, leave the code/artifact alone.
 - **Never auto-fix a below-threshold finding, and never silently drop one.** A finding ranked under `MIN_SEVERITY` by step (c2) is reported — in the per-iteration below-threshold count and, for the last completed review pass, individually in both terminal reports — but is never confirmed, never edited, and never counted toward convergence. Reporting it is mandatory: omitting it is a violation of this rule, not an optimization.
+- **Never silently absorb a partially-honored fix target.** Under `fixDispatch = inline` the model half of `fixTarget` cannot be honored; the divergence is reported in the iteration summary and in both terminal reports. Emitting it is mandatory — omitting it is a violation of this rule, not an optimization.
+- **Never spawn from inside the loop under `fixDispatch = inline`** — a second Agent-nesting level throws.
 - **Never persist loop control state to disk.** `iteration`, `rejected_findings`, and `per_iteration_summary` live only in conversation context. This rule does NOT forbid the durable terminal review-convergence marker below — that marker is a deliberate exception and is the loop's only on-disk side effect beyond the artifact edits it already makes.
 - **Write the per-kind review-convergence marker on terminal states for `kind ∈ {brainstorm, artifact, prd}` only** (`brainstorm`→`reviews/brainstorm.json`, `artifact`→`reviews/plan.json`, `prd`→`openspec/changes/<id>/reviews/prd.json`), per the **## Review-convergence marker** section. **Never** write a marker for `kind = code`, and **never** write a marker when invoked with `deferMarker = true` (the `-full` orchestrator performs the single combined write). The marker is written via the atomic write-temp-then-rename protocol; a marker-write failure is reported but does not change the terminal state.
 - **Iteration cap is resolved from `review.maxIterations` (layered config, default 5).** There is no `--max-iterations` CLI flag. If the cap is hit, report and stop — do not silently increment past it.

@@ -41,6 +41,12 @@ terminal state (including the mode-skip success state `PHASE 1 DONE — CODEX SK
 relayed back per `ptp-run-at-model`'s *Result relay* — never downgraded to or away from its true
 meaning.
 
+**Fix target.** The fix pass runs at a freshly evaluated fix target rather than at this command's
+review target; because this whole orchestration already runs inside one `ptp-run-at-model` main run,
+it passes `fixDispatch = inline` and never spawns a second run. The evaluation rule, the dispatch
+modes, the fallback, and the reporting obligation live in `ptp-review-loop` — this command does not
+restate them.
+
 ### Phase 1 — main-agent artifact-review loop
 
 Phase 1 is the **main agent's** artifact loop (always runs). At the default `roles.main=claude` the main agent is Superpowers, so pass `reviewer = superpowers`; when `roles.main=codex` the main agent is Codex, so pass `reviewer = codex`. Invoke the `ptp-review-loop` skill with:
@@ -48,6 +54,8 @@ Phase 1 is the **main agent's** artifact loop (always runs). At the default `rol
 - `kind = artifact`
 - `reviewer = <the main agent>` (`superpowers` by default; `codex` when `roles.main=codex`)
 - `change-id = $ARGUMENTS`
+- `fixDispatch = inline`
+- `runningTarget = <this command's resolved main-run target per ptp-agent-roles>`
 
 The skill drives the full loop. For each iteration's review pass it runs the `review-plan.md` rubric inline: existence & validation, `proposal.md` completeness, cross-artifact consistency, spec-delta format, `tasks.md` quality, reasoning depth, and `TLDR.md` sanity. After confirmation, confirmed findings are fixed via minimal targeted edits and `npx -y openspec validate <change-id> --strict` is run as per-iteration verification.
 
@@ -62,6 +70,8 @@ If and only if Phase 1 terminates with `DONE` **and** the gate permits the revie
 - `kind = artifact`
 - `reviewer = <the reviewer agent>` (`codex` by default; `superpowers` when `roles.main=codex`)
 - `change-id = $ARGUMENTS`
+- `fixDispatch = inline`
+- `runningTarget = <this command's resolved main-run target per ptp-agent-roles>`
 
 The skill drives the full loop. When the reviewer is Codex, each iteration's review pass runs the `codex-review-plan.md` closed-book protocol inline: you (the caller) read all artifacts, run `npx -y openspec validate <change-id> --strict`, collect cited source excerpts, build a single self-contained prompt with all of this inlined, and pipe it to `codex exec -s read-only` over stdin (assembled per the `ptp-codex-mode` flag-append rule — resolved `-m`/`-c` flags appended before the trailing `-` when `codex.model`/`codex.reasoningEffort` are configured). Findings are confirmed via `superpowers:receiving-code-review` before any artifact is touched.
 
@@ -92,6 +102,7 @@ The combined write uses the **same atomic write-temp-then-rename protocol** as `
 
 ## Hard rules
 
+- Do **not** spawn a second `ptp-run-at-model` run for the fix pass — this command's orchestration already occupies the one Agent-nesting level.
 - Do **not** start Phase 2 if Phase 1 did not terminate with `DONE`.
 - Do **not** invoke `/ptp:apply`. This loop fixes artifacts, not source code; it is not a substitute for the implementation step.
 - Do **not** archive the change. Archiving is always an explicit user action (`/ptp:archive <change-id>`).

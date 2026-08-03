@@ -109,7 +109,7 @@ Run the **`ptp-branch-guard`** preamble **once**, after the abort-guaranteeing p
 
 ## Model/effort posture
 
-`full-plan` has **no apply stage** — every stage it runs (planning via `plan-multiple`, plan review via `review-plan-full`) targets `opus.high`, the policy default for all non-apply stages. It therefore has **no effort gate** and there is deliberately **no `full-plan-effort` variant**: the gate only exists to honor `effort.md` at apply time, which this command never reaches. It runs entirely at the current session model/effort (expected `opus.high`). If the session is below `opus.high`, **note a reminder** but do **not** stop.
+`full-plan` has **no apply stage** — every stage it runs (planning via `plan-multiple`, plan review via `review-plan-full`) targets `opus.high`, the policy default for all non-apply stages. It therefore has **no effort gate** and there is deliberately **no `full-plan-effort` variant**: the gate only exists to honor `effort.md` at apply time, which this command never reaches. It runs entirely at the current session model/effort (expected `opus.high`). If the session is below `opus.high`, **note a reminder** but do **not** stop. Every `opus.high` this command names is a **plan-phase** target, and this command makes no claim about the model or effort of any **code**-review agent — that is `/ptp:full-apply`'s per-story resolved review target, which this command neither sets nor reads.
 
 ## Hard rules
 

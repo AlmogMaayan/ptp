@@ -12,6 +12,9 @@ This is **not** `/ptp:review`. That command grades implemented code against the 
 | `/ptp:review-plan` (this) | the artifacts | after plan, before apply | the plan |
 | `/ptp:review` | code vs artifacts | after apply | the diff |
 
+This command never fixes, so the fix-target contract in `ptp-review-loop` is a **no-op** here: no
+fix pass is dispatched and this command's `opus.high` review target is unchanged.
+
 ## Inputs
 
 Change id (optional): $ARGUMENTS
