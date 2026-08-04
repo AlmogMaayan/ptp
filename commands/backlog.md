@@ -51,7 +51,7 @@ When the backlog carries **no fatal** validation problem, render these six secti
 | # | Section | Contents |
 |---|---|---|
 | 1 | **Header** | the resolved **board** — owner, project number, project title, and URL — the resolved **acting account and host**, the `version`, and the entry count, **alongside** the preflight verdict line (below). The board-identity values carry their **provenance** — owner and project number the configuration layer that supplied them, account and host the fact that `gh` resolved them — while the project title and the URL carry none (see *The header's board identity and verdict line*) |
-| 2 | **Entries** | one row per entry, in the **canonical creation-stamp order**: the entry's **board item node id rendered verbatim in its own column**, title, status, the entry's `changeEpics` links **counted by `attribution`**, and a flags cell |
+| 2 | **Entries** | one row per entry, in the **canonical board-position order** — the same order `/ptp:backlog-run` takes epics in: the entry's **board item node id rendered verbatim in its own column**, title, status, the entry's `changeEpics` links **counted by `attribution`**, and a flags cell |
 | 3 | **Ready set** | the ready entries **in run order** — or the reason it is withheld (see *The ready-set suppression rule*) |
 | 4 | **Attention** | stale `in-progress` entries, entries holding a `folder-diff-unconfirmed` change-epic link, entries holding an undispositioned `attributionWarnings` prefix. **`in-review` raises no flag here** — see below |
 | 5 | **Validation** | one row per problem — code, affected entries, message — or an explicit "no problems found" |
@@ -132,10 +132,10 @@ Render a **scope note** section listing, **when each is non-empty**:
   `dependencyRejected` are the ones a hand-edited or pre-`0042_01` board most often carries — they are
   **examples, not the whole list**, and a key outside them is reported exactly the same way;
 - the **degraded-scope** state and exactly what it withholds (the ready set);
-- entries whose **`createdAt` could not be established** — reported as ordering **last** rather than as
-  having no creation stamp on the board, the two being different claims.
-- the **missing-status-option advisory** below;
-- the **legacy-file line** below.
+- entries the board returned **no position for** — reported as ordering **last** rather than as absent
+  from the board, the two being different claims. An entry whose **`createdAt` could not be established**
+  is reported as exactly that and **no ordering claim is made from it**, no date taking part in the order.
+- the **missing-status-option advisory** below.
 
 ### The missing-status-option advisory
 
@@ -148,27 +148,10 @@ withholds **nothing**, and changes **no verdict**. See that skill's §*The `stat
 configurable, with a built-in default* for the rule, the resolved table, and the write path's
 corresponding refusal.
 
-### The legacy `openspec/backlog.json` notice
-
-Perform a **presence check only** on `openspec/backlog.json` — does the path exist. When it does, emit
-**one** scope-note line stating that the file is **legacy**, is **no longer read**, has **not been
-migrated**, and that its entries must be **re-created on the board**.
-
-Its bounds are stated here so it can never grow back into a store: **zero bytes are read**. There is
-**no parse, no entry count, no schema, no version gate, no validation problem, no effect on any
-computation, and no blocking.** The file is never modified and never deleted.
-
-**It is board-independent, so it renders on every path.** The check reads the filesystem and nothing
-else, so it is unaffected by the configuration, the preflight and the board alike: emit the line
-whenever the path exists — under a successful read, under the short fatal form, under
-`unreachable-store`, under a preflight that did not admit the read, and under the pre-read
-configuration refusal, where it is appended below the refusal. The migration warning is most needed
-exactly when the board could not be reached, so no failure path suppresses it.
-
 ### The empty state
 
 "**No entries yet**" names the **board** — its owner, number and title — and how entries are added. It
-**never** names `openspec/backlog.json` or any other local file.
+**never** names any local file.
 
 **Hard rule: this wording is reachable only from a successfully-read board that carries the required
 custom field and no items at all.** It is **never** rendered from a failed preflight, **never** from the
@@ -188,11 +171,8 @@ that is uncomputable under the problem — the `version` and/or the entry count 
 call ran at all: the `version` and the entry count render as `unavailable` there too, so no read exit
 leaves a header value undefined. Still nothing is written.
 
-**The legacy-file line survives the short output; every other scope-note item does not.** The legacy
-line is a **presence check on disk**, computed without reading the board, so it is unaffected by any
-board-side problem: when the path exists it is rendered **alongside** the three sections above. Every
-other scope-note item — archived entries, ignored block keys, degraded scope, **and the
-missing-status-option advisory** — is a
+**Every scope-note item is withheld, not emptied, under the short output.** Each item — archived
+entries, ignored block keys, degraded scope, **and the missing-status-option advisory** — is a
 **board-derived** fact, and under a fatal problem or the `unreachable-store` outcome nothing board-derived
 is computed at all (that is what *fatal* means in the `ptp-backlog` skill). Those items are therefore
 **withheld, not emptied**: the short output never asserts that a board carries no archived entry.

@@ -35,8 +35,8 @@ while it had not is the **shape** of the refusal, not its wording:
   **incomplete `backlog.*` configuration** (its missing keys being only ever `backlog.projectOwner`
   and/or `backlog.projectNumber`)
   and a **colliding resolved status-option table**. Both are decided from configuration alone,
-  so they fire at **step 1b** of **Steps** below, in the outer session, before the branch guard and
-  before any `gh` command is run. Each is a
+  so they fire at **step 1b** of **Steps** below, in the outer session, before any `gh` command is
+  run. Each is a
   **condition within this one refusal contract**, and each names its own cause
   when it fires. **Degraded scope is not among them**: this command consumes no ready set, so it
   **proceeds** under it, per `ptp-backlog-write`'s degraded-scope dispositions.
@@ -79,67 +79,51 @@ see step 1 of **Steps** below.
   addresses change folders only; node ids are deliberately outside it, per the `ptp-backlog` skill's
   identity rule.
 
-## Branch safety (first step)
+## No branch guard — writes outside the repo tree
 
-**Ordering note:** the cheap read-only `model:` override parse (step 1 of **Steps** below), the
-required-id-and-instruction check (step 1a), and the **configuration gate** (step 1b) all run in the
-outer session **before** this guard — an invalid token, a missing node id, an empty instruction, or an
-unactionable `backlog.*` configuration STOPs the command before the guard evaluates or cuts any branch.
-Steps 1 and 1a stay **ahead of** 1b deliberately: they are free argument checks that reach neither the
-store, the transport, nor the worktree, so a malformed `model:` token is still reported as a malformed
-token rather than masked by a configuration refusal.
-
-Before creating or updating **any** file, run the **`ptp-branch-guard`** preamble: check
-`git rev-parse --abbrev-ref HEAD`; if it is the base branch (`master`/`main`), derive a feature-branch
-name from a ≤5-kebab-word summary of the edit request (→ `ptp/<summary>`) — there is **no change id**
-for a backlog edit, so the branch name comes from the request text, the same derivation
-`/ptp:backlog-add` uses — and launch the minimal `ptp-branch-prep` workflow (stash → checkout the base
-branch → pull → cut the branch) **before** writing anything; if you are already on a feature branch it
-is a **no-op** — proceed as-is. The full rule (branch naming, the workflow contract, the hard rules)
-lives in the **`ptp-branch-guard`** skill — do not restate it here.
+This command writes a **GitHub Projects v2 board** over `gh`. It creates or modifies no repo file, so
+it falls in `ptp-branch-guard`'s **utility writes outside the repo tree** category alongside
+`/ptp:update` and `/ptp:config` — the base-branch guard does not apply, and this command never checks
+`git rev-parse --abbrev-ref HEAD` or cuts a branch.
 
 ## Steps
 
-1. **Parse the `model:` override (outer session, before the branch guard).** Scan the raw `$ARGUMENTS`
+1. **Parse the `model:` override (outer session).** Scan the raw `$ARGUMENTS`
    text for an optional `model:<model>.<effort>` token per the "Optional caller-side `model:` override
    token" section of **`ptp-run-at-model`** — do not restate that grammar or its validation here.
    - **Absent** → target = `opus.high`; proceed with `$ARGUMENTS` as given.
    - **Exactly one valid candidate** → strip it from `$ARGUMENTS`; target = the resolved
      `<model>.<effort>` literal.
    - **Invalid** (a `model:`-prefixed candidate with a bad model, bad effort, or wrong shape, or more
-     than one candidate) → **STOP immediately, in the outer session**, before the branch guard and
-     before any main run. Report the offending candidate(s) and the two valid enums.
+     than one candidate) → **STOP immediately, in the outer session**, before any main run. Report the
+     offending candidate(s) and the two valid enums.
 
-   **Step 1a — require a node id and a non-empty instruction (outer session, still before the branch
-   guard).** The text remaining **after** the token is stripped MUST carry both a **positional node
-   id** and a **non-empty edit instruction**. If either is missing — `/ptp:backlog-edit` with no
-   argument, or `/ptp:backlog-edit <node-id> model:opus.high`, which leaves nothing to interpret into a
-   mutation — **STOP in the outer session**, before the branch guard and before any main run, reporting
-   what is missing. This mirrors `/ptp:backlog-add`'s empty-request STOP. **Never invent a mutation** to
-   fill an empty instruction.
+   **Step 1a — require a node id and a non-empty instruction (outer session).** The text remaining
+   **after** the token is stripped MUST carry both a **positional node id** and a **non-empty edit
+   instruction**. If either is missing — `/ptp:backlog-edit` with no argument, or `/ptp:backlog-edit
+   <node-id> model:opus.high`, which leaves nothing to interpret into a mutation — **STOP in the outer
+   session**, before any main run, reporting what is missing. This mirrors `/ptp:backlog-add`'s
+   empty-request STOP. **Never invent a mutation** to fill an empty instruction.
 
-   **Step 1b — take the configuration gate (outer session, still before the branch guard).** Resolve
+   **Step 1b — take the configuration gate (outer session).** Resolve
    the `backlog.*` configuration per **`ptp-github-projects-gh`** and take **`ptp-backlog`**'s *Read
    protocol* **step 0**. On either of its **two** grounds — an **incomplete `backlog.*` configuration**
    or a **colliding resolved status-option table** — **STOP in the
-   outer session**, before the branch guard and before any main run, naming the ground through this
+   outer session**, before any main run, naming the ground through this
    file's one refusal contract: the missing keys, or `backlog.statusOptions` with
    its colliding option name and every status claiming it. **Name the ground; do not restate the
-   rule** — each ground's content is that skill's. **No `gh` command is run**, and **no branch is
-   cut**: an unactionable configuration is an invocation that provably cannot write, decided from
+   rule** — each ground's content is that skill's. **No `gh` command is run**: an unactionable
+   configuration is an invocation that provably cannot write, decided from
    configuration alone at zero transport cost, so it must abort where the other aborting checks do —
    the node id it was given is never resolved against the board, because no board is reached. Any board
    identity this refusal renders carries its **provenance**, per
    `ptp-github-projects-gh` §*The acting identity*.
-2. **Run the branch guard** (the *Branch safety* preamble above), in the outer session.
-3. **Run the remaining work as one `ptp-run-at-model` main run** at the resolved target (`opus.high` by
+2. **Run the remaining work as one `ptp-run-at-model` main run** at the resolved target (`opus.high` by
    default, or the valid `model:` override), per the **`ptp-run-at-model`** skill — reference it for the
    spawn-and-relay mechanics rather than restating them. The main run invokes the **`ptp-backlog`** skill
-   **inline** in its own context and performs step 4 below. **The main run starts no further main run**
-   and spawns nothing of its own, so there is no second nesting level. One note the main run's prompt
-   MUST carry: its own `ptp-branch-guard` check is a **no-op** (HEAD is already on a feature branch from
-   the outer guard), so it must **not** attempt to launch the `ptp-branch-prep` Workflow.
-4. **Inside the main run**, in this **fixed order** — the methodology for every step lives in the
+   **inline** in its own context and performs step 3 below. **The main run starts no further main run**
+   and spawns nothing of its own, so there is no second nesting level.
+3. **Inside the main run**, in this **fixed order** — the methodology for every step lives in the
    `ptp-backlog` skill; name the step, do not restate the rule. The order is normative, because the
    gates interact:
    1. **Read and validate the whole store** through the skill's read protocol and its
@@ -198,24 +182,11 @@ lives in the **`ptp-branch-guard`** skill — do not restate it here.
       accepted residual, its two-layer detection rule, and its four-part report obligation are the
       skill's too.
    7. **Report** per *Report obligations* below.
-5. **STOP** with the report.
+4. **STOP** with the report.
 
-**Atomicity, scoped to the backlog store and to this command's own writes.** If any step refuses, **this
-command has written nothing to the store** — no partial entry and no
-cleared baseline. That guarantee is scoped twice over: to the backlog **store** (the outer-session
-`ptp-branch-guard` preamble runs **before** the main run and may already have stashed, pulled, and cut a
-feature branch, so this command SHALL **NOT** be described as having left the repository untouched), and
-to this command's **own** writes (a `ptp-branch-prep` `pull` is a git operation on the worktree, not an
-edit of the backlog by this command; where it moved a working-tree file, say so rather than claiming a
-repository-wide no-op this command cannot promise). The outer-session STOPs of steps 1, 1a and 1b
-run before the guard precisely to keep that window as small as the ordering allows.
-
-**On the configuration ground the scoping is stronger, and only there.** Step 1b aborts **ahead of**
-the branch guard, so nothing has stashed, pulled, or cut anything: on an incomplete `backlog.*`
-configuration or a colliding resolved status-option table, the
-worktree is genuinely untouched and this command may say so. That is an **addition**, not a
-replacement — the twice-over scoping above remains exactly correct for every other ground, each of
-which is reached only after the guard has run.
+**Atomicity, scoped to the backlog store.** If any step refuses, **this command has written nothing to
+the store** — no partial entry and no cleared baseline, and no other file: this command runs no branch
+guard and touches no working-tree file at all, so the repository is genuinely untouched on any refusal.
 
 **A refusal and a failure are different, and the guarantee above covers only the first.** *If any step
 refuses, nothing is written* is retained exactly as stated. A **failure** mid-sequence is governed by
@@ -272,10 +243,8 @@ The terminal report names, for one invocation:
 ## Hard rules
 
 - **Never commit, push, merge, archive, or deploy.** This command edits exactly one store: the backlog
-  board. It edits **no file at all**, and no local backlog file exists to edit. (The
-  `ptp-branch-guard` preamble's `ptp-branch-prep` workflow performs git
-  operations — stash, checkout, pull, branch — before the main run; those are the guard's, not this
-  command's edits, and they are the reason the atomicity guarantee above is scoped as it is.)
+  board. It edits **no file at all**, and no local backlog file exists to edit. It runs no branch guard
+  and performs no git operation of any kind.
 - **Exactly one entry is modified per invocation** — the resolved target. No other entry is written.
 - **Never set `done`, and never set `in-review`.** No recovery path, disposition, or combination of
   dispositions may produce either; the request is refused with the reason. `in-review` is a

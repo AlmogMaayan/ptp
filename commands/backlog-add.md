@@ -29,7 +29,7 @@ while it had not is the **shape** of the refusal, not its wording:
   only ever `backlog.projectOwner` and/or `backlog.projectNumber`) and a **colliding resolved
   status-option table**. Both are
   decided from configuration alone, so they fire at **step 1b** of **Steps** below, in the outer
-  session, before the branch guard and before any `gh` command is run. **Degraded scope is not a
+  session, before any `gh` command is run. **Degraded scope is not a
   ground**: this command establishes no identifier and consumes
   no ready set, so `ptp-backlog-write`'s degraded-scope dispositions let it proceed. Each is a
   **condition within this one refusal contract**, and each names its own cause when it fires.
@@ -45,63 +45,48 @@ Request: $ARGUMENTS (the free-text description of the epic to add, optionally ca
 anywhere-in-text `model:<model>.<effort>` override token — e.g. `model:fable.high` — that overrides
 this command's `opus.high` default for this invocation only; see step 1 of **Steps** below)
 
-## Branch safety (first step)
+## No branch guard — writes outside the repo tree
 
-**Ordering note:** the cheap read-only `model:` override parse (step 1 of **Steps** below), the
-non-empty-request check (step 1a), and the **configuration gate** (step 1b) all run in the outer
-session **before** this guard — an invalid token, an empty request, or an unactionable `backlog.*`
-configuration STOPs the command before the guard evaluates or cuts any branch. Steps 1 and 1a stay
-**ahead of** 1b deliberately: they are free argument checks that reach neither the store, the transport,
-nor the worktree, so a malformed `model:` token is still reported as a malformed token rather than
-masked by a configuration refusal.
-
-Before creating or updating **any** file, run the **`ptp-branch-guard`** preamble: check
-`git rev-parse --abbrev-ref HEAD`; if it is the base branch (`master`/`main`), derive a feature-branch
-name from a ≤5-kebab-word summary of the request (→ `ptp/<summary>`) — there is **no change id** for a
-backlog add, so the branch name comes from the request text, the same derivation `/ptp:analyze` uses —
-and launch the minimal `ptp-branch-prep` workflow (stash → checkout the base branch → pull → cut the
-branch) **before** writing anything; if you are already on a feature branch it is a **no-op** —
-proceed as-is. The full rule (branch naming, the workflow contract, the hard rules) lives in the
-**`ptp-branch-guard`** skill — do not restate it here.
+This command writes a **GitHub Projects v2 board** over `gh`. It creates or modifies no repo file, so
+it falls in `ptp-branch-guard`'s **utility writes outside the repo tree** category alongside
+`/ptp:update` and `/ptp:config` — the base-branch guard does not apply, and this command never checks
+`git rev-parse --abbrev-ref HEAD` or cuts a branch.
 
 ## Steps
 
-1. **Parse the `model:` override (outer session, before the branch guard).** Scan the raw `$ARGUMENTS`
+1. **Parse the `model:` override (outer session).** Scan the raw `$ARGUMENTS`
    text for an optional `model:<model>.<effort>` token per the "Optional caller-side `model:` override
    token" section of **`ptp-run-at-model`** — do not restate that grammar or its validation here.
    - **Absent** → target = `opus.high`; proceed with `$ARGUMENTS` as given.
    - **Exactly one valid candidate** → strip it from `$ARGUMENTS`; target = the resolved
      `<model>.<effort>` literal.
    - **Invalid** (a `model:`-prefixed candidate with a bad model, bad effort, or wrong shape, or more
-     than one candidate) → **STOP immediately, in the outer session**, before the branch guard and
-     before any main run. Report the offending candidate(s) and the two valid enums.
-   **Step 1a — require a non-empty request (outer session, still before the branch guard).** The
+     than one candidate) → **STOP immediately, in the outer session**, before any main run. Report the
+     offending candidate(s) and the two valid enums.
+   **Step 1a — require a non-empty request (outer session).** The
    request text remaining **after** the token is stripped MUST be non-empty. If it is not —
    `/ptp:backlog-add` with no argument, or `/ptp:backlog-add model:opus.high`, which leaves nothing to
-   compose an entry from — **STOP in the outer session**, before the branch guard and before any main
+   compose an entry from — **STOP in the outer session**, before any main
    run, and report that a free-text epic request is required. **Never invent an epic** to fill an
    empty request.
-   **Step 1b — take the configuration gate (outer session, still before the branch guard).** Resolve
+   **Step 1b — take the configuration gate (outer session).** Resolve
    the `backlog.*` configuration per **`ptp-github-projects-gh`** and take **`ptp-backlog`**'s *Read
    protocol* **step 0**. On either of its **two** grounds — an **incomplete `backlog.*` configuration**
    or a **colliding resolved status-option table** — **STOP in the
-   outer session**, before the branch guard and before any main run, naming the ground through this
+   outer session**, before any main run, naming the ground through this
    file's one refusal contract: the missing keys, or `backlog.statusOptions` with
    its colliding option name and every status claiming it. **Name the ground; do not restate the
-   rule** — each ground's content is that skill's. **No `gh` command is run**, and **no branch is
-   cut**: an incomplete configuration is an invocation that provably cannot write, decided from
+   rule** — each ground's content is that skill's. **No `gh` command is run**: an incomplete
+   configuration is an invocation that provably cannot write, decided from
    configuration alone at zero transport cost, so it must abort where the other aborting checks do. Any
    board identity this refusal renders carries its **provenance**, per
    `ptp-github-projects-gh` §*The acting identity*.
-2. **Run the branch guard** (the *Branch safety* preamble above), in the outer session.
-3. **Run the remaining work as one `ptp-run-at-model` main run** at the resolved target (`opus.high` by
+2. **Run the remaining work as one `ptp-run-at-model` main run** at the resolved target (`opus.high` by
    default, or the valid `model:` override), per the **`ptp-run-at-model`** skill — reference it for
    the spawn-and-relay mechanics rather than restating them. The main run invokes the **`ptp-backlog`**
-   skill **inline** in its own context and performs step 4 below. This command **spawns nothing of its
-   own**, so it wraps with no second nesting level. One note the main run's prompt MUST carry: its own
-   `ptp-branch-guard` check is a **no-op** (HEAD is already on a feature branch from the outer guard),
-   so it must **not** attempt to launch the `ptp-branch-prep` Workflow.
-4. **Inside the main run**, in this order — the methodology for every step below lives in the
+   skill **inline** in its own context and performs step 3 below. This command **spawns nothing of its
+   own**, so it wraps with no second nesting level.
+3. **Inside the main run**, in this order — the methodology for every step below lives in the
    `ptp-backlog` skill; name the step, do not restate the rule:
    1. **Read and validate** the backlog store **through the skill**, following its read protocol
       (a board carrying no entry reads as the empty backlog, and nothing is created here) and its
@@ -150,7 +135,7 @@ proceed as-is. The full rule (branch naming, the workflow contract, the hard rul
       never copied. That statement is scoped exactly as the naming obligation above is, and for the same
       reason: it presupposes the entry carries `backlog`, so under `unresolved-create` or
       `unresolved-commit` it is **withheld with the status** rather than printed beside an unknown one.
-5. **STOP** with the report.
+4. **STOP** with the report.
 
 ## Entry composition
 
