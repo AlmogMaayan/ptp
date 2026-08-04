@@ -1,6 +1,6 @@
 ---
 name: ptp-backlog
-description: Own the epic backlog board contract — the store being one GitHub Projects v2 board per repository, resolved through ptp-github-projects-gh's configuration and capability preflight with no local backlog file, no second store and no fallback; the rule that every board item is an entry, no membership test being performed; the ten-field entry model and its tolerant read; the field mapping of those ten slots onto five board carriers — the one required custom field Status (SINGLE_SELECT), the item's title and body, and the board's own stamps — with the status option table, the sentinel-fenced metadata block and its malformed-body boundaries, and unknown-key preservation in both scopes; the ptp-backlog-version: marker and its gate, whose absent-marker-reads-as-v1 divergence is justified in place; the read-only read protocol with its configuration-completeness-then-preflight precondition, its returned handle table and its degraded scope; the node-id identity rule, under which nothing is allocated, minted or written and two ids can neither collide nor be malformed; the validator and its fixed four-code problem vocabulary with the fatal/structural split, the writer-eligibility rule that refuses past fatal problems only, and the distinct unreachable-store outcome; and the ready-set definition — the `ready` entries in the board's creation-stamp order — with its order deterministic over the produced document. A pure prose contract in the single-source-of-truth pattern of ptp-branch-guard (branch safety), ptp-codex-mode (the reviewer gate), ptp-agent-roles (role resolution), and ptp-parallel-fanout (fan-out safety) — it reads nothing on its own, writes nothing, and edits nothing. Also owns the status transition table — eleven rows, each naming its performer, cited by from-to pair and never by number — with its three guards (the gated blocked-to-ready reset that retains the prior attempt's changeEpics, the any-to-cancelled guard, and the two resume rows blocked-to-done and in-review-to-done, both available only as the same-invocation result of /ptp:backlog-continue's own review-full-then-archive sequence), the in-progress-to-in-review convergence row that makes in-review the resting state of a converged-but-unarchived epic and leaves /ptp:backlog-run writing done nowhere, and the recovery-and-reconciliation machinery every writer that settles a stale in-progress entry runs: the stale definition and its deliberately conditional wording, the single change-prefix-set definition both the runBaseline snapshot and the reconciliation diff cite, the additive-only reconciliation, the gate, the availability table and the disposition outcomes (claim / disown / rerun anyway, and per-prefix promote / dismiss) with their combination rules, the every-settling-edit-clears-runBaseline rule, and the never-yields-done rule. The contract was defined over a local file by 0036_01, which ships no writer; the transitions and recovery machinery by 0036_03 alongside /ptp:backlog-edit, the runner in 0036_04; the store became a GitHub Projects board in 0042_03, which ships the read half and leaves every writer refusing.
+description: Own the epic backlog board contract — the store being one GitHub Projects v2 board per repository, resolved through ptp-github-projects-gh's configuration and capability preflight with no local backlog file, no second store and no fallback; the rule that every board item is an entry, no membership test being performed; the ten-field entry model and its tolerant read; the field mapping of those ten slots onto five board carriers — the one required custom field Status (SINGLE_SELECT), the item's title and body, and the board's own stamps — with the status option table, the sentinel-fenced metadata block and its malformed-body boundaries, and unknown-key preservation in both scopes; the ptp-backlog-version: marker and its gate, whose absent-marker-reads-as-v1 divergence is justified in place; the read-only read protocol with its configuration-completeness-then-preflight precondition, its returned handle table and its degraded scope; the node-id identity rule, under which nothing is allocated, minted or written and two ids can neither collide nor be malformed; the validator and its fixed four-code problem vocabulary with the fatal/structural split, the writer-eligibility rule that refuses past fatal problems only, and the distinct unreachable-store outcome; and the ready-set definition — the `ready` entries in the board's item-position order, which is the column read top-first wherever a view adds no sort of its own — with its order deterministic over the produced document. A pure prose contract in the single-source-of-truth pattern of ptp-branch-guard (branch safety), ptp-codex-mode (the reviewer gate), ptp-agent-roles (role resolution), and ptp-parallel-fanout (fan-out safety) — it reads nothing on its own, writes nothing, and edits nothing. Also owns the status transition table — eleven rows, each naming its performer, cited by from-to pair and never by number — with its three guards (the gated blocked-to-ready reset that retains the prior attempt's changeEpics, the any-to-cancelled guard, and the two resume rows blocked-to-done and in-review-to-done, both available only as the same-invocation result of /ptp:backlog-continue's own review-full-then-archive sequence), the in-progress-to-in-review convergence row that makes in-review the resting state of a converged-but-unarchived epic and leaves /ptp:backlog-run writing done nowhere, and the recovery-and-reconciliation machinery every writer that settles a stale in-progress entry runs: the stale definition and its deliberately conditional wording, the single change-prefix-set definition both the runBaseline snapshot and the reconciliation diff cite, the additive-only reconciliation, the gate, the availability table and the disposition outcomes (claim / disown / rerun anyway, and per-prefix promote / dismiss) with their combination rules, the every-settling-edit-clears-runBaseline rule, and the never-yields-done rule. The contract was defined over a local file by 0036_01, which ships no writer; the transitions and recovery machinery by 0036_03 alongside /ptp:backlog-edit, the runner in 0036_04; the store became a GitHub Projects board in 0042_03, which ships the read half and leaves every writer refusing.
 ---
 
 # ptp-backlog — the epic backlog board and everything that defines it
@@ -41,12 +41,6 @@ failed preflight, not an unreachable board, not a fatal problem — may fall bac
 any other store. A fallback would split one backlog across two stores, which is the one unrecoverable
 outcome this contract exists to prevent.
 
-**A backlog file left on disk by an earlier ptp — `openspec/backlog.json`, the deleted legacy store — is
-legacy data and is left exactly as found.** It is
-never read, parsed, validated, migrated, moved, or deleted, and ptp adds, modifies, and removes no
-ignore or attribute rule covering it. `/ptp:backlog` performs a **presence check only** on the path and
-says so in one scope-note line; that is the whole of ptp's remaining relationship with it.
-
 **Nothing assumes the board is backed up.** The file contract never assumed version control could
 recover a lost write, and a board inherits the weaker position: there is no snapshot, no history a
 reader can consult, and one click deletes a card. So **no rule in this contract may rely on recovering a
@@ -70,28 +64,34 @@ Exactly two recognized keys:
 ```jsonc
 {
   "version": 1,
-  "epics": [ /* entry objects, in the canonical createdAt order */ ]
+  "epics": [ /* entry objects, in the canonical board-position order */ ]
 }
 ```
 
 | Key | Type | Source | Notes |
 |---|---|---|---|
 | `version` | integer | the board's version marker (*Version marker and gate* below) | Exactly `1` in v1. No candidate anywhere ⇒ `1`, synthesized in memory. |
-| `epics` | array of entry objects | the board's items — **every one of them is an entry** (*Every board item is an entry* below) | May be empty. Ordered by the canonical key below — never board order, never column order, never any view's position. |
+| `epics` | array of entry objects | the board's items — **every one of them is an entry** (*Every board item is an entry* below) | May be empty. Ordered by the canonical key below — the board's own **item position**, which is what the arrangement of a column top-to-bottom means **wherever the view applies no sort of its own** (*Order* below states that bound); never a creation stamp, and never a view's own sort. |
 
 **The `epics` order is total, which a file's array position made free and a board does not.** The
-canonical key is: **`createdAt` ascending; an entry whose `createdAt` is unusable — absent or
-`malformed-entry` — orders after every entry with a usable one; the node id ascending by Unicode code
+canonical key is: **the board item's position, ascending; an entry with no position — one the ordered
+traversal did not return — orders after every entry with one; the node id ascending by Unicode code
 point of its canonical JSON serialization is the final tie-break in every case.** That last component is
-what makes the order total: two entries can share a `createdAt`, but never a node id.
+what makes the order total: two entries can be positionless, but never share a node id.
 
-**`createdAt` is compared as an *instant*, never lexicographically** — and saying so is not pedantry,
-exactly as *all id ordering is numeric* was not in the rule this replaces. The normalized stamps
-(*Timestamps* below) are ISO-8601 UTC, but they may differ in fractional-second precision, and
-`2026-01-01T00:00:00.500Z` sorts **before** `2026-01-01T00:00:00Z` by code point while falling **after**
-it in time. Two stamps naming the same instant at different precisions are **equal** for this key and
-fall to the node-id tie-break. Only the node-id component is compared by code point, and it says so in
-place.
+**Position is the order a human arranges by hand, and that is the point.** A card dragged to the top of a
+column — in a view that applies no sort of its own, the bound *Order* below states — is a statement about
+what should run first, and this key is what makes ptp read it. The key is
+deliberately **not** a date: no creation stamp, no update stamp, and no other time-derived value takes
+part in it, at any tie-break depth.
+
+**A position is an *ordinal*, not a field value, and the difference is load-bearing.** GitHub's
+`ProjectV2Item` exposes **no** position field: the board's order is observable only as the **order a
+connection returns items in**, so an entry's position is the **index it arrived at** in the one ordered
+traversal *Read protocol* below pins for that purpose — never a value read off an item, and never a
+number ptp stores. Two entries returned by one traversal therefore cannot share a position; what two
+entries *can* share is having **none**, and the node-id tie-break settles exactly that case. Only the
+node-id component is compared by code point, and it says so in place.
 
 ### Entry object
 
@@ -613,17 +613,23 @@ reaches the board at all. The consequence is stated rather than hidden: **a call
 post-write in-memory `updatedAt` as the stored value.** A human's UI edit moving a stamp is a third
 party touching the store, and the read reports it as exactly that.
 
-**Why the churn is harmless where it matters:** **`updatedAt` is read by nothing computed.** The
-canonical `epics` order, the ready-set order, and the problem sort key all read **`createdAt`** — and
-`createdAt` is the one board stamp the board **never mutates after creation**. So a card touched in the
-UI moves only `updatedAt`, which changes what the view *displays* about it and **nothing about what the
-view computes**. The distinction between the two stamps is what makes this an amendment of the old claim
-rather than an abandonment of it.
+**Neither stamp is an ordering input, and neither is read by any computed result.** The canonical `epics`
+order, the ready-set order, and the problem sort key all read the board item's **position** (*Top level*
+above, *Read protocol* below); `createdAt` and `updatedAt` are **displayed and never computed with**. The
+one way either stamp still reaches a computed outcome is the `malformed-entry` a stamp that will not
+normalize raises, immediately below — which is **validation of** the stamp, not computation **with** it.
+This retires, rather than amends, the churn argument the creation-stamp key rested on: that argument
+existed to keep a human's UI touch from moving what ptp computes, and under a position key a human's
+arrangement of the board **is** the input ptp is asked to read. What a UI edit moves is now a deliberate
+signal where it is a position, and inert where it is a stamp.
 
-A `malformed-entry` on `createdAt` therefore does reach a computation, and its three consequences are
-stated together: the entry **orders last** (per the canonical key), the **ready set is withheld** as
-under any structural problem, and the store is **not** made writer-ineligible (*Writer eligibility*
-below).
+A `malformed-entry` on `createdAt` **is that one validation outcome and reaches no computation beyond
+it** — nothing reads the stamp, and what has consequences is the **problem**, not the value. Its **two**
+consequences are stated together: the **ready set is withheld** as under any structural problem, and the store is **not** made
+writer-ineligible (*Writer eligibility* below). It **no longer affects the entry's place in the canonical
+order**, that order having no date component at any depth. The problem is still reported, still
+structural, and still never coerced — a stamp ptp cannot read is a fact about the board, and demoting it
+to silence because nothing computes with it would hide a broken store.
 
 The obvious alternative — mapping `updatedAt` to a writable carrier so a committed value persists — is
 **not available**: the API exposes no setter, and inventing a second, ptp-owned `updatedAt` custom field
@@ -706,7 +712,8 @@ READ:
        may see the count move in either direction on a live board, which is
        the same benign race the join tolerates and is NOT itself a defect,
        and that floor is the tightest bound no such race can violate:
-         `all`      — items(archivedStates: [ARCHIVED, NOT_ARCHIVED]),
+         `all`      — items(archivedStates: [ARCHIVED, NOT_ARCHIVED],
+                            orderBy: {field: POSITION, direction: ASC}),
                       selecting id · isArchived · createdAt · updatedAt
                       for EVERY item: the roster and the stamp source. It
                       also selects, of the content, its TYPE NAME and its OWN
@@ -730,6 +737,42 @@ READ:
                       type name and the content's own id are not. Nothing else
                       is added to it: no title, no body, no new call and no new
                       page round.
+
+                      THE `all` ALIAS IS ALSO THE CANONICAL ORDER'S ONE
+                      SOURCE. Its `orderBy` is passed EXPLICITLY and is
+                      never left to a transport default, on the same
+                      ground as the explicit-limit rule below: a read
+                      never rests on a default it did not state.
+                      `POSITION` is the ONLY value the order field
+                      admits, so the argument names the board's own item
+                      order and nothing else. Each item's POSITION IS
+                      THE INDEX IT ARRIVED AT in this traversal, the
+                      page rounds concatenated in the order they were
+                      issued — `ProjectV2Item` exposes no position
+                      field, so arrival order is the only form the fact
+                      has. That rank is held OUTSIDE the entry objects,
+                      exactly as `handle.contentNodeId` is, and it
+                      materializes as the ORDER OF THE RETURNED `epics`
+                      ARRAY and nowhere else: no entry field is added,
+                      and no carrier is touched. The order is the
+                      PROJECT's item order; a board VIEW's own sort or
+                      grouping is not exposed by this surface at all,
+                      and where a view carries NO SORT OF ITS OWN — the
+                      default — the project's order IS the column's
+                      visible top-to-bottom order. GROUPING by `Status`
+                      is what makes the column exist and does NOT
+                      reorder inside it; only a view's own SORT
+                      displaces this order. The `archived` alias takes
+                      NO `orderBy`: it is joined by node id and
+                      contributes no rank. An item a live reorder
+                      causes this traversal to return TWICE takes its
+                      FIRST arrival index and its later arrivals are
+                      IGNORED — the same benign race the join already
+                      tolerates, settled here rather than left to the
+                      reader, so that "the index it arrived at" names
+                      exactly one index for every item and the key
+                      stays TOTAL over the produced document.
+
          `archived` — items(archivedStates: [ARCHIVED]), selecting id · content
                       · the single-select field values: the content and status of
                       exactly the items the porcelain could not return. These rows
@@ -788,7 +831,11 @@ READ:
   4. Apply the VERSION GATE.
   5. VALIDATE. Readers report the problems; writers apply writer
      eligibility below.
-  6. Return the document, the problem list, the unavailable mask, the
+  6. Return the document — its `epics` in the canonical order the `all` alias's
+     traversal fixed, together with WHICH of them that traversal returned no
+     row for and which therefore carry NO POSITION, that being the one
+     positional fact the array order cannot express — the problem list, the
+     unavailable mask, the
      handle table, the `Status` field's NODE ID together with its
      options as {id, name} pairs, verbatim and in board order, as read
      at step 3, and the PROJECT's own node id as read at step 2.
@@ -829,7 +876,7 @@ assembled from two:
 | Situation | Binding |
 |---|---|
 | a **roster** id with no row in either content set | **skipped** — a card created, archived, or unarchived between the calls. It cannot be assembled, and the next read sees it whole. It is **not** the no-interpretable-content `unparseable-file` above, which is a **returned row** whose content could not be interpreted rather than a row that was never returned |
-| a **content** row with no roster row | produced, with `createdAt` and `updatedAt` reading **`null`** — the *a stamp the transport omits* case *Timestamps* above already states is **not** a defect, and which the canonical order already places **after** every entry with a usable stamp |
+| a **content** row with no roster row | produced, with `createdAt` and `updatedAt` reading **`null`** — the *a stamp the transport omits* case *Timestamps* above already states is **not** a defect — and with **no position**, the roster being the canonical order's one rank source, which the canonical order already places **after** every entry that has one |
 | an id in **both** the non-archived rows and the archived rows | the **archived** row wins, as the **later** observation — the raw read being issued last |
 
 **Both stamps come from the roster and from nowhere else**, the non-archived read carrying neither. And
@@ -851,9 +898,9 @@ one-payload rule above governs **entry fields** and is unchanged by it.
 **The join is deliberately tolerant rather than fail-closed, and the asymmetry is the reason.** What a
 fail-closed rule would catch here is a **benign race on a live board**, and its cost would be an
 `unreachable-store` on a healthy board every time a human touches a card mid-read. The direction that
-*is* fail-closed is the one that matters: a raced card carries no `createdAt`, so it **orders last** and
-can never reach the **head** of the ready set — the position the whole degraded-scope machinery exists to
-protect. This contract's determinism claims are already scoped to **the produced document** rather than to
+*is* fail-closed is the one that matters: a raced card that came back without a **roster row** carries no
+**position**, so it **orders last** and can never reach the **head** of the ready set — the place the
+whole degraded-scope machinery exists to protect. This contract's determinism claims are already scoped to **the produced document** rather than to
 the board over time, so a race changes *which* document is produced and nothing about what is computed
 from it.
 
@@ -897,7 +944,13 @@ renumber this protocol's steps: every command cites **step 0** by that number.
 Four things, deliberately separate:
 
 1. the **document** `{ version, epics }` in the in-memory shape the validator and the ready set consume
-   unchanged, plus the ordered **problem list** and the **unavailable mask**;
+   unchanged, plus the ordered **problem list**, the **unavailable mask**, and the **positionless set** —
+   the node ids of the entries the ordered roster traversal returned **no row for**, which the canonical
+   order places last. The set carries **no rank and is not one**: the rank itself still materializes as
+   the `epics` order and nowhere else, and this is the complementary fact — *which entries have none* —
+   which the array order cannot express and which `/ptp:backlog`'s scope note is obliged to report. It
+   is empty on a board no race touched, and an entry's presence in it is **not** a defect and raises no
+   problem code;
 2. a **handle table keyed by the board item's node id** —
    `nodeId → { contentType, isArchived, contentNodeId }`, where `contentType` is the item's content type,
    `isArchived` is the item's own archived flag, and **`contentNodeId` is the node id of the object the
@@ -1162,12 +1215,13 @@ while both the canonical order and allocation were undefined over it; allocation
 the canonical order is **total by construction over any document a read can produce**, its node-id final
 tie-break guaranteeing it. The justification therefore has no surviving instance.
 
-**The one candidate, considered and rejected.** The canonical order now reads `createdAt`, so a
-`malformed-entry` on `createdAt` is the natural replacement condition. It is rejected for a decisive
-reason: **`createdAt` is board-maintained and the store exposes no setter**, so a store made
-writer-ineligible by a bad stamp would be **unrepairable through ptp forever** — precisely the lockout
-this rule exists to prevent. The order's fallback already keeps the order well-defined over such an
-entry, so refusing would buy nothing.
+**The one candidate, considered and rejected.** A `malformed-entry` on `createdAt` is the condition an
+earlier reading of this rule would have reached for, the canonical order having once been keyed on that
+stamp. It is rejected twice over. First, the key no longer reads it at all (*Order* below), so a bad
+stamp moves nothing computed and there is nothing for a refusal to protect. Second — and decisively even
+had the key not moved — **`createdAt` is board-maintained and the store exposes no setter**, so a store
+made writer-ineligible by a bad stamp would be **unrepairable through ptp forever**, precisely the
+lockout this rule exists to prevent.
 
 *Degraded scope* is deliberately **not** on this list: it raises no problem code at all, so this rule
 does not reach it. What it establishes instead is narrower — a **consumer of the ready set** cannot
@@ -1207,11 +1261,23 @@ Two readings are wrong, and both are ruled out here:
 
 ### Order
 
-The **canonical order**, identical to the `epics` order above: **`createdAt` ascending; an entry whose
-`createdAt` is unusable — absent or `malformed-entry` — orders after every entry with a usable one; the
-node id ascending by Unicode code point of its canonical JSON serialization is the final tie-break in
-every case.** There is **no `priority` field**; the board's creation stamp supplies the stable,
-first-in-first-out order.
+The **canonical order**, identical to the `epics` order above: **the board item's position, ascending; an
+entry with no position orders after every entry with one; the node id ascending by Unicode code point of
+its canonical JSON serialization is the final tie-break in every case.** There is **no `priority`
+field** and **no date component at any depth**; the board's own arrangement supplies the order, so the
+head of the ready set is the first `ready` entry in the project's item order — the **top card of the
+`Ready` column** for a view that applies no sort of its own — and `/ptp:backlog-run` takes the ready epics
+**top first**. Re-ordering the work is dragging a card, and ptp reads that and writes it **never**.
+
+**What ptp can and cannot see.** The order is the **project's** item position, which is what the API
+exposes. A board **view's** own **sort** is **not** exposed to this contract, so a view that sorts by
+something else displays one order while ptp computes the project's — ptp neither detects that nor honors
+it, and says so here rather than promising a fidelity it cannot deliver. **Grouping is not sorting, and
+the bound is written on sorting alone**: a view **groups** by `Status` — that grouping is what makes a
+`Ready` column exist at all — and it partitions the items without reordering those within a partition,
+so grouping is **compatible** with this order and only a view's own **sort** displaces it. A bound
+written as *no sort **or grouping*** would exclude every board view that has a `Ready` column, and would
+empty itself.
 
 **The order *within* a ready set is unchanged** by the deletion of the dependency pass: the topological
 pass never constrained it (every member of a ready set already had its predecessors settled), so the
@@ -1219,10 +1285,14 @@ canonical tie-break was always the whole visible order. Removing the pass remove
 machinery, not ordering behavior. **Ready-set *membership* is a different matter and did change** — a
 backlog that carried edges now admits every `ready` entry at once, so one that used to run in a
 dependency-derived order now runs in the canonical order. That is a deliberate behavior change, recorded
-as such in the release notes.
+as such in the release notes. That history is about the **dependency pass**, not about the key: the key
+itself changed once more in `0051_01`, from the board's creation stamp to the board's item position, which
+is a **deliberate behavior change** — a board whose `Ready` column is not in creation order now runs its
+epics in a different order — recorded as such in the release notes.
 
-**Determinism, over the produced document.** Ordering reads **only materialized fields**, so **for any
-given produced document the ready set and its order are fully deterministic** — computing them twice
+**Determinism, over the produced document.** Ordering reads **only what one read materialized** — the
+entries' `status` and the order the traversal returned them in — so **for any given produced document the
+ready set and its order are fully deterministic** — computing them twice
 over one document yields the same entries in the same order. The claim is deliberately **not** made over
 the store over time: a board is not a snapshot and the read is not transactional, so two reads may
 legitimately differ (see *Purity, narrowed honestly* under *Validation*).

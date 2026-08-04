@@ -152,12 +152,11 @@ answer, the store persisting no attempt id, no attempt boundary, and no per-atte
 `changeEpics`. Among `in-review` candidates there is **no question of intent**: every one of them
 needs the identical treatment — review-full, archive, settle — and the only open question is *which
 one first*. That is a **schedule**, and `ptp-backlog` already owns a total order for it: the
-**canonical order** — `createdAt` ascending, an entry whose `createdAt` is unusable ordering after
-every entry with a usable one, and the node id as the final tie-break in every case — the same order
-the ready set and the entries table use. Taking its head is therefore **not** an invented heuristic;
-it is the order this contract already publishes. **The order is cited, never redefined**: this
-paragraph names it, and `ptp-backlog`'s own *Order* section remains the sole definition of its
-components — the unusable-stamp clause and the exact node-id comparison included. Nothing new is
+**canonical order** — `ptp-backlog`'s *Order* section defines it and this paragraph does not restate
+its components — the same order the ready set and the entries table use. Taking its head is therefore
+**not** an invented heuristic; it is the order this contract already publishes. **The order is cited,
+never redefined**: this paragraph names it, and `ptp-backlog`'s own *Order* section remains the sole
+definition of its components, every one of them, this paragraph naming none. Nothing new is
 defined here.
 
 **The store is the only memory.** This command holds no state across invocations and has no notion of

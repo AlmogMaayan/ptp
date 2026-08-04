@@ -233,19 +233,12 @@ table, which needs the default table this skill deliberately does not hold.
 
 2. **It must never silently proceed.** An incomplete or unactionable configuration must produce a
    **non-silent refusal**: never a warn-and-continue, never a partial operation, and **never a read,
-   creation, or write of `openspec/backlog.json` — the deleted legacy store — in place of the configured
-   board**.
+   creation, or write of a local file in place of the configured board**.
 
 **The identity limb of prohibition 2 lives in one other place.** Never acting against an identity the
 user did not establish is governed by [The acting identity](#the-acting-identity), which closes it
 structurally rather than by prohibition: there is no identity for ptp to substitute, because there is
 none for it to choose.
-
-**The local-file clause is load-bearing, not vacuous.** The local store left the contract long before
-this transport did, but a file at `openspec/backlog.json` still *exists on disk* in any repository that
-used an earlier ptp. A fallback is therefore *available* precisely where a well-meaning implementer would
-reach for one, which is why the prohibition names the file concretely instead of stopping at the abstract
-rule. That file is legacy data: never read, never written, never migrated, never deleted.
 
 Because a resolver that never STOPs cannot itself refuse, **the refusal is a consumer's obligation** —
 see [Consumer obligations](#consumer-obligations), and `0047_02_backlog-config-gate-enforcement` for the
@@ -1053,8 +1046,7 @@ plan against a board missing everything ptp recorded — **data loss by divergen
 leaving two half-backlogs and no merge story. A hard STOP costs one repair.
 
 The asymmetry is not close, so the rule takes **no exceptions and no `--force`**. Concretely: no read,
-no creation, and no write of `openspec/backlog.json` — the deleted legacy store — in place of the
-configured board.
+no creation, and no write of any local file in place of the configured board.
 
 ---
 
@@ -1249,12 +1241,18 @@ path's, not any other's.
 
 - **Query everywhere.** The passthrough is admitted as a **query on every path**, and **outside the
   write path it is a query and never a mutation** — the preflight's calls, archive reachability's, and
-  the read path's alike, all unchanged by this admission.
+  the read path's alike, all unchanged by this admission. A query may carry any **connection argument**
+  the schema defines — page size, cursor, `archivedStates`, and **`orderBy`** — arguments being part of
+  the query the passthrough already admits and not a further permission. Where an order is load-bearing
+  it is passed **explicitly**, never left to a default, on the same ground as the explicit-limit rule.
 - **Mutation only on the write path, and only from the closed enumerated set.** The write path
   (`skills/ptp-backlog-write/SKILL.md`) may issue a mutation through the passthrough, and **only** one of
   the admitted mutations enumerated in the companion table under [The gh surface](#the-gh-surface) and
   specified in [The content-body mutation route](#the-content-body-mutation-route). Issuing any other
-  mutation through the passthrough is a contract violation, anywhere.
+  mutation through the passthrough is a contract violation, anywhere. Concretely, **no mutation that
+  moves an item's position is admitted anywhere** — it is outside the closed set, and stating it here is
+  an **application** of that set rather than a new prohibition. ptp reads the board's arrangement and
+  never authors it.
 - **The non-`GET` prohibition binds an *explicitly set* method.** `gh api` with `--method` / `-X` **set**
   to anything other than `GET` is prohibited outside the write path. The GraphQL endpoint's **own
   intrinsic** HTTP method is **not** such a setting, so this rule does not read as forbidding the very
