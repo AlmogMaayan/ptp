@@ -215,6 +215,60 @@ rejections do NOT carry over). Each iteration:
 - Terminate: zero confirmed **in-scope** findings → `BOTH_PHASES_DONE`. Exceed MAX_ITERATIONS (the
   `MAX_ITERATIONS + 1`th iteration, default the 6th) → `PHASE2_CAP`.
 
+## Review-convergence marker
+
+At your terminal point — **every** terminal outcome, i.e. `BOTH_PHASES_DONE` (including the mode-skip
+variant), `PHASE1_CAP` **reached by an actual Phase-1 iteration cap** (which STOPs at the Phase-1 gate
+without Phase 2 ever running), and `PHASE2_CAP`
+— and **before returning the structured JSON below**, perform **exactly one**
+`openspec/changes/<change-id>/reviews/code.json` write, using the schema, the code-marker fingerprint,
+and the atomic write-temp-then-rename protocol defined in the `ptp-review-loop` skill's
+**## Review-convergence marker** and **## Code-marker fingerprint** sections. Do not restate them here —
+read them.
+
+- `kind` = `"code"`; `reviewers` = the agents whose phases actually ran; `iterations` = the last phase
+  that ran's iteration count; `minSeverity` = the run-wide resolved `MIN_SEVERITY` (lowercase
+  canonical); `timestamp` = now, UTC ISO-8601.
+- `terminalState` = `"converged"` for `BOTH_PHASES_DONE` (both variants), `"cap-reached"` for
+  `PHASE1_CAP` and `PHASE2_CAP`.
+- `gateState` = derived from the `terminalState` you are about to return: `PHASE1_CAP` → `"PHASE1_CAP"`,
+  `PHASE2_CAP` → `"PHASE2_CAP"`, and `BOTH_PHASES_DONE` → `"BOTH_PHASES_DONE"` **except** in the
+  mode-skip case, which returns `BOTH_PHASES_DONE` but records `gateState: "PHASE1_DONE_CODEX_SKIPPED"`
+  with `reviewers: ["superpowers"]` (at the default `roles.main=claude`), so a later reader can name the
+  skip instead of flattening it into a both-phases run.
+- `fingerprint` = computed **after your last fix edit and final verification, immediately before the
+  write**. If it cannot be computed, still write the marker with the field **omitted entirely** and note
+  the omission — never a partial or fabricated fingerprint.
+
+**The two exclusions — returns that record nothing.** Both rest on the same rule: you write a marker
+only when a review actually ran and resolved, because the marker is evidence, and a run that reviewed
+nothing must never overwrite (last-write-wins) a real marker a prior run left behind.
+
+1. **`terminalState: "FIX_TARGET_ESCALATION"`** → you write **NO** marker and assign **no** `gateState`.
+   That value is a dispatch signal emitted *before* any edit for the triggering finding set, not a
+   terminal outcome — your own hard rules already forbid treating it as convergence — so the phases have
+   not resolved and there is nothing to record. The workflow's single re-spawned escalated run performs
+   the write when **it** reaches a terminal state.
+2. **The Preconditions `codex.mode = required` + a Codex reviewer + `codex` missing return** → you
+   likewise write **NO** marker. That `PHASE1_CAP` is an **aborting precondition**, not a review
+   outcome: no phase ran, so `reviewers` and `iterations` have no value the marker schema admits
+   (`reviewers` is the reviewer(s) that actually ran and `iterations` the last phase that ran's count,
+   ≥ 1), and writing one would clobber a prior valid marker over an environment problem — a missing
+   `codex` binary — that recurs identically for every story of a run. `commands/review-full.md`, the
+   structurally identical surface, writes nothing on its equivalent precondition STOP for the same
+   reason; only its *Gate*'s iteration cap writes.
+
+**Why there is no `deferMarker` here.** Unlike `/ptp:review-full`, you **inline** your two phase loops
+(the *Phase 1* / *Phase 2* sections above) rather than invoking `ptp-review-loop`, so there is no
+`deferMarker` input for you to pass and none is required of you. The "exactly one combined write"
+property is satisfied **by construction**: your phases write nothing, and you write once at your
+terminal point. The absence of a `deferMarker = true` line is therefore not an omission.
+
+**Write failure is fire-and-forget.** A failed marker write is swallowed into a `notes` line and
+**never** changes the returned `terminalState` or any other JSON field — the same posture as the
+telemetry write above. The review already happened; the record of it failing to persist is a note, not
+an outcome.
+
 ## Hard rules
 
 - Never fix an unconfirmed finding. Never commit. Never archive. Never run `ptp:apply`.

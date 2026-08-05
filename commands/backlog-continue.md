@@ -117,7 +117,11 @@ Drive the **`ptp-backlog-continue`** skill against the single resolved candidate
 - **Bare invocation** → the **bare flow**: per prefix in `changeEpics` (and per story folder within
   it), locate the change folder, flip the remaining `- [ ]` boxes to `- [x]`, re-verify
   (`npx -y openspec validate <change-id> --strict` plus the project's build and test suites), invoke
-  **`/ptp:review-full <change-id>`** and require its convergence gate, then invoke
+  **`/ptp:review-full <change-id>`** and require its convergence gate — **unless an eligible
+  `reviews/code.json` review-convergence marker proves that review redundant**, in which case it is
+  skipped and the prefix is reported as review-skipped with the marker's evidence (the eligibility
+  predicate, the marker schema, and the fingerprint live in `ptp-review-loop` and the evaluation's
+  placement in `ptp-backlog-continue`; neither is restated here) — then invoke
   **`/ptp:archive <change-id>`** — and, **only once every prefix has settled**, perform the single
   `blocked → done` **or** `in-review → done` write, per the target's own source status, under
   `ptp-backlog`'s guard 3. Any stall
@@ -140,8 +144,9 @@ wrapper would push each to a second nesting level. Staying outer is also what ke
   than one entry per invocation.
 - **Never reach `done` any other way** — the `blocked → done` and `in-review → done` writes happen only
   as the direct,
-  same-invocation result of this command's own review-full → archive sequence settling every recorded
-  prefix. `/ptp:backlog-edit` still refuses both transitions unconditionally.
+  same-invocation result of this command's own review-gate → archive sequence settling every recorded
+  prefix — the gate satisfied by this invocation's own converged `/ptp:review-full` or by an eligible
+  `reviews/code.json` marker it re-proved in this invocation. `/ptp:backlog-edit` still refuses both transitions unconditionally.
 - **Never guess the target** — zero candidates of either status, or **more than one `blocked`**
   candidate, is a refusal that names them. Several `in-review` candidates are not a guess: the skill
   takes the head of `ptp-backlog`'s **published** canonical order.

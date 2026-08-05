@@ -130,6 +130,8 @@ After the workflow returns `{ results, halted, total }`, the command renders a r
 3. **Resume command** for the unprocessed tail — `/ptp:full-apply <ids…>` listing the `never-started` ids (and the `applied (review pending)` story handled per the Resume hint below).
 4. **`/ptp:archive <id>` per fully-processed story** — recommend to the user for each `processed` story; **never auto-run**.
 
+Each converged story's `ptp-review` agent leaves a durable `openspec/changes/<id>/reviews/code.json` review-convergence marker (per `ptp-review-loop`'s **## Review-convergence marker** section), so a later settle path — `/ptp:backlog-continue`, typically in a new session — can prove that review happened against this exact content instead of re-running it. **On a multi-story run, expect that proof to survive for the last story only.** The marker's `trackedDigest` hashes the **whole** merge-base working-tree diff, and *Sequencing* above applies each story on top of the previous one, so story N's marker stops matching the moment story N+1's apply edits anything — which is honest, story N's review having genuinely not seen story N+1's code. Those earlier stories fall back to running `/ptp:review-full`, exactly as they do today; the skip is a bonus on the tail of a run, never a guarantee across it. This adds **no** report column and **no** workflow argument.
+
 ## Resume
 
 The workflow's run journal is the **primary resume mechanism**. Before re-launching, run the

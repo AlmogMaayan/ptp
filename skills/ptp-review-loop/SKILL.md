@@ -1,6 +1,6 @@
 ---
 name: ptp-review-loop
-description: Shared loop protocol for /ptp:review-loop, /ptp:codex-review-loop, /ptp:review-plan-loop, /ptp:codex-review-plan-loop, the /ptp:review-brainstorm-full brainstorm loop, and /ptp:codex-review-prd-loop. Takes kind∈{code,artifact,brainstorm,prd} and reviewer∈{superpowers,codex} and iterates review→confirm→fix until zero open findings at or above the configured review.minSeverity floor (default low = all four severities) or the configured iteration cap (default 5) is reached; findings below the floor are reported but not fixed. Handles rejection carry-over so rejected findings do not cause infinite loops, and filters manual-check/tests-required suggestions from the convergence count. At its terminal states the loop also writes a small durable per-kind review-convergence marker (for kind∈{brainstorm, artifact, prd} under openspec/changes/<id>/reviews/; kind=code writes none), unless invoked with deferMarker=true by a -full orchestrator.
+description: Shared loop protocol for /ptp:review-loop, /ptp:codex-review-loop, /ptp:review-plan-loop, /ptp:codex-review-plan-loop, the /ptp:review-brainstorm-full brainstorm loop, and /ptp:codex-review-prd-loop. Takes kind∈{code,artifact,brainstorm,prd} and reviewer∈{superpowers,codex} and iterates review→confirm→fix until zero open findings at or above the configured review.minSeverity floor (default low = all four severities) or the configured iteration cap (default 5) is reached; findings below the floor are reported but not fixed. Handles rejection carry-over so rejected findings do not cause infinite loops, and filters manual-check/tests-required suggestions from the convergence count. At its terminal states the loop also writes a small durable per-kind review-convergence marker for every kind under openspec/changes/<id>/reviews/ (brainstorm.json, plan.json, prd.json, code.json), unless invoked with deferMarker=true by a -full orchestrator; the kind=code marker additionally carries a gateState and a content fingerprint, and defines the six-condition predicate under which a caller may skip an otherwise-mandatory code review.
 ---
 
 # ptp-review-loop — shared loop protocol
@@ -251,27 +251,48 @@ At each of its two terminal states the loop writes a small **durable** per-kind 
 marker — the only durable on-disk side effect beyond the artifact edits the loop already makes. This is
 distinct from the in-conversation loop control state above, which is NEVER persisted.
 
-**Which kinds write a marker.** `kind ∈ {brainstorm, artifact, prd}` write a marker; **`kind = code`
-writes NONE** (the `/ptp:status` table has no code-review column to feed).
+**Which kinds write a marker.** **Every** kind writes one — `brainstorm`, `artifact`, `prd`, and
+`code`. A marker is written whether or not any `/ptp:status` column reads it: the `code` marker feeds no
+`/ptp:status` column (none is added by this capability), and is written so that the *fact* of a code
+review's convergence is discoverable after the session that produced it has ended.
 
 **Marker JSON schema** (the exact shape written to the per-kind marker file):
 
 ```json
 {
-  "kind": "brainstorm | plan | prd",
+  "kind": "brainstorm | plan | prd | code",
   "terminalState": "converged | cap-reached",
+  "gateState": "LOOP_DONE",
   "reviewers": ["superpowers", "codex"],
   "iterations": 2,
   "minSeverity": "high",
-  "timestamp": "2026-06-23T12:34:56Z"
+  "timestamp": "2026-06-23T12:34:56Z",
+  "fingerprint": {
+    "version": 1,
+    "algorithm": "sha256",
+    "value": "9f2c…",
+    "inputs": {
+      "baseBranch": "master",
+      "mergeBase": "4fb402e…",
+      "trackedDigest": "1a7b…",
+      "untrackedDigest": "c033…",
+      "contractDigest": "77de…"
+    }
+  }
 }
 ```
 
+`gateState` and `fingerprint` are **code-only**: they are written to `reviews/code.json` for
+`kind = code` and for no other kind. A `brainstorm` / `plan` / `prd` marker carries neither field, and
+its shape is exactly what it is today.
+
 | Field | Type | Value |
 |-------|------|-------|
-| `kind` | string | `"brainstorm"`, `"plan"`, or `"prd"` — the `/ptp:status` column this marker feeds (no `/ptp:status` column is required to exist for the `prd` marker to be written). Derived from the loop `kind`: `brainstorm`→`"brainstorm"`, `artifact`→`"plan"`, `prd`→`"prd"`. |
-| `terminalState` | string | `"converged"` (loop reached `DONE`) or `"cap-reached"` (loop reached `ITERATION CAP REACHED`). |
-| `reviewers` | string[] | The reviewer(s) that actually ran: `["superpowers"]`, `["codex"]`, or `["superpowers","codex"]` (both). A single `ptp-review-loop` invocation runs one reviewer, so a standalone `-loop` run writes a single-element array; the combined set is assembled by the `-full` orchestrator. |
+| `kind` | string | `"brainstorm"`, `"plan"`, `"prd"`, or `"code"` — the review kind this marker records, and (for `brainstorm` / `plan`) the `/ptp:status` column it feeds. No `/ptp:status` column is required to exist for the `prd` or the `code` marker to be written, and no existing `/ptp:status` row renders a `kind: "code"` marker, that row's kind-must-match rule already excluding it. Derived from the loop `kind`: `brainstorm`→`"brainstorm"`, `artifact`→`"plan"`, `prd`→`"prd"`, `code`→`"code"`. |
+| `terminalState` | string | `"converged"` (loop reached `DONE`) or `"cap-reached"` (loop reached `ITERATION CAP REACHED`). This two-value domain is **unchanged** by the `code` kind — in particular the `-full` mode-skip green state (Phase 1 done, Codex skipped by `codex.mode`) is recorded as `"converged"`, its distinctness preserved by `gateState` rather than by a third `terminalState` value. |
+| `gateState` | string | **`kind = code` only.** The terminal vocabulary of the run that produced the marker: `"BOTH_PHASES_DONE"`, `"PHASE1_DONE_CODEX_SKIPPED"`, `"PHASE1_CAP"`, or `"PHASE2_CAP"` for a two-phase `-full` run; `"LOOP_DONE"` or `"LOOP_CAP"` for a standalone single-reviewer `kind = code` loop run. Sourced from the run's **own** terminal outcome. It exists so a mode-skipped run is never flattened into a plain both-phases run by a later reader; it is reported, never used to decide skip eligibility. |
+| `fingerprint` | object | **`kind = code` only.** A content fingerprint of what the review evaluated — see **## Code-marker fingerprint** below. **Absent** when it could not be computed; there is no partial fingerprint. |
+| `reviewers` | string[] | The reviewer(s) that actually ran: `["superpowers"]`, `["codex"]`, or `["superpowers","codex"]` (both). A single `ptp-review-loop` invocation runs one reviewer, so a standalone `-loop` run writes a single-element array; the combined set is assembled by the `-full` orchestrator. For a `kind = code` marker this field is **load-bearing**: it is what **condition 6** of **## Code-marker skip eligibility** tests against the reviewer set a review invoked at check time would run. |
 | `iterations` | integer | The iteration count of the last phase that ran (≥ 1). |
 | `minSeverity` | string | The **effective resolved** severity threshold of the run that produced this marker: `"low"`, `"medium"`, `"high"`, or `"critical"` — always the lowercase canonical form, never the raw config text. Under a `-full` orchestrator's single combined write this is the threshold used by the **last phase that ran**, the same rule already applied to `iterations`. |
 | `timestamp` | string | ISO-8601 UTC instant the marker was written. |
@@ -283,14 +304,14 @@ sole marker reader today — the `/ptp:status` review columns — keys only on `
 `reviewers` / `iterations`, and its existing optional-field tolerance already ignores fields it does
 not key on, so old and new markers both render exactly as they do today.
 
-**Per-kind file naming** (one file per `/ptp:status` review column):
+**Per-kind file naming** (one file per review kind):
 
 - loop `kind = brainstorm` → `reviews/brainstorm.json` (status "brainstorm review" column)
 - loop `kind = artifact`   → `reviews/plan.json`       (status "plan review" column)
 - loop `kind = prd`        → `reviews/prd.json`        (sibling of `reviews/brainstorm.json` and `reviews/plan.json`)
-- loop `kind = code`       → **no marker is written**
+- loop `kind = code`       → `reviews/code.json`       (sibling of the three above; no `/ptp:status` column reads it)
 
-**Location.** For `kind ∈ {brainstorm, artifact, prd}` the marker lives under
+**Location.** For every kind the marker lives under
 `openspec/changes/<change-id>/reviews/` — a subfolder **sibling to `specs/`**, created on demand
 (mkdir-if-absent). For `kind = prd`, `<change-id>` is the epic's lowest-numbered story id (resolved by
 the active-or-archived scan, matching the PRD file at `openspec/changes/<id>/prd.md`). The marker is NOT
@@ -337,7 +358,210 @@ orchestrator and review-fix write the marker independently of the shared loop's 
 
 `deferMarker` is a **loop input only**. `/ptp:review-fix` does **not** invoke `ptp-review-loop` at all
 (it runs a single confirm→fix→verify pass), so it neither receives nor honors `deferMarker`; it writes
-its marker independently (reusing the same schema/location/atomic protocol described above).
+its marker independently (reusing the same schema/location/atomic protocol described above). The
+`ptp-review` workflow agent (`agents/ptp-review.md`) reaches the same end state — no per-phase marker,
+exactly one combined write at its terminal point — **by construction rather than by signal**: it inlines
+its two phase loops instead of invoking this skill, so it takes no `deferMarker` input and none is
+required of it.
+
+## Code-marker fingerprint
+
+A `kind = code` marker carries a `fingerprint` object describing **the content the review evaluated**, so
+a later reader can prove that a recorded convergence still describes the current code rather than
+guessing from a timestamp. It is written for `kind = code` only.
+
+**Shape.** `version` (the integer `1` for the algorithm defined here), `algorithm` (the string
+`"sha256"`), `value` (the composite hex digest), and `inputs` (the individual component digests, recorded
+so a mismatch can be attributed to a component rather than reported as an opaque boolean).
+
+**Value.** The `sha256` of the LF-joined sequence:
+
+```
+value = sha256( "ptp-code-fingerprint/1" LF
+                baseBranch              LF
+                mergeBase               LF
+                trackedDigest           LF
+                untrackedDigest         LF
+                contractDigest )
+```
+
+The leading literal is a domain-separation tag carrying the same number as `fingerprint.version`, so a
+future algorithm change cannot collide with a v1 value.
+
+**The five inputs.**
+
+| Input | How it is derived |
+|---|---|
+| `baseBranch` | the base branch `ptp-branch-guard` recognizes — `master`, else `main` |
+| `mergeBase` | `git merge-base HEAD <baseBranch>` |
+| `trackedDigest` | `sha256` of the bytes of `git diff <mergeBase>` — the **one-revision form** |
+| `untrackedDigest` | `sha256` over the LF-joined, bytewise-path-sorted `<path>\0<sha256 of bytes>` lines for every path returned by `git ls-files --others --exclude-standard` |
+| `contractDigest` | `sha256` over the LF-joined, bytewise-path-sorted `<relpath>\0<sha256 of bytes>` lines for the change folder's **review contract set** (below) |
+
+**The one-revision `git diff` rule.** `trackedDigest` hashes `git diff <mergeBase>` written with
+**neither `..` nor `...`** — a single revision argument, which diffs the merge base against the **working
+tree** (staged *and* unstaged). This is mandatory, not stylistic: ptp never commits during apply or
+review, so the reviewed work is *uncommitted*. Both `git diff <mergeBase>..HEAD` and
+`git diff <mergeBase>...HEAD` are **commit-to-commit** forms that omit the working tree entirely, and so
+carry **none** of the state this fingerprint must describe. Never use them here.
+
+**The review contract set** (paths relative to `openspec/changes/<change-id>/`): `tasks.md`,
+`proposal.md`, `design.md`, and every `specs/**/spec.md`. A member of the fixed three that does not exist
+contributes `<relpath>\0<absent>`, so creating or deleting one moves the digest.
+
+**Direct hashing, not git, for the contract set.** `contractDigest` is computed by hashing those files'
+bytes directly. In a repository where `openspec/` is gitignored — as it is in this one — `git diff`,
+`git status`, and `git ls-files --others --exclude-standard` are all blind to a `tasks.md` edit, so a
+git-derived signal could not see the very edit the fingerprint most needs to catch. Direct hashing is
+also correct where `openspec/` *is* tracked: the same bytes are simply hashed twice (once inside
+`trackedDigest`, once in `contractDigest`), which is harmless.
+
+**Exclusions.**
+
+- **`HEAD` is not an input.** A commit that changes no bytes leaves the reviewed content identical;
+  including `HEAD` would invalidate a still-valid marker for free. `mergeBase` **is** an input, because a
+  rebase changes what "the diff" means.
+- **`reviews/` is excluded** from the contract set: a marker can never be an input to its own digest.
+  **That exclusion is not confined to `contractDigest`** — it holds for **every** input. Where
+  `openspec/` is **gitignored** (as here) it is automatic, git being blind to the folder. Where
+  `openspec/` **is tracked**, `trackedDigest` and `untrackedDigest` must exclude **every** marker
+  directory — all paths under `openspec/changes/*/reviews/`, not merely this change's own (a path
+  exclusion on the diff, and the same paths dropped from the
+  `git ls-files --others --exclude-standard` list). Two reasons, both fatal without it: the write that
+  creates or updates `reviews/code.json` would itself move the very digests the marker records, a
+  moment after they were computed, so the marker could **never** match itself; and a **sibling** marker
+  — another kind's under this change, or any marker under **another** change folder, as a multi-story
+  `/ptp:full-apply` run writes one per story — would invalidate this marker for a write that changed no
+  reviewed content at all. A marker is never reviewed content.
+
+  **This is a deliberate, narrowing refinement of the `review-loop` capability's digest wording, and it
+  is recorded as one rather than left to be discovered.** That requirement states the `reviews/`
+  exclusion against the **contract set** and defines `trackedDigest` / `untrackedDigest` as the plain
+  `git diff <mergeBase>` and the full `git ls-files --others --exclude-standard` list. Read that
+  narrowly — exclusion on `contractDigest` alone — the marker is **unimplementable** wherever
+  `openspec/` is tracked: the write that creates `reviews/code.json` lands *after* the fingerprint is
+  computed and *inside* the very inputs it just hashed, so **no** marker could ever match itself and
+  **no** skip could ever be authorized. The refinement removes marker files, and **only** marker files,
+  from view; no reviewed content escapes either digest because of it, so the predicate is never
+  weakened — a marker still cannot survive any edit to any reviewed file. Where the two readings differ
+  they differ only in whether the feature functions at all. **The capability text should be amended to
+  carry this exclusion on all three digests**; until it is, **this section is the operative algorithm**
+  and both writer and reader follow it, so the value stays reproducible between them. Writer and reader
+  apply the identical
+  exclusion, so the value stays reproducible.
+- **`TLDR.md`, `brainstorm.md`, and `effort.md` are excluded** — none is loaded by a code review (step
+  (b) names the contract as proposal / design / tasks / spec deltas), so their churn must not force a
+  re-review.
+
+**Scope, and the over-invalidation it implies.** `trackedDigest` and `untrackedDigest` are **repo-wide**,
+not scoped to the change folder — deliberately, because a code review's own contract is the repo-wide
+merge-base diff, so a change-scoped digest would claim more than the review proved. The consequence is
+that **any** later edit anywhere in the working tree invalidates the marker, including edits belonging to
+a *different* change: in a sequential multi-story run each story's apply invalidates the markers of the
+stories before it, leaving only the last story's marker matchable. That is over-invalidation in the
+**safe** direction — the extra review is one that would have run anyway without this feature — and it is
+the expected shape, not a defect to work around by narrowing the digest.
+
+**Ordering.** The fingerprint is computed **after the run's final fix edit and final verification**,
+immediately before the marker write, so it describes the state the reviewer signed off — never an
+intermediate one.
+
+**Failure.** If any input cannot be computed (no git, a detached state with no merge base, a command
+error), the writer **still writes the marker**, omitting the `fingerprint` field **entirely**, and notes
+the omission. There is no partial fingerprint, and no fabricated one. Every reader treats an absent or
+malformed fingerprint as **not skip-eligible**.
+
+## Code-marker skip eligibility
+
+A caller MAY skip an otherwise-mandatory `/ptp:review-full` for a change **only** when all six of the
+following hold, evaluated **at the moment the review would have been invoked**:
+
+1. `openspec/changes/<change-id>/reviews/code.json` exists, is readable, parses as JSON, and its `kind`
+   is exactly `"code"`.
+2. Its `terminalState` is `"converged"`. A `"cap-reached"` marker NEVER authorizes a skip. `gateState` is
+   reported but never *decides* **this condition**: a `"PHASE1_DONE_CODEX_SKIPPED"` marker **satisfies
+   condition 2**, that state already being a green, gate-success terminal state under `ptp-codex-mode`.
+   Whether its single reviewer is *enough* is not asked here — reviewer sufficiency is decided solely by
+   **condition 6**.
+3. It carries a **well-formed** `fingerprint` whose `version` and `algorithm` the reader
+   **recognizes** — well-formed meaning the whole object this skill defines is present: `version`,
+   `algorithm`, `value`, and an `inputs` object carrying all five component entries by name
+   (`baseBranch` and `mergeBase`, which are a branch name and a commit id rather than digests, plus
+   `trackedDigest`, `untrackedDigest`, and `contractDigest`). A fingerprint that is
+   merely *partial* — most plausibly one carrying `value` but no `inputs` — is **malformed**, and the
+   *Fail-closed* rule below already makes a malformed fingerprint ineligible; this condition simply
+   says where that test is applied. The check is cheap and it is what keeps condition 4's mismatch
+   **attributable**: the reporting obligation names the component that changed, which is unanswerable
+   without `inputs`.
+4. The fingerprint **recomputed at check time**, per **## Code-marker fingerprint**, equals the recorded
+   `value`.
+5. `rank(marker.minSeverity, an absent field read as "low") <= rank(the currently resolved
+   review.minSeverity)` — a run that converged at a stricter floor proves the looser requirement; the
+   converse does not hold.
+6. The marker's `reviewers` set is **sufficient for the reviewer set a `/ptp:review-full` invoked at this
+   moment would run**, per `ptp-codex-mode`'s decision contract **resolved at check time** — the
+   **whole** contract, which means resolving `{ main, reviewer }` per `ptp-agent-roles` **first** and
+   only then, **iff the resolved reviewer is Codex**, both halves of the mode gate: the layered
+   `codex.mode` value **and**, under `auto`, the `codex` CLI-presence test it already specifies. That
+   resolution is performed **when the marker is evaluated**, and is NEVER a role, mode, or CLI verdict
+   cached from the marker's write, stamped into the marker, or inferred from it: every part of it can
+   change between the write and this check, and it is the **current** requirement the skip must satisfy.
+   Sufficiency is defined by the **number of phases** that contract yields, never by the mode string —
+   and the mode string alone does not yield it, `ptp-codex-mode`'s *Composition rule* gating the
+   reviewer phase **iff the reviewer is Codex**:
+
+   - **Two phases** — the default `roles.main = claude` direction (reviewer = Codex) at
+     `codex.mode = required`, and at `codex.mode = auto` with the `codex` CLI **present** on PATH;
+     **and, unconditionally, the `roles.main = codex` direction**, where the reviewer is Claude, is
+     **never** gated, and `codex.mode` is **not consulted for the reviewer gate at all** — so a review
+     invoked now runs both phases there even at `codex.mode = off` or with `codex` absent from PATH.
+     All of these require `reviewers` to contain **both** `"superpowers"` and `"codex"`, the two agents
+     a completed two-phase run always comprises in either `roles.main` direction. **No** single-reviewer
+     marker qualifies: neither the `["superpowers"]` `"LOOP_DONE"` a standalone `/ptp:review-loop`
+     writes, nor the `["codex"]` `"LOOP_DONE"` a standalone `/ptp:codex-review-loop` writes, nor a
+     `"PHASE1_DONE_CODEX_SKIPPED"` marker written while the CLI was absent — a lone `"codex"` being no
+     more sufficient than a lone `"superpowers"`, what is required being **both phases** and not merely
+     the Codex one.
+   - **One phase** — reachable **only** in the `roles.main = claude` direction, where the reviewer is
+     Codex and the mode gate therefore applies: `codex.mode = off`, and `codex.mode = auto` with the
+     `codex` CLI **absent**, both of which make a single-reviewer terminal state the run's own green
+     outcome — accepts a single-reviewer marker, preserving `"PHASE1_DONE_CODEX_SKIPPED"` eligibility in
+     exactly that narrowed form. Reading `codex.mode = off` as one phase **without** first resolving the
+     role would reopen, under `roles.main = codex`, precisely the gate-weakening this condition exists
+     to close.
+
+   **The role-resolution step above is a narrowing refinement of the `review-loop` capability's
+   condition-6 wording, recorded here rather than left silent** — the same posture as the digest
+   refinement under **## Code-marker fingerprint**. That requirement enumerates the one-phase case as
+   `codex.mode = off` and `auto`-with-`codex`-absent without qualifying the `roles.main` direction;
+   taken literally it would admit a single-reviewer marker under `roles.main = codex`, where
+   `ptp-codex-mode` never consults the mode for the reviewer gate and a review invoked now runs **both**
+   phases regardless. The refinement only ever **narrows** eligibility, so it can weaken no gate. **The
+   capability text should be amended to resolve the role first**; until it is, **this section is the
+   operative predicate**.
+
+   **`reviewers` is the load-bearing field; `gateState` stays reported-never-deciding.** "Only
+   `BOTH_PHASES_DONE` qualifies under a two-phase mode" is therefore a **consequence** for the markers
+   this skill's writers can produce, not a second test. A marker whose `gateState` and `reviewers`
+   disagree is producible by no writer defined here; should one appear, `reviewers` decides.
+
+**Fail-closed.** Any other outcome — absent, unreadable, malformed, wrong-`kind`, `cap-reached`,
+fingerprint-less, unrecognized-version, mismatched, weaker-floor, or **reviewer-insufficient** for the
+reviewer set a review invoked now would run — makes the marker **ineligible**,
+and an ineligible marker causes the review to run **exactly as it does without this feature**.
+Ineligibility is never an error, never a refusal, never a halt, and is never reported as a failure. The
+worst outcome of any bug in this check is the status quo.
+
+**Read-only.** Evaluating eligibility NEVER writes, repairs, overwrites, or deletes a marker. Producing a
+marker is the reviewer's job, not the reader's.
+
+**Reporting obligation.** A caller that skips a review on this basis MUST report the skip explicitly,
+naming the marker's `timestamp`, `reviewers`, `gateState`, and `minSeverity`, and MUST NOT report a
+review as having run in that invocation, nor flatten a `PHASE1_DONE_CODEX_SKIPPED` marker into a plain
+both-phases run. A caller that finds an ineligible marker MUST name the reason it was ineligible
+alongside the review that consequently ran — including **reviewer insufficiency for the reviewer set
+resolved at check time** (naming the resolved `roles.main` direction and, where the mode gate applied,
+the resolved `codex.mode`), when that is the failing condition.
 
 ## Per-iteration steps
 
@@ -573,13 +797,16 @@ Report:
    - `kind=brainstorm` → `/ptp:plan <change-id>` (the brainstorm is sound; proceed to author the OpenSpec artifacts). (Recommend it to the user — do not invoke it.)
    - `kind=prd` → `/ptp:plan <change-id>` (the PRD is sound; proceed to author the OpenSpec artifacts — `<change-id>` is the epic's lowest-numbered story id). (Recommend it to the user — do not invoke it.)
 
-**Marker write (after the report above).** For `kind ∈ {brainstorm, artifact, prd}`, write the per-kind
-marker (`brainstorm`→`reviews/brainstorm.json`, `artifact`→`reviews/plan.json`,
-`prd`→`openspec/changes/<id>/reviews/prd.json`) per the **## Review-convergence marker** section, with
-`terminalState: "converged"`, `reviewers` = the reviewer(s) that ran this loop run, `iterations` = the
-final `iteration` value, `minSeverity` = the effective resolved `MIN_SEVERITY` for this run
-(lowercase canonical), and `timestamp` = now (UTC ISO-8601). Use the atomic write-temp-then-rename
-protocol. **Skip the write entirely for `kind = code`.** **Skip the write when invoked with
+**Marker write (after the report above).** For **every** kind, write the per-kind marker
+(`brainstorm`→`reviews/brainstorm.json`, `artifact`→`reviews/plan.json`,
+`prd`→`openspec/changes/<id>/reviews/prd.json`, `code`→`reviews/code.json`) per the
+**## Review-convergence marker** section, with `terminalState: "converged"`, `reviewers` = the
+reviewer(s) that ran this loop run, `iterations` = the final `iteration` value, `minSeverity` = the
+effective resolved `MIN_SEVERITY` for this run (lowercase canonical), and `timestamp` = now (UTC
+ISO-8601). For `kind = code` additionally record `gateState: "LOOP_DONE"` (a standalone loop run has no
+two-phase gate) and the `fingerprint` computed per **## Code-marker fingerprint** after the final fix
+edit and verification, immediately before the write — omitting the field entirely if it cannot be
+computed. Use the atomic write-temp-then-rename protocol. **Skip the write when invoked with
 `deferMarker = true`** (a `-full` phase) — instead return the terminal outcome
 (`terminalState = converged`, `reviewer`, `iterations`, `minSeverity`) to the orchestrator, which performs the single
 combined write. A marker-write failure is reported but does NOT change the terminal state (the review
@@ -602,13 +829,17 @@ Report:
    honored, exactly as in `DONE`.
 5. Explicit statement: "Do not archive. Do not run `/ptp:apply`. Inspect the open findings manually and decide next steps."
 
-**Marker write (after the report above).** For `kind ∈ {brainstorm, artifact, prd}`, write the per-kind
-marker (`brainstorm`→`reviews/brainstorm.json`, `artifact`→`reviews/plan.json`,
-`prd`→`openspec/changes/<id>/reviews/prd.json`) per the **## Review-convergence marker** section, with
-`terminalState: "cap-reached"` and the same `kind` / `reviewers` (the reviewer that ran) / `iterations`
-(the cap value) / `minSeverity` (the effective resolved `MIN_SEVERITY` for this run, lowercase
-canonical) / `timestamp` (now, UTC ISO-8601) fields. Use the atomic write-temp-then-rename protocol.
-**Skip the write entirely for `kind = code`.** **Skip the write when invoked with `deferMarker = true`**
+**Marker write (after the report above).** For **every** kind, write the per-kind marker
+(`brainstorm`→`reviews/brainstorm.json`, `artifact`→`reviews/plan.json`,
+`prd`→`openspec/changes/<id>/reviews/prd.json`, `code`→`reviews/code.json`) per the
+**## Review-convergence marker** section, with `terminalState: "cap-reached"` and the same `kind` /
+`reviewers` (the reviewer that ran) / `iterations` (the cap value) / `minSeverity` (the effective
+resolved `MIN_SEVERITY` for this run, lowercase canonical) / `timestamp` (now, UTC ISO-8601) fields. For
+`kind = code` additionally record `gateState: "LOOP_CAP"` and the `fingerprint` computed per
+**## Code-marker fingerprint** immediately before the write, omitting the field entirely if it cannot be
+computed; such a marker authorizes no skip (condition 2 of **## Code-marker skip eligibility** rejects
+it), it simply records the last review that ran and how it ended. Use the atomic write-temp-then-rename
+protocol. **Skip the write when invoked with `deferMarker = true`**
 (a `-full` phase) — instead return the terminal outcome (`terminalState = cap-reached`, `reviewer`,
 `iterations`, `minSeverity`) to the orchestrator, which performs the single combined write. A marker-write failure is
 reported but does NOT change the terminal state.
@@ -623,7 +854,8 @@ reported but does NOT change the terminal state.
 - **Never silently absorb a partially-honored fix target.** Under `fixDispatch = inline` the model half of `fixTarget` cannot be honored; the divergence is reported in the iteration summary and in both terminal reports. Emitting it is mandatory — omitting it is a violation of this rule, not an optimization.
 - **Never spawn from inside the loop under `fixDispatch = inline`** — a second Agent-nesting level throws.
 - **Never persist loop control state to disk.** `iteration`, `rejected_findings`, and `per_iteration_summary` live only in conversation context. This rule does NOT forbid the durable terminal review-convergence marker below — that marker is a deliberate exception and is the loop's only on-disk side effect beyond the artifact edits it already makes.
-- **Write the per-kind review-convergence marker on terminal states for `kind ∈ {brainstorm, artifact, prd}` only** (`brainstorm`→`reviews/brainstorm.json`, `artifact`→`reviews/plan.json`, `prd`→`openspec/changes/<id>/reviews/prd.json`), per the **## Review-convergence marker** section. **Never** write a marker for `kind = code`, and **never** write a marker when invoked with `deferMarker = true` (the `-full` orchestrator performs the single combined write). The marker is written via the atomic write-temp-then-rename protocol; a marker-write failure is reported but does not change the terminal state.
+- **Write the per-kind review-convergence marker on terminal states for every kind** (`brainstorm`→`reviews/brainstorm.json`, `artifact`→`reviews/plan.json`, `prd`→`openspec/changes/<id>/reviews/prd.json`, `code`→`reviews/code.json`), per the **## Review-convergence marker** section, with a `kind = code` marker additionally carrying `gateState` and — when computable — the `fingerprint` from **## Code-marker fingerprint**. **Never** write a marker when invoked with `deferMarker = true` (the `-full` orchestrator performs the single combined write). The marker is written via the atomic write-temp-then-rename protocol; a marker-write failure is reported but does not change the terminal state.
+- **Never skip a review on anything but an eligible marker.** The six conjunctive conditions in **## Code-marker skip eligibility** are the only basis for skipping an otherwise-mandatory code review, evaluating them never mutates a marker, and any ineligible outcome runs the review exactly as it would without a marker. Condition 6 in particular is resolved against `ptp-codex-mode`'s decision contract **at check time**, never against a mode carried by the marker.
 - **Iteration cap is resolved from `review.maxIterations` (layered config, default 5).** There is no `--max-iterations` CLI flag. If the cap is hit, report and stop — do not silently increment past it.
 - **Codex variants** (`reviewer=codex`) must run `codex exec -s read-only` with the full prompt piped over stdin (`-`), assembled per the `ptp-codex-mode` flag-append rule (append resolved `-m <model>` / `-c model_reasoning_effort=<effort>` before the trailing `-` when configured). Never pass `--full-auto`, `--sandbox workspace-write`, or `--dangerously-bypass-approvals-and-sandbox`.
 - **The caller runs `openspec validate` (for `kind=code` / `kind=artifact` only — never for `kind=brainstorm` or `kind=prd`, which each precede any proposal/spec) and all file reads for Codex** — Codex executes no `npx`, no network, no install commands. The closed-book / inlined-diff protocol from `codex-review.md` / `codex-review-plan.md` applies.

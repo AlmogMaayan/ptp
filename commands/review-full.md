@@ -54,10 +54,11 @@ Phase 1 is the **main agent's** review loop (always runs). At the default `roles
 - `change-id = <the resolved change id>` (the single id being processed this pass — not the raw `$ARGUMENTS` selector)
 - `fixDispatch = inline`
 - `runningTarget = <this command's resolved main-run target per ptp-agent-roles>`
+- `deferMarker = true` (this orchestrator performs the single combined `reviews/code.json` write — see **Review-convergence marker** below)
 
 The skill drives the full loop: per-iteration code review by the main agent, manual/test-only finding filter, rejection carry-over check, confirmation via `superpowers:receiving-code-review`, inline fix pass on confirmed findings, test/lint/typecheck verification, and termination at DONE or ITERATION CAP REACHED.
 
-**Gate:** If Phase 1 terminates with `ITERATION CAP REACHED`, **STOP** here. Report the Phase 1 outcome and open findings. Do NOT start Phase 2. The user should resolve the remaining issues (e.g., via `/ptp:review-fix`) and then re-run `/ptp:review-full` or run `/ptp:review-loop` directly.
+**Gate:** If Phase 1 terminates with `ITERATION CAP REACHED`, **STOP** here. Report the Phase 1 outcome and open findings. Do NOT start Phase 2. Perform the single combined marker write **before** stopping (`terminalState: "cap-reached"`, `gateState: "PHASE1_CAP"`) — see **Review-convergence marker** below. The user should resolve the remaining issues (e.g., via `/ptp:review-fix`) and then re-run `/ptp:review-full` or run `/ptp:review-loop` directly.
 
 ### Phase 2 — reviewer-agent code-review loop
 
@@ -70,6 +71,7 @@ If and only if Phase 1 terminates with `DONE` **and** the gate permits the revie
 - `change-id = <the resolved change id>` (the single id being processed this pass — not the raw `$ARGUMENTS` selector)
 - `fixDispatch = inline`
 - `runningTarget = <this command's resolved main-run target per ptp-agent-roles>`
+- `deferMarker = true` (as in Phase 1 — no phase writes a marker; this orchestrator writes exactly once)
 
 The skill drives the full loop. When the reviewer is Codex, each iteration's review pass runs the `codex-review.md` protocol inline: you (the caller) read the contract, capture the merge-base diff, run `npx -y openspec validate <change-id> --strict` and relevant tests, build a single closed-book prompt with all of this inlined, and pipe it to `codex exec -s read-only` over stdin (assembled per the `ptp-codex-mode` flag-append rule — resolved `-m`/`-c` flags appended before the trailing `-` when `codex.model`/`codex.reasoningEffort` are configured). Findings are confirmed via `superpowers:receiving-code-review` before any fix is applied.
 
@@ -87,10 +89,28 @@ After both phases complete, report:
    - If PHASE 1 DONE — CODEX SKIPPED → `/ptp:archive <change-id>` (Superpowers signed off; Codex was skipped by mode — this is a successful single-reviewer run, not a halt). To add the Codex reviewer, set `codex.mode` via `/ptp:config` (and install `codex`) then run `/ptp:codex-review-loop <change-id>`.
    - If PHASE 2 ITERATION CAP REACHED → resolve remaining Codex findings (e.g., `/ptp:review-fix`), then re-run `/ptp:review-full <change-id>` or run `/ptp:codex-review-loop <change-id>` directly.
 
+### Review-convergence marker (single combined write)
+
+This orchestrator drives **both** phase loops with **`deferMarker = true`** (per `ptp-review-loop`'s **## Review-convergence marker** section), so **no phase writes the marker itself** — each phase returns its terminal outcome (`terminalState`, `reviewer`, `iterations`, `minSeverity`) to this orchestrator. After the run resolves, the orchestrator performs **exactly ONE** `openspec/changes/<change-id>/reviews/code.json` write, structurally identical to `/ptp:review-plan-full`'s combined `reviews/plan.json` write:
+
+- `kind` = `"code"`.
+- `reviewers` = the **union of phases that actually ran**, each named by the agent that ran it — the main agent alone (`["superpowers"]` at the default `roles.main=claude`) if Phase 1 capped (Phase 2 never ran) or a Codex reviewer was mode-skipped, else both agents that ran (`["superpowers","codex"]` at the default). When `roles.main=codex` these are named for the actual agents (main=codex, reviewer=superpowers).
+- `terminalState` = that of the **last phase that ran** (`converged` if it reached `DONE`, else `cap-reached`).
+- `iterations` = the **last phase's** iteration count.
+- `minSeverity` = the **last phase that ran**'s severity threshold (lowercase canonical), the same last-phase rule as `iterations`.
+- `gateState` = **this run's own terminal outcome**, not merely the verdict list *Combined summary* item 3 renders: `BOTH_PHASES_DONE`, `PHASE1_DONE_CODEX_SKIPPED`, or `PHASE2_CAP` for the three verdicts reached past the Phase-1 gate, **plus `PHASE1_CAP`** for the Phase-1-cap path, which **STOPs at the *Gate*** before that summary is ever reached. **The write happens on that STOP path too** — with `terminalState: "cap-reached"` and `gateState: "PHASE1_CAP"` — so the marker always records the last review that ran and how it ended. A `cap-reached` marker authorizes no skip, so writing it is free of risk.
+- `fingerprint` = computed per `ptp-review-loop`'s **## Code-marker fingerprint**, **after the run's last fix edit and final verification, immediately before the write**, so it describes the state the reviewer signed off. If it cannot be computed, the marker is still written with the field **omitted entirely** and the omission noted — never a partial or fabricated fingerprint.
+
+**The two *Preconditions* STOPs write NO marker** — neither the `required` + `codex` missing STOP for a Codex reviewer, nor the missing-change-folder STOP. Both abort **before Phase 1 begins**, so **no phase ran**: `reviewers` (the reviewer(s) that **actually ran**) and `iterations` (the last phase that ran's count, **≥ 1**) have no value the marker schema admits, and writing one would fabricate them **and** clobber a prior valid marker over an environment problem that recurs identically for every change in a run. This is **not** an exception to the *Gate*'s `PHASE1_CAP` write, which records a Phase 1 that **ran** and hit its iteration cap; it is the same rule stated from the other side — a marker records a review that resolved, and an aborting precondition resolved nothing. `agents/ptp-review.md`, the structurally identical surface, states the same exclusion for its own equivalent return.
+
+The combined write uses the **same atomic write-temp-then-rename protocol** as `ptp-review-loop`: serialize to a uniquely named temp file in `reviews/`, then replace `reviews/code.json` via a replace-if-exists rename only after the complete write succeeds; on any failure clean up the temp file and leave the live marker untouched. Because every phase defers, there is **never a provisional per-phase marker** on disk: on a **first** review a failed single write leaves **no** marker (a consumer falls back to running the review) — never a fabricated single-reviewer marker; on a **re-review** a failed overwrite leaves the **prior run's real marker** (whose fingerprint now almost certainly mismatches, so it authorizes nothing). **A marker-write failure is reported but never changes the terminal state this run reached.** No `/ptp:status` column reads `reviews/code.json`.
+
 ## Hard rules
 
 - Do **not** spawn a second `ptp-run-at-model` run for the fix pass — this command's orchestration already occupies the one Agent-nesting level.
 - Do **not** start Phase 2 if Phase 1 did not terminate with `DONE`.
+- Do **not** skip the combined `reviews/code.json` write on a `cap-reached` outcome — **including the Phase-1 cap**, whose `STOP` at the *Gate* short-circuits the combined summary but **not** the write. A cap-reached marker is still written; it simply never authorizes a skip.
+- Do **not** write a marker on either *Preconditions* STOP (`required` + `codex` missing, or a missing change folder). Those abort before Phase 1 runs, so there is no review to record and no schema-valid `reviewers` / `iterations` to record it with — and a fabricated one would overwrite a prior valid marker.
 - Do **not** invoke `/ptp:apply`. Code fixes are applied inline by each loop phase.
 - Do **not** archive the change. Archiving is always an explicit user action (`/ptp:archive <change-id>`).
 - Do **not** auto-commit any edits made during either phase.
