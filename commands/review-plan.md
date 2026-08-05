@@ -55,13 +55,64 @@ one subagent handles the whole per-change pass.)
       - The `Source` path resolves to a real brainstorm doc — `openspec/changes/<change-id>/brainstorm.md` (the change-scoped brainstorm) or an `openspec/brainstorms/*-brainstorm.md` general brainstorm (proposal must be derived from brainstorming, not the raw request).
    4. **Spec-delta quality** — correct OpenSpec format (`## ADDED/MODIFIED/REMOVED/RENAMED Requirements` → `### Requirement:` with SHALL/MUST → `#### Scenario:`); every requirement has ≥1 scenario.
    5. **`tasks.md` quality** — small, sequential, independently verifiable tasks; ends with a verification task that maps to `Success criteria`.
+
+      **Banned manual tasks.** Flag any checkbox whose completion depends on a person acting
+      **outside the reach of the agent** that runs `/ptp:apply`. The test is *who must act*, never
+      which words appear. The normative source of the authoring ban is the `tasks-authoring`
+      capability (`0053_01_no-manual-tasks-authoring`) — this check detects violations of that
+      existing rule, it is not a second rule. Illustrative banned shapes, carried over from that
+      capability: **manual QA**; **manual or exploratory testing**; **"manually verify"**; **"verify
+      by hand"**; **"check in the browser"**; **"have a human confirm"**; **"ask the user to try"** —
+      plus further illustrations in the same spirit ("visually inspect"; a human sign-off or approval
+      step; "test on a physical device"). These are **illustrations of the executor test, not the test
+      itself**: a checkbox matching no listed phrase ("confirm with the design team before shipping")
+      is still flagged, and the check is never applied as a word blacklist.
+
+      **Exception (narrow).** A task that **authors an automated test**, or that runs a command and
+      asserts on its output, is acceptable even when its prose describes user-facing behavior, because
+      its executor is the implementing agent. The exception is narrow: it applies only where the
+      checkbox is otherwise completable by the agent unaided, and the executor test is applied to the
+      checkbox **as a whole** rather than to the clause naming the test — so a mixed checkbox that
+      authors a test *and* additionally asks a human to perform, observe, or confirm anything is still
+      flagged.
+
+      **Finding shape.** Every banned-manual-task finding SHALL quote the **exact offending
+      checkbox**, identified as a task line inside the change's own `tasks.md`, and SHALL state a
+      concrete **intent-preserving** remedy drawn from `0053_01_no-manual-tasks-authoring`'s ordered
+      **two-branch** rule: **(1) substitute** — an automatable replacement checkbox the implementing
+      agent can execute (where an existing task already carries the intent, fold the offending
+      checkbox into it); else, **if and only if** no automated equivalent exists, **(2) relocate** —
+      remove the checkbox and record its intent in `proposal.md > Success criteria` as a plain
+      **non-checkbox** note. There is **no third branch**: the remedy SHALL NOT be stated as
+      **deletion** and SHALL NOT propose silently dropping the verification intent — `0053_01`'s rule
+      is *substituted, and only otherwise relocated — never deleted*.
+      Why this shape: it satisfies **both** conjunctive conditions of the `(c1)` carve-out established
+      by `0053_02_manual-finding-filter-carveout` — the finding's **subject** is a banned task line
+      inside the change's own `tasks.md` (quoted as evidence) and its **remedy** is a concrete edit to
+      that same `tasks.md` — so the finding reads as a concrete artifact-defect pointer rather than a
+      bare "check this by hand" suggestion, and survives `ptp-review-loop`'s per-iteration
+      manual-check / tests-required filter (step `(c1)`).
+
+      **What counts as a fix.** When a fixing loop resolves the finding it applies the same ordered
+      two-branch rule: the offending checkbox is **rewritten in place** into something the
+      implementing agent can execute (an automated test, a command plus an assertion on its output, or
+      a file/content check) — which, where an existing task already carries the intent, means folding
+      the offending checkbox into that task; else its intent is **relocated out of `tasks.md`** into
+      `proposal.md > Success criteria` as a non-checkbox note. Deleting the checkbox while preserving
+      its intent nowhere, annotating the task ("(manual)"), moving it under a "manual follow-up"
+      heading **inside `tasks.md`**, marking it optional, or demoting it to a note that stays in
+      `tasks.md` does **not** count as a fix. Relocation **out of** `tasks.md` per branch 2 *is* a
+      fix, and is not to be confused with that banned in-file move. This fix contract governs the fix
+      pass of the fixing loops (`/ptp:review-plan-loop`, `/ptp:codex-review-plan-loop`,
+      `/ptp:review-plan-full`) — **not** `/ptp:review-plan` itself, which stays read-only and edits
+      nothing (see *Hard rules*).
    6. **Reasoning depth** — `Alternatives considered` has ≥2 options with tradeoffs (or an explicit statement that only one was viable, with the reason); `Risks & edge cases` covers both happy-path edges and unhappy paths.
    7. **`effort.md` sanity check** (advisory, non-blocking) — if `effort.md` is present, verify: (a) the first line matches `^(haiku|sonnet|opus)\.(low|medium|high|xhigh)$` with no prefix, suffix, or decoration; (b) the second line is empty; (c) lines 3+ contain a non-empty justification. A missing `effort.md` or a malformed first line is at most a **Medium** finding and SHALL NOT block `/ptp:apply` — parallel to the `TLDR.md` treatment below.
    8. **`TLDR.md` sanity check** (advisory, non-blocking) — if `TLDR.md` is present, verify: (a) the `**In one sentence:**` line is filled in (not a placeholder); (b) the `## Surface area` section lists Files and the three component categories (**Classes / components**, **Methods / functions**, **Models / data**), each either populated or `None`; (c) the Files listed in `## Surface area` are not obviously contradicting `proposal.md > Impact`; (d) the Files listed are not obviously contradicting the files named in `tasks.md` (the tasks are the concrete proxy for what the change actually touches). A missing or stale `TLDR.md` is at most a **Medium** finding and SHALL NOT block `/ptp:apply`.
 
 4. **Classify each finding** (vocabulary shared with `/ptp:review`, retargeted to artifacts):
    - **Critical** — `proposal.md` missing; `validate --strict` fails; a spec delta contradicts the stated `Goals`.
-   - **High** — a required `proposal.md` section missing/empty; a spec-delta requirement with no implementing task; a requirement with no scenario; `Source` doesn't resolve.
+   - **High** — a required `proposal.md` section missing/empty; a spec-delta requirement with no implementing task; a requirement with no scenario; `Source` doesn't resolve; a `tasks.md` task that requires manual QA, manual testing, or any human executor (the banned-manual-task check in rubric item 5).
    - **Medium** — shallow content: only one alternative, vague/uncheckable success criteria, missing `design.md` where decisions are non-obvious.
    - **Low** — nits: wording, formatting, ordering.
 

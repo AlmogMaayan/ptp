@@ -580,7 +580,7 @@ assembled per the `ptp-codex-mode` canonical flag-append rule (append resolved `
 
 - `superpowers` / `code` — invoke the `superpowers:requesting-code-review` skill. Load the contract (`proposal.md`, `design.md`, `tasks.md`, `specs/**/spec.md`) and the merge-base diff (`git merge-base HEAD master` → `git diff <base>...HEAD`) and pass them as context.
 - `codex` / `code` — run the `codex-review.md` protocol inline: read the contract yourself (you, via Read), capture the merge-base diff (you, via Bash), run `npx -y openspec validate <change-id> --strict` and any relevant tests yourself (you, via Bash), build a single closed-book prompt with all of this inlined, and pipe it to `codex exec -s read-only` over stdin. Do NOT pass `--full-auto`, `--sandbox workspace-write`, or `--dangerously-bypass-approvals-and-sandbox`. Codex runs NO `npx` / network / install commands.
-- `superpowers` / `artifact` — run the `review-plan.md` rubric inline: check existence & validation, `proposal.md` completeness, cross-artifact consistency, spec-delta format, `tasks.md` quality, reasoning depth, and `TLDR.md` sanity.
+- `superpowers` / `artifact` — run the `review-plan.md` rubric inline: check existence & validation, `proposal.md` completeness, cross-artifact consistency, spec-delta format, `tasks.md` quality (including the banned-manual-task check), reasoning depth, and `TLDR.md` sanity.
 - `codex` / `artifact` — run the `codex-review-plan.md` closed-book protocol inline: read all artifacts yourself (you, via Read), run `npx -y openspec validate <change-id> --strict` yourself (you, via Bash), collect cited source excerpts (you, via Read/Grep), build a single self-contained prompt, and pipe to `codex exec -s read-only` over stdin. Codex runs NO commands.
 - `superpowers` / `brainstorm` — run the `ptp-review-brainstorm` rubric inline over the located `brainstorm.md` (existence & non-placeholder; ≥2 real options with the four tradeoff axes plus spec-interaction; recommendation with rationale; assumptions; scope/blast-radius; spec interaction; usable handoff to `/ptp:plan`). A missing `brainstorm.md` is recorded as a Critical "no brainstorm to review" finding inside this pass (the loop cannot fix it). Do NOT re-author the rubric here — it lives in `ptp-review-brainstorm`.
 - `codex` / `brainstorm` — run the `codex-review-plan.md` closed-book protocol inline, **retargeted to `brainstorm.md`** and with **NO** `openspec validate` (a brainstorm precedes any proposal/spec, so there is nothing to validate): read `brainstorm.md` and any cited context yourself (you, via Read), build a single self-contained prompt carrying the brainstorm rubric as the audit instructions plus the full brainstorm text and any cited source excerpts, and pipe it to `codex exec -s read-only` over stdin. Codex runs NO commands (no `npx`, no `openspec validate`, no network, no installs). As with the Superpowers variant, a missing `brainstorm.md` is recorded as a Critical "no brainstorm to review" finding inside this pass (the loop cannot fix it) — do not attempt to build a Codex prompt over an absent file.
@@ -602,6 +602,19 @@ Before the convergence check, drop any finding whose suggested fix consists **on
 - `should be covered by a test`, `add a regression test`, `test required`, `needs a test`
 
 A finding that names a concrete code or artifact defect **AND** additionally mentions a missing test stays in scope — the defect half is fixable. Only pure "check this by hand" / "add a test" suggestions with no associated defect pointer are filtered.
+
+A finding whose **subject** is a banned manual-task line inside the change's own `tasks.md` is
+likewise **NOT** dropped. Both conditions must hold: the finding cites a task line in the
+change's `tasks.md` that the `tasks-authoring` capability bans (the offending text quoted as
+evidence), **and** its remedy is a concrete edit to that file — replace the offending task with
+one the implementing agent can perform or, absent an automated equivalent, relocate its intent
+as the `tasks-authoring` capability directs, never bare deletion. Such a finding does not ask a human to
+go check something; it asks for an artifact edit that happens to be *about* a manual check, so
+the manual-check words in it are quoted evidence, not the suggested fix. The banned task shapes
+live in the `tasks-authoring` capability and are not restated here. The general test is
+subject-vs-remedy: **(c1) drops a finding for what it asks _you_ to do, never for which words
+appear in it.** Surviving (c1) is not an exemption from (c2) — a carved-out finding is still
+ranked against `MIN_SEVERITY` like any other survivor.
 
 Filtered findings do NOT count against convergence and do NOT trigger a fix pass.
 

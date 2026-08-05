@@ -92,6 +92,24 @@ selector, the one subagent handles the whole per-change pass.)
    - Check `proposal.md` for required sections (Context, Goals, Non-goals, Alternatives considered, Design, Risks & edge cases, Impact, Success criteria, Source) and flag any missing or thin.
    - Check **cross-artifact consistency**: every Goal maps to ≥1 task; every spec-delta `### Requirement:` has an implementing task; proposal `Impact` names the capability the spec delta touches; `design.md` does not contradict `proposal.md`; the `Source` brainstorm path is referenced.
    - Check **spec-delta format**: `## ADDED/MODIFIED/REMOVED/RENAMED Requirements` → `### Requirement:` with SHALL/MUST → ≥1 `#### Scenario:` each.
+   - Check `tasks.md` for **banned manual tasks**: flag any checkbox whose completion depends on a
+     person acting **outside the reach of the agent** that runs `/ptp:apply` — the test is *who must
+     act*, never which words appear (illustrations: manual QA; manual or exploratory testing;
+     "manually verify"; "verify by hand"; "check in the browser"; "have a human confirm"; "ask the
+     user to try"; "visually inspect"; a human sign-off step; "test on a physical device"). One
+     **narrow** exception: a task that authors an automated test, or runs a command and asserts on
+     its output, is fine even when its prose describes user-facing behavior — but it applies only
+     where the checkbox is otherwise completable by the agent unaided, and the executor test
+     applies to the checkbox **as a whole**, so a checkbox that authors a test *and* also asks a
+     human to perform, observe, or confirm anything is still flagged. Classify such a finding
+     **High**, quote the **exact offending checkbox** as a task line inside the change's own
+     `tasks.md`, and state an intent-preserving remedy that is a concrete edit to that same
+     `tasks.md`: substitute an automatable replacement checkbox (where an existing task already
+     carries the intent, fold the offending checkbox into that task), else — only when no automated
+     equivalent exists — remove the checkbox from `tasks.md` and record its intent in
+     `proposal.md > Success criteria` as a non-checkbox note. Never state the remedy as deletion.
+     The evidence is the `tasks.md` text already inlined below; run no command and read no file for
+     this check.
    - Check **line-reference accuracy** against the inlined source excerpts (flag stale/ambiguous `path:line` citations).
    - Classify findings **Critical / High / Medium / Low**, each with the artifact + section and a concrete fix.
    - Honor the inlined severity threshold, stated as a literal line in the prompt:
