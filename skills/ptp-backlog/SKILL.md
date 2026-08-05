@@ -1339,13 +1339,13 @@ The complete table. Every row names its **performer**; there are no other rows:
 |---|---|---|---|
 | 1 | `ready` → `in-progress` | the runner takes the epic (writes `runBaseline` in the same write) | `/ptp:backlog-run` |
 | 2 | `in-progress` → `in-review` | `/ptp:full` converged — **every** slice in `ptp-full-apply`'s `processed` bucket — written at WRITE 2 **before** any archive or deploy, of which the runner performs **neither** | `/ptp:backlog-run` |
-| 3 | `in-review` → `done` | **every** prefix recorded in `changeEpics` settled by this same `/ptp:backlog-continue` invocation's own review-full → archive sequence (**guard 3**) | `/ptp:backlog-continue` |
+| 3 | `in-review` → `done` | **every** prefix recorded in `changeEpics` settled by this same `/ptp:backlog-continue` invocation's own review-gate → archive sequence — the gate satisfied by its own `/ptp:review-full` or by a marker it re-proved in this invocation (**guard 3**) | `/ptp:backlog-continue` |
 | 4 | `in-progress` → `blocked` | `/ptp:full` did not converge; the run halts | `/ptp:backlog-run` |
 | 5 | `in-progress` → `blocked` \| `ready` | **recovery only**, via the reconciliation gate below (`claim` → `blocked`; `disown` / `rerun anyway` → `ready`). **Never `done`.** | `/ptp:backlog-edit` |
 | 6 | `blocked` → `ready` | explicit user reset, gated (**guard 1**) | `/ptp:backlog-edit` |
 | 7 | any → `cancelled` | the user abandons the epic; from `blocked` or a stale `in-progress` it carries guard 1's acknowledgement (**guard 2**) | `/ptp:backlog-edit` |
 | 8 | `cancelled` → `ready` | explicit user revival | `/ptp:backlog-edit` |
-| 9 | `blocked` → `done` | **only** as the direct, same-invocation result of `/ptp:backlog-continue`'s own bare-flow review-full → archive sequence settling **every** prefix recorded in `changeEpics` (**guard 3**) | `/ptp:backlog-continue` |
+| 9 | `blocked` → `done` | **only** as the direct, same-invocation result of `/ptp:backlog-continue`'s own bare-flow review-gate → archive sequence settling **every** prefix recorded in `changeEpics` — the gate satisfied by its own `/ptp:review-full` or by a marker it re-proved in this invocation (**guard 3**) | `/ptp:backlog-continue` |
 | 10 | `backlog` → `ready` | the user promotes an accepted epic into the run queue | `/ptp:backlog-edit` |
 | 11 | `ready` → `backlog` | the user defers a queued epic without abandoning it | `/ptp:backlog-edit` |
 
@@ -1541,9 +1541,12 @@ predicate is one, over both sources:
 - the entry's `status` is **`blocked`** or **`in-review`**, and its `changeEpics` is **non-empty** —
   the same predicate that made it `/ptp:backlog-continue`'s target; **and**
 - the write happens **in the same `/ptp:backlog-continue` invocation** whose bare flow has just
-  settled **every** prefix in `changeEpics` — each one run through `/ptp:review-full` to convergence
-  (`BOTH PHASES DONE`, or `ptp-codex-mode`'s mode-skip terminal state) and then `/ptp:archive`
-  successfully, or found already absent from `openspec/changes/`.
+  settled **every** prefix in `changeEpics` — each one's **review gate satisfied in that invocation**,
+  by its own `/ptp:review-full` run to convergence (`BOTH PHASES DONE`, or `ptp-codex-mode`'s mode-skip
+  terminal state) **or** by an eligible `reviews/code.json` review-convergence marker whose fingerprint
+  that same invocation **recomputed and verified there and then** against the current working tree and
+  change contract (`ptp-review-loop`'s six-condition skip-eligibility predicate) — and then
+  `/ptp:archive` successfully, or found already absent from `openspec/changes/`.
 
 **The two sources differ only in what the entry's history proves, and this guard says so:**
 
@@ -1552,17 +1555,23 @@ predicate is one, over both sources:
 - From **`in-review`**, the epic's `/ptp:full` **did** converge, and the guard's proof supplies the
   **archive** the runner is forbidden to perform.
 
-In both cases the proof is **this invocation's own** successful review-full report plus a completed
-`/ptp:archive` — never an assertion about the past.
+In both cases the proof is **this invocation's own** — a successful review-full report, or an eligible
+marker **re-proved here** — plus a completed `/ptp:archive`, never an *unverified* assertion about the
+past. The marker form is admissible for exactly that reason and no other: its fingerprint is recomputed
+in this invocation, after the checkbox flip and the re-verification, against the very content about to
+be archived, so what the guard accepts is a fact it established **now**, not a claim recorded earlier
+and taken on trust. An ineligible or unverifiable marker is no proof at all and sends the prefix
+through `/ptp:review-full` exactly as before.
 
 **It is never available as a standalone disposition, from either source.** There is no "mark this
 done" free action on an already-`blocked` or already-`in-review` entry from a prior session, and no
 recovery path, disposition, or combination of dispositions may produce it. This is the load-bearing
 difference from a hypothetical
 `/ptp:backlog-edit` disposition: a recovery disposition reasons about a **stranded, possibly-crashed**
-run with no durable proof of review convergence — which is exactly why *Recovery and reconciliation*
-below never yields `done` — whereas guard 3's proof is **this invocation's own successful review-full
-report**, not an assertion about the past. `/ptp:backlog-edit` has no review-full/archive machinery of
+run, able to establish **neither** its per-prefix review convergence **nor** its archive — which is
+exactly why *Recovery and reconciliation* below never yields `done` — whereas guard 3's proof is **produced or
+re-proved in this invocation**, never accepted as an assertion about the past.
+`/ptp:backlog-edit` has no review-full/archive machinery of
 its own, can therefore never satisfy this guard from **either** source, and refuses `in-review` →
 `done` exactly as it refuses `blocked` → `done`; both refusals are unchanged.
 
@@ -1789,25 +1798,34 @@ asking for it is **refused with the reason**, never silently downgraded.
 *Every slice landed in `processed`* — `processed` meaning applied **and code-review converged** — is
 what defines **`in-review`**; `done` requires, on top of that convergence, the **archive** only
 `/ptp:backlog-continue` performs. Recovery can prove **neither**. A crashed run has no in-session
-terminal report, and there is **no durable artifact that
-could substitute**: `ptp-review-loop` writes review-convergence markers for
-`kind ∈ { brainstorm, artifact, prd }` and **none at all for `kind = code`**. Code-review convergence
-therefore leaves **no on-disk trace**, and no inspection of the recovered folders can prove it after the
-fact. Rather than invent an evidence rule that cannot be satisfied, v1 forbids the outcome: `claim` —
+terminal report, and **no durable artifact substitutes for one**. `ptp-review-loop` does now write a
+`kind = code` marker — `reviews/code.json`, carrying a content fingerprint — so code-review convergence
+is no longer traceless; but that marker is **change-scoped, review-only, and per-prefix**, and recovery
+needs an **epic-scoped** fact about **both** halves. It says nothing about the **archive** `done` also
+requires; it exists only for whatever prefixes actually reached a terminal review, which is precisely
+what a crashed run cannot be assumed to have done for **all** of `changeEpics` (an unreviewed slice
+leaves no marker, and a `cap-reached` one authorizes nothing); and a marker is meaningful only once its
+fingerprint is **recomputed against the current content**, which is an act of the invocation that
+consumes it, not a fact recovery can read off disk. Rather than invent the missing half of an evidence
+rule, v1 forbids the outcome: `claim` —
 the only disposition that *keeps* the recovered work — lands on `blocked`, and the user re-runs
 explicitly; the other two land on `ready` precisely because they discard the claim that the work is
 finished. A wrongly-`done` epic would **record shipped work that was never reviewed**, and both
 `/ptp:backlog` and `/ptp:backlog-continue` would stop offering it as work a human still needs to
 finish.
 
-**A durable code-review-convergence marker is the named v2 seam** that would make an evidence-based
-`accept` disposition possible. It is not a v1 gap.
+**The durable code-review-convergence marker remains the named seam** an evidence-based `accept`
+disposition would be built on. Half of it now exists (`reviews/code.json`); the archive half, and the
+epic-scoped per-prefix roll-up above it, do not — and **no disposition consumes the marker**. This rule
+is therefore unchanged by the marker's arrival, and its absence is still not a v1 gap.
 
 **Guard 3's two rows — `blocked` → `done` and `in-review` → `done` — do not weaken this rule; they
-sidestep it.** `/ptp:backlog-continue` reaches `done` from either source **not** by accepting evidence
-about a past run but by **performing** `/ptp:review-full` and
-`/ptp:archive` itself, in the same invocation, so the convergence it relies on is observed in-session
-rather than inferred from disk (see **guard 3**). Nothing here becomes reachable from recovery: a
+sidestep it.** `/ptp:backlog-continue` reaches `done` from either source **not** by accepting an
+assertion about a past run but by **settling every prefix itself, in the same invocation**: it runs
+`/ptp:archive`, and it satisfies the review gate either by **performing** `/ptp:review-full` or by
+**re-proving** an eligible marker's fingerprint against the content it is about to archive, at that
+moment (see **guard 3**). Either way the fact it relies on is established in-session; nothing is
+inferred from disk **unverified**. Nothing here becomes reachable from recovery: a
 disposition still lands on `blocked` or `ready`, and a stale `in-progress` entry still has no path to
 `done` — or to `in-review` — at all.
 
