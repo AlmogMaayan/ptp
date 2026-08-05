@@ -45,7 +45,7 @@ it passes `fixDispatch = inline` and never spawns a second run. The evaluation r
 modes, the fallback, and the reporting obligation live in `ptp-review-loop` — this command does not
 restate them.
 
-The skill drives the full loop. For each iteration's review pass it runs the `review-plan.md` rubric inline: existence & validation, `proposal.md` completeness, cross-artifact consistency, spec-delta format, `tasks.md` quality, reasoning depth, and `TLDR.md` sanity. After confirmation, confirmed findings are fixed via minimal targeted edits and `npx -y openspec validate <change-id> --strict` is run as per-iteration verification.
+The skill drives the full loop. For each iteration's review pass it runs the `review-plan.md` rubric inline: existence & validation, `proposal.md` completeness, cross-artifact consistency, spec-delta format, `tasks.md` quality (including the banned-manual-task check), reasoning depth, and `TLDR.md` sanity. After confirmation, confirmed findings are fixed via minimal targeted edits and `npx -y openspec validate <change-id> --strict` is run as per-iteration verification.
 
 **Review-convergence marker:** this is a `kind = artifact` loop, so on its terminal state it stamps `reviews/plan.json` (`terminalState` converged / cap-reached, `reviewers: ["superpowers"]`), surfaced by `/ptp:status`'s plan-review column.
 

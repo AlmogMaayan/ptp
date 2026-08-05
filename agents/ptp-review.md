@@ -162,7 +162,14 @@ Iterate review → confirm → fix until zero confirmed **in-scope** findings (f
 - **Filter (two parts, applied in this order):**
   1. **Manual-check drop:** drop findings whose only remedy is "verify by hand" / "add a test" (these
      do NOT count against convergence). A finding that names a real defect AND mentions a missing test
-     stays.
+     stays. A finding whose *subject* is a banned manual-task line inside the change's own `tasks.md`
+     also stays: both that the finding cites such a task line (banned per the `tasks-authoring`
+     capability, quoted as evidence) and that its remedy is a concrete edit to that file — replace the
+     task, or relocate its intent as `tasks-authoring` directs, never bare deletion — must hold. It
+     does not ask a human to go check something, so the manual-check
+     words in it are quoted evidence, not the suggested fix. The test is subject-vs-remedy: the drop
+     keys on what the finding asks *you* to do, never on which words appear in it. Surviving part 1 is
+     not an exemption from part 2.
   2. **Severity partition:** rank each finding that survived part 1 on `Low < Medium < High <
      Critical` (ranks 1/2/3/4). A finding is **in scope** iff `rank(finding) >= rank(MIN_SEVERITY)`;
      in-scope findings continue to Carry-over / Confirm / Fix / Terminate. A finding below the floor
@@ -202,10 +209,11 @@ rejections do NOT carry over). Each iteration:
   `--dangerously-bypass-approvals-and-sandbox`. Codex runs no `npx`/network/install commands. When
   the reviewer is **Claude** (`roles.main=codex`): run the in-session Superpowers review against the
   contract, as in Phase 1's default.
-- Apply the **same two-part Filter** (manual-check drop, then the severity partition against the same
-  run-wide `MIN_SEVERITY`) and the same **in-scope** qualification as Phase 1, with a **fresh**
-  below-threshold bucket — Phase 1's bucket does NOT carry over, matching the rule that Phase 1
-  rejections do not carry over.
+- Apply the **same two-part Filter** (manual-check drop — **including Phase 1's banned-manual-task
+  carve-out and its subject-vs-remedy test, carried here by reference rather than restated so the two
+  phases cannot drift** — then the severity partition against the same run-wide `MIN_SEVERITY`) and the
+  same **in-scope** qualification as Phase 1, with a **fresh** below-threshold bucket — Phase 1's
+  bucket does NOT carry over, matching the rule that Phase 1 rejections do not carry over.
 - A **Codex reviewer is never asked to filter by severity**: the closed-book prompt still requests
   findings at **every** severity, and the partition is applied by you to what the reviewer returns —
   otherwise below-threshold findings could not be reported at all, and prompt-level suppression would
