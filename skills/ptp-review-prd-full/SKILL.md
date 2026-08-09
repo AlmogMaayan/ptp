@@ -30,7 +30,7 @@ This mirrors the `review-brainstorm-full.md → ptp-review-brainstorm-full →
 ptp-review-loop(kind=brainstorm)` chain exactly — its shape is `review-prd-full.md →
 ptp-review-prd-full → ptp-review-loop(kind=prd)`. PRDs share the brainstorm's one divergence from the
 artifact `-full`: **no** `openspec validate` (a PRD precedes any proposal/spec). Like the brainstorm
-`-full`, the PRD review marker is written into the change folder (`openspec/changes/<id>/reviews/prd.json`)
+`-full`, the PRD review marker is written into the change folder (`openspec/changes/<id>/stages/prd.json`)
 rather than an epic-scoped standalone location.
 
 The whole two-phase orchestration is wrapped via `ptp-run-at-model` at `opus.high` (driven by the
@@ -188,8 +188,8 @@ This orchestrator drives **both** phase loops with **`deferMarker = true`** (per
 returns its terminal outcome (`terminalState`, `reviewer`, `iterations`, `minSeverity`) to this orchestrator. After the
 run resolves (after Phase 2, or after Phase 1 if Phase 2 is gated off), the orchestrator performs
 **exactly ONE** combined marker write per epic to
-`openspec/changes/<id>/reviews/prd.json` (the `reviews/` subfolder created on demand, sibling to
-`reviews/brainstorm.json` and `reviews/plan.json`), per the combined-outcome rule:
+`openspec/changes/<id>/stages/prd.json` (the `stages/` subfolder created on demand, sibling to
+`stages/brainstorm.json` and `stages/plan.json`), per the combined-outcome rule:
 
 - `kind: "prd"`.
 - `reviewers` = the **union of phases that actually ran**, each named by the agent that ran it — the
@@ -203,8 +203,8 @@ run resolves (after Phase 2, or after Phase 1 if Phase 2 is gated off), the orch
 - `minSeverity` = the **last phase that ran**'s severity threshold (lowercase canonical), the same last-phase rule as `iterations`. In the normal case both phases resolve the same value and the rule is a no-op.
 
 The combined write uses the **same atomic write-temp-then-rename protocol** as `ptp-review-loop`
-(serialize to a uniquely named temp file in `openspec/changes/<id>/reviews/`, then replace
-`openspec/changes/<id>/reviews/prd.json` via a replace-if-exists rename only after the complete write
+(serialize to a uniquely named temp file in `openspec/changes/<id>/stages/`, then replace
+`openspec/changes/<id>/stages/prd.json` via a replace-if-exists rename only after the complete write
 succeeds; on any failure clean up the temp file and leave the live marker untouched), so a failed
 overwrite cannot truncate or corrupt the prior marker.
 
@@ -239,7 +239,7 @@ For a **multi-epic selector**, iterate Phase 1 → gate → Phase 2 → combined
 - **Don't re-author the rubric.** The PRD-quality rubric stays in `ptp-review-prd`; only the disposition
   of findings (inline fix vs. report) changes here.
 - **Both phases defer the marker; exactly one combined write per epic.** No phase writes its own
-  marker; the orchestrator writes one combined `openspec/changes/<id>/reviews/prd.json` per epic.
+  marker; the orchestrator writes one combined `openspec/changes/<id>/stages/prd.json` per epic.
 - **Does not redo outer-session work.** Do not re-run the branch guard, re-resolve the role pair /
   reviewer gate (`codex.mode`), or re-resolve the epic — use the values the outer session passed in.
 - **Codex only read-only over stdin.** Run Codex only under `codex exec -s read-only` with the prompt

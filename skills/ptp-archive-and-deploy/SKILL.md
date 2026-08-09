@@ -72,6 +72,11 @@ branch guard does **not** run in any change (the deploy exemption — see *Outer
 preconditions*); HEAD is already on the feature branch and stays there throughout, so no change cuts a
 branch.
 
+Phase A also inherits `/ptp:archive`'s post-success **stage-record** write unchanged — on a successful
+archive the flow writes `<archive-location>/stages/archive.json` exactly as `/ptp:archive` step 6
+specifies, with no separate rule here — and the archive-convergence gate below keys on the subagent's
+terminal state, **never** on that record.
+
 For each `c`, in order:
 
 1. **Outer session (interactive, before the spawn — the subagent is non-interactive per

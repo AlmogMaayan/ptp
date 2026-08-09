@@ -99,7 +99,7 @@ gate, the combined terminal state, the report shape, the single-combined-marker-
 deliberate no-`openspec validate` divergence all live in the **`ptp-review-prd-full`** skill (the
 `commands/config.md` → `skills/ptp-config` split). Do not restate the skill's methodology here.
 
-On completion the run stamps the combined `openspec/changes/<id>/reviews/prd.json` review-convergence
+On completion the run stamps the combined `openspec/changes/<id>/stages/prd.json` review-convergence
 marker once per epic (per the `ptp-review-prd-full` skill's single-combined-write protocol).
 
 ## Hard rules

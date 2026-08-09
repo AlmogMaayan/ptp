@@ -72,6 +72,37 @@ costs nothing else.
   `superpowers:test-driven-development` and `superpowers:verification-before-completion` for
   added rigor. If you do not have that tool, the discipline above is sufficient.
 
+## Stage record (write it immediately before returning)
+
+Immediately before returning the JSON below — at **every** terminal state, `completed`, `blocked` **and**
+`failed` — write the `apply` stage record to `openspec/changes/<change-id>/stages/apply.json`, creating
+`stages/` on demand:
+
+```json
+{
+  "kind": "apply",
+  "terminalState": "completed",
+  "timestamp": "2026-08-08T14:31:07Z",
+  "tasksChecked": 12,
+  "tasksTotal": 12,
+  "validationPassed": true,
+  "writer": "ptp-apply-agent"
+}
+```
+
+- `terminalState` is **exactly the `stageReached` value you are about to return** — one of `completed`,
+  `blocked`, `failed`. Never invent a value outside that enum.
+- `timestamp` is an ISO-8601 UTC instant. `tasksChecked` / `tasksTotal` / `validationPassed` /
+  `writer: "ptp-apply-agent"` are optional and mirror the values you are returning.
+- Write **atomically**: serialize to a uniquely named temp file in the same `stages/` directory, then
+  replace `stages/apply.json` via a replace-if-exists rename only after the complete write succeeds; on
+  any failure clean up the temp file and leave any existing file untouched.
+- A record-write failure is **reported in `notes` but never fatal**: it never changes the `stageReached`
+  you return, and you never retry into a different terminal state on account of it.
+- The record carries no `fingerprint` and no `gateState`, and **nothing gates on it** — `ptp-full-apply`'s
+  halt gate keeps reading the `stageReached` you return, not this file. Writing it is bookkeeping, not
+  committing.
+
 ## Return value (your entire final message)
 
 A JSON object: `{ stageReached, tasksChecked, tasksTotal, validationPassed, notes }` where

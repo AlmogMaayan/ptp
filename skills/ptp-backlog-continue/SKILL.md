@@ -1,6 +1,6 @@
 ---
 name: ptp-backlog-continue
-description: Own the settle-the-epic path behind /ptp:backlog-continue — the one command that finishes a backlog epic left `blocked` or `in-review` by /ptp:backlog-run once a human has performed the manual verification no agent could. Owns the target-selection rule (the candidate predicate `status === "blocked" || status === "in-review"` with a non-empty `changeEpics`, `blocked` taking precedence with its zero / one / many outcomes refusing rather than guessing, and several `in-review` candidates resolving to the canonical-order head), the invocation-shape split under which a bare invocation is the user's sign-off and free text is a problem report, the unwrapped outer-session execution contract that keeps `/ptp:review-full`'s and `/ptp:archive`'s own spawns at one nesting level, the bare flow (per-prefix folder lookup, checkbox sign-off, re-verification before the sign-off is trusted, the review-full convergence gate, archive, then the single `blocked → done` or `in-review → done` write once every prefix has archived), the issue-text fix-pass flow that transitions nothing, and the four terminal report shapes. Delegates the backlog store identity, entry model, read protocol, validator vocabulary, and the status transition table with its `blocked → done` and `in-review → done` rows under guard 3 to the shared ptp-backlog skill; the reviewer gate to ptp-codex-mode; branch safety to ptp-branch-guard; the spawn-and-relay mechanics to ptp-run-at-model; and review and archival to /ptp:review-full and /ptp:archive, which it drives rather than reimplements.
+description: Own the settle-the-epic path behind /ptp:backlog-continue — the one command that finishes a backlog epic left `blocked` or `in-review` by /ptp:backlog-run once a human has performed the manual verification no agent could. Owns the target-selection rule (the candidate predicate `status === "blocked" || status === "in-review"` with a non-empty `changeEpics`, `blocked` taking precedence with its zero / one / many outcomes refusing rather than guessing, and several `in-review` candidates resolving to the canonical-order head), the invocation-shape split under which a bare invocation is the user's sign-off and free text is a problem report, the unwrapped outer-session execution contract that keeps `/ptp:review-full`'s and `/ptp:archive`'s own spawns at one nesting level, the bare flow (per-prefix folder lookup, checkbox sign-off, re-verification before the sign-off is trusted, the review gate — satisfied by an eligible convergence marker or by a converged /ptp:review-full — archive, then the single `blocked → done` or `in-review → done` write once every prefix has archived), the issue-text fix-pass flow that transitions nothing, and the four terminal report shapes. Delegates the backlog store identity, entry model, read protocol, validator vocabulary, and the status transition table with its `blocked → done` and `in-review → done` rows under guard 3 to the shared ptp-backlog skill; the reviewer gate to ptp-codex-mode; branch safety to ptp-branch-guard; the spawn-and-relay mechanics to ptp-run-at-model; and review and archival to /ptp:review-full and /ptp:archive, which it drives rather than reimplements.
 ---
 
 # ptp-backlog-continue — finish (or fix) the epic `/ptp:backlog-run` halted on
@@ -254,7 +254,7 @@ folders in ascending story order:
    after the flip, so a stale build break is never waved through because the user typed the confirm
    command.
 4. **The review gate — two branches.** First evaluate this change folder's
-   `reviews/code.json` review-convergence marker against **`ptp-review-loop`**'s
+   `stages/code.json` review-convergence marker against **`ptp-review-loop`**'s
    **## Code-marker skip eligibility** predicate — its six conjunctive conditions, cited here and
    **not restated**; that skill owns the marker schema, the fingerprint, and the predicate. Its
    **condition 6** is what makes this evaluation read `codex.mode` at all: the marker's `reviewers` must
@@ -302,10 +302,12 @@ confirmations, which are reachable because this command stayed unwrapped:
      this very change, moments earlier.
   2. **The review was skipped** on an eligible marker — the marker itself: its `timestamp`,
      `reviewers`, `gateState`, and `minSeverity`, together with the explicit statement that its
-     **fingerprint was verified against the working tree and this change's review contract as they
-     stand at this moment**, and that `/ptp:review-full` was skipped as **provably redundant**. It is
-     presented as proof that the reviewed content is byte-identical to the content now being archived,
-     and **never** phrased as a review that ran in this invocation.
+     **fingerprint was verified against this change's recorded diff footprint and its review contract
+     as they stand at this moment**, and that `/ptp:review-full` was skipped as **provably redundant**.
+     It is presented as proof that the reviewed content is byte-identical to the content now being
+     archived, and **never** phrased as a review that ran in this invocation — nor as a claim about the
+     working tree as a whole, the fingerprint being scoped to the reviewed change's own footprint per
+     `ptp-review-loop`.
 
   Either form supplies the confirmation's *substance*, not its *answer* — keeping it reachable is the
   whole point of staying unwrapped, and auto-answering it would hollow that rationale out. **Withheld
@@ -514,15 +516,18 @@ selected — the report names them **all** instead, per *Target selection*). Bey
    terminal state (with a mode-skip kept visibly distinct from `BOTH PHASES DONE`, never flattened);
    for a prefix whose review was **skipped** on an eligible marker, the prefix named as
    **review-skipped** carrying the marker's `timestamp`, `reviewers`, `gateState`, and `minSeverity`
-   plus the statement that its fingerprint was verified against the working tree and the change's
-   review contract as they stood at that moment. A skip is **never** rendered as a `/ptp:review-full`
+   plus the statement that its fingerprint was verified against
+   **this change's recorded diff footprint** and the change's review contract as they stood at that
+   moment — never against the working tree as a whole. A skip is **never** rendered as a `/ptp:review-full`
    that ran in this invocation, and a `PHASE1_DONE_CODEX_SKIPPED` marker is **never** flattened into a
    both-phases run. Where a marker was **present but ineligible**, the report names **the reason**
    **alongside the review that consequently ran** — **whichever** of the predicate's conditions failed,
    the list being illustrative rather than closed: an unreadable, unparseable, or wrong-`kind` file
    (condition 1), a `cap-reached` terminal state (condition 2), an absent fingerprint or an unrecognized
-   version, or a fingerprint object that is malformed or missing its `inputs` (condition 3), a
-   fingerprint mismatch and the component that changed (condition 4), a
+   version — `version: 1`, the superseded algorithm, being the named instance — or a fingerprint object
+   that is malformed or missing its `inputs` or its `footprint` (condition 3), a
+   fingerprint mismatch and the component that changed, `footprintDigest` among the components it can
+   name (condition 4), a
    recorded severity floor weaker than the resolved one (condition 5), or a `reviewers` set
    **insufficient for the reviewer set a `/ptp:review-full` invoked at that moment would run** — naming
    what made that set two-phase (the resolved `roles.main` direction and, where the mode gate applied,
@@ -581,7 +586,7 @@ selected — the report names them **all** instead, per *Target selection*). Bey
 - **Never perform `blocked → done` or `in-review → done`** except as the direct, same-invocation result
   of this command's own
   review-gate → archive sequence settling **every** recorded prefix — the review gate satisfied either
-  by this invocation's own converged `/ptp:review-full` or by an eligible `reviews/code.json` marker
+  by this invocation's own converged `/ptp:review-full` or by an eligible `stages/code.json` marker
   whose fingerprint this invocation re-proved at step 4. There is no free "mark it done".
 - **Never invent, remove, reword, or reorder a `tasks.md` task** on either flow — the bare flow toggles
   existing checkboxes only.
@@ -589,7 +594,7 @@ selected — the report names them **all** instead, per *Target selection*). Bey
   refusal naming the check, not a skip.
 - **Never weaken `/ptp:archive`'s or `/ptp:review-full`'s gates**, and never reimplement either — they
   are driven, not copied.
-- **Never skip `/ptp:review-full` on anything but an eligible `reviews/code.json` marker**, as
+- **Never skip `/ptp:review-full` on anything but an eligible `stages/code.json` marker**, as
   `ptp-review-loop`'s six-condition predicate defines eligibility — and **never write, repair,
   overwrite, or delete a marker from this command**. Evaluation is read-only; producing a marker is the
   reviewer's job. Every ineligible outcome runs the review exactly as it would without any marker.
@@ -621,7 +626,7 @@ selected — the report names them **all** instead, per *Target selection*). Bey
 | the reviewer gate, `codex.model` / `codex.reasoningEffort`, and the mode-skip terminal state | `ptp-codex-mode` |
 | spawn-and-relay, effort directives, the nesting caveat | `ptp-run-at-model` |
 | the two-phase review loop and its convergence gate | `/ptp:review-full` |
-| the `reviews/code.json` marker schema, the code-marker fingerprint, and the six-condition skip-eligibility predicate | `ptp-review-loop` |
+| the `stages/code.json` marker schema, the code-marker fingerprint, and the six-condition skip-eligibility predicate | `ptp-review-loop` |
 | the `review.minSeverity` parameter — its domain, default, and resolution — **consumed** here for the predicate's condition 5, never owned; and `codex.mode` is resolved here **at most once, read-only, at step 4, for the skip predicate's condition 6 and nothing else** — and not at all when `ptp-agent-roles` resolves a non-Codex reviewer, that contract's mode gate applying only to a Codex one — its ownership — the reviewer gate, the model/effort keys, the mode-skip terminal state — remaining `ptp-codex-mode`'s per the row above (see § *Codex mode*) | the `/ptp:config` parameter registry |
 | the archive gates, the confirmations, and the spec sync | `/ptp:archive` |
 | the fix pass's implementation discipline and hard rules | `agents/ptp-apply.md` |

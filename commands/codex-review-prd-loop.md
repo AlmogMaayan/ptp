@@ -77,9 +77,9 @@ Critical "no PRD to review" finding in place of the PRD text. Findings are confi
 loop runs **no** `openspec validate` and records `verify = N/A (PRD precedes any spec)`.
 
 **Review-convergence marker:** this is a `kind = prd` loop, so on its terminal state a standalone run
-stamps the marker at `openspec/changes/<id>/reviews/prd.json` (`terminalState` converged / cap-reached,
+stamps the marker at `openspec/changes/<id>/stages/prd.json` (`terminalState` converged / cap-reached,
 `kind: "prd"`, `reviewers: ["codex"]`), via the same atomic write-temp-then-rename protocol — one marker
-per epic. The `openspec/changes/<id>/reviews/` subfolder is created on demand.
+per epic. The `openspec/changes/<id>/stages/` subfolder is created on demand.
 
 ## Hard rules
 

@@ -167,7 +167,7 @@ This orchestrator drives **both** phase loops with **`deferMarker = true`** (per
 **## Review-convergence marker** section), so **no phase writes the marker itself** — each phase instead
 returns its terminal outcome (`terminalState`, `reviewer`, `iterations`, `minSeverity`) to this orchestrator. After the
 run resolves (after Phase 2, or after Phase 1 if Phase 2 is gated off), the orchestrator performs
-**exactly ONE** combined `reviews/brainstorm.json` write per the combined-outcome rule:
+**exactly ONE** combined `stages/brainstorm.json` write per the combined-outcome rule:
 
 - `reviewers` = the **union of phases that actually ran**, each named by the agent that ran it — the
   main agent alone (`["superpowers"]` at the default `roles.main=claude`) if Phase 1 capped (Phase 2
@@ -180,7 +180,7 @@ run resolves (after Phase 2, or after Phase 1 if Phase 2 is gated off), the orch
 - `minSeverity` = the **last phase that ran**'s severity threshold (lowercase canonical), the same last-phase rule as `iterations`. In the normal case both phases resolve the same value and the rule is a no-op.
 
 The combined write uses the **same atomic write-temp-then-rename protocol** as `ptp-review-loop`
-(serialize to a uniquely named temp file in `reviews/`, then replace `reviews/brainstorm.json` via a
+(serialize to a uniquely named temp file in `stages/`, then replace `stages/brainstorm.json` via a
 replace-if-exists rename only after the complete write succeeds; on any failure clean up the temp file
 and leave the live marker untouched), so a failed overwrite cannot truncate or
 corrupt the prior marker.
@@ -192,7 +192,7 @@ status falls back to the inferred value — **never** a fabricated single-review
 case — there is no freshness/expiry mechanism per the non-goals). A marker-write failure is reported but
 does not change the terminal state the run reached.
 
-`kind = brainstorm` always feeds `reviews/brainstorm.json`; there is no `code` exemption here because
+`kind = brainstorm` always feeds `stages/brainstorm.json`; there is no `code` exemption here because
 this orchestrator only ever drives the brainstorm kind.
 
 ## Hard rules

@@ -1,5 +1,5 @@
 ---
-description: Finish (or fix) the single backlog epic /ptp:backlog-run left `blocked` or `in-review`. Bare invocation = "I performed the manual verification, it's fine" — sign off the change's remaining tasks, re-verify, run /ptp:review-full to convergence, archive, and land the entry on done. With free text = "I found problems" — drive one scoped fix pass against the same change and leave the epic in whatever status it had for another manual check. Identifies the target entry from the backlog store itself, preferring a `blocked` entry, and refuses, naming candidates, when none qualifies or more than one `blocked` entry does. Never commits, pushes, merges, deploys, or chains into /ptp:backlog-run. Delegates every rule to the ptp-backlog-continue skill.
+description: Finish (or fix) the single backlog epic /ptp:backlog-run left `blocked` or `in-review`. Bare invocation = "I performed the manual verification, it's fine" — sign off the change's remaining tasks, re-verify, satisfy the review gate, archive, and land the entry on done. With free text = "I found problems" — drive one scoped fix pass against the same change and leave the epic in whatever status it had for another manual check. Identifies the target entry from the backlog store itself, preferring a `blocked` entry, and refuses, naming candidates, when none qualifies or more than one `blocked` entry does. Never commits, pushes, merges, deploys, or chains into /ptp:backlog-run. Delegates every rule to the ptp-backlog-continue skill.
 argument-hint: "[what went wrong during the manual check — omit entirely to sign off]"
 ---
 
@@ -118,7 +118,7 @@ Drive the **`ptp-backlog-continue`** skill against the single resolved candidate
   it), locate the change folder, flip the remaining `- [ ]` boxes to `- [x]`, re-verify
   (`npx -y openspec validate <change-id> --strict` plus the project's build and test suites), invoke
   **`/ptp:review-full <change-id>`** and require its convergence gate — **unless an eligible
-  `reviews/code.json` review-convergence marker proves that review redundant**, in which case it is
+  `stages/code.json` review-convergence marker proves that review redundant**, in which case it is
   skipped and the prefix is reported as review-skipped with the marker's evidence (the eligibility
   predicate, the marker schema, and the fingerprint live in `ptp-review-loop` and the evaluation's
   placement in `ptp-backlog-continue`; neither is restated here) — then invoke
@@ -146,7 +146,7 @@ wrapper would push each to a second nesting level. Staying outer is also what ke
   as the direct,
   same-invocation result of this command's own review-gate → archive sequence settling every recorded
   prefix — the gate satisfied by this invocation's own converged `/ptp:review-full` or by an eligible
-  `reviews/code.json` marker it re-proved in this invocation. `/ptp:backlog-edit` still refuses both transitions unconditionally.
+  `stages/code.json` marker it re-proved in this invocation. `/ptp:backlog-edit` still refuses both transitions unconditionally.
 - **Never guess the target** — zero candidates of either status, or **more than one `blocked`**
   candidate, is a refusal that names them. Several `in-review` candidates are not a guess: the skill
   takes the head of `ptp-backlog`'s **published** canonical order.
