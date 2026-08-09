@@ -290,4 +290,4 @@ plugin.
 - **Output location**: the PRD is written to `openspec/changes/<id>/prd.md` (the change folder for
   the epic's lowest-numbered story). No standalone `openspec/prds/` folder is created; the change
   folder pre-exists for the selector case and is created (`mkdir`) by the free-text branch for the
-  free-text case, and the `reviews/` subfolder is created on demand as needed.
+  free-text case, and the `stages/` subfolder is created on demand as needed.

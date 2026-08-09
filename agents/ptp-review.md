@@ -229,7 +229,7 @@ At your terminal point — **every** terminal outcome, i.e. `BOTH_PHASES_DONE` (
 variant), `PHASE1_CAP` **reached by an actual Phase-1 iteration cap** (which STOPs at the Phase-1 gate
 without Phase 2 ever running), and `PHASE2_CAP`
 — and **before returning the structured JSON below**, perform **exactly one**
-`openspec/changes/<change-id>/reviews/code.json` write, using the schema, the code-marker fingerprint,
+`openspec/changes/<change-id>/stages/code.json` write, using the schema, the code-marker fingerprint,
 and the atomic write-temp-then-rename protocol defined in the `ptp-review-loop` skill's
 **## Review-convergence marker** and **## Code-marker fingerprint** sections. Do not restate them here —
 read them.

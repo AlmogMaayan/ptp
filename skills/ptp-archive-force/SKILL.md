@@ -64,6 +64,15 @@ If the CLI exits non-zero (rejects the change — e.g. a legacy name not startin
    - **If any delta is malformed and cannot be mechanically applied**: abort the fallback for this change **before any write**. Record it as a **per-change failure**, leave the change folder in place (do not move it) and leave all main specs untouched, and skip to the next id. Warn clearly. (Because nothing was written, no main spec is half-synced even when an earlier delta in the same change applied cleanly in the dry run.)
 2. **Apply phase.** Only if every delta passed the dry-run (or there are no spec deltas): apply each delta to its `openspec/specs/<capability>/spec.md`, then move `openspec/changes/<id>` → `openspec/changes/archive/<YYYY-MM-DD>-<id>` (today's date; **fail clearly if the target already exists** — do NOT overwrite or merge into it; record this change as a per-change failure and leave the folder in place). Warn that the CLI rejected the change and the manual fallback was used.
 
+### d. Stage record
+
+On success — either route — write the same post-success `archive` stage record `/ptp:archive` writes:
+`<archive-location>/stages/archive.json` with `kind: "archive"`, `terminalState: "archived"`, an ISO-8601
+UTC `timestamp`, and — when known — `archivedTo` and `specsSynced`, via the atomic
+write-temp-then-rename protocol, into the **archived** folder only and never into the pre-move change
+folder. The record carries **no** force-archive marker: nothing in it distinguishes a force-archive from a
+gated one. A failed resolution or write is reported and does not change the archive's outcome.
+
 ## Reporting
 
 ### Per-change report (after each id is processed)

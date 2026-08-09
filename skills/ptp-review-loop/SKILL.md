@@ -1,6 +1,6 @@
 ---
 name: ptp-review-loop
-description: Shared loop protocol for /ptp:review-loop, /ptp:codex-review-loop, /ptp:review-plan-loop, /ptp:codex-review-plan-loop, the /ptp:review-brainstorm-full brainstorm loop, and /ptp:codex-review-prd-loop. Takes kind∈{code,artifact,brainstorm,prd} and reviewer∈{superpowers,codex} and iterates review→confirm→fix until zero open findings at or above the configured review.minSeverity floor (default low = all four severities) or the configured iteration cap (default 5) is reached; findings below the floor are reported but not fixed. Handles rejection carry-over so rejected findings do not cause infinite loops, and filters manual-check/tests-required suggestions from the convergence count. At its terminal states the loop also writes a small durable per-kind review-convergence marker for every kind under openspec/changes/<id>/reviews/ (brainstorm.json, plan.json, prd.json, code.json), unless invoked with deferMarker=true by a -full orchestrator; the kind=code marker additionally carries a gateState and a content fingerprint, and defines the six-condition predicate under which a caller may skip an otherwise-mandatory code review.
+description: Shared loop protocol for /ptp:review-loop, /ptp:codex-review-loop, /ptp:review-plan-loop, /ptp:codex-review-plan-loop, the /ptp:review-brainstorm-full brainstorm loop, and /ptp:codex-review-prd-loop. Takes kind∈{code,artifact,brainstorm,prd} and reviewer∈{superpowers,codex} and iterates review→confirm→fix until zero open findings at or above the configured review.minSeverity floor (default low = all four severities) or the configured iteration cap (default 5) is reached; findings below the floor are reported but not fixed. Handles rejection carry-over so rejected findings do not cause infinite loops, and filters manual-check/tests-required suggestions from the convergence count. At its terminal states the loop also writes a small durable per-kind review-convergence marker for every kind under openspec/changes/<id>/stages/ (brainstorm.json, plan.json, prd.json, code.json), unless invoked with deferMarker=true by a -full orchestrator; the kind=code marker additionally carries a gateState and a content fingerprint, and defines the six-condition predicate under which a caller may skip an otherwise-mandatory code review.
 ---
 
 # ptp-review-loop — shared loop protocol
@@ -251,10 +251,27 @@ At each of its two terminal states the loop writes a small **durable** per-kind 
 marker — the only durable on-disk side effect beyond the artifact edits the loop already makes. This is
 distinct from the in-conversation loop control state above, which is NEVER persisted.
 
+**Stage-record family.** The four review kinds this skill writes (`brainstorm`, `plan`, `prd`, `code`)
+are the **review** members of a six-kind **stage-record family**. The other two are the *lifecycle* kinds
+`apply` (`stages/apply.json`, written by the apply executor) and `archive` (`stages/archive.json`, written
+by the archive flow after a successful archive). The family's full contract — the folder, the record
+shape, the per-kind `terminalState` vocabularies, the tolerant read (an absent, unreadable, malformed, or
+kind-mismatched record resolves to **unknown**, never an error and never a block), and the non-deciding
+rule — lives in the `stage-records` capability, which remains deliberately silent about *this* skill's
+review behavior: review convergence, review eligibility, the marker fields below, and the `deferMarker`
+contract are all unchanged by that membership, and this skill stays authoritative for the review kinds.
+
+Every lifecycle stage record is **non-deciding**: no lifecycle stage record is an input to the code-review
+skip predicate — that decision is made over `stages/code.json` alone — and no kind other than `code`
+carries a `fingerprint` or a `gateState` field. Neither `stages/apply.json` nor `stages/archive.json` may
+authorize, block, shorten, or otherwise steer any review step.
+
 **Which kinds write a marker.** **Every** kind writes one — `brainstorm`, `artifact`, `prd`, and
-`code`. A marker is written whether or not any `/ptp:status` column reads it: the `code` marker feeds no
-`/ptp:status` column (none is added by this capability), and is written so that the *fact* of a code
-review's convergence is discoverable after the session that produced it has ended.
+`code`. A marker is written whether or not any `/ptp:status` column reads it: **this** capability adds no
+`/ptp:status` column for the `code` marker (the `status` capability owns which rows the table has, and
+renders the `code` record in its own **code review** row), and the marker is written so that the *fact* of
+a code review's convergence is discoverable after the session that produced it has ended — independently
+of any rendering.
 
 **Marker JSON schema** (the exact shape written to the per-kind marker file):
 
@@ -282,13 +299,13 @@ review's convergence is discoverable after the session that produced it has ende
 }
 ```
 
-`gateState` and `fingerprint` are **code-only**: they are written to `reviews/code.json` for
+`gateState` and `fingerprint` are **code-only**: they are written to `stages/code.json` for
 `kind = code` and for no other kind. A `brainstorm` / `plan` / `prd` marker carries neither field, and
 its shape is exactly what it is today.
 
 | Field | Type | Value |
 |-------|------|-------|
-| `kind` | string | `"brainstorm"`, `"plan"`, `"prd"`, or `"code"` — the review kind this marker records, and (for `brainstorm` / `plan`) the `/ptp:status` column it feeds. No `/ptp:status` column is required to exist for the `prd` or the `code` marker to be written, and no existing `/ptp:status` row renders a `kind: "code"` marker, that row's kind-must-match rule already excluding it. Derived from the loop `kind`: `brainstorm`→`"brainstorm"`, `artifact`→`"plan"`, `prd`→`"prd"`, `code`→`"code"`. |
+| `kind` | string | `"brainstorm"`, `"plan"`, `"prd"`, or `"code"` — the review kind this marker records, and (for `brainstorm` / `plan` / `code`) the `/ptp:status` row it feeds. No `/ptp:status` column is required to exist for a marker to be written — the `prd` marker feeds none — and a row that does read a marker applies its own kind-must-match rule, so a marker of the wrong kind is never rendered. Derived from the loop `kind`: `brainstorm`→`"brainstorm"`, `artifact`→`"plan"`, `prd`→`"prd"`, `code`→`"code"`. |
 | `terminalState` | string | `"converged"` (loop reached `DONE`) or `"cap-reached"` (loop reached `ITERATION CAP REACHED`). This two-value domain is **unchanged** by the `code` kind — in particular the `-full` mode-skip green state (Phase 1 done, Codex skipped by `codex.mode`) is recorded as `"converged"`, its distinctness preserved by `gateState` rather than by a third `terminalState` value. |
 | `gateState` | string | **`kind = code` only.** The terminal vocabulary of the run that produced the marker: `"BOTH_PHASES_DONE"`, `"PHASE1_DONE_CODEX_SKIPPED"`, `"PHASE1_CAP"`, or `"PHASE2_CAP"` for a two-phase `-full` run; `"LOOP_DONE"` or `"LOOP_CAP"` for a standalone single-reviewer `kind = code` loop run. Sourced from the run's **own** terminal outcome. It exists so a mode-skipped run is never flattened into a plain both-phases run by a later reader; it is reported, never used to decide skip eligibility. |
 | `fingerprint` | object | **`kind = code` only.** A content fingerprint of what the review evaluated — see **## Code-marker fingerprint** below. **Absent** when it could not be computed; there is no partial fingerprint. |
@@ -306,13 +323,13 @@ not key on, so old and new markers both render exactly as they do today.
 
 **Per-kind file naming** (one file per review kind):
 
-- loop `kind = brainstorm` → `reviews/brainstorm.json` (status "brainstorm review" column)
-- loop `kind = artifact`   → `reviews/plan.json`       (status "plan review" column)
-- loop `kind = prd`        → `reviews/prd.json`        (sibling of `reviews/brainstorm.json` and `reviews/plan.json`)
-- loop `kind = code`       → `reviews/code.json`       (sibling of the three above; no `/ptp:status` column reads it)
+- loop `kind = brainstorm` → `stages/brainstorm.json` (status "brainstorm review" column)
+- loop `kind = artifact`   → `stages/plan.json`       (status "plan review" column)
+- loop `kind = prd`        → `stages/prd.json`        (sibling of `stages/brainstorm.json` and `stages/plan.json`)
+- loop `kind = code`       → `stages/code.json`       (sibling of the three above; the `status` capability's **code review** row reads it, and this capability requires no such row for the marker to be written)
 
 **Location.** For every kind the marker lives under
-`openspec/changes/<change-id>/reviews/` — a subfolder **sibling to `specs/`**, created on demand
+`openspec/changes/<change-id>/stages/` — a subfolder **sibling to `specs/`**, created on demand
 (mkdir-if-absent). For `kind = prd`, `<change-id>` is the epic's lowest-numbered story id (resolved by
 the active-or-archived scan, matching the PRD file at `openspec/changes/<id>/prd.md`). The marker is NOT
 an OpenSpec artifact folder entry, so `openspec validate --strict` ignores it and `openspec archive`
@@ -325,13 +342,13 @@ separate expiry/removal mechanism.
 
 **Atomic write-temp-then-rename protocol (every marker writer).** The marker MUST be written atomically:
 
-1. Serialize the full marker object to a **uniquely named temporary file in the SAME `reviews/`
-   directory** (e.g. `reviews/<kind>.json.<pid-or-rand>.tmp`).
-2. **Only after the complete write succeeds**, replace `reviews/<kind>.json` with the temp file via a
+1. Serialize the full marker object to a **uniquely named temporary file in the SAME `stages/`
+   directory** (e.g. `stages/<kind>.json.<pid-or-rand>.tmp`).
+2. **Only after the complete write succeeds**, replace `stages/<kind>.json` with the temp file via a
    **replace-if-exists** rename — the destination already existing MUST NOT cause the rename to fail
    (on Windows this is `MoveFileEx(MOVEFILE_REPLACE_EXISTING)` / `ReplaceFile`; on POSIX a plain
    `rename(2)` over the destination).
-3. **On any write or replace failure**, clean up the temp file and leave the live `reviews/<kind>.json`
+3. **On any write or replace failure**, clean up the temp file and leave the live `stages/<kind>.json`
    **untouched**.
 
 This is what makes the guarantee "if a re-review's write fails, the prior marker remains intact" hold: a
@@ -370,40 +387,169 @@ A `kind = code` marker carries a `fingerprint` object describing **the content t
 a later reader can prove that a recorded convergence still describes the current code rather than
 guessing from a timestamp. It is written for `kind = code` only.
 
-**Shape.** `version` (the integer `1` for the algorithm defined here), `algorithm` (the string
-`"sha256"`), `value` (the composite hex digest), and `inputs` (the individual component digests, recorded
-so a mismatch can be attributed to a component rather than reported as an opaque boolean).
+**Shape.** `version` (the integer `2` for the algorithm defined here), `algorithm` (the string
+`"sha256"`), `value` (the composite hex digest), `footprint` (the path set the digests were taken over,
+recorded verbatim so a later reader recomputes over **exactly** the writer's paths), and `inputs` (the
+individual component digests and scalars, recorded so a mismatch can be attributed to a component rather
+than reported as an opaque boolean). `footprint` is a **sibling** of `inputs`, never a member of it:
+`inputs` holds scalars (a branch name, a commit id, four hex digests) and is the object condition 3
+checks entry-by-entry and a mismatch report attributes against, so keeping the arrays out of it leaves
+both shapes homogeneous.
+
+```json
+"fingerprint": {
+  "version": 2,
+  "algorithm": "sha256",
+  "value": "<hex>",
+  "footprint": {
+    "codeTracked":   ["skills/ptp-review-loop/SKILL.md", "skills/ptp-full-apply/SKILL.md"],
+    "codeUntracked": ["scripts/new-helper.js"],
+    "contract":      ["proposal.md", "design.md", "tasks.md", "specs/review-loop/spec.md"]
+  },
+  "inputs": {
+    "baseBranch": "master",
+    "mergeBase": "2ec92c1…",
+    "footprintDigest": "9b41…",
+    "trackedDigest": "1a7b…",
+    "untrackedDigest": "c033…",
+    "contractDigest": "77de…"
+  }
+}
+```
 
 **Value.** The `sha256` of the LF-joined sequence:
 
 ```
-value = sha256( "ptp-code-fingerprint/1" LF
+value = sha256( "ptp-code-fingerprint/2" LF
                 baseBranch              LF
                 mergeBase               LF
+                footprintDigest         LF
                 trackedDigest           LF
                 untrackedDigest         LF
                 contractDigest )
 ```
 
 The leading literal is a domain-separation tag carrying the same number as `fingerprint.version`, so a
-future algorithm change cannot collide with a v1 value.
+**v2 value can never collide with a v1 value** even over identical inputs, and a future algorithm change
+cannot collide with either.
 
-**The five inputs.**
+**The footprint.** The footprint is the path set the reviewed change occupied, captured **at write time**
+and frozen into the marker. It is three **bytewise-sorted, duplicate-free** lists of
+repository-root-relative, forward-slash-separated paths:
+
+| List | Source at capture |
+|---|---|
+| `codeTracked` | `git diff --no-renames --name-only -z <mergeBase>` — the **one-revision form** (neither `..` nor `...`), which names every path differing between the merge base and the **working tree**, staged and unstaged |
+| `codeUntracked` | `git ls-files --others --exclude-standard -z --full-name` |
+| `contract` | the change folder's **review contract set** (below), relative to `openspec/changes/<change-id>/`, recorded for attribution only |
+
+The footprint is captured at the **same ordering point as the fingerprint itself** — after the run's
+final fix edit and final verification, immediately before the marker write. That placement is
+load-bearing: it guarantees every file the review evaluated, and every file the review's own fixes
+touched, is inside the footprint.
+
+The marker-directory exclusion below is applied **at capture**, so an excluded path never enters a frozen
+list and therefore cannot re-enter at read time; the reader applies **no** exclusion of its own, hashing
+a list that is already clean.
+
+**An empty footprint is legitimate, and is not an uncomputable one.** A change touching no tracked and no
+untracked file yields two empty lists, over which both code digests are well defined, and the marker is
+normal — its contract set still binds it. A capture that *failed* is a different thing entirely and is
+handled by *Failure* below; conflating the two would produce a marker that covers nothing while claiming
+to cover everything.
+
+`codeTracked` and `codeUntracked` are disjoint by construction (a path is either differing-from-merge-base
+or untracked-and-unignored, never both). `contract` overlaps neither where `openspec/` is gitignored (as
+here), and may overlap `codeTracked` where `openspec/` is tracked — harmless, the same bytes simply being
+hashed twice, exactly as in v1.
+
+**Both capture commands are NUL-delimited (`-z`), and that is mandatory.** In their default output both
+commands **C-quote** any path carrying a non-ASCII byte or a shell-special character (`core.quotePath`) —
+`café.md` is emitted as `"caf\303\251.md"`, quotes and escapes included. Recorded verbatim, that quoted
+string is not the path; fed back as a `:(literal)` pathspec it matches **nothing**, so the file
+contributes no hunk to the scoped diff and no line to `untrackedDigest`. Writer and reader agree — both
+drop it — so the mismatch is invisible and the path is effectively **deleted from the footprint**, every
+later edit to it authorized. That is silent **under-scoping**, the one direction this change must not
+move, and it is reached by an ordinary filename rather than an attack. (`-c core.quotePath=false`
+suppresses the quoting but not an embedded NUL/LF hazard, so `-z` is the required form, not merely the
+preferred one.)
+
+**Paths are hashed and sorted over their raw bytes**, so ordering is locale-independent. A captured path
+containing an **LF byte** — which the LF-joined serializations of `footprintDigest` and
+`untrackedDigest` cannot represent unambiguously — or one that is **not valid UTF-8** — which has no
+faithful JSON-string representation, so writer and reader would round-trip different bytes — makes the
+fingerprint **uncomputable** (see *Failure*), never ambiguously serialized. Git permits both and `-z`
+reads them back faithfully; the limit is the marker's JSON and the LF-joined serialization, not the
+capture.
+
+**`--no-renames` is mandatory on the `--name-only` capture too, for an independent reason.** Rename
+detection is on by default (`diff.renames`), and under it `git diff --name-only` reports a rename as its
+**destination path alone**. The source path is a *deletion the review evaluated*, and if it never enters
+`codeTracked` no digest covers it: restoring or re-creating that file after the marker was written
+changes reviewed content while every recorded digest stays put, and the skip is authorized — fail-open,
+reached by an ordinary `git mv`. With `--no-renames` the same rename renders as an unpaired deletion
+**and** an unpaired addition, so **both** paths enter `codeTracked`. This is a **different** reason from
+the scoped diff's `--no-renames` rule below (which prevents out-of-pathspec coupling); the two rules are
+independent and **neither implies the other**.
+
+**Every command runs with the repository root as its working directory, and `git ls-files` carries
+`--full-name`.** `git ls-files` is implicitly scoped to the current directory and emits paths relative to
+it; run from a subdirectory it would silently omit every untracked path outside that subtree and record
+the rest under the wrong strings. `--full-name` fixes the rendering, but only executing from the
+repository root fixes the scope — so "repository-root-relative" is a property the commands actually
+produce rather than one this prose merely asserts. Every capture, every digest, and every read-time
+recomputation obeys this.
+
+**The six inputs.**
 
 | Input | How it is derived |
 |---|---|
 | `baseBranch` | the base branch `ptp-branch-guard` recognizes — `master`, else `main` |
 | `mergeBase` | `git merge-base HEAD <baseBranch>` |
-| `trackedDigest` | `sha256` of the bytes of `git diff <mergeBase>` — the **one-revision form** |
-| `untrackedDigest` | `sha256` over the LF-joined, bytewise-path-sorted `<path>\0<sha256 of bytes>` lines for every path returned by `git ls-files --others --exclude-standard` |
-| `contractDigest` | `sha256` over the LF-joined, bytewise-path-sorted `<relpath>\0<sha256 of bytes>` lines for the change folder's **review contract set** (below) |
+| `footprintDigest` | `sha256` over the LF-joined lines `T\0<path>` for each `codeTracked` path, then `U\0<path>` for each `codeUntracked` path, then `C\0<relpath>` for each `contract` path — each list bytewise-sorted, the three groups in that fixed order |
+| `trackedDigest` | `sha256` of the bytes of `git diff --no-renames --no-ext-diff --no-textconv --no-color <mergeBase> -- :(literal)<p1> :(literal)<p2> …` over **exactly** the recorded `codeTracked` paths in bytewise-sorted order — the **one-revision form**; an empty list yields the `sha256` of the empty byte string, the command not being run at all |
+| `untrackedDigest` | `sha256` over the LF-joined `<path>\0<sha256 of bytes>` lines — or `<path>\0<absent>` when the path does not exist at hash time — for **exactly** the recorded `codeUntracked` paths in bytewise-sorted order. `git ls-files --others --exclude-standard` is **not** re-run when the fingerprint is recomputed |
+| `contractDigest` | `sha256` over the LF-joined, bytewise-path-sorted `<relpath>\0<sha256 of bytes>` lines for the change folder's **review contract set** (below), enumerated **by rule** at the moment of computation — **never** from the recorded `contract` list |
 
-**The one-revision `git diff` rule.** `trackedDigest` hashes `git diff <mergeBase>` written with
-**neither `..` nor `...`** — a single revision argument, which diffs the merge base against the **working
-tree** (staged *and* unstaged). This is mandatory, not stylistic: ptp never commits during apply or
-review, so the reviewed work is *uncommitted*. Both `git diff <mergeBase>..HEAD` and
-`git diff <mergeBase>...HEAD` are **commit-to-commit** forms that omit the working tree entirely, and so
-carry **none** of the state this fingerprint must describe. Never use them here.
+**Why `footprintDigest` is an input and not merely recorded.** Two reasons, and both matter.
+*Attribution:* condition 4 reports which component moved, and without a footprint component a marker
+whose recorded footprint had been altered would surface as a `trackedDigest` mismatch, pointing at the
+code when the path set was what changed. *Binding:* the composite value commits to the exact path set the
+other digests were taken over, so editing `footprint` in a marker file — narrowing it to hide a file,
+say — moves `footprintDigest` and therefore `value`, and the marker fails condition 4 rather than
+authorizing a skip over a smaller set than the writer hashed. The footprint is thereby self-protecting,
+and the reader's obligation to recompute over exactly the writer's paths is *enforced* rather than merely
+stated.
+
+**Why `--no-renames` on the scoped diff, and why `:(literal)`.** With a pathspec, git's rename detection
+may pair a footprint path against a counterpart **outside** the pathspec, making the diff text for an
+in-footprint path a function of files the footprint deliberately excludes — precisely what scoping exists
+to prevent, and liable to differ between writer and reader as those out-of-scope files change.
+`--no-renames` makes each footprint path's rendering **path-local**. (v1 had no pathspec and therefore no
+such hazard, which is why it did not need the flag.) `:(literal)` pathspec magic is likewise mandatory:
+paths come out of git verbatim and may contain `*`, `?`, `[`, or a leading `:`, which passed bare would
+be read as globs or as pathspec magic and would silently widen or narrow the set.
+
+**Why the scoped diff is pinned against ambient rendering config.** Its *bytes* are hashed, so anything
+that changes how git renders a patch changes the digest. `--no-ext-diff` and `--no-textconv` are
+required: an external diff driver or a `textconv` filter can render two different byte sequences
+identically — fail-open — and either can be introduced via `.gitattributes` between write and read.
+`--no-color` keeps the digest independent of a terminal. Writer and reader use the **byte-identical**
+invocation.
+
+**Why the contract set is still enumerated by rule at read time.** `footprint.contract` is recorded for
+attribution only. Were `contractDigest` to iterate the frozen list instead, a `spec.md` delta **added**
+after the write would be invisible to the reader — a file the review never saw and never approved would
+escape the digest entirely. Re-enumerating by rule keeps the v1 property that creating or deleting a
+contract member moves the digest.
+
+**The one-revision `git diff` rule**, which applies to **both** the `--name-only` capture and the scoped
+`trackedDigest` diff. Each is written with **neither `..` nor `...`** — a single revision argument, which
+diffs the merge base against the **working tree** (staged *and* unstaged). This is mandatory, not
+stylistic: ptp never commits during apply or review, so the reviewed work is *uncommitted*. Both
+`git diff <mergeBase>..HEAD` and `git diff <mergeBase>...HEAD` are **commit-to-commit** forms that omit
+the working tree entirely, and so carry **none** of the state this fingerprint must describe. Never use
+them here.
 
 **The review contract set** (paths relative to `openspec/changes/<change-id>/`): `tasks.md`,
 `proposal.md`, `design.md`, and every `specs/**/spec.md`. A member of the fixed three that does not exist
@@ -421,62 +567,93 @@ also correct where `openspec/` *is* tracked: the same bytes are simply hashed tw
 - **`HEAD` is not an input.** A commit that changes no bytes leaves the reviewed content identical;
   including `HEAD` would invalidate a still-valid marker for free. `mergeBase` **is** an input, because a
   rebase changes what "the diff" means.
-- **`reviews/` is excluded** from the contract set: a marker can never be an input to its own digest.
-  **That exclusion is not confined to `contractDigest`** — it holds for **every** input. Where
-  `openspec/` is **gitignored** (as here) it is automatic, git being blind to the folder. Where
-  `openspec/` **is tracked**, `trackedDigest` and `untrackedDigest` must exclude **every** marker
-  directory — all paths under `openspec/changes/*/reviews/`, not merely this change's own (a path
-  exclusion on the diff, and the same paths dropped from the
-  `git ls-files --others --exclude-standard` list). Two reasons, both fatal without it: the write that
-  creates or updates `reviews/code.json` would itself move the very digests the marker records, a
-  moment after they were computed, so the marker could **never** match itself; and a **sibling** marker
-  — another kind's under this change, or any marker under **another** change folder, as a multi-story
-  `/ptp:full-apply` run writes one per story — would invalidate this marker for a write that changed no
-  reviewed content at all. A marker is never reviewed content.
-
-  **This is a deliberate, narrowing refinement of the `review-loop` capability's digest wording, and it
-  is recorded as one rather than left to be discovered.** That requirement states the `reviews/`
-  exclusion against the **contract set** and defines `trackedDigest` / `untrackedDigest` as the plain
-  `git diff <mergeBase>` and the full `git ls-files --others --exclude-standard` list. Read that
-  narrowly — exclusion on `contractDigest` alone — the marker is **unimplementable** wherever
-  `openspec/` is tracked: the write that creates `reviews/code.json` lands *after* the fingerprint is
-  computed and *inside* the very inputs it just hashed, so **no** marker could ever match itself and
-  **no** skip could ever be authorized. The refinement removes marker files, and **only** marker files,
-  from view; no reviewed content escapes either digest because of it, so the predicate is never
-  weakened — a marker still cannot survive any edit to any reviewed file. Where the two readings differ
-  they differ only in whether the feature functions at all. **The capability text should be amended to
-  carry this exclusion on all three digests**; until it is, **this section is the operative algorithm**
-  and both writer and reader follow it, so the value stays reproducible between them. Writer and reader
-  apply the identical
-  exclusion, so the value stays reproducible.
+- **Every marker directory is excluded, at capture.** A marker is never reviewed content, so **no** path
+  under **any** `openspec/changes/*/stages/` — not merely this change's own — may enter `codeTracked`,
+  `codeUntracked`, or the contract set. Under v2 this is a **capture-time filter**: the paths are dropped
+  while the footprint lists are built, so they are absent from the frozen set and cannot re-enter at read
+  time. The reader subtracts nothing, hashing an already-clean recorded list — strictly simpler than v1,
+  where writer and reader each had to subtract the same paths from a re-derived set. Where `openspec/` is
+  **gitignored** (as here) the code-list filter is a no-op, git being blind to the folder; where
+  `openspec/` **is tracked** it does real work. Two reasons, both fatal without it: the write that creates
+  or updates `stages/code.json` would itself move the very digests the marker records, a moment after they
+  were computed, so the marker could **never** match itself; and a **sibling** marker — another kind's
+  under this change, or any marker under **another** change folder, as a multi-story `/ptp:full-apply` run
+  writes one per story — would invalidate this marker for a write that changed no reviewed content at all.
+  The exclusion removes marker files, and **only** marker files, from view, so the predicate is
+  **narrowed, never weakened**: a marker still cannot survive any edit to any reviewed file.
 - **`TLDR.md`, `brainstorm.md`, and `effort.md` are excluded** — none is loaded by a code review (step
   (b) names the contract as proposal / design / tasks / spec deltas), so their churn must not force a
   re-review.
 
-**Scope, and the over-invalidation it implies.** `trackedDigest` and `untrackedDigest` are **repo-wide**,
-not scoped to the change folder — deliberately, because a code review's own contract is the repo-wide
-merge-base diff, so a change-scoped digest would claim more than the review proved. The consequence is
-that **any** later edit anywhere in the working tree invalidates the marker, including edits belonging to
-a *different* change: in a sequential multi-story run each story's apply invalidates the markers of the
-stories before it, leaving only the last story's marker matchable. That is over-invalidation in the
-**safe** direction — the extra review is one that would have run anyway without this feature — and it is
-the expected shape, not a defect to work around by narrowing the digest.
+**Scope: the change's own diff footprint.** The claim a code marker makes is, and has always been, *the
+content this review evaluated has not moved since the review converged* — never *the working tree is
+unchanged*. `trackedDigest` and `untrackedDigest` are therefore scoped to the reviewed change's own
+recorded footprint. Content outside it is, by construction, content this review did not evaluate, and it
+is covered by the review gate of whatever change owns it; a marker only ever authorizes skipping a review
+**for its own change**.
+
+The whole-tree scope of `version: 1` was a **defect, not the expected shape**. It implemented the
+stronger statement only because nothing recorded which paths a review covered, and it produced two
+sibling bugs: across epics, `/ptp:backlog-run`'s shared, never-committed branch let one epic's apply
+destroy an earlier epic's converged proof, so `/ptp:backlog-continue` re-ran a full dual-reviewer review
+over byte-identical content; and inside one epic, a multi-story `/ptp:full-apply` invalidated every
+story's marker but the last — the concession `skills/ptp-full-apply/SKILL.md` used to carry. Recording
+the path set removes both without weakening the gate: every edit inside the footprint, every contract-set
+edit, and every merge-base move still deny.
+
+**The residual, named rather than left implicit.** "Covered by whatever change owns it" answers a file
+owned by a *different* change. It is circular for a **brand-new file added to _this_ change after its own
+marker was written**: that file is outside the frozen footprint, its owner is this change, and this
+change's gate is the very marker being consulted, so no digest denies on its account. The residual is
+real and it is accepted, for two reasons beyond the circular sentence. First it is **bounded**: capture
+happens at the last possible moment, so the residual can only be opened by work performed *after* a
+converged review — out-of-band work by construction. Second it is **covered in practice** by
+`contractDigest`, which is enumerated by rule and includes `tasks.md`: any implementation work on this
+change flips a `- [ ]` to `- [x]` or adds a spec delta, either of which moves that digest and denies.
+What escapes is only a source edit made with no accompanying change-folder edit at all. Closing it would
+reinstate exactly the repo-wide scope this algorithm removes, so the trade is taken deliberately.
+
+**Read-time recomputation.** Given a marker with `fingerprint.version == 2`:
+
+1. Read `fingerprint.footprint`'s three arrays **as recorded**. Do not re-run `git diff --name-only`, do
+   not re-run `git ls-files`, do not re-derive or re-sort into a different order, do not subtract
+   exclusions.
+2. Resolve `baseBranch` and `mergeBase` **fresh** (per `ptp-branch-guard` and
+   `git merge-base HEAD <baseBranch>`). A moved merge base changes what "the diff" means and must deny —
+   it does so as a plain scalar mismatch.
+3. Recompute `footprintDigest` from the recorded arrays, `trackedDigest` and `untrackedDigest` over
+   exactly those arrays, and `contractDigest` by re-enumerating the contract set **by rule**.
+4. Recompute `value` and compare it to the recorded `value`.
+
+A reader that cannot complete any step — no git, no merge base, a command error — treats the marker as
+**ineligible** (the *Fail-closed* rule under **## Code-marker skip eligibility**), never as matching.
 
 **Ordering.** The fingerprint is computed **after the run's final fix edit and final verification**,
 immediately before the marker write, so it describes the state the reviewer signed off — never an
 intermediate one.
 
-**Failure.** If any input cannot be computed (no git, a detached state with no merge base, a command
-error), the writer **still writes the marker**, omitting the `fingerprint` field **entirely**, and notes
-the omission. There is no partial fingerprint, and no fabricated one. Every reader treats an absent or
-malformed fingerprint as **not skip-eligible**.
+**Failure — uncomputable, which is never the same as empty.** The fingerprint is **uncomputable** iff any
+capture or digest command failed (no git, a detached state with no merge base, a command error, an
+unreadable file) **or** a captured path carries an LF byte **or** a captured path is not valid UTF-8. In
+that case the writer **still writes the marker**, omitting the `fingerprint` field **entirely**, and
+notes the omission; the terminal state the review reached is unchanged either way. There is no partial
+fingerprint and no fabricated one, and an **empty** footprint is never substituted for an uncomputable
+one — an empty footprint means every command succeeded and returned no paths, and its digests are well
+defined. Every reader treats an absent or malformed fingerprint as **not skip-eligible**.
+
+The two non-exit-status triggers are not exceptions to that rule: each is a deterministic, one-pass
+property of the captured bytes, checkable identically by writer and reader, and each exists because the
+LF-joined serializations and the marker's JSON respectively cannot represent such a path unambiguously.
+A capture that succeeds but is merely *suspected* incomplete has **no** third disposition — exit status
+is the test — and nothing may be added to that disjunction without the same standard of proof: a
+mechanical, writer-and-reader-identical test, never an inference about completeness.
 
 ## Code-marker skip eligibility
 
 A caller MAY skip an otherwise-mandatory `/ptp:review-full` for a change **only** when all six of the
 following hold, evaluated **at the moment the review would have been invoked**:
 
-1. `openspec/changes/<change-id>/reviews/code.json` exists, is readable, parses as JSON, and its `kind`
+1. `openspec/changes/<change-id>/stages/code.json` exists, is readable, parses as JSON, and its `kind`
    is exactly `"code"`.
 2. Its `terminalState` is `"converged"`. A `"cap-reached"` marker NEVER authorizes a skip. `gateState` is
    reported but never *decides* **this condition**: a `"PHASE1_DONE_CODEX_SKIPPED"` marker **satisfies
@@ -485,16 +662,25 @@ following hold, evaluated **at the moment the review would have been invoked**:
    **condition 6**.
 3. It carries a **well-formed** `fingerprint` whose `version` and `algorithm` the reader
    **recognizes** — well-formed meaning the whole object this skill defines is present: `version`,
-   `algorithm`, `value`, and an `inputs` object carrying all five component entries by name
-   (`baseBranch` and `mergeBase`, which are a branch name and a commit id rather than digests, plus
-   `trackedDigest`, `untrackedDigest`, and `contractDigest`). A fingerprint that is
-   merely *partial* — most plausibly one carrying `value` but no `inputs` — is **malformed**, and the
-   *Fail-closed* rule below already makes a malformed fingerprint ineligible; this condition simply
-   says where that test is applied. The check is cheap and it is what keeps condition 4's mismatch
-   **attributable**: the reporting obligation names the component that changed, which is unanswerable
-   without `inputs`.
+   `algorithm`, `value`, a `footprint` object carrying all three lists by name (`codeTracked`,
+   `codeUntracked`, `contract` — **any of which may be empty**), and an `inputs` object carrying all six
+   component entries by name (`baseBranch` and `mergeBase`, which are a branch name and a commit id
+   rather than digests, plus `footprintDigest`, `trackedDigest`, `untrackedDigest`, and
+   `contractDigest`). A fingerprint that is merely *partial* — most plausibly one carrying `value` but no
+   `inputs`, or one carrying `inputs` but no `footprint`, which leaves the reader unable to recompute
+   over the writer's path set — is **malformed**, and the *Fail-closed* rule below already makes a
+   malformed fingerprint ineligible; this condition simply says where that test is applied. The check is
+   cheap and it is what keeps condition 4's mismatch **attributable**: the reporting obligation names the
+   component that changed, which is unanswerable without `inputs`.
+
+   A reader implementing this skill recognizes `version: 2` **only**. `version: 1` — the superseded
+   algorithm, whose `trackedDigest` and `untrackedDigest` were repo-wide — is therefore an
+   **unrecognized version**, and the *Fail-closed* rule makes such a marker ineligible with **no error,
+   refusal, or halt**: the review simply runs, exactly as it would without any marker. No v1 marker is
+   migrated, rewritten, or recomputed.
 4. The fingerprint **recomputed at check time**, per **## Code-marker fingerprint**, equals the recorded
-   `value`.
+   `value`. The recomputation uses the marker's **recorded** `footprint` as its path set — never one
+   re-derived at check time — and enumerates the contract set **by rule**.
 5. `rank(marker.minSeverity, an absent field read as "low") <= rank(the currently resolved
    review.minSeverity)` — a run that converged at a stricter floor proves the looser requirement; the
    converse does not hold.
@@ -531,8 +717,10 @@ following hold, evaluated **at the moment the review would have been invoked**:
      to close.
 
    **The role-resolution step above is a narrowing refinement of the `review-loop` capability's
-   condition-6 wording, recorded here rather than left silent** — the same posture as the digest
-   refinement under **## Code-marker fingerprint**. That requirement enumerates the one-phase case as
+   condition-6 wording, recorded here rather than left silent** — and, with the marker-directory
+   exclusion carried by the capability **as change `0054_01` amends it**, the **only** such divergence
+   left in this skill; **## Code-marker fingerprint** restates the capability rather than refining it.
+   The condition-6 requirement enumerates the one-phase case as
    `codex.mode = off` and `auto`-with-`codex`-absent without qualifying the `roles.main` direction;
    taken literally it would admit a single-reviewer marker under `roles.main = codex`, where
    `ptp-codex-mode` never consults the mode for the reviewer gate and a review invoked now runs **both**
@@ -811,8 +999,8 @@ Report:
    - `kind=prd` → `/ptp:plan <change-id>` (the PRD is sound; proceed to author the OpenSpec artifacts — `<change-id>` is the epic's lowest-numbered story id). (Recommend it to the user — do not invoke it.)
 
 **Marker write (after the report above).** For **every** kind, write the per-kind marker
-(`brainstorm`→`reviews/brainstorm.json`, `artifact`→`reviews/plan.json`,
-`prd`→`openspec/changes/<id>/reviews/prd.json`, `code`→`reviews/code.json`) per the
+(`brainstorm`→`stages/brainstorm.json`, `artifact`→`stages/plan.json`,
+`prd`→`openspec/changes/<id>/stages/prd.json`, `code`→`stages/code.json`) per the
 **## Review-convergence marker** section, with `terminalState: "converged"`, `reviewers` = the
 reviewer(s) that ran this loop run, `iterations` = the final `iteration` value, `minSeverity` = the
 effective resolved `MIN_SEVERITY` for this run (lowercase canonical), and `timestamp` = now (UTC
@@ -843,8 +1031,8 @@ Report:
 5. Explicit statement: "Do not archive. Do not run `/ptp:apply`. Inspect the open findings manually and decide next steps."
 
 **Marker write (after the report above).** For **every** kind, write the per-kind marker
-(`brainstorm`→`reviews/brainstorm.json`, `artifact`→`reviews/plan.json`,
-`prd`→`openspec/changes/<id>/reviews/prd.json`, `code`→`reviews/code.json`) per the
+(`brainstorm`→`stages/brainstorm.json`, `artifact`→`stages/plan.json`,
+`prd`→`openspec/changes/<id>/stages/prd.json`, `code`→`stages/code.json`) per the
 **## Review-convergence marker** section, with `terminalState: "cap-reached"` and the same `kind` /
 `reviewers` (the reviewer that ran) / `iterations` (the cap value) / `minSeverity` (the effective
 resolved `MIN_SEVERITY` for this run, lowercase canonical) / `timestamp` (now, UTC ISO-8601) fields. For
@@ -867,7 +1055,7 @@ reported but does NOT change the terminal state.
 - **Never silently absorb a partially-honored fix target.** Under `fixDispatch = inline` the model half of `fixTarget` cannot be honored; the divergence is reported in the iteration summary and in both terminal reports. Emitting it is mandatory — omitting it is a violation of this rule, not an optimization.
 - **Never spawn from inside the loop under `fixDispatch = inline`** — a second Agent-nesting level throws.
 - **Never persist loop control state to disk.** `iteration`, `rejected_findings`, and `per_iteration_summary` live only in conversation context. This rule does NOT forbid the durable terminal review-convergence marker below — that marker is a deliberate exception and is the loop's only on-disk side effect beyond the artifact edits it already makes.
-- **Write the per-kind review-convergence marker on terminal states for every kind** (`brainstorm`→`reviews/brainstorm.json`, `artifact`→`reviews/plan.json`, `prd`→`openspec/changes/<id>/reviews/prd.json`, `code`→`reviews/code.json`), per the **## Review-convergence marker** section, with a `kind = code` marker additionally carrying `gateState` and — when computable — the `fingerprint` from **## Code-marker fingerprint**. **Never** write a marker when invoked with `deferMarker = true` (the `-full` orchestrator performs the single combined write). The marker is written via the atomic write-temp-then-rename protocol; a marker-write failure is reported but does not change the terminal state.
+- **Write the per-kind review-convergence marker on terminal states for every kind** (`brainstorm`→`stages/brainstorm.json`, `artifact`→`stages/plan.json`, `prd`→`openspec/changes/<id>/stages/prd.json`, `code`→`stages/code.json`), per the **## Review-convergence marker** section, with a `kind = code` marker additionally carrying `gateState` and — when computable — the `fingerprint` from **## Code-marker fingerprint**. **Never** write a marker when invoked with `deferMarker = true` (the `-full` orchestrator performs the single combined write). The marker is written via the atomic write-temp-then-rename protocol; a marker-write failure is reported but does not change the terminal state.
 - **Never skip a review on anything but an eligible marker.** The six conjunctive conditions in **## Code-marker skip eligibility** are the only basis for skipping an otherwise-mandatory code review, evaluating them never mutates a marker, and any ineligible outcome runs the review exactly as it would without a marker. Condition 6 in particular is resolved against `ptp-codex-mode`'s decision contract **at check time**, never against a mode carried by the marker.
 - **Iteration cap is resolved from `review.maxIterations` (layered config, default 5).** There is no `--max-iterations` CLI flag. If the cap is hit, report and stop — do not silently increment past it.
 - **Codex variants** (`reviewer=codex`) must run `codex exec -s read-only` with the full prompt piped over stdin (`-`), assembled per the `ptp-codex-mode` flag-append rule (append resolved `-m <model>` / `-c model_reasoning_effort=<effort>` before the trailing `-` when configured). Never pass `--full-auto`, `--sandbox workspace-write`, or `--dangerously-bypass-approvals-and-sandbox`.

@@ -45,7 +45,7 @@ restate them.
 
 The skill drives the full loop: per-iteration Superpowers code review, manual/test-only finding filter, rejection carry-over check, confirmation via `superpowers:receiving-code-review`, inline fix pass on confirmed findings, test/lint/typecheck verification, and termination at DONE or ITERATION CAP REACHED.
 
-**Review-convergence marker:** at either terminal state the loop stamps `openspec/changes/<change-id>/reviews/code.json` per `ptp-review-loop`'s **## Review-convergence marker** and **## Code-marker fingerprint** sections — `kind: "code"`, `terminalState` `converged` (DONE) or `cap-reached` (ITERATION CAP REACHED), `gateState` `LOOP_DONE` or `LOOP_CAP` (a standalone loop has no two-phase gate), `reviewers: ["superpowers"]`, the iteration count, the effective `minSeverity`, a timestamp, and — when it can be computed — the content `fingerprint`. No `/ptp:status` column reads this marker; it exists so a later caller can prove this review's convergence still describes the current code.
+**Review-convergence marker:** at either terminal state the loop stamps `openspec/changes/<change-id>/stages/code.json` per `ptp-review-loop`'s **## Review-convergence marker** and **## Code-marker fingerprint** sections — `kind: "code"`, `terminalState` `converged` (DONE) or `cap-reached` (ITERATION CAP REACHED), `gateState` `LOOP_DONE` or `LOOP_CAP` (a standalone loop has no two-phase gate), `reviewers: ["superpowers"]`, the iteration count, the effective `minSeverity`, a timestamp, and — when it can be computed — the content `fingerprint`. No `/ptp:status` column reads this marker; it exists so a later caller can prove this review's convergence still describes the current code.
 
 ## Hard rules
 

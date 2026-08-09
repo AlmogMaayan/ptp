@@ -139,6 +139,14 @@ row. `0046_01` added the value to the schema, the default option table, and the 
 with no performer on any row; `0046_03` supplied its two transitions without re-opening any of them.
 See *Status transitions and their guards* below, which owns all three rows.
 
+`blocked` and `in-review` are the two statuses `/ptp:backlog-continue` settles, and they are missing
+different things: **`blocked` is missing the human verification** — its `/ptp:full` did not converge —
+while **`in-review` is missing the archive** — its `/ptp:full` did converge, and `/ptp:backlog-run`
+performs neither the archive nor the commit. An `in-review` epic's automated code review has therefore
+**already converged**: every slice landed in `ptp-full-apply`'s `processed` bucket for the epic to reach
+the status. `/ptp:backlog-continue` re-proves that convergence from the change's `stages/code.json`
+marker and invokes `/ptp:review-full` only when the marker is ineligible.
+
 **`changeEpics` element** — an object, never a bare string:
 
 ```jsonc
@@ -1543,9 +1551,9 @@ predicate is one, over both sources:
 - the write happens **in the same `/ptp:backlog-continue` invocation** whose bare flow has just
   settled **every** prefix in `changeEpics` — each one's **review gate satisfied in that invocation**,
   by its own `/ptp:review-full` run to convergence (`BOTH PHASES DONE`, or `ptp-codex-mode`'s mode-skip
-  terminal state) **or** by an eligible `reviews/code.json` review-convergence marker whose fingerprint
-  that same invocation **recomputed and verified there and then** against the current working tree and
-  change contract (`ptp-review-loop`'s six-condition skip-eligibility predicate) — and then
+  terminal state) **or** by an eligible `stages/code.json` review-convergence marker whose fingerprint
+  that same invocation **recomputed and verified there and then** against that change's recorded diff
+  footprint and its review contract (`ptp-review-loop`'s six-condition skip-eligibility predicate) — and then
   `/ptp:archive` successfully, or found already absent from `openspec/changes/`.
 
 **The two sources differ only in what the entry's history proves, and this guard says so:**
@@ -1799,7 +1807,7 @@ asking for it is **refused with the reason**, never silently downgraded.
 what defines **`in-review`**; `done` requires, on top of that convergence, the **archive** only
 `/ptp:backlog-continue` performs. Recovery can prove **neither**. A crashed run has no in-session
 terminal report, and **no durable artifact substitutes for one**. `ptp-review-loop` does now write a
-`kind = code` marker — `reviews/code.json`, carrying a content fingerprint — so code-review convergence
+`kind = code` marker — `stages/code.json`, carrying a content fingerprint — so code-review convergence
 is no longer traceless; but that marker is **change-scoped, review-only, and per-prefix**, and recovery
 needs an **epic-scoped** fact about **both** halves. It says nothing about the **archive** `done` also
 requires; it exists only for whatever prefixes actually reached a terminal review, which is precisely
@@ -1815,7 +1823,7 @@ finished. A wrongly-`done` epic would **record shipped work that was never revie
 finish.
 
 **The durable code-review-convergence marker remains the named seam** an evidence-based `accept`
-disposition would be built on. Half of it now exists (`reviews/code.json`); the archive half, and the
+disposition would be built on. Half of it now exists (`stages/code.json`); the archive half, and the
 epic-scoped per-prefix roll-up above it, do not — and **no disposition consumes the marker**. This rule
 is therefore unchanged by the marker's arrival, and its absence is still not a v1 gap.
 

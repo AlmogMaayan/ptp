@@ -231,7 +231,7 @@ The backlog is a **GitHub Projects v2 board**. Set `backlog.projectOwner` and `b
 
 1. Create or pick a project board.
 2. Add one custom field named `Status`, type **single select**.
-3. Give it these options, in this order: `Backlog`, `Ready`, `In Progress`, `In Review`, `Done` — plus `Blocked` and `Cancelled`, which ptp writes when a run halts or an epic is cancelled.
+3. Give it these options, in this order: `Backlog`, `Ready`, `In Progress`, `In Review` (means converged but not yet archived, per `ptp-backlog` — not "a review is running"), `Done` — plus `Blocked` and `Cancelled`, which ptp writes when a run halts or an epic is cancelled.
 4. Authenticate `gh` with `read:project` to read the board, `project` to write it (`gh auth refresh -s project`).
 
 Every card on the board is a backlog entry. Cards inside `Ready` run **top-first** — drag a card up to run it sooner. A board view you have sorted by another field is not the order ptp reads.
@@ -242,7 +242,7 @@ Every card on the board is a backlog entry. Cards inside `Ready` run **top-first
 | `/ptp:backlog-add "<epic description>"` | Adds one entry, parked in `Backlog`. Not run until you move it to `Ready`. Touches no other entry. |
 | `/ptp:backlog-edit <node-id> "<what to change>"` | Edits one entry's title/description/notes and status along the transition table. Also the recovery path for an entry stuck `in-progress` (dispositions: claim → `blocked`, disown / rerun anyway → `ready`, plus per-prefix promote/dismiss). |
 | `/ptp:backlog-run [rounds:{count}]` | Runs the `Ready` entries through `/ptp:full`, top-first, 5 per invocation by default. Marks each `in-progress`, records the change ids it produced, leaves converged epics `in-review`, and halts the whole run on the first non-convergence, marking that epic `blocked`. Never commits, pushes, merges, archives, or deploys. |
-| `/ptp:backlog-continue ["<what went wrong>"]` | Bare: finishes the `blocked` or `in-review` epic — signs off remaining tasks, re-runs validate/build/tests, drives `/ptp:review-full` then `/ptp:archive`, and only then writes `done`. With free text: one scoped fix pass against the same change, with no status change, no review, and no archive. |
+| `/ptp:backlog-continue ["<what went wrong>"]` | Bare: finishes the `blocked` or `in-review` epic — signs off remaining tasks, re-runs validate/build/tests, satisfies the review gate (re-proving an eligible convergence marker, or running `/ptp:review-full` when the marker is absent or ineligible), archives, and only then writes `done`. Per `ptp-backlog`, `blocked` is missing the human verification and `in-review` is missing the archive. With free text: one scoped fix pass against the same change, with no status change, no review, and no archive. |
 
 Status writes land on the shared board immediately, outside git; on an issue- or PR-backed card, title/body writes edit that issue's or PR's own title and body.
 
@@ -336,6 +336,7 @@ Experimental     /opsx:explore | /opsx:propose | /opsx:apply | /opsx:archive
 
 | Version | Changes |
 |---------|---------|
+| **0.2.35** | BREAKING — the per-kind review-convergence marker family moves from `openspec/changes/<id>/reviews/` to `stages/`, joins a six-kind stage-record family with new `apply`/`archive` lifecycle records, scopes the `code` marker's content fingerprint to the reviewed change's own diff footprint instead of the whole working tree, and clarifies `in-review` semantics (epic 0054). |
 | **0.2.34** | Generated `tasks.md` files may never contain manual-QA / manual-test tasks — the ban is authored into `/ptp:plan`, carved out of the review-loop drop filter, and enforced by the plan-review rubrics (epic 0053). |
 | **0.2.33** | A code review now leaves a durable, fingerprinted convergence marker, so `/ptp:backlog-continue` can skip a redundant `/ptp:review-full` instead of always re-running it. |
 | **0.2.29** | The backlog write path stops refusing issue- and pull-request-backed entries — every board item is now fully writable, not just draft cards. |
