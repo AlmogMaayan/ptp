@@ -1,6 +1,6 @@
 ---
 name: ptp-backlog-continue
-description: Own the settle-the-epic path behind /ptp:backlog-continue — the one command that finishes a backlog epic left `blocked` or `in-review` by /ptp:backlog-run once a human has performed the manual verification no agent could. Owns the target-selection rule (the candidate predicate `status === "blocked" || status === "in-review"` with a non-empty `changeEpics`, `blocked` taking precedence with its zero / one / many outcomes refusing rather than guessing, and several `in-review` candidates resolving to the canonical-order head), the invocation-shape split under which a bare invocation is the user's sign-off and free text is a problem report, the unwrapped outer-session execution contract that keeps `/ptp:review-full`'s and `/ptp:archive`'s own spawns at one nesting level, the bare flow (per-prefix folder lookup, checkbox sign-off, re-verification before the sign-off is trusted, the review gate — satisfied by an eligible convergence marker or by a converged /ptp:review-full — archive, then the single `blocked → done` or `in-review → done` write once every prefix has archived), the issue-text fix-pass flow that transitions nothing, and the four terminal report shapes. Delegates the backlog store identity, entry model, read protocol, validator vocabulary, and the status transition table with its `blocked → done` and `in-review → done` rows under guard 3 to the shared ptp-backlog skill; the reviewer gate to ptp-codex-mode; branch safety to ptp-branch-guard; the spawn-and-relay mechanics to ptp-run-at-model; and review and archival to /ptp:review-full and /ptp:archive, which it drives rather than reimplements.
+description: Own the settle-the-epic path behind /ptp:backlog-continue — the one command that finishes a backlog epic left `blocked` or `in-review` by /ptp:backlog-run once a human has performed the manual verification no agent could. Owns the target-selection rule (the candidate predicate `status === "blocked" || status === "in-review"` with a non-empty `changeEpics`, `blocked` taking precedence with its zero / one / many outcomes refusing rather than guessing, and several `in-review` candidates resolving to the canonical-order head), the invocation-shape split under which a bare invocation is the user's sign-off and free text is a problem report, the unwrapped outer-session execution contract that keeps `/ptp:archive`'s own spawn at one nesting level, the bare flow (per-prefix folder lookup, checkbox sign-off, re-verification before the sign-off is trusted, archive — code review is never re-run here, since /ptp:full already drove /ptp:review-full to convergence for this change before backlog-continue ever runs — then the single `blocked → done` or `in-review → done` write once every prefix has archived), the issue-text fix-pass flow that transitions nothing, and the four terminal report shapes. Delegates the backlog store identity, entry model, read protocol, validator vocabulary, and the status transition table with its `blocked → done` and `in-review → done` rows under guard 3 to the shared ptp-backlog skill; branch safety to ptp-branch-guard; the spawn-and-relay mechanics to ptp-run-at-model; and archival to /ptp:archive, which it drives rather than reimplements.
 ---
 
 # ptp-backlog-continue — finish (or fix) the epic `/ptp:backlog-run` halted on
@@ -26,32 +26,38 @@ next check.
 It owns only what is genuinely its own: **target selection**, the **invocation-shape split**, the
 **bare flow** and its gates, the **issue-text flow**, and the **report contract**. It owns **no** part
 of the backlog store contract (that is `ptp-backlog`'s, referenced throughout and restated nowhere),
-**no** review methodology (`/ptp:review-full`'s), and **no** archive methodology (`/ptp:archive`'s).
+**no** review methodology (never invoked here at all — see *Code review is never this command's to
+run* below), and **no** archive methodology (`/ptp:archive`'s).
 
 ## Execution contract — unwrapped, outer session only
 
 `/ptp:backlog-continue` is **never wrapped in a `ptp-run-at-model` main run of its own.** The
 argument classification, the backlog read and validation, target selection, the branch guard, the
-checkbox sign-off, the re-verification commands, the drive of `/ptp:review-full` and `/ptp:archive`,
+checkbox sign-off, the re-verification commands, the drive of `/ptp:archive`,
 the single backlog write, and the terminal report all happen **in the outer session**.
 
 **Why, precisely.** `ptp-run-at-model`'s *Nesting caveat* forbids naively wrapping a command whose
 work itself spawns a subagent or a Workflow. This command's work does exactly that, twice:
-`/ptp:review-full` runs its whole two-phase orchestration inside one `ptp-run-at-model` subagent at
-`opus.high`, and `/ptp:archive` runs its already-confirmed archive operation inside one at
-`sonnet.medium`. Both of those spawns are level 1 **only because this command took no level of its
-own**. The issue-text flow's fix-pass main run is the same: one level-1 run started from this outer
-session.
+`/ptp:archive` runs its already-confirmed archive operation inside one `ptp-run-at-model` subagent at
+`sonnet.medium`, and the issue-text flow's fix pass runs its own main run the same way. Both of those
+spawns are level 1 **only because this command took no level of its own**.
 
 ```
 PERMITTED (what this skill requires):
-outer session (level 0)  →  /ptp:review-full's opus.high main run          = level 1  OK
-                         →  /ptp:archive's sonnet.medium main run          = level 1  OK
+outer session (level 0)  →  /ptp:archive's sonnet.medium main run          = level 1  OK
                          →  the issue-text fix-pass main run               = level 1  OK
 
 FORBIDDEN (what wrapping this command would produce):
-wrapper subagent (level 1) → review-full / archive / fix-pass main run     = level 2  THROWS
+wrapper subagent (level 1) → archive / fix-pass main run                   = level 2  THROWS
 ```
+
+**Code review is never this command's to run.** By the time a change reaches `blocked` or
+`in-review`, `/ptp:full`'s apply phase has already driven `/ptp:review-full` to convergence for it —
+that is what `ptp-full-apply`'s per-slice apply-convergence gate requires before the slice can leave
+`processed`. This command's bare flow therefore never invokes `/ptp:review-full` and never inspects a
+`stages/code.json` marker: there is no second, model-driven review gate here at all. The `blocked` /
+`in-review` split this command was built to settle is a question of **manual** verification only — see
+*Invocation shape*.
 
 A second consequence of staying outer: `/ptp:archive`'s **interactive** outer-session steps are
 reachable at all (a subagent is non-interactive), exactly as `ptp-archive-and-deploy` keeps them
@@ -199,15 +205,10 @@ In the outer session, in **exactly this order**:
 Steps 1, 2a, 2b, and 3 are **all** aborting preconditions and **all of them precede the branch
 guard**, so no refusable invocation cuts a branch or edits a file.
 
-**`codex.mode` is not resolved *as a precondition*, and never to drive a review.** It is
-`/ptp:review-full`'s to resolve and apply, per `ptp-codex-mode`. This command performs exactly **one**
-**read-only** resolution of that decision contract — `{ main, reviewer }` per `ptp-agent-roles` and
-then, **iff the resolved reviewer is Codex**, the mode and, under `auto`, its `codex` CLI-presence
-test — at **step 4**, solely to evaluate the skip predicate's **condition 6**; it gates on
-the mode **nowhere**, passes no pre-resolved mode to anything, and the `/ptp:review-full` it may go on
-to invoke still resolves and applies the mode itself. The consequence is stated rather than hidden: a `required` + `codex`
-missing STOP surfaces from inside `/ptp:review-full`, **after** that prefix's checkbox sign-off has
-already been written. See *The sign-off is durable* below.
+**`codex.mode` is never resolved by this command, at all.** It governs `/ptp:review-full`'s Codex
+phase, and this command never invokes `/ptp:review-full` — code review is `/ptp:full`'s affair, already
+converged before this command runs (see *Execution contract*). There is no skip predicate, no marker
+evaluation, and nothing here to gate on the mode.
 
 ## Branch safety — and its known sharp edge
 
@@ -253,40 +254,12 @@ folders in ascending story order:
    user's job and is already done — it is a re-confirmation that the **automated** half still holds
    after the flip, so a stale build break is never waved through because the user typed the confirm
    command.
-4. **The review gate — two branches.** First evaluate this change folder's
-   `stages/code.json` review-convergence marker against **`ptp-review-loop`**'s
-   **## Code-marker skip eligibility** predicate — its six conjunctive conditions, cited here and
-   **not restated**; that skill owns the marker schema, the fingerprint, and the predicate. Its
-   **condition 6** is what makes this evaluation read `codex.mode` at all: the marker's `reviewers` must
-   be sufficient for the reviewer set a `/ptp:review-full` invoked at this moment would run, resolved
-   through `ptp-codex-mode`'s decision contract **here, read-only** (see § *Codex mode*).
-
-   - **Marker eligible** → **SKIP `/ptp:review-full` for this change** and continue to step 5, the
-     marker's recorded convergence being the review gate's satisfaction. Report the prefix as
-     **review-skipped**, with the marker's evidence, per *Report contract*.
-   - **Marker not eligible** — for **any** of the predicate's reasons, an absent marker included —
-     → **Drive `/ptp:review-full <change-id>`** and require its convergence gate:
-     **`BOTH PHASES DONE`**, or the `ptp-codex-mode` mode-skip terminal state
-     **`PHASE 1 DONE — CODEX SKIPPED (mode=…)`**, which is a success state and is never downgraded.
-     **Anything else** — an iteration cap, a STOP from `/ptp:review-full`'s own preconditions —
-     **stops this prefix**: nothing is archived for it and the entry's status does not change.
-
-   An ineligible marker is **never** an error, a refusal, or a halt. It produces **exactly** the
-   unconditional-review behavior this command had before the marker existed — the fail-closed
-   direction, in which the worst outcome of any defect in the check is the status quo.
-
-   **Where the evaluation happens, and only here.** It happens at **this** point in the flow —
-   **after** step 2's checkbox flip and **after** step 3's re-verification — per change folder, never
-   hoisted earlier and never cached or carried across prefixes or stories. A marker evaluated for
-   `<prefix>_01` says nothing about `<prefix>_02`. **This ordering is what makes the checkbox flip
-   self-invalidating**: the fingerprint is recomputed at check time, and `tasks.md` is part of the
-   contract it covers (hashed directly, because `openspec/` may be gitignored and git would otherwise be
-   blind to the flip), so a flip that actually changed a line has already moved the contract digest and
-   **no** marker written before it can match. A flip that was a genuine no-op — the expected shape on an
-   `in-review` target, where convergence required every box already `- [x]` — leaves the digest
-   identical, and the skip is sound.
-5. **Drive `/ptp:archive <change-id>`** once the review gate is satisfied — by this invocation's own
-   converged `/ptp:review-full`, or by the eligible marker.
+4. **Drive `/ptp:archive <change-id>`.** Code review is **never** re-run here: `/ptp:full`'s apply
+   phase already drove `/ptp:review-full` to convergence for this change before it could reach
+   `blocked` or `in-review` in the first place (see *Execution contract*), and the `blocked`/`in-review`
+   split this command settles is about **manual** verification, never model review. There is no marker
+   to evaluate and no predicate to satisfy — step 3's re-verification having already passed is this
+   step's only precondition.
 
 ### Driving `/ptp:archive`
 
@@ -296,24 +269,18 @@ confirmations, which are reachable because this command stayed unwrapped:
 
 - **Review-clean** — **performed, never self-answered.** `ptp-archive-and-deploy` runs this
   confirmation rather than deciding it, and so does this command: it is put to the user in the outer
-  session, carrying as its **evidence** whichever of **two forms** step 4 produced:
+  session, carrying as its **evidence** that this change reached `blocked` or `in-review` only by
+  passing through `/ptp:full`'s apply-convergence gate, which required `/ptp:review-full` to reach
+  `BOTH PHASES DONE` (or the `ptp-codex-mode` mode-skip success state) for this very change before it
+  could leave `ptp-full-apply`'s `processed` bucket — this command's own invocation is the sign-off
+  that the remaining, human-only half of verification is now also done (see *Invocation shape*). It is
+  **never** phrased as a review that ran in this invocation, since none does.
 
-  1. **The review ran this invocation** — **this invocation's own converged `/ptp:review-full`** for
-     this very change, moments earlier.
-  2. **The review was skipped** on an eligible marker — the marker itself: its `timestamp`,
-     `reviewers`, `gateState`, and `minSeverity`, together with the explicit statement that its
-     **fingerprint was verified against this change's recorded diff footprint and its review contract
-     as they stand at this moment**, and that `/ptp:review-full` was skipped as **provably redundant**.
-     It is presented as proof that the reviewed content is byte-identical to the content now being
-     archived, and **never** phrased as a review that ran in this invocation — nor as a claim about the
-     working tree as a whole, the fingerprint being scoped to the reviewed change's own footprint per
-     `ptp-review-loop`.
-
-  Either form supplies the confirmation's *substance*, not its *answer* — keeping it reachable is the
-  whole point of staying unwrapped, and auto-answering it would hollow that rationale out. **Withheld
-  or declined → that prefix stops** exactly as an archive gate refusal does, and the entry stays in its
-  existing status (`blocked` or `in-review`). The report names the evidence that
-  was offered — the terminal state, or the marker. This is the same durable proof guard 3 rests on.
+  This is the confirmation's *substance*, not its *answer* — keeping it reachable is the whole point of
+  staying unwrapped, and auto-answering it would hollow that rationale out. **Withheld or declined →
+  that prefix stops** exactly as an archive gate refusal does, and the entry stays in its existing
+  status (`blocked` or `in-review`). The report names the evidence that was offered. This is the same
+  durable proof guard 3 rests on.
 - **Confirm-action** — the user's own `/ptp:backlog-continue` invocation is the intent, mirroring
   `/ptp:archive` step 5's own "the user invoking this command counts as intent, but show the summary
   first". **"First" is honored literally**: the summary (what moves, whether `--skip-specs` applies)
@@ -330,7 +297,7 @@ does.
 **Only once every prefix in `changeEpics` has been settled** — archived in this invocation, or found
 absent at step 1 — does the command perform the `blocked → done` **or** `in-review → done` write, per
 the target's own source status. If **any** prefix stalls at
-step 3, 4, or 5, the entry stays in its existing status (`blocked` or `in-review`), its `changeEpics`
+step 3 or 4, the entry stays in its existing status (`blocked` or `in-review`), its `changeEpics`
 is untouched, and the report says exactly which prefixes finished and which did not.
 
 Immediately before the write, **re-read and re-validate the store** and re-confirm the target is still
@@ -392,13 +359,13 @@ stalls. That is deliberate: the manual verification genuinely happened, and re-a
 an unrelated build broke would be the opposite of this command's purpose. The report therefore
 **names every change folder whose tasks it signed off**, so a user who stalls at step 3 or 4 knows the
 boxes are checked and a later bare re-invocation will find them so — and knows equally that a repeat
-invocation re-runs steps 3–5 from the top for every prefix whose folder still exists.
+invocation re-runs steps 3–4 from the top for every prefix whose folder still exists.
 
 ### Retry shape
 
 A later bare re-invocation after a partial run is **safe and idempotent by construction**: the
 prefixes that archived have no folder left, so step 1 skips them and notes them; the ones that stalled
-are re-attempted from step 2 (where the flip is already a no-op) through step 5. Successfully archived
+are re-attempted from step 2 (where the flip is already a no-op) through step 4. Successfully archived
 prefixes are **never** re-processed.
 
 ## The issue-text flow — "I found problems"
@@ -477,27 +444,17 @@ is reported as a **refusal**, mirroring the bare flow's step-3 failure and `ptp-
 
 ## Codex mode
 
-Both flows reach Codex only through commands that resolve it themselves: the bare flow's
-`/ptp:review-full` applies `ptp-codex-mode`'s decision contract, and the issue-text flow's fix pass
-runs under `ptp-run-at-model`, which resolves the main agent per `ptp-agent-roles`.
-
-This skill performs **exactly one read-only resolution** of `ptp-codex-mode`'s decision contract — the
-role pair per `ptp-agent-roles` and then, **iff the resolved reviewer is Codex** (that contract gating
-the reviewer phase only in that direction), the layered `codex.mode` value and, under `auto`, its own
-`codex` CLI-presence test — at the bare flow's **step 4**, for the skip predicate's **condition 6** and
-for **nothing else**. It **gates on
-the mode nowhere**, **passes no pre-resolved mode to anything**, and never uses it to drive, shape, or
-short-circuit a review: the `/ptp:review-full` it may invoke resolves and applies the mode itself, and
-condition 6's question — "would a review invoked *now* run one phase or two?" — is answered fresh at
-that moment, never from a mode cached in or alongside the marker. Everything else about the mode
-(the reviewer gate itself, `codex.model` / `codex.reasoningEffort`, the mode-skip terminal state)
-remains `ptp-codex-mode`'s — referenced, never restated, never second-guessed.
+This skill never resolves `codex.mode`, in either flow. The bare flow never invokes `/ptp:review-full`
+(code review is `/ptp:full`'s affair, already converged before this command runs), so there is no
+reviewer gate here to evaluate. The issue-text flow's fix pass runs under `ptp-run-at-model`, which
+resolves the main agent per `ptp-agent-roles` and never touches `codex.mode` either — that contract's
+mode gate applies only to a review, and this command drives none.
 
 ## Telemetry
 
-**No new write point.** The runs this command drives — `/ptp:review-full`'s, `/ptp:archive`'s, and the
-fix pass's — use their existing `ptp-telemetry` write points unchanged. This skill mints no `run_id`,
-opens no ledger line, and resolves no telemetry key of its own.
+**No new write point.** The runs this command drives — `/ptp:archive`'s and the fix pass's — use their
+existing `ptp-telemetry` write points unchanged. This skill mints no `run_id`, opens no ledger line,
+and resolves no telemetry key of its own.
 
 ## Report contract
 
@@ -510,30 +467,8 @@ candidates** (there is no entry to name — the report says so), and **multiple 
 selected — the report names them **all** instead, per *Target selection*). Beyond that, four shapes:
 
 1. **Bare flow, full success** — the target's **source status** (`blocked` or `in-review`), so a
-   reader can tell which proof the guard supplied; every prefix and story processed, **each one
-   distinguished as review-ran or review-skipped**: for a prefix whose review **ran**, its
-   `/ptp:review-full`
-   terminal state (with a mode-skip kept visibly distinct from `BOTH PHASES DONE`, never flattened);
-   for a prefix whose review was **skipped** on an eligible marker, the prefix named as
-   **review-skipped** carrying the marker's `timestamp`, `reviewers`, `gateState`, and `minSeverity`
-   plus the statement that its fingerprint was verified against
-   **this change's recorded diff footprint** and the change's review contract as they stood at that
-   moment — never against the working tree as a whole. A skip is **never** rendered as a `/ptp:review-full`
-   that ran in this invocation, and a `PHASE1_DONE_CODEX_SKIPPED` marker is **never** flattened into a
-   both-phases run. Where a marker was **present but ineligible**, the report names **the reason**
-   **alongside the review that consequently ran** — **whichever** of the predicate's conditions failed,
-   the list being illustrative rather than closed: an unreadable, unparseable, or wrong-`kind` file
-   (condition 1), a `cap-reached` terminal state (condition 2), an absent fingerprint or an unrecognized
-   version — `version: 1`, the superseded algorithm, being the named instance — or a fingerprint object
-   that is malformed or missing its `inputs` or its `footprint` (condition 3), a
-   fingerprint mismatch and the component that changed, `footprintDigest` among the components it can
-   name (condition 4), a
-   recorded severity floor weaker than the resolved one (condition 5), or a `reviewers` set
-   **insufficient for the reviewer set a `/ptp:review-full` invoked at that moment would run** — naming
-   what made that set two-phase (the resolved `roles.main` direction and, where the mode gate applied,
-   the resolved `codex.mode`) and the marker's `reviewers`, so a single-reviewer marker rejected against
-   a two-phase reviewer set is legible as such (condition 6). Then:
-   each archive result and whether specs were synced or `--skip-specs` applied, any prefix skipped as
+   reader can tell which proof the guard supplied; every prefix and story processed, each archive result
+   and whether specs were synced or `--skip-specs` applied, any prefix skipped as
    already-archived, and that the backlog entry is now **`done`** with its `changeEpics` retained.
    When `in-review` candidates remain **unselected**, it names them and points at a further
    `/ptp:backlog-continue` to take the next one.
@@ -545,13 +480,9 @@ selected — the report names them **all** instead, per *Target selection*). Bey
    and points at `/ptp:backlog` for the view once the defect is repaired — the transition itself is
    unaffected, since it never depended on the graph.
 2. **Bare flow, partial** — which prefixes finished, which stalled and **exactly why** (the failing
-   `openspec validate` / build / test check by name, a review non-convergence and its terminal state,
-   or an archive gate refusal), **which change folders were signed off** (see *The sign-off is
-   durable*), and that the entry **remains in its existing status (`blocked` or `in-review`)** with
-   `changeEpics` unchanged. It carries the **same review-ran / review-skipped distinction** as shape 1
-   for every prefix it reached — a skipped prefix named as review-skipped with the marker's evidence
-   and never as a review that ran, a mode-skip marker's `gateState` never flattened, and an ineligible
-   marker's reason named alongside the review that ran because of it.
+   `openspec validate` / build / test check by name, or an archive gate refusal), **which change
+   folders were signed off** (see *The sign-off is durable*), and that the entry **remains in its
+   existing status (`blocked` or `in-review`)** with `changeEpics` unchanged.
 
    **Where the resume write itself did not complete**, this shape additionally carries the write
    group's **verdict**, its **journal**, and the entry's **status — phrased as what this invocation
@@ -584,20 +515,18 @@ selected — the report names them **all** instead, per *Target selection*). Bey
 - **Never act on an entry that is not `blocked` or `in-review` with a non-empty `changeEpics`.**
 - **Never write more than one backlog entry per invocation**, and never more than **one** write.
 - **Never perform `blocked → done` or `in-review → done`** except as the direct, same-invocation result
-  of this command's own
-  review-gate → archive sequence settling **every** recorded prefix — the review gate satisfied either
-  by this invocation's own converged `/ptp:review-full` or by an eligible `stages/code.json` marker
-  whose fingerprint this invocation re-proved at step 4. There is no free "mark it done".
+  of this command's own sign-off → archive sequence settling **every** recorded prefix — resting on the
+  review `/ptp:full` already drove to convergence for this change, never on any review this command
+  runs itself. There is no free "mark it done".
 - **Never invent, remove, reword, or reorder a `tasks.md` task** on either flow — the bare flow toggles
   existing checkboxes only.
 - **Never silently swallow a re-verification failure** on the bare flow: a stale automated failure is a
   refusal naming the check, not a skip.
-- **Never weaken `/ptp:archive`'s or `/ptp:review-full`'s gates**, and never reimplement either — they
-  are driven, not copied.
-- **Never skip `/ptp:review-full` on anything but an eligible `stages/code.json` marker**, as
-  `ptp-review-loop`'s six-condition predicate defines eligibility — and **never write, repair,
-  overwrite, or delete a marker from this command**. Evaluation is read-only; producing a marker is the
-  reviewer's job. Every ineligible outcome runs the review exactly as it would without any marker.
+- **Never weaken `/ptp:archive`'s gates**, and never reimplement it — it is driven, not copied.
+- **Never invoke `/ptp:review-full` from this command, on either flow, for any reason.** Code review is
+  `/ptp:full`'s responsibility and is already converged by the time a change reaches `blocked` or
+  `in-review`. This command reads no `stages/code.json` marker and evaluates no review-eligibility
+  predicate.
 - **Never chain into `/ptp:backlog-run`**, and never process a second backlog epic.
 - **Never commit, push, merge, or deploy.** The one archive this command performs is `/ptp:archive`'s,
   driven under its own gates.
@@ -623,10 +552,7 @@ selected — the report names them **all** instead, per *Target selection*). Bey
 | the status transition table, the **`blocked → done`** and **`in-review → done`** rows under **guard 3**, and every other row's guard | `ptp-backlog` |
 | the halt that produces a `blocked` entry, the convergence write that produces an `in-review` one, its `changeEpics` write, and the terminal-state vocabulary | `ptp-backlog-run` |
 | branch safety and the `ptp-branch-prep` workflow | `ptp-branch-guard` |
-| the reviewer gate, `codex.model` / `codex.reasoningEffort`, and the mode-skip terminal state | `ptp-codex-mode` |
 | spawn-and-relay, effort directives, the nesting caveat | `ptp-run-at-model` |
-| the two-phase review loop and its convergence gate | `/ptp:review-full` |
-| the `stages/code.json` marker schema, the code-marker fingerprint, and the six-condition skip-eligibility predicate | `ptp-review-loop` |
-| the `review.minSeverity` parameter — its domain, default, and resolution — **consumed** here for the predicate's condition 5, never owned; and `codex.mode` is resolved here **at most once, read-only, at step 4, for the skip predicate's condition 6 and nothing else** — and not at all when `ptp-agent-roles` resolves a non-Codex reviewer, that contract's mode gate applying only to a Codex one — its ownership — the reviewer gate, the model/effort keys, the mode-skip terminal state — remaining `ptp-codex-mode`'s per the row above (see § *Codex mode*) | the `/ptp:config` parameter registry |
+| the two-phase review loop, its convergence gate, and the `stages/code.json` marker schema | `/ptp:review-full` / `ptp-review-loop` — driven only by `/ptp:full`, never by this command |
 | the archive gates, the confirmations, and the spec sync | `/ptp:archive` |
 | the fix pass's implementation discipline and hard rules | `agents/ptp-apply.md` |

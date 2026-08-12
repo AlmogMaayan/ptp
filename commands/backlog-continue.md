@@ -1,5 +1,5 @@
 ---
-description: Finish (or fix) the single backlog epic /ptp:backlog-run left `blocked` or `in-review`. Bare invocation = "I performed the manual verification, it's fine" — sign off the change's remaining tasks, re-verify, satisfy the review gate, archive, and land the entry on done. With free text = "I found problems" — drive one scoped fix pass against the same change and leave the epic in whatever status it had for another manual check. Identifies the target entry from the backlog store itself, preferring a `blocked` entry, and refuses, naming candidates, when none qualifies or more than one `blocked` entry does. Never commits, pushes, merges, deploys, or chains into /ptp:backlog-run. Delegates every rule to the ptp-backlog-continue skill.
+description: Finish (or fix) the single backlog epic /ptp:backlog-run left `blocked` or `in-review`. Bare invocation = "I performed the manual verification, it's fine" — sign off the change's remaining tasks, re-verify, archive, and land the entry on done. Never re-runs code review here: /ptp:full already drove /ptp:review-full to convergence for the change before it could reach `blocked`/`in-review`. With free text = "I found problems" — drive one scoped fix pass against the same change and leave the epic in whatever status it had for another manual check. Identifies the target entry from the backlog store itself, preferring a `blocked` entry, and refuses, naming candidates, when none qualifies or more than one `blocked` entry does. Never commits, pushes, merges, deploys, or chains into /ptp:backlog-run. Delegates every rule to the ptp-backlog-continue skill.
 argument-hint: "[what went wrong during the manual check — omit entirely to sign off]"
 ---
 
@@ -12,9 +12,11 @@ turn defers the backlog
 store contract and the **status transition table's `blocked → done` and `in-review → done` rows under
 guard 3** to
 `ptp-backlog`, branch safety to
-`ptp-branch-guard`, the reviewer gate to `ptp-codex-mode`, spawn-and-relay to `ptp-run-at-model`, and
-review and archival to `/ptp:review-full` and `/ptp:archive`, which it **drives rather than
-reimplements**. (That store is a GitHub Projects board; `ptp-backlog` owns the contract.)
+`ptp-branch-guard`, spawn-and-relay to `ptp-run-at-model`, and
+archival to `/ptp:archive`, which it **drives rather than
+reimplements**. Code review is **never** driven from here — `/ptp:full` already ran
+`/ptp:review-full` to convergence for the change before it could reach `blocked` or `in-review`.
+(That store is a GitHub Projects board; `ptp-backlog` owns the contract.)
 
 > **Contrast with its siblings:** `/ptp:backlog` is the read-only view. `/ptp:backlog-add` creates an
 > entry; `/ptp:backlog-edit` changes one at the user's direction and is the **recovery** command for a
@@ -99,8 +101,8 @@ guard**, so no refusable invocation cuts a branch or edits a file. An unactionab
 configuration is exactly such an invocation — decided at 2a from configuration alone, at zero
 transport cost.
 
-`codex.mode` is **not** resolved by this command — it is `/ptp:review-full`'s to resolve and apply per
-**`ptp-codex-mode`**, and the skill records the consequence.
+`codex.mode` is **never** resolved by this command — it governs `/ptp:review-full`'s Codex phase, and
+this command never invokes `/ptp:review-full`.
 
 ## Branch safety
 
@@ -116,13 +118,11 @@ Drive the **`ptp-backlog-continue`** skill against the single resolved candidate
 
 - **Bare invocation** → the **bare flow**: per prefix in `changeEpics` (and per story folder within
   it), locate the change folder, flip the remaining `- [ ]` boxes to `- [x]`, re-verify
-  (`npx -y openspec validate <change-id> --strict` plus the project's build and test suites), invoke
-  **`/ptp:review-full <change-id>`** and require its convergence gate — **unless an eligible
-  `stages/code.json` review-convergence marker proves that review redundant**, in which case it is
-  skipped and the prefix is reported as review-skipped with the marker's evidence (the eligibility
-  predicate, the marker schema, and the fingerprint live in `ptp-review-loop` and the evaluation's
-  placement in `ptp-backlog-continue`; neither is restated here) — then invoke
-  **`/ptp:archive <change-id>`** — and, **only once every prefix has settled**, perform the single
+  (`npx -y openspec validate <change-id> --strict` plus the project's build and test suites), then
+  invoke **`/ptp:archive <change-id>`** — **`/ptp:review-full` is never invoked here**: `/ptp:full`'s
+  apply phase already drove it to convergence for this change before the entry could reach `blocked` or
+  `in-review`, and the manual verification this invocation signs off is a separate, human-only
+  concern — and, **only once every prefix has settled**, perform the single
   `blocked → done` **or** `in-review → done` write, per the target's own source status, under
   `ptp-backlog`'s guard 3. Any stall
   leaves the entry in its existing status.
@@ -132,8 +132,8 @@ Drive the **`ptp-backlog-continue`** skill against the single resolved candidate
 
 **This command is UNWRAPPED.** It starts **no `ptp-run-at-model` main run of its own** and does all of
 the above in the outer session. **The reason:** `ptp-run-at-model`'s *Nesting caveat* forbids naively
-wrapping a command whose work spawns a subagent, and this command's work spawns three kinds
-(`/ptp:review-full`'s `opus.high` run, `/ptp:archive`'s `sonnet.medium` run, and the fix pass) — a
+wrapping a command whose work spawns a subagent, and this command's work spawns two kinds
+(`/ptp:archive`'s `sonnet.medium` run and the fix pass) — a
 wrapper would push each to a second nesting level. Staying outer is also what keeps `/ptp:archive`'s
 **interactive** confirmations reachable, since a subagent is non-interactive.
 
@@ -144,16 +144,18 @@ wrapper would push each to a second nesting level. Staying outer is also what ke
   than one entry per invocation.
 - **Never reach `done` any other way** — the `blocked → done` and `in-review → done` writes happen only
   as the direct,
-  same-invocation result of this command's own review-gate → archive sequence settling every recorded
-  prefix — the gate satisfied by this invocation's own converged `/ptp:review-full` or by an eligible
-  `stages/code.json` marker it re-proved in this invocation. `/ptp:backlog-edit` still refuses both transitions unconditionally.
+  same-invocation result of this command's own sign-off → archive sequence settling every recorded
+  prefix — resting on the review `/ptp:full` already drove to convergence for the change, never on any
+  review this command runs itself. `/ptp:backlog-edit` still refuses both transitions unconditionally.
 - **Never guess the target** — zero candidates of either status, or **more than one `blocked`**
   candidate, is a refusal that names them. Several `in-review` candidates are not a guess: the skill
   takes the head of `ptp-backlog`'s **published** canonical order.
 - **Never invent, remove, reword, or reorder a `tasks.md` task** on either flow.
 - **Never wave through a re-verification failure** — a failing `openspec validate`, build, or test on
   the bare flow is a refusal naming the check, and the entry stays in its existing status.
-- **Never weaken or reimplement `/ptp:review-full`'s or `/ptp:archive`'s gates.**
+- **Never invoke `/ptp:review-full` from this command, on either flow, for any reason** — code review
+  is already converged by `/ptp:full` before a change can reach `blocked` or `in-review`.
+- **Never weaken or reimplement `/ptp:archive`'s gates.**
 - **Never commit, push, merge, or deploy**, and **never chain into `/ptp:backlog-run`** — recommend it
   in the report instead.
 - **Never wrap this command in a `ptp-run-at-model` main run.**
