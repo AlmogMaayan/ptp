@@ -1,5 +1,5 @@
 ---
-description: Merge the current feature branch to master — commit, push, open a PR, squash-merge, delete the branch, then return to a clean master — without running the project's deploy CI/CD action. The merge-only variant of /ptp:deploy. Refuses to run on master/main. Never self-approves. Requires gh CLI authenticated.
+description: Merge the current feature branch to master — commit, push, open a PR, squash-merge, delete the branch, then return to a clean master — without running the project's deploy CI/CD action. The merge-only variant of /ptp:deploy. Refuses on a clean master/main, and recovers a dirty one onto a fresh feature branch first. Never self-approves. Requires gh CLI authenticated.
 argument-hint: "(no arguments — operates on the current feature branch; configure via deploy.* in .claude/ptp/config.json)"
 disable-model-invocation: true
 ---
@@ -21,23 +21,80 @@ below).
 
 ## Branch safety — special case
 
-`/ptp:merge-to-master` does **not** run `ptp-branch-guard` to cut a branch, and it is **not**
-read-only. It is a documented special case — listed alongside `/ptp:deploy` and
-`/ptp:deploy-pr-approved` in the `ptp-branch-guard` skill as a "ship from a feature branch"
-exception. It operates on the **already-cut feature branch** and **refuses to run on
-`master`/`main`** (there is nothing to merge from the base branch) — the inverse of
-`/ptp:master`. Its internal deploy-fix sub-flow does **not** apply here (no deploy phase), so
-no `ptp/deploy-fix-*` branches are cut by this command.
+`/ptp:merge-to-master` does **not** run `ptp-branch-guard` as an unconditional preamble, and it is
+**not** read-only. It is a documented special case, recorded in the `ptp-branch-guard` skill — which
+owns the rationale — as a **conditional** "ship from a feature branch" exemption, kept separate from
+`/ptp:deploy` and `/ptp:deploy-pr-approved`'s unconditional one. It normally operates on the
+**already-cut feature branch**; on the base branch its behavior depends on the working tree. On a
+**clean** `master`/`main` it refuses, exactly as it does today
+(there is nothing to merge from the base branch) — the inverse of
+`/ptp:master`. On a **dirty** one there *is* work to land, so step 1
+recovers it onto a fresh feature branch via `ptp-branch-prep`, launched from the outer session and
+gated on its result, before the pipeline runs. Its internal deploy-fix sub-flow does **not** apply
+here (no deploy phase), so no `ptp/deploy-fix-*` branches are cut by this command.
 
 ## Steps
 
-1. **Run the cheap, guaranteed-abort preconditions in the outer session, before spawning anything.**
-   A guaranteed abort must not spawn a subagent. Check: HEAD is not `master`/`main`
-   (`git rev-parse --abbrev-ref HEAD`) — else **STOP** (nothing to merge from the base branch; run
-   from the feature branch); and `gh` is authenticated (`gh auth status`) — else **STOP** with
-   install/`gh auth login` guidance. The deploy trio is a documented branch-guard **exemption** (it
-   never cuts a branch), so this outer step is the abort-precondition only — no `ptp-branch-prep`
-   workflow runs in the outer session.
+1. **Run the outer-session preconditions before spawning anything — and, on a dirty base branch,
+   recover that work onto a fresh feature branch first.** A guaranteed abort must not spawn a
+   subagent. In this order:
+
+   a. **`gh` is authenticated** — `gh auth status`; else **STOP** with install/`gh auth login`
+      guidance. This is checked **first** because it is the only remaining *guaranteed* abort: a run
+      that is doomed anyway must never cut a throwaway branch or pop a stash onto it.
+   b. **`base` = `git rev-parse --abbrev-ref HEAD`.** If `base` is **not** `master`/`main` (a feature
+      branch, or a detached HEAD mid-operation), proceed to step 2 unchanged — that is the ordinary
+      path, and nothing below runs.
+   c. **On the base branch, classify the working tree** — run
+      `git status --porcelain --untracked-files=all` at the repo top level
+      (`git rev-parse --show-toplevel`). Ignored paths are deliberately **excluded**, because the set
+      this matches is exactly what the pipeline's `git add -A` would stage — so "dirty" means
+      precisely "the commit this pipeline makes will be non-empty".
+      - **Empty (clean tree) ⇒ STOP** with today's message, verbatim:
+        *nothing to merge from the base branch; run from the feature branch*.
+        Write nothing, launch no workflow, spawn nothing.
+      - **Non-empty (dirty tree) ⇒ recover**, via (d)–(g) below. The claim "there is nothing to
+        merge" is simply false here: there *is* work to land.
+   d. **Derive the feature-branch name** from the paths `git status` just printed, using
+      `ptp-branch-guard`'s "Branch naming" **case 4** (a no-argument command deriving from the dirty
+      tree). That skill owns the three sub-rules and the path-normalization rules — do not restate
+      them here.
+   e. **Run the `ptp-workflow-cache-heal` step via the Bash tool** over both cached executable globs.
+      It runs **before** the workflow launch in (f): the CRLF self-heal must precede every
+      `Workflow({ name })` call.
+   f. **Launch the branch prep in the outer session, and wait for it:**
+      ```
+      Workflow({ name: 'ptp:ptp-branch-prep', args: { branch, base, description } })
+      ```
+      This **must** be the outer session. Agent nesting is one level deep, so the subagent spawned in
+      step 2 cannot launch a Workflow at all — the recovery is structurally an outer-session-only
+      capability. `ptp-branch-prep` is reused exactly as it is: it already stashes with `-u` and pops
+      the stash back onto the newly cut branch, so no new flag or capability is needed.
+   g. **Gate on the return — continue if and only if all four hold:** the return is **non-null**; it
+      carries **no `error`** key; **`onBranch === true`**; and it is **not** the case that
+      (`stashed === true` **and** `stashRestored !== true`). `stashRestored` is tested **only** when
+      `stashed === true`, because that key is optional and is absent on a prep that found nothing to
+      stash — an unconditional `stashRestored !== true` would hard-STOP a perfectly good prep, while
+      `stashRestored === false` would fall through when the key is merely absent. Any other outcome
+      is a **hard STOP** that **writes nothing and spawns nothing**, surfacing the prep's `branch`,
+      `onBranch`, `stashed`, `stashRestored`, and `notes`/`error`, plus the single next action
+      (resolve the conflict, or inspect `git stash list`, then re-run) — and **name the branch HEAD
+      is on now**. On the stash-pop-conflict STOP the prep has *already* cut and checked out the
+      derived branch, so a re-run no longer sees `master`/`main`: it skips (c)–(g) entirely, and the
+      conflict is caught one layer down instead — by `ptp-deploy`'s `mode == merge-only` precondition
+      4 (no unmerged paths), which STOPs before phase `commit`'s `git add -A` could stage the
+      markers. Say so: resolving the conflict is what makes a re-run *useful*, not merely permitted.
+
+      This gate is deliberately **stricter** than `ptp-branch-guard`'s general "surface a stash-pop
+      conflict before proceeding": the very next action after the spawn is `git add -A` followed by
+      `git commit`, so a leaked `onBranch: false` commits straight onto the base branch, and a leaked
+      stash-pop conflict stages, commits, pushes and proposes `<<<<<<<`/`=======`/`>>>>>>>` markers
+      for merge. Never "warn and continue".
+
+   The deploy trio is a documented branch-guard **exemption**, but for `/ptp:merge-to-master` that
+   exemption is **conditional** (`ptp-branch-guard` owns the rationale): on a **clean** base branch
+   this outer step is nothing but the abort precondition and no `ptp-branch-prep` workflow runs, while
+   on a **dirty** one it additionally runs that workflow, exactly as above.
 2. **Run the `ptp-deploy` work via `ptp-run-at-model` at `sonnet.medium`.** Invoke the
    **`ptp-run-at-model`** skill with target `sonnet.medium` and work = "run the `ptp-deploy` skill,
    start phase `commit`, mode `merge-only`". The spawned `sonnet` subagent (medium effort directive)
@@ -52,7 +109,9 @@ no `ptp/deploy-fix-*` branches are cut by this command.
 3. **Relay** the subagent's terminal state verbatim in meaning, then **STOP** — never report a
    refusal or a needs-human-action state as success:
    - `completed` → print the merge summary (PR merged, branch deleted, clean base branch; deploy
-     skipped by design).
+     skipped by design). If step 1 recovered a dirty base branch, the report **must** disclose that
+     the work was **recovered** from `master`/`main`, naming the derived feature branch and the paths
+     that were moved onto it — an unrelated dirty tree gets committed and merged too, so say so.
    - `refused` → print the gate/precondition reason (e.g. PR-stage fix budget exhausted) — **not**
      success.
    - `needs-human-action` → the repo *required* an approving review that wasn't present; surface the
@@ -63,7 +122,8 @@ no `ptp/deploy-fix-*` branches are cut by this command.
 
 ## Hard rules
 
-- Operates on the **current feature branch**; **refuses to run on `master`/`main`**.
+- Operates on the **current feature branch**; refuses on a **clean** `master`/`main`, and recovers a
+  **dirty** one onto a fresh feature branch before committing.
 - Commits, pushes, and merges by design — the one ptp exception to the never-auto-commit rule.
 - **Squash merge** (per `mergeMethod`) and **delete the merged branch**.
 - **Never self-approves** (`gh pr review --approve` is impossible for the author) and **never

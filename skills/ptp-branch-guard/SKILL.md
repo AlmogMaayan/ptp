@@ -23,19 +23,38 @@ Every ptp step that **creates or updates files** — planning artifacts, source 
 
 **Deliberate land-on-master exception — `/ptp:master`, `/ptp:deploy-master`:** these commands do **not** run the guard, but for a distinct reason: they author no ptp/OpenSpec artifact (a `git switch` / fast-forward pull, or a deploy CI/CD dispatch, may touch tracked files or trigger a workflow, but neither command creates anything of its own) and their entire purpose is to land on / operate on `master` — running the guard would cut a `ptp/<...>` branch and directly defeat them. `/ptp:deploy-master` additionally commits nothing and cuts no branch of its own; it only triggers the deploy CI/CD action against the current `master`/`main`. Neither is a read-only command (`/ptp:master` changes git state and a pull may update the working tree; `/ptp:deploy-master` dispatches a workflow run), so both are listed here separately rather than in the read-only list above, to keep each category's stated rationale accurate.
 
-**Deliberate ship-from-a-feature-branch exception — `/ptp:deploy`, `/ptp:deploy-pr-approved`,
-and `/ptp:merge-to-master`:** these commands do **not** run the guard either, but for the
+**Deliberate ship-from-a-feature-branch exemption, unconditional — `/ptp:deploy`,
+`/ptp:deploy-pr-approved`:** these commands do **not** run the guard either, but for the
 *opposite* reason to `/ptp:master`. They are **not** read-only (they commit, push, and merge —
 the one documented exception to ptp's never-auto-commit rule), and they do not cut a branch for
 their own work. Instead they operate on the **already-cut feature branch** and *require* one:
-they refuse to run on `master`/`main` (there is nothing to ship from the base branch). Running
-the guard would be pointless (HEAD is already a feature branch → no-op) or harmful (on the base
-branch it would cut a throwaway branch rather than STOP as these commands intend). `/ptp:deploy`
-and `/ptp:deploy-pr-approved`'s internal deploy-fix sub-flow *does* cut `ptp/deploy-fix-*`
-branches and merges them through the PR mini-flow, so a fix is never committed to the base
-branch directly; `/ptp:merge-to-master` has no deploy phase and therefore cuts no deploy-fix
-branches. Like `/ptp:master`, these are listed here separately rather than in the read-only
-list, to keep each category's rationale accurate.
+they refuse to run on `master`/`main` (there is nothing to ship from the base branch), whatever
+the working tree looks like. Running the guard would be pointless (HEAD is already a feature
+branch → no-op) or harmful (on the base branch it would cut a throwaway branch rather than STOP
+as these commands intend) — and auto-recovering an accidental dirty base branch straight into a
+**production deploy** is a blast radius neither command wants. Their internal deploy-fix
+sub-flow *does* cut `ptp/deploy-fix-*` branches and merges them through the PR mini-flow, so a
+fix is never committed to the base branch directly. Like `/ptp:master`, these are listed here
+separately rather than in the read-only list, to keep each category's rationale accurate.
+
+**Deliberate ship-from-a-feature-branch exemption, conditional — `/ptp:merge-to-master`:** this
+command is exempt **only while the base branch is clean**. There the STOP is the intended outcome
+and the guard would still be harmful, exactly as above. On a **dirty** base branch the exemption
+does **not** hold: "running the guard would be pointless or harmful" is simply **not true** for
+this command in that case — there *is* work to land, so cutting a branch is the correct action
+rather than a throwaway. Its own step 1 therefore classifies the tree
+(`git status --porcelain --untracked-files=all`), derives a name via **Branch naming case 4**
+below, runs the `ptp-workflow-cache-heal` step, and launches `ptp-branch-prep` **from the outer
+session** — a spawned subagent cannot, since `Workflow()` nesting is one level deep — then gates
+on the return with a rule stricter than the general one in *The guard* below: continue **if and
+only if** the return is non-null, carries no `error`, has `onBranch === true`, and is **not**
+(`stashed === true` **and** `stashRestored !== true`); anything else is a hard STOP that writes
+nothing and spawns nothing, because its very next action is `git add -A` + `git commit`. This
+command is deliberately **not** added to the "Run the guard — write-capable" list above:
+membership in that list means running the guard as an **unconditional preamble**, whereas this
+command invokes the prep **conditionally from its own step 1**, after a tree classification the
+guard itself does not perform. It also has no deploy phase and therefore cuts no
+`ptp/deploy-fix-*` branches.
 
 ## The guard (first write-affecting action, before writing any file)
 
@@ -83,6 +102,14 @@ Derive the name from the most specific context available, in this order:
 1. **A known ptp change id** (`XXXX_NN_<desc>`, e.g. from `/ptp:apply 0001_01_foo`) → `ptp/<change-id>` (e.g. `ptp/0001_01_landing-page-export`).
 2. **An epic selector** (`epic:XXXX`) or a freshly-allocated epic → `ptp/epic-XXXX`.
 3. **A fresh request with no id yet** (e.g. `/ptp:plan-multiple "<request>"`, `/ptp:full "<request>"`) → `ptp/<≤5-kebab-word summary of the request>`.
+4. **A no-argument command deriving from the dirty tree** — e.g. `/ptp:merge-to-master` recovering a dirty base branch. Cases 1–3 all assume an argument; this command has none, so the name comes from the *pending work itself*. Apply these sub-rules, most specific first:
+   - 4a. Exactly one `openspec/changes/<change-id>/` prefix among the changed paths → `ptp/<change-id>`.
+   - 4b. Several change folders sharing one epic number `XXXX` → `ptp/epic-XXXX`.
+   - 4c. Otherwise → `ptp/<≤5-kebab-word summary of the changed paths>` (e.g. `ptp/commands-skills-update`).
+
+   **Normalize the paths first.** Read them from `git status --porcelain --untracked-files=all` run at the repo **top level** (`git rev-parse --show-toplevel`), because git prints status paths relative to the *current directory*; for a rename entry (`R  <old> -> <new>`) take the **destination**; and unquote paths git wrapped in `"…"` (special characters / non-ASCII). The lowercase-kebab / single-`ptp/`-segment constraint below applies unchanged.
+
+   **Reach of 4a/4b.** They fire only where `openspec/` is **tracked** and therefore visible to `git status`. In a repo that gitignores it — ptp itself does — 4c is the live rule, so do not be surprised when the precise sub-rules never trigger.
 
 Keep it lowercase-kebab, no spaces or slashes beyond the single `ptp/` prefix segment. If the derived branch already exists, the prep workflow switches to it rather than failing.
 

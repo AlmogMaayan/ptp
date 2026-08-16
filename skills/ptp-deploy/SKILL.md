@@ -77,7 +77,13 @@ There is no approval/auto-approve key of any kind — see *The approval reality*
 
 This skill does **not** run `ptp-branch-guard` to cut a branch for its own work, and it is
 **not** read-only. It is a documented special case: it operates on the **already-cut feature
-branch** and *requires* one — it refuses to run on the base branch (`master`/`main`), because
+branch** and *requires* one. In `mode == merge-only` a dirty base branch is recovered upstream,
+in the outer session, before this skill is ever spawned — so reaching the refusal stated next in
+that mode means either a **clean** base branch (which the outer session STOPs on upstream, before
+spawning anything) or a recovery that did not run or did not pass its gate; `ptp-branch-guard`
+owns the rationale for that conditional exemption. In either mode this skill refuses to run on
+the base branch (`master`/`main`) — in `mode == merge-only` for the reason just given, and in
+`mode == deploy` because
 there is nothing to deploy from there. Its internal deploy-fix sub-flow (step 8) *does* cut
 `ptp/deploy-fix-*` branches and merges them through the same PR mini-flow, so a fix is
 **never** committed to the base branch directly. The exemption (and its opposite-direction
@@ -95,8 +101,26 @@ nothing:
 3. **HEAD is a feature branch, not the base branch** — `git rev-parse --abbrev-ref HEAD`. If
    it is `master`/`main` → STOP. In `deploy` mode: "nothing to deploy — you are on the base
    branch. Run `/ptp:deploy` from the feature branch that holds the change." In `merge-only`
-   mode: "nothing to merge — you are on the base branch. Run `/ptp:merge-to-master` from the
-   feature branch that holds the change." (See *Branch safety* above.)
+   mode — this arm is selected by **mode** (`mode == merge-only`), never by a command name —
+   "nothing to merge — you are on the base branch, and the outer session's dirty-tree recovery
+   either did not run or did not pass its continuation gate. This skill cannot repair that: a
+   subagent cannot launch the `ptp-branch-prep` Workflow (Agent nesting is one level deep), so
+   the recovery exists only in the **outer session** of `/ptp:merge-to-master`. Re-run
+   `/ptp:merge-to-master` from the session itself and read the branch-prep result it reports."
+   (See *Branch safety* above.)
+4. **No unresolved conflict in the working tree** — `mode == merge-only` only. Like the arm
+   above, this is selected by **mode**, never by a command name; `mode == deploy` does **not**
+   evaluate it, so that mode's preconditions are unchanged. Run
+   `git diff --name-only --diff-filter=U` (equivalently, `UU`/`AA` entries in
+   `git status --porcelain`). If it lists any path → STOP, name those paths, and require them
+   to be resolved, reverted, or re-stashed before re-running. This is the downstream
+   **detector** for a failed dirty-base recovery — not a second implementation of it, which a
+   subagent could not run anyway. The outer session hard-STOPs a conflicting `git stash pop`,
+   but `ptp-branch-prep` cuts and checks out the derived branch *before* it pops, so HEAD is
+   already off the base branch when that STOP fires. A re-run therefore sails past precondition
+   3 with the conflict still in the tree, and phase `commit`'s `git add -A` would stage the
+   `<<<<<<<`/`=======`/`>>>>>>>` markers and commit, push and propose them for merge without
+   complaint. Evaluating this **before the first git write** is what stops that.
 
 The `/ptp:deploy-pr-approved` entry adds one more precondition before its `merge` start phase:
 an open PR exists for the branch (`gh pr view --json url,state,reviewDecision`) and either its
@@ -249,7 +273,10 @@ branch. On any STOP, state exactly what blocked and the single next action.
 - **This is the one ptp step that commits, pushes, and merges.** That is by design and is
   documented here and in `ptp-branch-guard`. No other ptp command may auto-commit.
 - **Never run on the base branch (`master`/`main`).** Deploy requires a feature branch; on the
-  base branch it STOPs (the inverse of `/ptp:master`).
+  base branch it STOPs (the inverse of `/ptp:master`) — absolute in `mode == deploy`, and in
+  `mode == merge-only` too: the dirty-tree recovery that lets `/ptp:merge-to-master` tolerate a
+  dirty base branch runs upstream, in the outer session, before this skill is spawned, so reaching
+  this rule on the base branch means that recovery did not run or did not pass its gate.
 - **Never self-approve.** Never run `gh pr review --approve` — GitHub forbids approving your own
   PR and the author always is the author. A required, unmet approval STOPs the command and hands
   off to `/ptp:deploy-pr-approved` (in `deploy` mode) or to re-running `/ptp:merge-to-master`
