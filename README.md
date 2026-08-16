@@ -205,7 +205,7 @@ Anywhere a change argument is taken:
 | `/ptp:archive-force <selector>` | Archives past the gates, still syncing specs, and reports which gates it bypassed. |
 | `/ptp:deploy` | commit → push → PR → squash-merge → delete branch → run the deploy workflow → return to clean `master`. Fixes conflicts/CI/deploy failures within `deploy.maxFixRounds`. Refuses on `master`/`main`; never self-approves. Requires `gh` authenticated. |
 | `/ptp:deploy-pr-approved` | Finishes a `/ptp:deploy` that stopped for a required approval, after someone else approves the PR. |
-| `/ptp:merge-to-master` | Same as `/ptp:deploy` without the deploy workflow step. |
+| `/ptp:merge-to-master` | Runs the same ship pipeline as `/ptp:deploy` minus the deploy workflow step. Refuses on a **clean** `master`/`main`; **recovers a dirty one** onto a fresh feature branch (stash → cut → pop, gated on the result) before committing. Never self-approves. |
 | `/ptp:archive-and-deploy <selector>` | Archives each resolved change through the existing gates in story order, then deploys once on the current branch if every archive succeeded. Accepts `epic:all`. Refuses on `master`/`main`; never self-approves. |
 | `/ptp:deploy-master` | Triggers the deploy workflow against the current `master`. No commit/push/PR/merge. Requires a clean tree on `master`/`main`. |
 | `/ptp:master` | `git switch master && git pull --ff-only`, only when the working tree is clean. |
@@ -336,6 +336,7 @@ Experimental     /opsx:explore | /opsx:propose | /opsx:apply | /opsx:archive
 
 | Version | Changes |
 |---------|---------|
+| **0.2.37** | `/ptp:merge-to-master` no longer refuses outright on `master`/`main`. It classifies the tree first: clean still STOPs verbatim, but a dirty tree now recovers automatically — derive a branch name, cache-heal, run `ptp-branch-prep` (stash `-u` → cut → pop), gate on its return, then continue the unchanged merge-only pipeline. A failed or conflicted prep hard-STOPs before any git write, so conflict markers can never be committed — including on a re-run. `/ptp:deploy`, `/ptp:deploy-pr-approved`, and `/ptp:archive-and-deploy` keep refusing unconditionally (0055_01). |
 | **0.2.36** | `/ptp:backlog-continue` no longer re-runs `/ptp:review-full` or evaluates any `stages/code.json` review marker on its bare flow — code review is already converged by `/ptp:full` before a change can reach `blocked`/`in-review`, so the bare flow is now sign off → re-verify → archive → `done`, unconditionally. |
 | **0.2.35** | BREAKING — the per-kind review-convergence marker family moves from `openspec/changes/<id>/reviews/` to `stages/`, joins a six-kind stage-record family with new `apply`/`archive` lifecycle records, scopes the `code` marker's content fingerprint to the reviewed change's own diff footprint instead of the whole working tree, and clarifies `in-review` semantics (epic 0054). |
 | **0.2.34** | Generated `tasks.md` files may never contain manual-QA / manual-test tasks — the ban is authored into `/ptp:plan`, carved out of the review-loop drop filter, and enforced by the plan-review rubrics (epic 0053). |
