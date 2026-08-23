@@ -15,6 +15,8 @@ Contrast with `/ptp:brainstorm-only` (design exploration of a prospective change
 
 This skill is **write-capable** — it writes the analysis document. Before writing any file, run the **`ptp-branch-guard`** preamble. The full rule (the guard logic, the `ptp-branch-prep` workflow, the hard rules) lives in the `ptp-branch-guard` skill — do not restate it here.
 
+When this skill runs as the main run spawned by `/ptp:analyze` via `ptp-run-at-model` (the normal path), the outer session has **already** run the guard, so this check is a **no-op** (HEAD is already on the feature branch) — it MUST NOT launch `ptp-branch-prep`.
+
 ## Classify the input
 
 Classify the user's subject into one of three buckets before investigating:
