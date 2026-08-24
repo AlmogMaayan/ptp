@@ -1,11 +1,13 @@
 ---
 name: ptp-review-prd
-description: "Use this skill when reviewing an epic's PRD quality before /ptp:plan — the read-only PRD-quality gate that mirrors /ptp:review-brainstorm one stage earlier, over the change-folder openspec/changes/<id>/prd.md. Owns the PRD-review methodology (locate the PRD via the ptp-prd selector→epic projection + lowest-story resolution, the rubric, Critical/High/Medium/Low classification, the PASS/WARN/FAIL verdict, and the report + next-step recommendation) that the thin /ptp:review-prd command delegates to. Read-only: edits nothing, runs no git, runs no branch guard, runs no openspec validate, and triggers no other ptp command."
+description: Own one main-agent review pass over a requirements document and the findings it reports
 ---
 
 # ptp-review-prd — the PRD-quality gate methodology
 
 ## Purpose
+
+**Model dispatch target.** `/ptp:review-prd` runs this skill's work at `opus.high` via `ptp-run-at-model` (`skills/ptp-run-at-model/SKILL.md`), which owns the spawn-and-relay mechanics and requires its caller to supply the target. This names the target only; it restates none of that contract.
 
 This skill owns the **PRD-review methodology** and is the **single source of truth** the thin
 `/ptp:review-prd` command delegates to — the same command-backed-by-a-skill split as

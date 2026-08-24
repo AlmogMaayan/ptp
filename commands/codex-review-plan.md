@@ -1,5 +1,5 @@
 ---
-description: Review the OpenSpec change ARTIFACTS (proposal/design/tasks/spec deltas) using the external Codex CLI (codex exec) — read-only, no code
+description: Run one closed-book Codex review of a change's planning artifacts and report its findings
 argument-hint: "<change-selector> — id, epic:XXXX, story:NN, or epic:XXXX story:NN (omit to audit all active changes)"
 ---
 
@@ -48,10 +48,28 @@ selector, the one subagent handles the whole per-change pass.)
 
 1. **Resolve scope and gather artifacts (you, via Bash — not Codex).**
    - If `$ARGUMENTS` names a change, audit just it. If empty, run `npx -y openspec list` and audit **every** active change (repeat steps 2–4 per change; do not stop at the first).
-   - For each change, read every artifact in `openspec/changes/<change-id>/`: `proposal.md`, `design.md` (if present), `tasks.md`, `specs/**/spec.md` (if present), `brainstorm.md` (if present), `TLDR.md` (if present).
+   - For each change, gather the `artifact` review kind's **required set** from
+     `openspec/changes/<change-id>/` and nothing outside it: `proposal.md`, `design.md` when
+     present (its absence is never itself a finding), `tasks.md`, and `specs/**/spec.md` when
+     present, together with the authoritative `openspec validate --strict` result from step 2 and
+     the cited source excerpts from step 3. A legacy summary file in the folder is not an input
+     and is never inlined.
 
-2. **Run validation yourself and capture the result (you, via Bash):**
+`TLDR.md` and `effort.md` are never inlined for any kind.
+
+   **Disputed-decision carve-out.** `brainstorm.md` is not part of the required set. Inline it
+   only for the iteration carrying an open finding that **disputes the source** of a decision,
+   and only for that iteration: once that finding is **resolved or rejected**, the next
+   iteration's prompt carries the required set alone again.
+
+2. **Run validation and the compactness lint yourself and capture both results (you, via Bash):**
    - `npx -y openspec validate <change-id> --strict` — capture stdout+stderr and the exit status. This result is **authoritative**; Codex will be told it and instructed **not** to re-run it.
+   - `node scripts/ptp-compact-lint.js --change <change-id>` — the deterministic **compactness lint**
+     published by the `compact-artifact-contract` capability. It is run **caller-side**, exactly as
+     the validation is, and its report is inlined into the step-4 prompt as authoritative text; Codex
+     still runs no commands. If the lint is unavailable, errors, or cannot be run, record a one-line
+     **non-blocking note** instead and continue — a lint failure never STOPs the review, never
+     changes a verdict, and never changes a terminal state.
 
 3. **Collect the cited source excerpts (you, via Read/Grep — optional but preferred).**
    - Scan the artifacts for source references of the form `path:line` (e.g. `IllustrationPicker.tsx:202`, `page.tsx:820`). For each distinct file, read a small window (±~15 lines) around each cited line, or the whole file if it is short.
@@ -83,15 +101,46 @@ selector, the one subagent handles the whole per-change pass.)
 
    The prompt contains, in order:
    - The audit instructions (below).
-   - The **authoritative** `openspec validate --strict` result from step 2.
-   - The full text of every artifact, under clear `=== <filename> ===` delimiters.
+   - The **authoritative** `openspec validate --strict` result from step 2, followed by the
+     **authoritative** compactness lint report from step 2 (or the one-line note that it was
+     unavailable).
+   - The full text of every member of the required set gathered in step 1, under clear `=== <filename> ===` delimiters.
    - The cited source excerpts from step 3, under `--- SOURCE <path> (around line N) ---` delimiters.
-   - A hard instruction block: *"Do NOT run any commands. Review only the text provided above. The `openspec validate` result is given — do not attempt to run it. If a check needs data not provided here, report that point as 'unverifiable from provided context' rather than trying to run a command."*
+   - A hard instruction block: *"Do NOT run any commands. Review only the text provided above. The `openspec validate` result and the compactness lint report are given — do not attempt to run either of them. If a check needs data not provided here, report that point as 'unverifiable from provided context' rather than trying to run a command."*
 
    The audit instructions must tell Codex to:
-   - Check `proposal.md` for required sections (Context, Goals, Non-goals, Alternatives considered, Design, Risks & edge cases, Impact, Success criteria, Source) and flag any missing or thin.
-   - Check **cross-artifact consistency**: every Goal maps to ≥1 task; every spec-delta `### Requirement:` has an implementing task; proposal `Impact` names the capability the spec delta touches; `design.md` does not contradict `proposal.md`; the `Source` brainstorm path is referenced.
-   - Check **spec-delta format**: `## ADDED/MODIFIED/REMOVED/RENAMED Requirements` → `### Requirement:` with SHALL/MUST → ≥1 `#### Scenario:` each.
+   - Apply the artifact rubric **authored in `commands/review-plan.md`**, which is its single author.
+     The two closed lists below are that rubric's, reproduced here only because this prompt is
+     closed-book; Codex applies them as given and never substitutes a rubric of its own.
+   - Block **only** on these eight conditions — the list is exhaustive, and nothing outside it may
+     block:
+     1. Validation fails (per the authoritative `openspec validate --strict` result inlined above).
+     2. Scope/capability mapping is missing or contradictory — `proposal.md` does not name the
+        capabilities the spec deltas touch, or names capabilities the spec deltas do not touch.
+     3. A normative (SHALL/MUST) requirement has no `#### Scenario:`.
+     4. A requirement has no implementing task in `tasks.md`.
+     5. A task is not agent-executable, or is not verifiable by an automated check — the
+        banned-manual-task check below is the detection half of this condition, not a ninth condition.
+     6. A non-obvious implementation decision or invariant is missing, such that apply could not
+        proceed without a human re-deciding it.
+     7. Two artifacts disagree.
+     8. One artifact carries current and obsolete truth at the same time — an obsolete statement plus
+        its correction is defective even when the later statement is right.
+   - Never block, and never raise a finding at any severity, on any of these six retired pressures:
+     a fixed number of alternatives; boilerplate sections populated with `None`; rationale present in
+     both `proposal.md` and `design.md`; effort justification; the presence or consistency of a
+     legacy top-level summary file; restated happy-path / unhappy-path prose where the spec scenarios
+     already express those cases. A short proposal, an absent `design.md`, and a single-line
+     effort recommendation are all correct and raise nothing; a legacy folder carrying extra files
+     or a multi-line effort recommendation raises nothing either.
+   - Map the conditions onto the severity vocabulary: **Critical** — a missing `proposal.md`,
+     condition 1, or a spec delta contradicting the proposal's stated scope; **High** — conditions 2
+     (missing mapping), 3, 4, 5, 6, 7, and 8; **Medium** / **Low** — every other observation.
+   - Treat each report in the inlined compactness lint output as an ordinary observation classified by
+     that same mapping — not as a separate finding stream — so a lint report matching a blocking
+     condition becomes a blocking finding and every other lint report is Medium or Low.
+   - Return **all** findings for this pass in one structured emission; there is no second review pass
+     over the same artifact state.
    - Check `tasks.md` for **banned manual tasks**: flag any checkbox whose completion depends on a
      person acting **outside the reach of the agent** that runs `/ptp:apply` — the test is *who must
      act*, never which words appear (illustrations: manual QA; manual or exploratory testing;

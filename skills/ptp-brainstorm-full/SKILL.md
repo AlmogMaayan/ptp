@@ -1,6 +1,6 @@
 ---
 name: ptp-brainstorm-full
-description: Use this skill when orchestrating the two-phase brainstorm-then-review flow behind /ptp:brainstorm-full. Owns the Phase A brainstorm (ptp-run-at-model at the resolved target → brainstorm-production subagent), the brainstorm-gate (missing brainstorm.md → STOP), and Phase B review (ptp-run-at-model at the resolved target → ptp-review-brainstorm-full skill with pre-resolved codex.mode). Never re-allocates the change id, never re-runs the branch guard, never archives, never commits.
+description: Own the brainstorm-then-review flow, running exploration and its dual-reviewer review in one pass
 ---
 
 # ptp-brainstorm-full — brainstorm-then-review two-phase orchestration
@@ -10,7 +10,7 @@ description: Use this skill when orchestrating the two-phase brainstorm-then-rev
 This skill is the orchestration contract behind the single `/ptp:brainstorm-full` command. It is the
 union of `/ptp:brainstorm` and `/ptp:review-brainstorm-full`: it runs the brainstorm phase (producing
 `brainstorm.md`) and — without a user re-invocation in between — continues into the dual-reviewer
-(main agent + reviewer agent; default Superpowers + Codex) inline-fix brainstorm-review loop. The seam between the two commands is exactly
+(main agent + reviewer agent; default Claude + Codex) inline-fix brainstorm-review loop. The seam between the two commands is exactly
 why this skill exists: the change id produced by the brainstorm phase is passed *explicitly* into the
 review phase, so the review phase skips any scope-confirmation stop. "Run brainstorm and continue
 without stopping to review-brainstorm-full."
@@ -61,20 +61,24 @@ change context — the id's `<desc>` and any existing `openspec/changes/<id>/` a
 
 1. Load context — read `openspec/project.md` if present, run `npx -y openspec list` and
    `npx -y openspec list --specs` to see existing specs and in-flight changes.
-2. Invoke the `superpowers:brainstorming` skill in autonomous mode on the passed-through `request`
+2. Invoke the `ptp-brainstorming` skill in autonomous mode on the passed-through `request`
    (no clarifying questions — make reasonable assumptions and document them inline).
-3. Present 2–3 options with tradeoffs (what it changes, risk/blast radius, effort, reversibility,
-   interaction with existing specs).
-4. Recommend one option with rationale.
-5. Persist the brainstorm to `openspec/changes/<change-id>/brainstorm.md` (create the directory if
-   absent).
+3. Compare only material alternatives (what each changes, risk/blast radius, effort,
+   reversibility, interaction with existing specs); when only one direction is viable, record that
+   fact and the reason rather than manufacturing alternatives.
+4. Decide: state the chosen direction and why, in 1–3 sentences.
+5. Persist the decision capsule — decision, material alternatives each with its tradeoff and
+   why it lost (or the single-direction reason), assumptions — to
+   `openspec/changes/<change-id>/brainstorm.md` (create the directory if absent). Nothing else:
+   no full design document, no implementation plan, no deliberation history. Write current truth
+   only: replace a superseded capsule in place rather than appending to it.
 
 **Step 8's STOP and `/ptp:plan` recommendation are suppressed** — the brainstorm subagent writes
 `brainstorm.md` and returns its terminal result to the outer session; the outer session continues to
 the brainstorm-gate. The subagent prompt MUST carry: the original `request` text (so the brainstorm
 targets the real request, not the id slug); the branch guard is a **no-op** (HEAD is already
 on the feature branch from the outer guard); the subagent MUST NOT attempt to launch the
-`ptp-branch-prep` workflow; the brainstorm work invokes `superpowers:brainstorming` as an inline Skill
+`ptp-branch-prep` workflow; the brainstorm work invokes `ptp-brainstorming` as an inline Skill
 call — no nesting concern.
 
 Relay the Phase A result: the absolute path of the written `brainstorm.md` (or the failure description
@@ -108,7 +112,7 @@ The subagent prompt MUST carry:
 
 The subagent runs the full `ptp-review-brainstorm-full` skill: Phase 1 main-agent brainstorm loop →
 Phase-1-gates-Phase-2 gate → Phase 2 reviewer-agent brainstorm loop (gated for a Codex reviewer) →
-combined terminal state + report. At the default `roles.main=claude` this is Phase 1 Superpowers →
+combined terminal state + report. At the default `roles.main=claude` this is Phase 1 Claude →
 Phase 2 Codex, byte-identical to before.
 
 Relay the Phase B terminal state exactly as `ptp-review-brainstorm-full` emits it — never downgrade
@@ -122,7 +126,7 @@ Report at whichever terminal point is reached:
 
 | Terminal state | Meaning | Next-step recommendation |
 |---|---|---|
-| `BOTH PHASES DONE` | Phase A wrote brainstorm.md; Phase 1 (main agent) and Phase 2 (reviewer agent) both converged (default: Superpowers then Codex) | `/ptp:plan <change-id>` |
+| `BOTH PHASES DONE` | Phase A wrote brainstorm.md; Phase 1 (main agent) and Phase 2 (reviewer agent) both converged (default: Claude then Codex) | `/ptp:plan <change-id>` |
 | `PHASE 1 DONE — CODEX SKIPPED (mode=…)` | Phase A wrote brainstorm.md; Phase 1 converged; a Codex reviewer skipped per `codex.mode` | `/ptp:plan <change-id>` |
 | `ITERATION CAP REACHED` | Phase A wrote brainstorm.md; Phase 1 hit the iteration cap before converging; Phase 2 not started | Fix remaining Phase 1 findings → re-run `/ptp:review-brainstorm-full <change-id>` |
 | `PHASE 2 ITERATION CAP REACHED` | Phase A wrote brainstorm.md; Phase 1 converged; Phase 2 hit the cap | Fix remaining Phase 2 findings → re-run `/ptp:review-brainstorm-full <change-id>` |

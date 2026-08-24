@@ -1,9 +1,9 @@
 ---
-description: Superpowers brainstorm for a specific change — produces options + tradeoffs co-located in the change folder, NOT full OpenSpec artifacts
+description: Explore options and tradeoffs for one specific change, writing a brainstorm beside its artifacts
 argument-hint: "<short description of the change> [change-id] (change-id optional — derived from the request if omitted)"
 ---
 
-You are starting **step 1** of the ptp flow. Your job is to **brainstorm using Superpowers** for a specific change, persist the result **inside that change's folder**, then stop. Do **not** create full OpenSpec artifacts (`proposal.md` / `design.md` / `tasks.md` / spec deltas) in this step — only `brainstorm.md`.
+You are starting **step 1** of the ptp flow. Your job is to **brainstorm using the `ptp-brainstorming` skill** for a specific change, persist the result **inside that change's folder**, then stop. Do **not** create full OpenSpec artifacts (`proposal.md` / `design.md` / `tasks.md` / spec deltas) in this step — only `brainstorm.md`.
 
 > Brainstorming something that is **not** yet tied to a specific change (open-ended exploration, comparing directions before you know what the change even is)? Use `/ptp:brainstorm-only` instead — it writes to the shared `openspec/brainstorms/` folder.
 
@@ -51,15 +51,16 @@ performs steps 2–8 and reports.
 **Run steps 2–8 via `ptp-run-at-model` at the resolved target.** Only after the branch guard and step
 1's change-id allocation have settled in the outer session, invoke the **`ptp-run-at-model`** skill with
 the resolved target (`opus.high` by default, or the valid `model:` override) and the work being
-**steps 2–8 below** — load context, invoke `superpowers:brainstorming` in autonomous mode, present
-options, recommend, persist `openspec/changes/<change-id>/brainstorm.md`, then STOP and report. It
+**steps 2–8 below** — load context, invoke `ptp-brainstorming` in autonomous mode,
+compare material alternatives, decide, persist the decision capsule to
+`openspec/changes/<change-id>/brainstorm.md`, then STOP and report. It
 spawns one foreground subagent at the resolved model (with the matching effort directive) that performs
 those steps and returns its terminal result (relayed per `ptp-run-at-model`'s *Result relay* — never
 reporting a refusal or STOP as success). Reference the `ptp-run-at-model` skill for the spawn-and-relay
 mechanics rather than restating them. One note the subagent prompt MUST carry: the subagent's own
 `ptp-branch-guard` check is a **no-op** (HEAD is already on the feature branch from the outer guard), so
 the subagent must **NOT** attempt to launch the `ptp-branch-prep` Workflow. Its brainstorm work spawns
-nothing — it invokes `superpowers:brainstorming` as an inline Skill call — so there is no nesting
+nothing — it invokes `ptp-brainstorming` as an inline Skill call — so there is no nesting
 concern.
 
 2. **Load context** — read the relevant project files. If `openspec/project.md` exists, read it. **If
@@ -76,21 +77,26 @@ concern.
    - `npx -y openspec list` (lists active changes)
    - `npx -y openspec list --specs` (lists existing capabilities/specs)
    - If `openspec` is installed globally, drop the `npx -y` prefix.
-3. **Invoke the Superpowers brainstorming skill** via the Skill tool. Use the skill that matches "brainstorm" / "brainstorming" in the available skill list. If multiple match, prefer the one explicitly under the `superpowers` namespace. If none are available, fall back to a structured brainstorm you write inline, but say so explicitly to the user.
+3. **Invoke the `ptp-brainstorming` skill** via the Skill tool, in autonomous mode.
 4. **Make reasonable assumptions instead of pausing to ask** (autonomous mode). Do **not** use AskUserQuestion and do **not** stop to ask the user clarifying questions — this brainstorm runs autonomously in a non-interactive subagent. Where a real choice exists that you would otherwise have asked about, pick the most reasonable option, proceed, and **document the assumption inline in the brainstorm** so the reader can see what was assumed and revisit it. This mirrors `/ptp:plan`'s autonomous, no-clarifying-questions contract.
-5. **Present 2–3 options** with concrete tradeoffs:
-   - What it changes
-   - Risk / blast radius
-   - Effort
-   - Reversibility
-   - How it interacts with existing specs (cite spec files if relevant)
-6. **Recommend one option** and say why. Mark it as your recommendation but leave the choice to the user.
-7. **Persist the brainstorm into the change folder.** The `superpowers:brainstorming` skill defaults to writing the design doc under `docs/plans/`. **Override that path** — write the file to `openspec/changes/<change-id>/brainstorm.md` instead (create the `openspec/changes/<change-id>/` directory if it doesn't exist). This file is the durable handoff to `/ptp:plan`; without it, `/ptp:plan` has no rich source material and will produce thin OpenSpec artifacts. Surface the absolute path back to the user.
+5. **Compare only material alternatives.** When a material design choice exists, weigh the real
+   candidates — what each changes, risk / blast radius, effort, reversibility, interaction with
+   existing specs (cite spec files). When only one direction is viable, record that fact and the
+   reason instead; never manufacture an alternative to fill a slot.
+6. **Decide.** State the chosen direction and why, in 1–3 sentences.
+7. **Persist the decision capsule** to `openspec/changes/<change-id>/brainstorm.md` (create the
+   directory if it doesn't exist) — the **decision**, the **material alternatives** each with its
+   tradeoff and why it lost (or the single-direction reason), and the **assumptions** made in
+   autonomous mode. Nothing else: no full design document, no implementation plan, no deliberation
+   history. Write **current truth only**: when the file already exists, replace the superseded
+   capsule in place and never append a correction, an earlier draft, or review-iteration narrative.
+   Write the capsule to `openspec/changes/<change-id>/brainstorm.md`. Surface
+   the absolute path back to the user.
 8. **STOP.** Do not write `proposal.md`, `design.md`, `tasks.md`, or spec deltas — those belong to `/ptp:plan`. The next step is `/ptp:plan <change-id>`, which transcribes `brainstorm.md` into the OpenSpec artifacts.
 
 ## Hard rules
 
-- Do **not** call `/opsx:propose` or `/opsx:explore` (nor the vendored `ptp:openspec-*` skills). Superpowers owns this step.
+- Do **not** call `/opsx:propose` or `/opsx:explore` (nor the vendored `ptp:openspec-*` skills). The `ptp-brainstorming` skill owns this step.
 - Do **not** create `proposal.md` / `design.md` / `tasks.md` / `specs/**` under `openspec/changes/<change-id>/` in this command. The **only** file you write into the change folder here is `brainstorm.md`.
 - Do **not** write the brainstorm to `openspec/brainstorms/` — that location is reserved for `/ptp:brainstorm-only` (change-agnostic exploration). A change-scoped brainstorm lives in its change folder.
 - Do **not** skip writing `openspec/changes/<change-id>/brainstorm.md` — `ptp:plan` reads it as its source-of-truth input. If the brainstorming skill stopped without writing it, write it explicitly yourself (you run autonomously in a non-interactive subagent — do **not** pause to ask the user for approval first).

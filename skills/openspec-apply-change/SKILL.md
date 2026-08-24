@@ -1,6 +1,6 @@
 ---
 name: openspec-apply-change
-description: Implement tasks from an OpenSpec change. Use when the user wants to start implementing, continue implementation, or work through tasks.
+description: Implement an approved change proposal task by task, keeping the task list and specs in step
 license: MIT
 compatibility: Requires openspec CLI.
 metadata:
@@ -53,10 +53,12 @@ Implement tasks from an OpenSpec change.
 
 4. **Read context files**
 
-   Read every file path listed under `contextFiles` from the apply instructions output.
-   The files depend on the schema being used:
-   - **spec-driven**: proposal, specs, design, tasks
-   - Other schemas: follow the contextFiles from CLI output
+   Read selectively from the `contextFiles` the apply instructions output listed, in this order and
+   only when the entry is present:
+   - **spec-driven**: specs and tasks first (the behavior contract and the execution order); design
+     only when the CLI listed it and the file exists; proposal only when a task's intent is unclear.
+   - Other schemas: read every file path the CLI listed under `contextFiles` — the selectivity above
+     is a `spec-driven` ordering rule, not a general licence to skip files a schema requires.
 
 5. **Show current progress**
 

@@ -1,11 +1,13 @@
 ---
 name: ptp-archive-force
-description: Force-archives one or more changes, bypassing the ptp archive gates (tasks-complete, review-clean, validation-passes), while still syncing delta specs. Used by /ptp:archive-force.
+description: Own force-archiving, bypassing the archive gates while still syncing delta specs
 ---
 
 # ptp-archive-force — gate-bypassing force-archive protocol
 
 ## Purpose
+
+**Model dispatch target.** `/ptp:archive-force` runs this skill's work at `sonnet.medium` via `ptp-run-at-model` (`skills/ptp-run-at-model/SKILL.md`), which owns the spawn-and-relay mechanics and requires its caller to supply the target. This names the target only; it restates none of that contract.
 
 This is the gate-bypass escape hatch for abandoned, superseded, or done-but-never-reviewed changes that cannot pass `/ptp:archive`'s three gates. It archives (moves to `openspec/changes/archive/` and syncs delta specs) without requiring tasks to be complete, review to be clean, or `openspec validate --strict` to pass.
 

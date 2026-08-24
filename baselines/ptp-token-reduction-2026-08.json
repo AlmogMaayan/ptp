@@ -1,0 +1,902 @@
+{
+  "schema": 1,
+  "name": "ptp-token-reduction-2026-08",
+  "frozen": true,
+  "capturedAt": "2026-08-24T12:46:51.147Z",
+  "gitRef": "9ebb93c165ce79619c3a96d79cd08b7af0d34425",
+  "countingRule": 1,
+  "window": {
+    "from": "2026-07-29T09:45:34.019Z",
+    "to": "2026-08-24T12:46:50.899Z"
+  },
+  "telemetry": {
+    "status": "pending",
+    "exportRanBefore": true,
+    "sources": [
+      {
+        "path": "openspec/telemetry/_unattributed/spans.csv",
+        "sha256": "9aa7b8155c3955d8bdb072e4f59002834572d632cd20914a971fef1242a1e4b9"
+      }
+    ],
+    "outputTokens": {
+      "total": 0,
+      "byCommand": {},
+      "byPhase": {},
+      "byChangeId": {}
+    },
+    "inputTokens": {
+      "total": 21444,
+      "excluded": true,
+      "reason": "cache-affected; see analysis §Evidence"
+    },
+    "coverage": {
+      "attributedTokens": 0,
+      "unattributedTokens": 1175635,
+      "attributedRows": 0,
+      "ratio": 0,
+      "undatedRows": 0
+    },
+    "reason": "no attributed in-window LLM rows; the word corpus is the operative proxy metric"
+  },
+  "corpus": {
+    "prompts": [
+      {
+        "path": "commands/analyze.md",
+        "sha256": "502cd99b0d629d0feed65ec9597ae00d730bd53fd15a5c29bd81e604661e1bf8",
+        "descriptionWords": 30,
+        "bodyWords": 774
+      },
+      {
+        "path": "commands/apply.md",
+        "sha256": "ed492f7ba600bc1739c70e7c27736db7058db3af5a0cd3c3c630694d23e8952f",
+        "descriptionWords": 11,
+        "bodyWords": 1226
+      },
+      {
+        "path": "commands/archive-and-deploy.md",
+        "sha256": "9a909622960d6479b28b2686a5c7f2c758d5a001ff2f8426e639cc2beb72b730",
+        "descriptionWords": 55,
+        "bodyWords": 453
+      },
+      {
+        "path": "commands/archive-force.md",
+        "sha256": "db7d90eaf282c589ac255ae20a5cd6c0fc43e70f32d11c5ee054d35587c262e4",
+        "descriptionWords": 30,
+        "bodyWords": 651
+      },
+      {
+        "path": "commands/archive.md",
+        "sha256": "3b2e56329597916ed7bab569f22c8df1dee85675e22f8b6c4c9573ab10e369d4",
+        "descriptionWords": 17,
+        "bodyWords": 1700
+      },
+      {
+        "path": "commands/backlog-add.md",
+        "sha256": "42f1f2a057eb69a883eb4b7a871d96d5f608eca8ed66b71cd181d32f71623db9",
+        "descriptionWords": 63,
+        "bodyWords": 1974
+      },
+      {
+        "path": "commands/backlog-continue.md",
+        "sha256": "4d8c41c12dd318d98355ebf5cbb5996a78c4f121cbfae1ea360b2b5a7cfc62cc",
+        "descriptionWords": 129,
+        "bodyWords": 1561
+      },
+      {
+        "path": "commands/backlog-edit.md",
+        "sha256": "72a96de7008600190d5ce2541e19d1a2cd2e019f0d51ca8ac0ba5c6459acc153",
+        "descriptionWords": 101,
+        "bodyWords": 2882
+      },
+      {
+        "path": "commands/backlog-run.md",
+        "sha256": "5a3cbe9c14dcbe46cf3e78320d08fb9c101a016f96ac5c9626a222a99c1993aa",
+        "descriptionWords": 74,
+        "bodyWords": 1187
+      },
+      {
+        "path": "commands/backlog.md",
+        "sha256": "1bd1d852d230b10fec664698794268b80b4d406ea2b03ebc50931b0581a66a58",
+        "descriptionWords": 79,
+        "bodyWords": 3222
+      },
+      {
+        "path": "commands/brainstorm-full.md",
+        "sha256": "e54f3fb204c5513136419a009123b38a1d0d376db0afaf61f8aae873002b0dcd",
+        "descriptionWords": 45,
+        "bodyWords": 1062
+      },
+      {
+        "path": "commands/brainstorm-only.md",
+        "sha256": "2bacc813adaa2f2f898069a4025988e2f938340bfecde20b5d07f7bd17b12e98",
+        "descriptionWords": 18,
+        "bodyWords": 842
+      },
+      {
+        "path": "commands/brainstorm.md",
+        "sha256": "6bd69760c64b56a37fb5c00ab977f4b61a477e287ba4b8aaa70db3b2e05fef0a",
+        "descriptionWords": 20,
+        "bodyWords": 1393
+      },
+      {
+        "path": "commands/codex-review-loop.md",
+        "sha256": "cf53ef3e5fcf99eec1852e6bdd4d21a3d170307d3b373db35e2fe6be2dcdc420",
+        "descriptionWords": 35,
+        "bodyWords": 863
+      },
+      {
+        "path": "commands/codex-review-plan-loop.md",
+        "sha256": "28143dbd77cf1a0e473664011cccae967c7145dc601624c81c7157ef1ec611c9",
+        "descriptionWords": 39,
+        "bodyWords": 900
+      },
+      {
+        "path": "commands/codex-review-plan.md",
+        "sha256": "3e6514fdf41b71cc25c3fd3d574e24324390fac3209c60c735a0b5058b710f75",
+        "descriptionWords": 18,
+        "bodyWords": 2110
+      },
+      {
+        "path": "commands/codex-review-prd-loop.md",
+        "sha256": "d1421857efac932ac95c4338126a7a20c8a103e5d476948e628e9aa3efe9983a",
+        "descriptionWords": 44,
+        "bodyWords": 1034
+      },
+      {
+        "path": "commands/codex-review-prd.md",
+        "sha256": "bb6f246000eee2e55c132927faac917874e5854963a71b7d1f024db8ba91f279",
+        "descriptionWords": 19,
+        "bodyWords": 1681
+      },
+      {
+        "path": "commands/codex-review-uncommitted.md",
+        "sha256": "b698aeced602d8242624ece0605a8f730be95d54af8e686f006bfcb63692aee1",
+        "descriptionWords": 20,
+        "bodyWords": 1599
+      },
+      {
+        "path": "commands/codex-review.md",
+        "sha256": "3b22ddac7a1f0a9e5f250ffaae0956aa13690a7a7a9a68a06fa4144b756f9b3e",
+        "descriptionWords": 19,
+        "bodyWords": 1703
+      },
+      {
+        "path": "commands/config.md",
+        "sha256": "1f31c7ef6e5767096ce3e5984b169dbcb151b638e0c9750935126e0a26aca7fb",
+        "descriptionWords": 52,
+        "bodyWords": 900
+      },
+      {
+        "path": "commands/deploy-master.md",
+        "sha256": "5eca1b2ee6ea811a398138fec89bf1e9188cd0becee912b6714455ad94f07347",
+        "descriptionWords": 28,
+        "bodyWords": 526
+      },
+      {
+        "path": "commands/deploy-pr-approved.md",
+        "sha256": "eae3a691d73887eb80e5c31f567fd8127f2ecbabe55c3bf97eaf74858cf6d524",
+        "descriptionWords": 45,
+        "bodyWords": 599
+      },
+      {
+        "path": "commands/deploy.md",
+        "sha256": "cfd32f08f11f813411ad1ead89160cb3607f9050212a51aebe138af07c5f2b42",
+        "descriptionWords": 56,
+        "bodyWords": 771
+      },
+      {
+        "path": "commands/effort.md",
+        "sha256": "888a41a97f476fe23322bef0fb3c1d225159f41efdf6745c5e66d8b60a08d26d",
+        "descriptionWords": 21,
+        "bodyWords": 3964
+      },
+      {
+        "path": "commands/full-apply.md",
+        "sha256": "5decfc1a08abdf847473129fc0a1276eb06ecf5f7494c1df68a43c54cb880fd0",
+        "descriptionWords": 33,
+        "bodyWords": 1982
+      },
+      {
+        "path": "commands/full-plan.md",
+        "sha256": "70a4ed1c9056dd4f56f8e1d35678db1c996df3db5ab0f1f4bd4ffa7823a95eda",
+        "descriptionWords": 33,
+        "bodyWords": 3835
+      },
+      {
+        "path": "commands/full.md",
+        "sha256": "1824f16e42a2e6b3e251145a30fb316db65d1eb74a2f6423450b2a13cda4cc2f",
+        "descriptionWords": 45,
+        "bodyWords": 2225
+      },
+      {
+        "path": "commands/master.md",
+        "sha256": "23de2a7c1a51433935f766e8288150029f100150ca3bb3e96cfc9dd452e77425",
+        "descriptionWords": 26,
+        "bodyWords": 309
+      },
+      {
+        "path": "commands/merge-to-master.md",
+        "sha256": "c770532b10c63a78450875cafb6bccf3526cf9f653231984b7f68584646bfcbd",
+        "descriptionWords": 58,
+        "bodyWords": 1502
+      },
+      {
+        "path": "commands/plan-multiple.md",
+        "sha256": "efe5ba971883cf22e496b3e335c3d22d64e9912ed8f2eff0dd09bd4a20ce8a88",
+        "descriptionWords": 19,
+        "bodyWords": 5438
+      },
+      {
+        "path": "commands/plan.md",
+        "sha256": "3711b549801dd9a34159b3b0eb9aa3b96ee08661131405ee08d845578f8c3cbb",
+        "descriptionWords": 10,
+        "bodyWords": 3541
+      },
+      {
+        "path": "commands/prd-full.md",
+        "sha256": "0666e3f10ee965516f94af90baf85eea89c5b0e2da25ae2806fce28cde460825",
+        "descriptionWords": 55,
+        "bodyWords": 1125
+      },
+      {
+        "path": "commands/prd.md",
+        "sha256": "3740937167b5a330d66c0a45d1fce3cb921e7c676e9cc4349b298127c85ad03c",
+        "descriptionWords": 25,
+        "bodyWords": 887
+      },
+      {
+        "path": "commands/review-brainstorm-full.md",
+        "sha256": "ab71f7eb05248f19a3de0b41ea74ddcaafaa829c3c049d428a068291efd14951",
+        "descriptionWords": 65,
+        "bodyWords": 1359
+      },
+      {
+        "path": "commands/review-brainstorm.md",
+        "sha256": "59667b19713dabd7d94153b4936fbbf1576d5d28310f1fe906f2134a589626e6",
+        "descriptionWords": 29,
+        "bodyWords": 569
+      },
+      {
+        "path": "commands/review-fix.md",
+        "sha256": "63a6563f652f2642c94d52e755dc8f8d9a05a431fcd64bb95a60cbc9198c8c71",
+        "descriptionWords": 26,
+        "bodyWords": 1900
+      },
+      {
+        "path": "commands/review-full.md",
+        "sha256": "82be68d3eb08ac041027c2d8fb44b3c871d12d51d3600b199cf09e491affe766",
+        "descriptionWords": 43,
+        "bodyWords": 2390
+      },
+      {
+        "path": "commands/review-loop.md",
+        "sha256": "fe4fcbe704dd40c8f9762cfa8c30c6358f6cc990f16fa991db5ac84dd23c9c18",
+        "descriptionWords": 27,
+        "bodyWords": 784
+      },
+      {
+        "path": "commands/review-plan-full.md",
+        "sha256": "41c8f5eea99aa44c74741e2e8b730849bc64a956a91e552d15510e63194c745e",
+        "descriptionWords": 49,
+        "bodyWords": 2040
+      },
+      {
+        "path": "commands/review-plan-loop.md",
+        "sha256": "907465bd53c62382067a8f5ac8326f8836fe1d122ba68a32677263cde691bb33",
+        "descriptionWords": 31,
+        "bodyWords": 761
+      },
+      {
+        "path": "commands/review-plan.md",
+        "sha256": "c3dc49c5d45265594873e608c267acd0f87d838f191509fedd19c9082b58ddc7",
+        "descriptionWords": 14,
+        "bodyWords": 2181
+      },
+      {
+        "path": "commands/review-prd-full.md",
+        "sha256": "633c1015e19a3be3f7d09c3fb82ead8febf44f38b022849d2b903cc12991fd37",
+        "descriptionWords": 69,
+        "bodyWords": 1437
+      },
+      {
+        "path": "commands/review-prd.md",
+        "sha256": "1c9ae1411c8b1580b198a6262082e65a3caea3232efd03b668ea171599f0cc74",
+        "descriptionWords": 34,
+        "bodyWords": 623
+      },
+      {
+        "path": "commands/review.md",
+        "sha256": "61e9ebcd12030f33b5aabb8452ec5b4854c553c4d28b64be930ca5f7fc85402f",
+        "descriptionWords": 12,
+        "bodyWords": 969
+      },
+      {
+        "path": "commands/status.md",
+        "sha256": "a56987507908780452036c6e3f238c87c3801982253c97c334991ac1900f4638",
+        "descriptionWords": 13,
+        "bodyWords": 2591
+      },
+      {
+        "path": "commands/telemetry-analyze.md",
+        "sha256": "a4613ffe34e9943c660338901e12995d458ee41d293c2cbf6f46da82c5f85f34",
+        "descriptionWords": 75,
+        "bodyWords": 424
+      },
+      {
+        "path": "commands/telemetry-export.md",
+        "sha256": "e585ff0b0d5843fc16b764e91d878f5dd84678bb089a6a81247806cfb0c03086",
+        "descriptionWords": 63,
+        "bodyWords": 380
+      },
+      {
+        "path": "commands/telemetry-report.md",
+        "sha256": "428a8ccc63cdf73ac637d2a0fd2955b278a9668e776fb25911add362e45c5d84",
+        "descriptionWords": 84,
+        "bodyWords": 497
+      },
+      {
+        "path": "commands/telemetry-setup.md",
+        "sha256": "26f6ae6bb4121c38b0e8becf2924880ef311408ae44d3dd50e23c6d5513143fa",
+        "descriptionWords": 48,
+        "bodyWords": 388
+      },
+      {
+        "path": "commands/telemetry-start.md",
+        "sha256": "490a7cfa7e73de322aae9cf4a0ed9f02b70c0e0e3668f42d407eec040f97d688",
+        "descriptionWords": 18,
+        "bodyWords": 262
+      },
+      {
+        "path": "commands/telemetry-status.md",
+        "sha256": "1ea5df42de9640cade33939596d1076bd4615a2f19e5d59e07d99addd037284d",
+        "descriptionWords": 27,
+        "bodyWords": 251
+      },
+      {
+        "path": "commands/telemetry-stop.md",
+        "sha256": "052fcdbb490b42ee53d266718530b3d4fc8bd6faffb22968ccd537fd88d97dcb",
+        "descriptionWords": 29,
+        "bodyWords": 280
+      },
+      {
+        "path": "commands/telemetry.md",
+        "sha256": "7505210dd023b3f937af7b0accbbbf310f9f8f1f82e0d78204758ceab0f01461",
+        "descriptionWords": 57,
+        "bodyWords": 478
+      },
+      {
+        "path": "commands/update.md",
+        "sha256": "8e780907a0c241cda7f92de97e401bfccebd2b7b235cbbfda4bc4fc3b87bf3f9",
+        "descriptionWords": 41,
+        "bodyWords": 533
+      },
+      {
+        "path": "commands/version.md",
+        "sha256": "1001126ebd7db182ee0bd3a8af6dc4f33d00bb6c547efda65ddd92e4296a515b",
+        "descriptionWords": 29,
+        "bodyWords": 227
+      },
+      {
+        "path": "skills/openspec-apply-change/SKILL.md",
+        "sha256": "61f3d768c5aac22bdf2bc33685b9a917d21c202e21bb795d62bcf654ad0e33b2",
+        "descriptionWords": 20,
+        "bodyWords": 703
+      },
+      {
+        "path": "skills/openspec-archive-change/SKILL.md",
+        "sha256": "e111d71216167eea10cec26abe8f6e15d925efeef2fd9925ffa219f55145acce",
+        "descriptionWords": 23,
+        "bodyWords": 527
+      },
+      {
+        "path": "skills/openspec-explore/SKILL.md",
+        "sha256": "2185e88065c00f69fab63e8e9680a97be51c1e7bcfc260b0631c5418666fcba8",
+        "descriptionWords": 29,
+        "bodyWords": 1161
+      },
+      {
+        "path": "skills/openspec-propose/SKILL.md",
+        "sha256": "88ad070e30256107d8989c2bf4b0ff9e4ee1c8976dd32829675c88f00618dad6",
+        "descriptionWords": 37,
+        "bodyWords": 616
+      },
+      {
+        "path": "skills/ptp-agent-roles/SKILL.md",
+        "sha256": "e641b2a9a229be8725a20f8d696e443cf0819734f5f53d8be92a9838f28eca36",
+        "descriptionWords": 63,
+        "bodyWords": 1207
+      },
+      {
+        "path": "skills/ptp-analyze/SKILL.md",
+        "sha256": "b5f3ba185ecdfcdea2e8b412637c990fa9423fe40ca9b5f651a149065d8b4aea",
+        "descriptionWords": 88,
+        "bodyWords": 1309
+      },
+      {
+        "path": "skills/ptp-archive-and-deploy/SKILL.md",
+        "sha256": "694a7cb40afa7c38adab5db1febe3c65aff042ca0f7ec5672a5445abb617a540",
+        "descriptionWords": 53,
+        "bodyWords": 2055
+      },
+      {
+        "path": "skills/ptp-archive-force/SKILL.md",
+        "sha256": "3eecc27b5cc078410c9568d5ab0068972535c976cec8080944703363119561f8",
+        "descriptionWords": 21,
+        "bodyWords": 998
+      },
+      {
+        "path": "skills/ptp-backlog-continue/SKILL.md",
+        "sha256": "a1bd35b581a1dbb58f99fddeace864e0d844c4f1f690b7f3c59a21a5fe7c1519",
+        "descriptionWords": 226,
+        "bodyWords": 5904
+      },
+      {
+        "path": "skills/ptp-backlog-run/SKILL.md",
+        "sha256": "6146c2622710e05b9e090557208d53feeecc4429d695405ae5e0e2b40598ffbd",
+        "descriptionWords": 258,
+        "bodyWords": 11354
+      },
+      {
+        "path": "skills/ptp-backlog-write/SKILL.md",
+        "sha256": "36ab8c576ca1840a12eb9dbda9abcdf288dd8dcb6347d55935643e72d4387286",
+        "descriptionWords": 360,
+        "bodyWords": 19195
+      },
+      {
+        "path": "skills/ptp-backlog/SKILL.md",
+        "sha256": "4fcb74da03d940ff13cb5f0032cdee182773a0b7b7bd40cc6a4da6970da6aadc",
+        "descriptionWords": 447,
+        "bodyWords": 20804
+      },
+      {
+        "path": "skills/ptp-brainstorm-full/SKILL.md",
+        "sha256": "b0eac1f6602e6d6974978ebaaac6c49503ae88c536dacee2ee017a64dd272c0b",
+        "descriptionWords": 59,
+        "bodyWords": 1364
+      },
+      {
+        "path": "skills/ptp-branch-guard/SKILL.md",
+        "sha256": "d45a448694fb7e3cf01e5e8aa3a6f0154a506a05efc9b521fb5927c264aec872",
+        "descriptionWords": 73,
+        "bodyWords": 2385
+      },
+      {
+        "path": "skills/ptp-change-selector/SKILL.md",
+        "sha256": "76b84b0c9272e277f6ff41c7eec05b1430e60d85ede00515be84a907ca4ac6fc",
+        "descriptionWords": 32,
+        "bodyWords": 1742
+      },
+      {
+        "path": "skills/ptp-codex-mode/SKILL.md",
+        "sha256": "3de0c4a4eb4b1bfac93a297ec2b0db2ea9e867b112aae6d5d71231b91fe5003e",
+        "descriptionWords": 92,
+        "bodyWords": 3201
+      },
+      {
+        "path": "skills/ptp-config/SKILL.md",
+        "sha256": "5aec19fddcb8d52fe78e4d3c7e7fc406ced7605b8a91f244029dbcdb64cc943d",
+        "descriptionWords": 48,
+        "bodyWords": 6385
+      },
+      {
+        "path": "skills/ptp-deploy-master/SKILL.md",
+        "sha256": "ac8e3b59c279d3eeba3179862381cb5af5b314c4c34b25284333056c46ea9dbb",
+        "descriptionWords": 26,
+        "bodyWords": 893
+      },
+      {
+        "path": "skills/ptp-deploy/SKILL.md",
+        "sha256": "fd49a691577f243c6910f2a8ad6d9cd0de1198f334607200f81bb47ec5141a31",
+        "descriptionWords": 106,
+        "bodyWords": 3065
+      },
+      {
+        "path": "skills/ptp-full-apply/SKILL.md",
+        "sha256": "441be75e688044ea99225dd7e7a71b27c0c1a9b689813381fc21a4c1230bb06a",
+        "descriptionWords": 68,
+        "bodyWords": 3366
+      },
+      {
+        "path": "skills/ptp-full/SKILL.md",
+        "sha256": "5640fbd542fe5cf3011178b716017bc23c6d6f1db8371b00100cb1f692e6c878",
+        "descriptionWords": 55,
+        "bodyWords": 3119
+      },
+      {
+        "path": "skills/ptp-github-projects-gh/SKILL.md",
+        "sha256": "0e8535a536c246322bc342ca711fd12b93f259e9a44fb04cf30e029c477af8cd",
+        "descriptionWords": 274,
+        "bodyWords": 12833
+      },
+      {
+        "path": "skills/ptp-master/SKILL.md",
+        "sha256": "e16d3d65cf4a83b04bd6730105603829ead368463afc91c4b7855b3ba63347fb",
+        "descriptionWords": 56,
+        "bodyWords": 892
+      },
+      {
+        "path": "skills/ptp-parallel-fanout/SKILL.md",
+        "sha256": "ee9d2c0326defe20df22e901440087ea88704ae619d291259b47b770eb890eb3",
+        "descriptionWords": 123,
+        "bodyWords": 2395
+      },
+      {
+        "path": "skills/ptp-prd-full/SKILL.md",
+        "sha256": "d01a7a704df455200f7258b9342c80de6ddd2f7e6cd366a8ed1e50869214efac",
+        "descriptionWords": 80,
+        "bodyWords": 1412
+      },
+      {
+        "path": "skills/ptp-prd/SKILL.md",
+        "sha256": "faaee3da1220f23f873936e5049d32b0e9baf13756f2abf9f60de34ea7b9c1d1",
+        "descriptionWords": 62,
+        "bodyWords": 2462
+      },
+      {
+        "path": "skills/ptp-review-brainstorm-full/SKILL.md",
+        "sha256": "80bfd031ec6a0e8205174abac56dbb4cb9bd2021107bf93f712132db7803d387",
+        "descriptionWords": 119,
+        "bodyWords": 1946
+      },
+      {
+        "path": "skills/ptp-review-brainstorm/SKILL.md",
+        "sha256": "4f375f3ca7727010cff4cbc8819805978149b081d4bb0b082e0fd344bd6cb2fc",
+        "descriptionWords": 74,
+        "bodyWords": 1435
+      },
+      {
+        "path": "skills/ptp-review-loop/SKILL.md",
+        "sha256": "cac287f4b8c4d161e25f69882d85cdb1d6f0cd57609615c3a673b967d858cd07",
+        "descriptionWords": 132,
+        "bodyWords": 12315
+      },
+      {
+        "path": "skills/ptp-review-prd-full/SKILL.md",
+        "sha256": "99f0c3332f2f2a58bb387bdf18a047d09ca6594b65d0587c6f04c96f1ae740a2",
+        "descriptionWords": 131,
+        "bodyWords": 2348
+      },
+      {
+        "path": "skills/ptp-review-prd/SKILL.md",
+        "sha256": "d79e36a722a5105efc7abd99013d577b80691127bdbf4e5bce3a2112701b3f64",
+        "descriptionWords": 81,
+        "bodyWords": 1472
+      },
+      {
+        "path": "skills/ptp-run-at-model/SKILL.md",
+        "sha256": "c06b106b75b9dc84b38a7ad69e773138f4e5abeee114a66d6d20d210092406d5",
+        "descriptionWords": 179,
+        "bodyWords": 7988
+      },
+      {
+        "path": "skills/ptp-telemetry-analyze/SKILL.md",
+        "sha256": "bd90b3817bb3866a10ae425d6d3d215b74ba834db617e758ad33b61e6ffd0e67",
+        "descriptionWords": 180,
+        "bodyWords": 9065
+      },
+      {
+        "path": "skills/ptp-telemetry-export/SKILL.md",
+        "sha256": "1d01ec273194e890a856cff242e2f561eb2ff9b16dcf1fa03733c8319f8640c7",
+        "descriptionWords": 211,
+        "bodyWords": 2459
+      },
+      {
+        "path": "skills/ptp-telemetry-report/SKILL.md",
+        "sha256": "4f990674a0e7ed55c673baf4bcb99e2ccd96b31d4946c3a9e66d592d892b440d",
+        "descriptionWords": 195,
+        "bodyWords": 8448
+      },
+      {
+        "path": "skills/ptp-telemetry-setup/SKILL.md",
+        "sha256": "056b945b94a54ef6e5f8a2fd78caebccfa0100d6d1cd2a69dae7c779aaba2411",
+        "descriptionWords": 123,
+        "bodyWords": 1323
+      },
+      {
+        "path": "skills/ptp-telemetry-start/SKILL.md",
+        "sha256": "a6d35718358000759993d589749564ecddd5b8031681943e333ca3b2d6f4d192",
+        "descriptionWords": 100,
+        "bodyWords": 1824
+      },
+      {
+        "path": "skills/ptp-telemetry-status/SKILL.md",
+        "sha256": "5f5e5fa0e0c4ebc99a76648768ba2405104995856d086324e3d1bc78847e994d",
+        "descriptionWords": 75,
+        "bodyWords": 944
+      },
+      {
+        "path": "skills/ptp-telemetry-stop/SKILL.md",
+        "sha256": "a5c6518ed046f382b6b0df0029390ccd9941e6f9ee9e0f66fdb2ba71c20d1e16",
+        "descriptionWords": 130,
+        "bodyWords": 2057
+      },
+      {
+        "path": "skills/ptp-telemetry/SKILL.md",
+        "sha256": "bcd858729ed399a8a7c01634ce508ba3f0d157de401e8610adde00e7d3583638",
+        "descriptionWords": 205,
+        "bodyWords": 24134
+      },
+      {
+        "path": "skills/ptp-version/SKILL.md",
+        "sha256": "de5544f25b32662f4224926939eff3a70a37db0ae28436fe0e161244e3d875a0",
+        "descriptionWords": 87,
+        "bodyWords": 1108
+      },
+      {
+        "path": "skills/ptp-workflow-cache-heal/SKILL.md",
+        "sha256": "658403fcc7e9e185d38c66787f290b8656387a547e61efc9bfbf85e5ad18d17f",
+        "descriptionWords": 49,
+        "bodyWords": 778
+      },
+      {
+        "path": "skills/ptp/SKILL.md",
+        "sha256": "c5809359ed667099986ce1affa83d31a7fdecd6ac8ea092707f0b15a2a8a16be",
+        "descriptionWords": 81,
+        "bodyWords": 3332
+      }
+    ],
+    "changes": [
+      {
+        "category": "trivial",
+        "changePath": "openspec/changes/archive/2026-08-23-0056_01_ptp-analyze-opus-high",
+        "artifacts": [
+          {
+            "path": "openspec/changes/archive/2026-08-23-0056_01_ptp-analyze-opus-high/proposal.md",
+            "sha256": "3ea59e4939d7558ca4a311dd2447985a9e156a9b1db33c327855d150f6fa97d2",
+            "words": 2233,
+            "status": "counted"
+          },
+          {
+            "path": "openspec/changes/archive/2026-08-23-0056_01_ptp-analyze-opus-high/design.md",
+            "sha256": "914cbd86ad9314ad89d105d8b94be0d95bec6d3711735008c3928df103f641ea",
+            "words": 2097,
+            "status": "counted"
+          },
+          {
+            "path": "openspec/changes/archive/2026-08-23-0056_01_ptp-analyze-opus-high/tasks.md",
+            "sha256": "28a70916688a31d3eed017a0af851c509ad2d02d1b775b2aeb50eaa29fdf028e",
+            "words": 1626,
+            "status": "counted"
+          },
+          {
+            "path": "openspec/changes/archive/2026-08-23-0056_01_ptp-analyze-opus-high/brainstorm.md",
+            "sha256": "70a0aece1fdee59f3fd454bdc945ad7e60261c2cdaa224cfafdef8b36dfe96a8",
+            "words": 2505,
+            "status": "counted"
+          },
+          {
+            "path": "openspec/changes/archive/2026-08-23-0056_01_ptp-analyze-opus-high/TLDR.md",
+            "sha256": "285f1c2b32288bb78160fabb280b2ecb0f5e7939aad35781e9ebc7cb2f0d696a",
+            "words": 382,
+            "status": "counted"
+          },
+          {
+            "path": "openspec/changes/archive/2026-08-23-0056_01_ptp-analyze-opus-high/effort.md",
+            "sha256": "9ffb5875f1ec321fdfcf61a51c0fec4b856833361da1d104a9c9149441eb72fd",
+            "words": 376,
+            "status": "counted"
+          }
+        ],
+        "totalWords": 9219
+      },
+      {
+        "category": "standard",
+        "changePath": "openspec/changes/archive/2026-08-05-0052_01_review-convergence-marker",
+        "artifacts": [
+          {
+            "path": "openspec/changes/archive/2026-08-05-0052_01_review-convergence-marker/proposal.md",
+            "sha256": "1496e110396a6e54750b8be6aa29d3578556f78d2c6cc0c7a2756849d4ada219",
+            "words": 2402,
+            "status": "counted"
+          },
+          {
+            "path": "openspec/changes/archive/2026-08-05-0052_01_review-convergence-marker/design.md",
+            "sha256": "95f2632e84ca3554dc7a8c1573fa3b7fd5bd86fadd21fb7b8183fd9abde67faa",
+            "words": 2948,
+            "status": "counted"
+          },
+          {
+            "path": "openspec/changes/archive/2026-08-05-0052_01_review-convergence-marker/tasks.md",
+            "sha256": "a340015d514c0e2ab0c873840cddb562c701717e4db38b16a21c0c6afe5be0f9",
+            "words": 2608,
+            "status": "counted"
+          },
+          {
+            "path": "openspec/changes/archive/2026-08-05-0052_01_review-convergence-marker/brainstorm.md",
+            "sha256": "3b634cef32cc100750cbf75ff58a24bfbf8ebec733719306c848674953218b71",
+            "words": 2330,
+            "status": "counted"
+          },
+          {
+            "path": "openspec/changes/archive/2026-08-05-0052_01_review-convergence-marker/TLDR.md",
+            "sha256": "ebfaede4e08dc4a42983da4add47d7dcfbcecb93d9af1f671fdd1431a0ff4140",
+            "words": 398,
+            "status": "counted"
+          },
+          {
+            "path": "openspec/changes/archive/2026-08-05-0052_01_review-convergence-marker/effort.md",
+            "sha256": "b3c55dc87e4d107eeb70338464eb391ae2ea47e72573f209a868ac3244a173aa",
+            "words": 246,
+            "status": "counted"
+          }
+        ],
+        "totalWords": 10932
+      },
+      {
+        "category": "cross-cutting",
+        "changePath": "openspec/changes/archive/2026-08-09-0054_02_rename-review-markers-to-stages",
+        "artifacts": [
+          {
+            "path": "openspec/changes/archive/2026-08-09-0054_02_rename-review-markers-to-stages/proposal.md",
+            "sha256": "36e087ea2855631d8e9327b453ec28bdafba3b6cc6b5f3939e40b944c95c5f56",
+            "words": 1940,
+            "status": "counted"
+          },
+          {
+            "path": "openspec/changes/archive/2026-08-09-0054_02_rename-review-markers-to-stages/design.md",
+            "sha256": "630a75d12a01fbdbbf3d536770e17d42e0d78e919d377c3beb5cf7c53cd9f3e5",
+            "words": 1341,
+            "status": "counted"
+          },
+          {
+            "path": "openspec/changes/archive/2026-08-09-0054_02_rename-review-markers-to-stages/tasks.md",
+            "sha256": "9a398c92494ed404fdf0e09da25314950b3c7a788ef1e759f3704919d8ba8ff1",
+            "words": 1933,
+            "status": "counted"
+          },
+          {
+            "path": "openspec/changes/archive/2026-08-09-0054_02_rename-review-markers-to-stages/brainstorm.md",
+            "sha256": "8744b7b3ffe248de0e5b444cd548593e84a25c120600c9ba4d20f58f3768daaa",
+            "words": 1678,
+            "status": "counted"
+          },
+          {
+            "path": "openspec/changes/archive/2026-08-09-0054_02_rename-review-markers-to-stages/TLDR.md",
+            "sha256": "a1abd9ae99996ca4754619e19414d3c57db267f5376cd59713665ef2daa15c9b",
+            "words": 297,
+            "status": "counted"
+          },
+          {
+            "path": "openspec/changes/archive/2026-08-09-0054_02_rename-review-markers-to-stages/effort.md",
+            "sha256": "4db905094325268b7ab57a058b61f68615c5a3143de71c8781fa1f5b5fe067ec",
+            "words": 153,
+            "status": "counted"
+          }
+        ],
+        "totalWords": 7342
+      },
+      {
+        "category": "migration",
+        "changePath": "openspec/changes/archive/2026-08-02-0046_04_board-setup-docs-and-migration",
+        "artifacts": [
+          {
+            "path": "openspec/changes/archive/2026-08-02-0046_04_board-setup-docs-and-migration/proposal.md",
+            "sha256": "87281c4be8c454152c7c79c27c76543f6eb5afa4f2aa97c92c603fd4d172877f",
+            "words": 2536,
+            "status": "counted"
+          },
+          {
+            "path": "openspec/changes/archive/2026-08-02-0046_04_board-setup-docs-and-migration/design.md",
+            "sha256": "c1cf969903d956b5ea3edb89ee1a9ff96762c14a0f671f6f87da89e2b84ef6cd",
+            "words": 1780,
+            "status": "counted"
+          },
+          {
+            "path": "openspec/changes/archive/2026-08-02-0046_04_board-setup-docs-and-migration/tasks.md",
+            "sha256": "444d9887dd08bee4efa690ebd78b794c84554845ae555266e06d7b1dd12b7136",
+            "words": 2815,
+            "status": "counted"
+          },
+          {
+            "path": "openspec/changes/archive/2026-08-02-0046_04_board-setup-docs-and-migration/brainstorm.md",
+            "status": "missing"
+          },
+          {
+            "path": "openspec/changes/archive/2026-08-02-0046_04_board-setup-docs-and-migration/TLDR.md",
+            "status": "missing"
+          },
+          {
+            "path": "openspec/changes/archive/2026-08-02-0046_04_board-setup-docs-and-migration/effort.md",
+            "sha256": "623f3fefdc7dc0d3b6213652bccf070830ac1c6945c020768880d440c7ca5dc2",
+            "words": 406,
+            "status": "counted"
+          }
+        ],
+        "totalWords": 7537
+      },
+      {
+        "category": "security",
+        "changePath": "openspec/changes/archive/2026-08-03-0050_01_retire-temp-file-body-admission",
+        "artifacts": [
+          {
+            "path": "openspec/changes/archive/2026-08-03-0050_01_retire-temp-file-body-admission/proposal.md",
+            "sha256": "0eb2094ac281ab867209ed6365ed76460835a58d9635a3abf382e5409a519b79",
+            "words": 3286,
+            "status": "counted"
+          },
+          {
+            "path": "openspec/changes/archive/2026-08-03-0050_01_retire-temp-file-body-admission/design.md",
+            "sha256": "d824ec5dbeb9079089f6fa7d166cbdc6859ab4f7fcab57f49b8aa925b1d58531",
+            "words": 1799,
+            "status": "counted"
+          },
+          {
+            "path": "openspec/changes/archive/2026-08-03-0050_01_retire-temp-file-body-admission/tasks.md",
+            "sha256": "6dc3c126f6188d04d0a129a8876b0012cb7e3c8ae7793eef5e81803d982fbdf3",
+            "words": 1524,
+            "status": "counted"
+          },
+          {
+            "path": "openspec/changes/archive/2026-08-03-0050_01_retire-temp-file-body-admission/brainstorm.md",
+            "sha256": "9e714fd06afd3f90ecee1a254c84cdc99c4984fa8f8013ce230d6e14d0ccdeff",
+            "words": 3922,
+            "status": "counted"
+          },
+          {
+            "path": "openspec/changes/archive/2026-08-03-0050_01_retire-temp-file-body-admission/TLDR.md",
+            "sha256": "977cf7c9c4b62df4a0120052e1f9a747714ca5d97b74e793689b26626ad7e06f",
+            "words": 616,
+            "status": "counted"
+          },
+          {
+            "path": "openspec/changes/archive/2026-08-03-0050_01_retire-temp-file-body-admission/effort.md",
+            "sha256": "f8280b38385eb8a6708065ca62b963582bd7610387625f3d8cb8ec154bada245",
+            "words": 298,
+            "status": "counted"
+          }
+        ],
+        "totalWords": 11445
+      },
+      {
+        "category": "concurrency",
+        "changePath": "openspec/changes/archive/2026-07-31-0044_01_telemetry-substrate-core",
+        "artifacts": [
+          {
+            "path": "openspec/changes/archive/2026-07-31-0044_01_telemetry-substrate-core/proposal.md",
+            "sha256": "3581dbd4aaaeb6887762aa8bc7a76bfdfd6d329ae1f8f6636c6401f5cdefa221",
+            "words": 3809,
+            "status": "counted"
+          },
+          {
+            "path": "openspec/changes/archive/2026-07-31-0044_01_telemetry-substrate-core/design.md",
+            "sha256": "338008dd34f5234f5bd4e5edb727d4248348fbe114508edd55f5ff2a165912f7",
+            "words": 5718,
+            "status": "counted"
+          },
+          {
+            "path": "openspec/changes/archive/2026-07-31-0044_01_telemetry-substrate-core/tasks.md",
+            "sha256": "36e2355f844e5d6f267382ee6baa28775165f39b7dccabdd8d75375d3ed5542b",
+            "words": 5160,
+            "status": "counted"
+          },
+          {
+            "path": "openspec/changes/archive/2026-07-31-0044_01_telemetry-substrate-core/brainstorm.md",
+            "sha256": "faed568eeb149f0ccef4d5c109a154672d0c966d483f02689c5e9e36685efa54",
+            "words": 2221,
+            "status": "counted"
+          },
+          {
+            "path": "openspec/changes/archive/2026-07-31-0044_01_telemetry-substrate-core/TLDR.md",
+            "sha256": "e357d36425ff50990b2b6eccee0d836979a4dc6df7a5e640107f670591eb6fc9",
+            "words": 377,
+            "status": "counted"
+          },
+          {
+            "path": "openspec/changes/archive/2026-07-31-0044_01_telemetry-substrate-core/effort.md",
+            "sha256": "f8d8a5d54a804932110b4068bf66e1e7498671f3b2ff5661b2fba2fe95ba43b0",
+            "words": 280,
+            "status": "counted"
+          }
+        ],
+        "totalWords": 17565
+      }
+    ],
+    "totals": {
+      "commandBodyWords": 77745,
+      "skillBodyWords": 194323,
+      "descriptionWords": 7186,
+      "artifactWords": 64040
+    }
+  },
+  "proxyMetric": "corpus.totals"
+}

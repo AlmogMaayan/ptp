@@ -1,5 +1,5 @@
 ---
-description: Review only the UNCOMMITTED working-tree changes (staged + unstaged + untracked) using the external Codex CLI (codex exec) — read-only
+description: Run one closed-book Codex review of the uncommitted working tree, with or without a change
 argument-hint: "[change-selector] — any selector resolving to exactly one change (id, story:NN, or epic:XXXX story:NN) for contract context"
 ---
 
@@ -21,7 +21,7 @@ Resolve `$ARGUMENTS` as a change selector per the `ptp-change-selector` skill. B
 
 ## Reliability: caller supplies the inputs, Codex runs no fragile commands
 
-Codex runs under `codex exec -s read-only` with `approval: never`, shelling out via `pwsh` on Windows. Three things break runs: **`npx`/install commands** (sandbox auto-denies network), **nested-quote PowerShell one-liners** (rejected by policy), and **transient Windows sandbox spawn errors**. So **you (the caller) capture the diff, the untracked-file contents, and any validate/test results, and inline them into the prompt.** Codex should not need to run anything; it MAY do *simple* reads for extra context, but must never run `npx`/network/install commands or build complex one-liners. Pass the prompt over **stdin**.
+Codex runs under `codex exec -s read-only` with `approval: never`, shelling out via `pwsh` on Windows. Three things break runs: **`npx`/install commands** (sandbox auto-denies network), **nested-quote PowerShell one-liners** (rejected by policy), and **transient Windows sandbox spawn errors**. So **you (the caller) capture the diff, the untracked-file contents, and any validate/test results, and inline them into the prompt.** Codex opens **no** file by path and runs **no** command at all — every excerpt it needs is inlined by you, which is what keeps the review closed-book. Pass the prompt over **stdin**.
 
 ## Steps
 
@@ -42,11 +42,21 @@ config), and relaying the verdict — **fixing nothing**, and the subagent's out
 `ptp-run-at-model`'s *Result relay*.
 
 1. **Confirm there is something to review (you, via Bash):** `git status --porcelain`. Capture the list of changed + untracked files.
-2. **Capture the uncommitted diff and untracked contents (you, via Bash/Read):**
-   - Tracked changes: `git diff HEAD` (and `git diff --staged` if you want staged-only called out).
+2. **Gather this command's required set (you, via Bash/Read) — and nothing outside it.** Its scope
+   is the **staged, unstaged and untracked working tree**, never a merge-base diff, and it stays
+   runnable with no change folder at all:
+   - Tracked changes: `git diff HEAD`, plus `git diff --staged` when staged-only needs calling out.
    - Untracked files (lines starting with `??`): read their contents directly (they have no diff yet).
-   - If a change-id was given, also read the contract: `openspec/changes/<change-id>/{proposal,design,tasks}.md` + `specs/**/spec.md`.
-   - If the change has cheap, relevant checks (typecheck/lint/tests), run them yourself and capture the results to inline as authoritative — do not make Codex run them.
+   - **Optional contract rule:** inline the contract artifacts — `proposal.md`, `design.md` when
+     present, `tasks.md`, and `specs/**/spec.md` — **only when a change selector was supplied**, and
+     omit them entirely when none was.
+   - The cited source excerpts for any `path:line` reference the working-tree changes make.
+   - Any cheap, relevant checks (typecheck/lint/tests) the change implies: run them yourself and
+     capture the results to inline as authoritative — do not make Codex run them.
+   - This kind carries **no** `openspec validate` result: there may be no change folder to validate.
+
+`TLDR.md` and `effort.md` are never inlined for any kind.
+
 3. **Build ONE prompt over stdin.**
 
    **Severity threshold (resolved caller-side, inlined as a literal).** Resolve `review.minSeverity`
@@ -73,8 +83,8 @@ config), and relaying the verdict — **fixing nothing**, and the subagent's out
    - The review instructions (below).
    - The captured `git diff HEAD` (and staged diff if used), under a `=== UNCOMMITTED DIFF ===` delimiter.
    - The untracked files' contents, under `=== UNTRACKED <path> ===` delimiters.
-   - The contract files (if a change-id was given) and any validate/test results, clearly labeled as authoritative.
-   - A hard instruction block: *"The diff and untracked contents are inlined above — review those. Do NOT run `npx`, installers, or any network command; any test/validate results given are authoritative. You MAY read additional source files for context, but only with SIMPLE reads (`cat` / `Get-Content <path>`) — never nested-quote one-liners. If a read is blocked, note the point as 'unverifiable from sandbox' and continue; never retry with a more complex command."*
+   - The contract artifacts (only when a change selector was supplied) and any test results, clearly labeled as authoritative.
+   - A hard instruction block: *"The diff and untracked contents are inlined above — review those. Do NOT run `npx`, installers, or any network command; any test/validate results given are authoritative. Open **no** file by path and run **no** command: every source excerpt the working-tree contents cite is inlined above. If something you would need is not inlined, note the point as 'not inlined — unverifiable closed-book' and continue."*
 
    The review instructions must tell Codex to:
    - If a change-id was given, grade the uncommitted work against the contract (proposal intent, spec deltas, tasks); otherwise review for general correctness, security, error handling, conventions, and missing tests.

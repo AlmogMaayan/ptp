@@ -1,6 +1,6 @@
 ---
 name: ptp-branch-guard
-description: Shared branch-safety preamble for every ptp step that creates or updates files. Defines, in exactly one place, the "are we on a feature branch, not master?" check each write-capable ptp command runs as its first write-affecting action — and, when HEAD is master, the minimal-model git-prep workflow that stashes, switches to master, pulls, and cuts a fresh feature branch before any file is written. Read-only / review-only ptp commands do not use it.
+description: Own branch safety, the check every write-capable ptp step runs before it touches a file
 ---
 
 # ptp-branch-guard — never write ptp work onto `master`
@@ -57,6 +57,8 @@ guard itself does not perform. It also has no deploy phase and therefore cuts no
 `ptp/deploy-fix-*` branches.
 
 ## The guard (first write-affecting action, before writing any file)
+
+### Branch safety
 
 The guard is the **first action that affects the working tree** — but it is *not* literally the first thing a command does. Any **cheap, read-only precondition or required user confirmation that would abort the whole command** runs **before** the guard: a missing `codex` CLI, a missing `openspec/changes/<id>/` folder, "no review present in the conversation", the no-arg scope-confirmation STOP, and the like. Evaluate those first; run the guard only once they pass. Cutting a branch (and spinning up the prep workflow) ahead of a guaranteed abort just leaves a throwaway branch behind.
 

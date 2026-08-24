@@ -1,5 +1,5 @@
 ---
-description: Review OpenSpec change artifacts (proposal/design/tasks/spec-deltas) for completeness, consistency, and validation — read-only, no code
+description: Run one main-agent review pass over a change's planning artifacts and report its findings
 argument-hint: "[change-selector] (optional — id, epic:XXXX, story:NN, or epic:XXXX story:NN; omit to review ALL active changes)"
 ---
 
@@ -41,32 +41,61 @@ one subagent handles the whole per-change pass.)
    - If `$ARGUMENTS` is empty, run `npx -y openspec list` and review **every** active change. Do not stop at the first failure — review all of them.
 
 2. **For each change in scope, load its artifacts** from `openspec/changes/<change-id>/`:
-   - `proposal.md`, `design.md` (may be absent), `tasks.md`, `specs/**/spec.md` (may be absent), `effort.md` (may be absent on changes predating this artifact — absence or a malformed first line that does not match `{model}.{effort}` is at most Medium, never a High or Critical, and SHALL NOT block `/ptp:apply`), `TLDR.md` (may be absent on changes predating this artifact — absence is at most Medium, never a High or Critical).
+   - `proposal.md`; `design.md` (may be absent — its absence is never itself a finding); `tasks.md`;
+     `specs/**/spec.md` (may be absent); and **line 1 only** of `effort.md` (may be absent — absence or
+     a first line that does not match `{model}.{effort}` is at most Medium, never a High or Critical,
+     and SHALL NOT block `/ptp:apply`; lines 2 and beyond are ignored, never validated).
+   - Do **not** load `TLDR.md`. It is not an input to this review, and a legacy folder carrying one is not a finding.
+   - `brainstorm.md` is **not** a default input: read it only to adjudicate a **disputed** decision
+     source. A `Source` path that does not resolve is **not** a blocking condition.
 
-3. **Run the rubric** against each change. This is a structured artifact audit authored inline — do **not** invoke the Superpowers code-review skill (it targets code; artifacts are a different object). Apply Superpowers-style rigor to the reasoning, not the code.
+3. **Run the rubric** against each change. This is a structured artifact audit authored inline — do **not** invoke the `ptp-requesting-code-review` skill (it targets code; artifacts are a different object). Apply that same rigor to the reasoning, not the code.
 
-   1. **Existence & validation** — the change folder exists; `npx -y openspec validate <change-id> --strict` passes.
-   2. **`proposal.md` completeness** — all required sections present **and non-placeholder** (real content, not a restated heading): `Context`, `Goals`, `Non-goals`, `Alternatives considered`, `Design`, `Risks & edge cases`, `Impact`, `Success criteria`, `Source`.
-   3. **Cross-artifact consistency:**
-      - Every `Goal` maps to ≥1 task in `tasks.md`.
-      - Every spec-delta requirement (`### Requirement: ...`) has an implementing task.
-      - `proposal.md > Impact` names the capabilities the spec deltas actually touch.
-      - `design.md` (if present) does not contradict `proposal.md`.
-      - The `Source` path resolves to a real brainstorm doc — `openspec/changes/<change-id>/brainstorm.md` (the change-scoped brainstorm) or an `openspec/brainstorms/*-brainstorm.md` general brainstorm (proposal must be derived from brainstorming, not the raw request).
-   4. **Spec-delta quality** — correct OpenSpec format (`## ADDED/MODIFIED/REMOVED/RENAMED Requirements` → `### Requirement:` with SHALL/MUST → `#### Scenario:`); every requirement has ≥1 scenario.
-   5. **`tasks.md` quality** — small, sequential, independently verifiable tasks; ends with a verification task that maps to `Success criteria`.
+   This file is the **single author** of the artifact rubric. Every other artifact-review surface —
+   `commands/review-plan-loop.md`, `commands/review-plan-full.md`, `commands/codex-review-plan.md`,
+   `commands/codex-review-plan-loop.md`, and the `artifact` dispatch bullets of
+   `skills/ptp-review-loop/SKILL.md` — **references** the two closed lists below and never restates
+   them.
 
-      **Banned manual tasks.** Flag any checkbox whose completion depends on a person acting
-      **outside the reach of the agent** that runs `/ptp:apply`. The test is *who must act*, never
-      which words appear. The normative source of the authoring ban is the `tasks-authoring`
-      capability (`0053_01_no-manual-tasks-authoring`) — this check detects violations of that
-      existing rule, it is not a second rule. Illustrative banned shapes, carried over from that
-      capability: **manual QA**; **manual or exploratory testing**; **"manually verify"**; **"verify
-      by hand"**; **"check in the browser"**; **"have a human confirm"**; **"ask the user to try"** —
-      plus further illustrations in the same spirit ("visually inspect"; a human sign-off or approval
-      step; "test on a physical device"). These are **illustrations of the executor test, not the test
-      itself**: a checkbox matching no listed phrase ("confirm with the design team before shipping")
-      is still flagged, and the check is never applied as a word blacklist.
+   **Order of the pass.** Per iteration, run exactly this, in this order:
+
+   1. `npx -y openspec validate <change-id> --strict`.
+   2. The deterministic **compactness lint** published by the `compact-artifact-contract` capability
+      (defined by `0057_02_compact-artifact-contract-and-schema`):
+      `node scripts/ptp-compact-lint.js --change <change-id>`.
+   3. Exactly **one** model review pass, which receives the validation result and the lint report as
+      inputs and returns **all** findings for that iteration in **one structured** emission — no
+      incremental drip, and no second model review pass over the same artifact state.
+
+   Lint output is **not** a separate finding stream: each lint report is classified by the step-4
+   severity mapping like any other observation, so a lint report matching a blocking condition below
+   becomes a blocking finding and every other lint report is Medium or Low. If the lint is
+   unavailable, errors, or cannot be run, record a **non-blocking note** and continue — it never
+   STOPs the review, never changes a verdict, and never changes a terminal state.
+
+   **Blocking conditions — exhaustive.** A finding may block only when at least one of these eight
+   holds. Nothing outside this list may block:
+
+   1. **Validation fails** — the change folder is missing, or `npx -y openspec validate <change-id> --strict` does not pass.
+   2. **Scope/capability mapping is missing or contradictory** — `proposal.md` does not name the
+      capabilities the spec deltas touch, or names capabilities the spec deltas do not touch.
+   3. **A normative requirement has no scenario** — a `### Requirement:` carrying SHALL/MUST text with no `#### Scenario:` block.
+   4. **A requirement has no implementing task** in `tasks.md`.
+   5. **A task is not agent-executable, or is not verifiable by an automated check.**
+
+      **Banned-manual-task check.** This is the detection half of this blocking condition — not a
+      separate rubric item — so the block-list above stays exhaustive. Flag any checkbox whose
+      completion depends on a person acting **outside the reach of the agent** that runs `/ptp:apply`.
+      The test is *who must act*, never which words appear. The normative source of the authoring ban
+      is the `tasks-authoring` capability (`0053_01_no-manual-tasks-authoring`) — this check detects
+      violations of that existing rule, it is not a second rule. Illustrative banned shapes, carried
+      over from that capability: **manual QA**; **manual or exploratory testing**; **"manually
+      verify"**; **"verify by hand"**; **"check in the browser"**; **"have a human confirm"**; **"ask
+      the user to try"** — plus further illustrations in the same spirit ("visually inspect"; a human
+      sign-off or approval step; "test on a physical device"). These are **illustrations of the
+      executor test, not the test itself**: a checkbox matching no listed phrase ("confirm with the
+      design team before shipping") is still flagged, and the check is never applied as a word
+      blacklist. A banned manual task is classified **High** (see step 4).
 
       **Exception (narrow).** A task that **authors an automated test**, or that runs a command and
       asserts on its output, is acceptable even when its prose describes user-facing behavior, because
@@ -106,17 +135,40 @@ one subagent handles the whole per-change pass.)
       pass of the fixing loops (`/ptp:review-plan-loop`, `/ptp:codex-review-plan-loop`,
       `/ptp:review-plan-full`) — **not** `/ptp:review-plan` itself, which stays read-only and edits
       nothing (see *Hard rules*).
-   6. **Reasoning depth** — `Alternatives considered` has ≥2 options with tradeoffs (or an explicit statement that only one was viable, with the reason); `Risks & edge cases` covers both happy-path edges and unhappy paths.
-   7. **`effort.md` sanity check** (advisory, non-blocking) — if `effort.md` is present, verify: (a) the first line matches `^(haiku|sonnet|opus)\.(low|medium|high|xhigh)$` with no prefix, suffix, or decoration; (b) the second line is empty; (c) lines 3+ contain a non-empty justification. A missing `effort.md` or a malformed first line is at most a **Medium** finding and SHALL NOT block `/ptp:apply` — parallel to the `TLDR.md` treatment below.
-   8. **`TLDR.md` sanity check** (advisory, non-blocking) — if `TLDR.md` is present, verify: (a) the `**In one sentence:**` line is filled in (not a placeholder); (b) the `## Surface area` section lists Files and the three component categories (**Classes / components**, **Methods / functions**, **Models / data**), each either populated or `None`; (c) the Files listed in `## Surface area` are not obviously contradicting `proposal.md > Impact`; (d) the Files listed are not obviously contradicting the files named in `tasks.md` (the tasks are the concrete proxy for what the change actually touches). A missing or stale `TLDR.md` is at most a **Medium** finding and SHALL NOT block `/ptp:apply`.
+   6. **A non-obvious implementation decision or invariant is missing** — apply could not proceed
+      without asking a human to re-decide it.
+   7. **Two artifacts disagree.**
+   8. **One artifact carries current and obsolete truth at the same time** — an obsolete statement
+      together with its correction is defective even when the later statement is right.
 
-4. **Classify each finding** (vocabulary shared with `/ptp:review`, retargeted to artifacts):
-   - **Critical** — `proposal.md` missing; `validate --strict` fails; a spec delta contradicts the stated `Goals`.
-   - **High** — a required `proposal.md` section missing/empty; a spec-delta requirement with no implementing task; a requirement with no scenario; `Source` doesn't resolve; a `tasks.md` task that requires manual QA, manual testing, or any human executor (the banned-manual-task check in rubric item 5).
-   - **Medium** — shallow content: only one alternative, vague/uncheckable success criteria, missing `design.md` where decisions are non-obvious.
-   - **Low** — nits: wording, formatting, ordering.
+   **Must not be required — closed list.** This rubric does **not** require, and no reader may block
+   or raise a finding at any severity on, any of these six retired pressures — each of which
+   **MUST NOT be required**, here or on any surface referencing this rubric:
 
-   Classification is **threshold-independent**: every finding is classified by this unchanged rubric
+   - a fixed number of alternatives;
+   - boilerplate sections populated with `None`;
+   - rationale present in both `proposal.md` and `design.md`;
+   - effort justification;
+   - `TLDR.md` presence or consistency — a legacy folder carrying one raises nothing;
+   - restated happy-path / unhappy-path prose where the spec scenarios already express those cases.
+
+   **Legacy tolerance.** A change folder created under the pre-compaction contract may carry
+   a legacy `TLDR.md`, a legacy multi-line `effort.md`, and a `design.md` written for mechanical
+   work. None of those legacy shapes is a finding at any severity, and none affects a verdict, a convergence decision, or a
+   terminal state. An absent `effort.md`, or a first line that does not match
+   `^(haiku|sonnet|opus)\.(low|medium|high|xhigh)$`, stays at most a **Medium** finding and never
+   blocks `/ptp:apply`; content on lines 2 and beyond is ignored rather than validated.
+
+4. **Classify each finding** (vocabulary shared with `/ptp:review`, retargeted to artifacts). The four
+   labels are unchanged by the rubric rewrite; the blocking conditions map onto them as:
+   - **Critical** — `proposal.md` missing; blocking condition 1 (`validate --strict` fails); a spec delta contradicting the proposal's stated scope (the contradictory half of condition 2).
+   - **High** — blocking conditions 2 (missing mapping), 3, 4, 5, 6, 7, and 8 — including a `tasks.md` checkbox with a human executor, flagged by the banned-manual-task check inside condition 5, which stays **High**.
+   - **Medium** — an observation outside the block-list a reader should still see: a vague or uncheckable success criterion, an absent or malformed `effort.md` first line, a compactness-lint report matching no blocking condition.
+   - **Low** — nits: wording, formatting, ordering; the remaining compactness-lint reports.
+
+   Medium and Low findings never by themselves produce a `WARN` or a `FAIL`.
+
+   Classification is **threshold-independent**: every finding is classified by this rubric
    and listed regardless of the configured severity threshold. The threshold applies only at step 5,
    and only to what **blocks**.
 

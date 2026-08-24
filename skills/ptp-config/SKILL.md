@@ -1,6 +1,6 @@
 ---
 name: ptp-config
-description: Use this skill when the user wants to interactively set a ptp configuration value (e.g. codex.mode) in either the global (~/.claude/ptp/config.json) or project (<repo>/.claude/ptp/config.json) config file — guiding them through target selection, parameter announcement, current-value display, value selection, and safe merge-write without clobbering existing keys or malformed files.
+description: Own interactive ptp configuration, guiding target, parameter, and value selection into a safe write
 ---
 
 # ptp-config — interactive config editor
@@ -31,9 +31,9 @@ parameters = [
     jsonPath: ["codex", "mode"],
     kind:     "enum",
     values: [
-      { value: "auto",     desc: "Use Codex when on PATH; degrade to Superpowers-only if missing (default)" },
+      { value: "auto",     desc: "Use Codex when on PATH; degrade to a main-only run if missing (default)" },
       { value: "required", desc: "Require Codex; dual-reviewer commands STOP if it is missing" },
-      { value: "off",      desc: "Skip Codex; run Superpowers-only" }
+      { value: "off",      desc: "Skip Codex; run main-only" }
     ],
     default: "auto"
   },
@@ -324,9 +324,9 @@ Branch on the selected parameter's `kind`:
 Use `AskUserQuestion` to offer the parameter's `values`. For `codex.mode`, the three valid values
 are:
 
-1. **`auto`** — Use Codex when on PATH; degrade to Superpowers-only if missing (default)
+1. **`auto`** — Use Codex when on PATH; degrade to a main-only run if missing (default)
 2. **`required`** — Require Codex; dual-reviewer commands STOP if it is missing
-3. **`off`** — Skip Codex; run Superpowers-only
+3. **`off`** — Skip Codex; run main-only
 
 These are the only options. **Never write a value that is not in the entry's `values` list.** The
 value written to the file is exactly the selected string (verbatim, lowercase).

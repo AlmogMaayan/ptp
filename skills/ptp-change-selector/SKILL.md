@@ -1,6 +1,6 @@
 ---
 name: ptp-change-selector
-description: Shared change-id format, epic/story selector grammar, resolution algorithm, and epic allocation for all ptp commands. Every command that takes a change argument resolves it through this skill rather than restating the grammar.
+description: Own the change-id format, selector grammar, resolution algorithm, and epic allocation
 ---
 
 # ptp-change-selector — shared change-id format + selector grammar + epic allocation
@@ -34,6 +34,8 @@ Example: `0001_01_landing-page-list-bulk-export`.
 Legacy ids are **never produced going forward**. They are resolved by exact match only — not addressable via `epic:` or `story:` selectors.
 
 ## 2. Selector grammar
+
+### Selector grammar
 
 A command argument string is classified in this order (first match wins):
 

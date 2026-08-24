@@ -1,6 +1,6 @@
 ---
 name: ptp-deploy-master
-description: Use this skill when the user wants to deploy the current master — trigger the project's deploy CI/CD action against master as-is, without commit/push/PR/merge. Drives /ptp:deploy-master.
+description: Own shipping work that already sits on master, cutting and merging no branch
 ---
 
 # ptp-deploy-master — trigger the deploy action against a clean `master`

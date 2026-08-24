@@ -1,6 +1,6 @@
 ---
 name: openspec-archive-change
-description: Archive a completed change in the experimental workflow. Use when the user wants to finalize and archive a change after implementation is complete.
+description: Archive a deployed change and fold its delta specs into the main specification set
 license: MIT
 compatibility: Requires openspec CLI.
 metadata:

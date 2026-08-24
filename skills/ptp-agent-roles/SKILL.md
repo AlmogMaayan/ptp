@@ -1,6 +1,6 @@
 ---
 name: ptp-agent-roles
-description: Resolve roles.main from layered ptp config and expose the derived { main, reviewer } role pair — the single source of truth for which agent is the main planning/implementation agent and which is the reviewer. Defined here (0027_01); consumed by later slices (0027_02 reviewer-gate direction, 0027_03 review orchestrators, 0027_04 main-implementer path). This slice performs no consumer wiring — it only defines the contract.
+description: Resolve which agent plays the main role and which plays the reviewer role for a step
 ---
 
 # ptp-agent-roles — resolve `roles.main` and derive the reviewer
@@ -23,11 +23,10 @@ apply/effort file references or consumes this skill yet — that wiring happens 
 
 ## Resolving `roles.main` (mirrors `ptp-codex-mode`'s `codex.mode` resolution)
 
-Read and merge the optional ptp config — global `~/.claude/ptp/config.json` first, then project
-`<repo>/.claude/ptp/config.json` overriding **key-by-key** (the same two files and precedence
-`ptp-codex-mode` uses for `codex.mode` and `ptp-config` writes). Extract `roles.main`, then — only
-if both layers left it unset — fall back to an opt-in detection step, and only then to the
-ultimate fallback `claude`:
+Resolve `roles.main` by the layered global-then-project config read defined in
+`skills/ptp-codex-mode/SKILL.md`, extracting `roles.main` in place of `codex.mode`. Then — only if
+both layers left it unset — fall back to an opt-in detection step, and only then to the ultimate
+fallback `claude`:
 
 ```
 main = undefined

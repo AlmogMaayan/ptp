@@ -1,6 +1,6 @@
 ---
 name: ptp-parallel-fanout
-description: Own the contract under which a ptp command MAY run several ptp-run-at-model main runs concurrently instead of one at a time — the four safety conditions every caller must establish before fanning out, the layered resolution of parallel.mode and parallel.maxConcurrency, the effective-decision rule combining config with the per-invocation parallel:on|off token, the cap's batching semantics, the deterministic ascending-change-id aggregation rule, the join-then-gate rule, and the reserved dependency-wave variant. A pure prose contract in the single-source-of-truth pattern of ptp-branch-guard (branch safety), ptp-codex-mode (the reviewer gate), and ptp-agent-roles (role resolution): it spawns nothing, runs no git, probes no CLI, and edits nothing. Defined here (0034_01); consumed by 0034_02 (plan-multiple fan-out) and 0034_03 (full-plan fan-out). This change performs no consumer wiring — it only defines the contract.
+description: Own how ptp fans work out across concurrent agents and how their results are joined
 ---
 
 # ptp-parallel-fanout — when a caller MAY run several main runs at once

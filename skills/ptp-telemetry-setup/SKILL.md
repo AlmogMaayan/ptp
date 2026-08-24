@@ -1,6 +1,6 @@
 ---
 name: ptp-telemetry-setup
-description: The confirm-first, one-time Claude Code telemetry opt-in — the writer of the telemetry `env` block into `<repo>/.claude/settings.local.json`, the mint-or-reuse of the per-store ingestion credential, and the managed-line additions to both the repository-level `.gitignore` and `<telemetry.root>/.gitignore`, together with its refusal paths (an already-tracked settings file, a settings file that does not parse as JSON, a higher-precedence layer already defining a key). Nothing is written before explicit confirmation. Reached from both `/ptp:telemetry-setup` and `/ptp:telemetry setup`, which are two front doors onto this one skill. `setup` also has a second, separately-consented Codex step whose contract stays in the `ptp-telemetry` skill and is referenced here rather than owned here; every other substrate contract this skill depends on likewise stays there and is cited by anchor, never restated.
+description: Own setting up local ptp telemetry, its store, and its receiver configuration
 ---
 
 # ptp-telemetry-setup — the confirm-first `setup` contract

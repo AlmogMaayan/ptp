@@ -1,11 +1,13 @@
 ---
 name: ptp-review-brainstorm
-description: "Use this skill when reviewing a change's brainstorm.md quality before /ptp:plan — the read-only brainstorm-quality gate that sits one step earlier than /ptp:review-plan, between /ptp:brainstorm and /ptp:plan. Owns the brainstorm-review methodology (locate the brainstorm, the rubric, Critical/High/Medium/Low classification, the PASS/WARN/FAIL verdict, and the report + next-step recommendation) that the thin /ptp:review-brainstorm command delegates to. Read-only: edits nothing, runs no git, runs no branch guard, runs no openspec validate, and triggers no other ptp command."
+description: Own one main-agent review pass over a brainstorm and the findings it reports
 ---
 
 # ptp-review-brainstorm — the brainstorm-quality gate methodology
 
 ## Purpose
+
+**Model dispatch target.** `/ptp:review-brainstorm` runs this skill's work at `opus.high` via `ptp-run-at-model` (`skills/ptp-run-at-model/SKILL.md`), which owns the spawn-and-relay mechanics and requires its caller to supply the target. This names the target only; it restates none of that contract.
 
 This skill owns the **brainstorm-review methodology** and is the **single source of truth** the thin
 `/ptp:review-brainstorm` command delegates to — the same command-backed-by-a-skill split as
@@ -53,17 +55,32 @@ fixed artifact folder:
 
 ---
 
-## The rubric (retargeted from review-plan, NOT copied)
+## The rubric (semantic sufficiency, aligned with review-plan's — NOT copied)
 
-| # | Check | Worst severity if failed |
-|---|-------|--------------------------|
-| 1 | **Existence & non-placeholder** — file exists, real content (not an empty stub or a restated heading) | Critical (missing) / High (placeholder) |
-| 2 | **≥2 real options with tradeoffs** — each option carries the four tradeoff axes (what it changes / risk-blast-radius / effort / reversibility) **and** interaction-with-existing-specs; a single option is acceptable **only** with an explicit reasoned "only one viable" statement | High (no real second option, no "only one viable" rationale) / Medium (thin tradeoffs) |
-| 3 | **Clear recommendation with rationale** — one option marked recommended, and it says *why* | High (no recommendation) / Medium (no rationale) |
-| 4 | **Assumptions documented** — autonomous choices captured inline | Medium |
-| 5 | **Scope / blast-radius addressed** | Medium |
-| 6 | **Interaction with existing specs considered** | Medium |
-| 7 | **Usable handoff to `/ptp:plan`** — enough substance to transcribe into artifacts without re-deciding direction | High (unusable) / Medium (gaps) |
+This is the brainstorm-side counterpart of the artifact rubric authored in `commands/review-plan.md`:
+the same principle — block on what a reader genuinely needs, never on prose volume, option count, or
+section count. It asks whether the brainstorm is **semantically sufficient**, checking that it
+records:
+
+- **the decision** — one direction is actually stated, not merely surveyed;
+- **the alternatives that were materially available** — each named, with the reason it was not taken;
+- **the assumptions** taken autonomously, captured inline;
+- **a usable handoff to `/ptp:plan`** — enough substance to transcribe into artifacts without
+  re-deciding apply-level direction;
+- **internal consistency** — the file does not contradict itself and does not carry current and
+  obsolete truth side by side.
+
+There is **no fixed option count** and **no fixed set of tradeoff axes**. Where no material design
+choice existed, a brainstorm recording a single direction is sufficient on its own: no "only one
+viable" incantation is required and its absence is not a finding. Sections populated with `None` are
+never required. What blocks is an alternative a reader can see was **materially available** being
+neither compared nor named, or a decision that is not stated or not usable.
+
+**Blocking conditions — exhaustive.** Only these may block: a missing or placeholder brainstorm; a
+missing decision; a materially available alternative that is neither compared nor named; a decision
+unusable as a handoff to `/ptp:plan` (apply-level direction would have to be re-decided); an internal
+contradiction; coexisting current and obsolete truth. Prose depth, option count, and section count
+never block.
 
 ---
 
@@ -71,10 +88,10 @@ fixed artifact folder:
 
 - **Critical** — the brainstorm file is **missing entirely** (nothing to review; `/ptp:plan` has no
   source).
-- **High** — placeholder/empty content; **no real second option** (and no "only one viable"
-  rationale); **no recommendation**; or **not a usable handoff**.
-- **Medium** — shallow tradeoffs; recommendation without rationale; undocumented assumptions;
-  scope/blast-radius unaddressed; spec-interaction not considered; a usable-but-gappy handoff.
+- **High** — placeholder/empty content; **no stated decision**; a **materially available** alternative
+  that is neither compared nor named; an internal contradiction; coexisting current and obsolete
+  truth; or **not a usable handoff**.
+- **Medium** — undocumented assumptions; a usable-but-gappy handoff.
 - **Low** — nits: wording, formatting, ordering.
 
 The rubric above and this classification are **unchanged** by the severity threshold: every finding

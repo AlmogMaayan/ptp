@@ -1,11 +1,13 @@
 ---
 name: ptp-master
-description: "Use this skill when the user wants to switch to master, go to master, return to master, get back to master, or pull the latest — runs only when the working tree is clean (no staged, unstaged, or untracked changes). Safe \"return to up-to-date master\" utility: gates on a clean tree, switches to master, and fast-forward-pulls."
+description: Own returning to a clean, up-to-date master when the working tree carries no changes
 ---
 
 # ptp-master — safe return to up-to-date `master`
 
 ## Purpose
+
+**Model dispatch target.** `/ptp:master` runs this skill's work at `sonnet.medium` via `ptp-run-at-model` (`skills/ptp-run-at-model/SKILL.md`), which owns the spawn-and-relay mechanics and requires its caller to supply the target. This names the target only; it restates none of that contract.
 
 This skill is the **inverse of the ptp branch-cutting flow**: where `ptp-branch-prep` *leaves* master
 (auto-stashing dirty work and cutting a `ptp/<...>` feature branch), this skill *returns* to master —

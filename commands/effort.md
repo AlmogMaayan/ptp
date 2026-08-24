@@ -1,18 +1,14 @@
 ---
-description: Recommend model and effort level for implementing a change — reads the change artifacts and outputs a model/effort recommendation with reasoning
+description: Recommend the model and effort level for implementing a change, with the reasoning behind it
 argument-hint: "<change-selector> — id, epic:XXXX, story:NN, or epic:XXXX story:NN"
 ---
 
 Analyze the change artifacts and recommend the model and effort level to use when running `/ptp:apply`.
 
-## Acknowledge the active main agent
-
-`/ptp:apply` runs the implementation as the **resolved main agent** (`ptp-run-at-model` resolves it via `ptp-agent-roles`). **Resolve the main agent first** — invoke the `ptp-agent-roles` skill (a pure layered-config read of `roles.main`; default `claude`) — then branch this recommendation on the resolved value:
-
-- **`roles.main=claude` (default).** Emit today's recommendation **unchanged**: the haiku/sonnet/opus decision table below, the `xhigh`/`high`/`medium`/`low` effort dial, and the strict `{model}.{effort}` machine format written to `effort.md`. Byte-identical to before this change.
-- **`roles.main=codex`.** The Claude model vocabulary does not apply — the main run's model comes from **`codex.model`** and the effort maps to the **Codex reasoning-effort scale** (`minimal`/`low`/`medium`/`high` via `codex.reasoningEffort`, both resolved by `ptp-codex-mode`). Note this in the justification: the runtime reasoning effort comes **solely** from `codex.reasoningEffort` — **never** derived or defaulted from `effort.md` (whose dial includes `xhigh`, which is not on the Codex scale). The `effort.md` effort word (see step 5) may only inform an **optional natural-language prompt hint**, not the `-c model_reasoning_effort` runtime value; and the model source is `codex.model`, not the table below. **Do not invent a second machine format** — keep the `{model}.{effort}` line so the file stays parseable; the complexity scoring and effort word still apply, and the note simply records that model/effort resolve from `codex.*` when Codex is the main agent.
-
-The steps below (complexity scoring, effort dial, the `{model}.{effort}` file format) are written for the default `claude` direction; apply them as-is and add the Codex note above when `roles.main=codex`.
+`effort.md` records a complexity recommendation only and never a runtime setting — under
+`roles.main=codex` the runtime model comes from `codex.model` and the reasoning effort **solely** from
+`codex.reasoningEffort`, both resolved by `ptp-agent-roles`, `ptp-codex-mode` and `ptp-run-at-model`, and
+nothing about any of that is persisted in `effort.md`.
 
 ## Inputs
 
@@ -22,13 +18,13 @@ Change id: $ARGUMENTS
 
 Resolve `$ARGUMENTS` as a change selector per the `ptp-change-selector` skill; if it resolves to more than one change, run the steps below for each, in story order, reporting per change.
 
-**Mode.** This command has two modes: **`apply`** (the default) and **`fix`**, selected by an explicit `mode:` token in the invocation — `mode:fix` selects fix mode, `mode:apply` spells the default. With **no** `mode:` token the command behaves exactly as documented in the sections below. A `mode:` value outside `{apply, fix}` is **reported and treated as `apply`** — it never stops the command, matching the forgiving-reader posture `ptp-codex-mode` and `ptp-agent-roles` use for an out-of-enum config value. The `mode:` token is a **per-invocation token**, not part of the change selector: recognize it and **remove it from `$ARGUMENTS` before** handing the remainder to `ptp-change-selector` (exactly as `rounds:{count}` and `fast:on` are consumed by their own commands), so it is never resolved as part of the selector; after stripping, an **empty** remainder is legal — that is the selector-less programmatic fix invocation, which resolves no change folder. Everything from `## Branch safety` through `## Hard rules` below is the **apply** rubric — including `## Branch safety` itself, step 6's `effort.md` write, and the `## Hard rules` "writes exactly one file" line, all of which are apply-scoped statements; fix mode is defined in the `## Fix mode (mode:fix)` section at the end of this file. The same scoping applies **upward**: this file's opening line and the `## Acknowledge the active main agent` section above — including that section's statement that the `{model}.{effort}` block is *written to `effort.md`* — are likewise **apply**-scoped statements, so neither reads as a claim about fix mode, which writes no file and states its own `roles.main=codex` rule in its own section.
+**Mode.** This command has two modes: **`apply`** (the default) and **`fix`**, selected by an explicit `mode:` token in the invocation — `mode:fix` selects fix mode, `mode:apply` spells the default. With **no** `mode:` token the command behaves exactly as documented in the sections below. A `mode:` value outside `{apply, fix}` is **reported and treated as `apply`** — it never stops the command, matching the forgiving-reader posture `ptp-codex-mode` and `ptp-agent-roles` use for an out-of-enum config value. The `mode:` token is a **per-invocation token**, not part of the change selector: recognize it and **remove it from `$ARGUMENTS` before** handing the remainder to `ptp-change-selector` (exactly as `rounds:{count}` and `fast:on` are consumed by their own commands), so it is never resolved as part of the selector; after stripping, an **empty** remainder is legal — that is the selector-less programmatic fix invocation, which resolves no change folder. Everything from `## Branch safety` through `## Hard rules` below is the **apply** rubric — including `## Branch safety` itself, step 6's `effort.md` write, and the `## Hard rules` "writes exactly one file" line, all of which are apply-scoped statements; fix mode is defined in the `## Fix mode (mode:fix)` section at the end of this file. The same scoping applies **upward**: this file's opening line and the sentence following it are likewise **apply**-scoped statements, so neither reads as a claim about fix mode, which writes no file and states its own `roles.main=codex` rule in its own section.
 
 ## Branch safety (first step)
 
 This command writes `effort.md`, so before writing it run the **`ptp-branch-guard`** preamble: check `git rev-parse --abbrev-ref HEAD`; if it is the base branch (`master`/`main`), derive a feature-branch name from the resolved change id (→ `ptp/<change-id>`) and launch the minimal `ptp-branch-prep` workflow (stash → checkout the base branch → pull → cut the branch) **before** writing anything; if you are already on a feature branch it is a **no-op** — proceed as-is. The full rule lives in the **`ptp-branch-guard`** skill — do not restate it here.
 
-## Steps
+## Model + effort rubric
 
 1. **Read the change artifacts** under `openspec/changes/<change-id>/`:
    - `proposal.md` — goals, risks, impact
@@ -83,21 +79,12 @@ This command writes `effort.md`, so before writing it run the **`ptp-branch-guar
    - **Precedence over the round-up rule.** When a change straddles two levels *and* this trigger fires, **this trigger wins on the EFFORT dial** and the justification MUST name it. The round-up rule continues to govern the MODEL dial unchanged, and continues to govern the EFFORT dial for straddles that have nothing to do with task detail.
    - **Does not fire when the risk is executional rather than design.** Detail in `tasks.md` removes the risk of *deciding wrongly*; it does not remove the risk of *getting a correctly-decided edit subtly wrong*. Concurrency, invariants, security, auth, and data migration keep their `high` / `xhigh` effort no matter how precisely the tasks are written.
 
-5. **Output** the canonical two-part block. The **first line** is exactly `{model}.{effort}` — lowercase, dot-joined, **no** prefix, suffix, label, or backticks. The **second line** is empty. The **remaining lines** are a short justification (1–4 sentences) grounded in the shape of `tasks.md`.
+5. **Output** exactly one line: `{model}.{effort}` — lowercase, dot-joined, **no** prefix, suffix, label,
+   or backticks. Persist no justification. The on-screen report is the single line
+   `effort: <model>.<effort>`.
 
-   Example output:
-
-   ```
-   opus.high
-
-   Cross-cutting change touching four ptp prompt files plus one spec capability, with a strict
-   output-format contract that is easy to get subtly wrong. Broad blast radius warrants Opus;
-   high effort covers the interacting format and consistency constraints.
-   ```
-
-   The on-screen `Recommended: <model> · <effort>` line MAY still be printed for humans, but the **file** uses the strict format above.
-
-6. **Write** the two-part block to `openspec/changes/<change-id>/effort.md` (create or overwrite). The file content is exactly the block produced in step 5 — no extra headers, no surrounding prose.
+6. **Write** that one line, plus a trailing newline, to `openspec/changes/<change-id>/effort.md` (create or
+   overwrite). The file contains nothing else — no blank line, no justification, no headers, no prose.
 
 ## Hard rules
 
@@ -107,7 +94,7 @@ This command writes `effort.md`, so before writing it run the **`ptp-branch-guar
 
 ## Fix mode (mode:fix)
 
-The **apply** rubric runs from `## Branch safety` down to (but not including) this section, together with this file's opening line and the `## Acknowledge the active main agent` section. The `## Inputs` mode-selection instructions are **not** part of either rubric — they are shared by both modes and are what selects between them, so they apply in fix mode unchanged. This section is the authoritative statement of the **fix** rubric, and it is pointed at — never copied — from `commands/plan.md`; where the two disagree, this file wins.
+The **apply** rubric runs from `## Branch safety` down to (but not including) this section, together with this file's opening line and the sentence following it. The `## Inputs` mode-selection instructions are **not** part of either rubric — they are shared by both modes and are what selects between them, so they apply in fix mode unchanged. This section is the authoritative statement of the **fix** rubric, and it is pointed at — never copied — from `commands/plan.md`; where the two disagree, this file wins.
 
 ### Purpose and inputs
 
@@ -221,7 +208,11 @@ If the signals cannot be read — findings carrying neither severity nor locatio
 
 ### Output contract
 
-Fix mode emits the **same two-part block** apply mode emits. The **first line** is exactly `{model}.{effort}` — lowercase, dot-joined, **no** prefix, suffix, label, or backticks. The **second line** is empty. The **remaining lines** are a 1–4 sentence justification naming the signals that decided each dial.
+Fix mode emits a **two-part block** to its caller. The **first line** is exactly `{model}.{effort}` —
+lowercase, dot-joined, **no** prefix, suffix, label, or backticks. The **second line** is empty. The
+**remaining lines** are a 1–4 sentence justification naming the signals that decided each dial. Fix mode
+writes no file, so this block is ephemeral and its justification is the caller's only record of the score;
+it is deliberately **not** the one-line shape apply mode persists to `effort.md`.
 
 ```
 opus.medium

@@ -1,6 +1,6 @@
 ---
 name: ptp-version
-description: Use this skill to resolve and compare ptp plugin versions — the installed version (from claude plugin list --json → id ptp@ptp → .version), the latest available version (via a claude plugin marketplace update ptp refresh + local marketplace.json read, with a GitHub raw fallback), and an up-to-date / update-available / installed-ahead verdict. The single source of truth for ptp version resolution, reused by /ptp:version and /ptp:update. Read-only with respect to the repo and the installed plugin; never uses the --available flag; never emits a false verdict.
+description: Own reporting the installed ptp plugin version and where it was loaded from
 ---
 
 # ptp-version — version resolution + comparison
