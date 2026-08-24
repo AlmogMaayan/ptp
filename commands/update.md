@@ -1,5 +1,5 @@
 ---
-description: Update the installed ptp plugin to the latest version; reports the installed-vs-latest verdict via the shared ptp-version skill, runs claude plugin update ptp@ptp to apply the update, and always surfaces that a Claude Code restart is required to apply the update.
+description: Update the installed ptp plugin to the latest published version
 argument-hint: "(no arguments)"
 disable-model-invocation: true
 ---

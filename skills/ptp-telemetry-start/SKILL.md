@@ -1,6 +1,6 @@
 ---
 name: ptp-telemetry-start
-description: Bring this store's OTLP receiver up manually, idempotently — the ordered start sequence (mode gate, port-migration check, identity probe, stale-lockfile replacement, managed `.gitignore` reconciliation, launch, post-launch lockfile write) and the four terminal outcomes the bundled receiver reports. Reached from both `/ptp:telemetry start` and `/ptp:telemetry-start`, which are two front doors onto this one skill. Every shared lifecycle contract it depends on — the identity/health wire contract, the named lockfile states, the lockfile self-heal, the lockfile path and field contract, the hard lifecycle rules, and the auto-start preamble — stays in the `ptp-telemetry` skill and is cited here by anchor, never restated.
+description: Own starting the local ptp telemetry receiver so that later runs are recorded
 ---
 
 # ptp-telemetry-start — the receiver start action

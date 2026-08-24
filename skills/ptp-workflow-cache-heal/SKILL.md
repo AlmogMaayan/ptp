@@ -1,6 +1,6 @@
 ---
 name: ptp-workflow-cache-heal
-description: Single-source CRLF self-heal for cached ptp executable scripts. Run this step (via the Bash tool) before any named-workflow invocation, and before launching the telemetry receiver, to strip carriage-return characters from every file matching ~/.claude/plugins/cache/ptp/*/*/workflows/*.js and ~/.claude/plugins/cache/ptp/*/*/scripts/*.js. Idempotent, safe when the cache is absent, and never nests a Workflow() call.
+description: Own the line-ending self-heal for cached ptp scripts, run before any named-workflow invocation
 ---
 
 # ptp-workflow-cache-heal — CRLF self-heal for cached ptp executable scripts

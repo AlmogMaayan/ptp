@@ -1,12 +1,12 @@
 ---
-description: Translate the chosen Superpowers plan into OpenSpec proposal/design/tasks/spec-deltas, then validate
+description: Translate a chosen plan into proposal, design, tasks, and spec deltas, then validate them
 argument-hint: "[change-id] (optional — XXXX_NN_<kebab-description> per ptp-change-selector; derived from the request if omitted)"
 ---
 
 You are running **step 2** of the ptp flow. The chosen direction came from `/ptp:brainstorm`. Your job now is to:
 
 1. **Verify the brainstorming artifact exists** (the design doc from `/ptp:brainstorm`).
-2. **Invoke the Superpowers skills** (brainstorming first if missing, then writing-plans) via the Skill tool. Never write OpenSpec artifacts from raw user input.
+2. **Invoke the PTP planning skills** (`ptp-brainstorming` first if missing, then `ptp-writing-plans`) via the Skill tool. Never write OpenSpec artifacts from raw user input.
 3. **Translate that combined output into OpenSpec artifacts** under `openspec/changes/<change-id>/`.
 4. **Validate**.
 
@@ -27,9 +27,9 @@ Before proceeding, look for a brainstorming doc in these locations (in order):
 
 **Ordering invariant:** the change folder is *born holding `brainstorm.md`* — that is the first file written into `openspec/changes/<change-id>/`. The OpenSpec artifacts (`proposal.md` / `design.md` / `tasks.md` / spec deltas) are layered on top afterward (step 3). Concretely:
 
-- **If `openspec/changes/<change-id>/brainstorm.md` already exists** (the `/ptp:brainstorm` path), read it. It is the source-of-truth input for the OpenSpec artifacts you are about to write. Reference its absolute path in `proposal.md` and quote alternatives/rationale from it rather than inventing new ones.
+- **If `openspec/changes/<change-id>/brainstorm.md` already exists** (the `/ptp:brainstorm` path), read it. It is the source-of-truth input for the OpenSpec artifacts you are about to write. It is the decision source, not a section to copy: the OpenSpec artifacts carry the decision, not the deliberation, and the brainstorm's path is deterministic, so `proposal.md` does not record it.
 - **If only a general `openspec/brainstorms/*-brainstorm.md` exists** (the `/ptp:brainstorm-only` path), create the change folder and **copy that file into `openspec/changes/<change-id>/brainstorm.md` first**, then read it and proceed as above.
-- **If none exists**, DO NOT stop. Auto-run brainstorming inline (see step 2 below) and save its output to `openspec/changes/<change-id>/brainstorm.md` — again, before writing any OpenSpec artifacts. The `/ptp:plan` command is autonomous end-to-end: from a raw request, it produces both the design doc AND the OpenSpec artifacts without prompting the user mid-flow.
+- **If none exists**, DO NOT stop. Auto-run brainstorming inline (see step 2 below) and save its output to `openspec/changes/<change-id>/brainstorm.md` — again, before writing any OpenSpec artifacts. The `/ptp:plan` command is autonomous end-to-end: from a raw request, it produces both the brainstorm decision capsule AND the OpenSpec artifacts without prompting the user mid-flow.
 
 **Never** write a `proposal.md` whose content was not first produced by the brainstorming skill — but you no longer stop and ask the user; you just run brainstorming inline.
 
@@ -49,102 +49,98 @@ those steps and returns its terminal result (relayed per `ptp-run-at-model`'s *R
 validation failure that forces a direction change surfaces as a refusal, never as success). The
 subagent's own `ptp-branch-guard` check is a **no-op** (HEAD is already on the feature branch from the
 outer guard), so it must **NOT** attempt to launch the `ptp-branch-prep` Workflow. `/ptp:plan` spawns
-nothing of its own — it only invokes Skills (`superpowers:brainstorming`, `superpowers:writing-plans`,
+nothing of its own — it only invokes Skills (`ptp-brainstorming`, `ptp-writing-plans`,
 `ptp:effort`) inline in the subagent's own context — so it wraps cleanly with no second nesting level.
 
-2. **Run the Superpowers skills in this order** — both MUST be invoked via the Skill tool:
-   - **(a) `superpowers:brainstorming`** — required first if the design doc was missing or shallow. Produces the rationale, alternatives, and design depth that feeds `proposal.md`. Skip only when an existing design doc already covers Context / Goals / Non-goals / Alternatives considered / Design / Risks / Success criteria with substance.
+2. **Run the PTP planning skills in this order** — both MUST be invoked via the Skill tool:
+   - **(a) `ptp-brainstorming`** — required first if the design doc was missing or shallow. Produces the rationale, alternatives, and design depth that feeds `proposal.md`. Skip only when `brainstorm.md` already carries a decision capsule with substance — a stated decision, its material alternatives (or the recorded reason only one direction is viable), and its assumptions.
 
      **CRITICAL — autonomous mode when invoked from `/ptp:plan`:** The brainstorming skill is normally interactive (asks clarifying questions one at a time, waits for user approval after each design section). When invoked from inside `/ptp:plan`, you MUST run it autonomously:
-       - Do **not** ask the user clarifying questions. If an ambiguity exists, pick the most reasonable interpretation given the codebase you just explored, and **document the assumption explicitly** in an "Assumptions" subsection of the design doc.
-       - Do **not** pause to get user approval between design sections — write the full design doc in one pass.
+       - Do **not** ask the user clarifying questions. If an ambiguity exists, pick the most reasonable interpretation given the codebase you just explored, and **document the assumption explicitly** in an "Assumptions" subsection of `brainstorm.md`.
+       - Do **not** pause to get user approval between design sections — write the whole capsule in one pass.
        - Do **not** use AskUserQuestion. The user already opted into autonomous end-to-end execution by calling `/ptp:plan`.
-       - You MAY still load context (read files, run `npx -y openspec list` and `npx -y openspec list --specs`), propose 2-3 options with tradeoffs, and recommend one — all of this goes into the design doc inline rather than as conversation turns. **If `ptp-run-at-model`'s optional part (f) supplied an inlined `openspec list` / `openspec list --specs` snapshot** (today, only when this run was started as a `/ptp:plan-multiple` per-slice member), use that snapshot in place of running either command **on the occasions you would have loaded that context** — this stays discretionary, exactly as the `MAY` above; the snapshot never obliges you to load context you would otherwise have skipped, and a supplied-but-empty snapshot is honored as a real "no active changes" answer, not treated as missing. **Re-run the listing anyway** if you have yourself created, moved, or deleted anything under `openspec/changes/` during this run, or if you need information the snapshot does not carry (e.g. `--specs` when only the plain listing was inlined). **If no snapshot was supplied** — a standalone `/ptp:plan` invocation, or a `/ptp:plan-multiple` member that its outer session deliberately supplied none because a sibling member had already written — this is unchanged — run the commands yourself when and if you choose to load that context, exactly as before.
-       - You MUST still write the brainstorm doc to `openspec/changes/<change-id>/brainstorm.md`. The `superpowers:brainstorming` skill defaults to `docs/plans/` — **override** that and write directly into the change folder. That file is the durable handoff to the rest of this command.
+       - You MAY still load context (read files, run `npx -y openspec list` and `npx -y openspec list --specs`), compare the material alternatives and decide — all of this goes into `brainstorm.md` inline rather than as conversation turns. **If `ptp-run-at-model`'s optional part (f) supplied an inlined `openspec list` / `openspec list --specs` snapshot** (today, only when this run was started as a `/ptp:plan-multiple` per-slice member), use that snapshot in place of running either command **on the occasions you would have loaded that context** — this stays discretionary, exactly as the `MAY` above; the snapshot never obliges you to load context you would otherwise have skipped, and a supplied-but-empty snapshot is honored as a real "no active changes" answer, not treated as missing. **Re-run the listing anyway** if you have yourself created, moved, or deleted anything under `openspec/changes/` during this run, or if you need information the snapshot does not carry (e.g. `--specs` when only the plain listing was inlined). **If no snapshot was supplied** — a standalone `/ptp:plan` invocation, or a `/ptp:plan-multiple` member that its outer session deliberately supplied none because a sibling member had already written — this is unchanged — run the commands yourself when and if you choose to load that context, exactly as before.
+       - You MUST still write the brainstorm doc to `openspec/changes/<change-id>/brainstorm.md`. Write it directly into the change folder, at `openspec/changes/<change-id>/brainstorm.md`. That file is the durable handoff to the rest of this command.
 
-   - **(b) `superpowers:writing-plans`** — produces the step-by-step implementation plan that feeds `tasks.md`. Must cover: files to add/modify, data/contract changes, migration concerns, test plan, rollback plan. Same autonomous-mode rule: no clarifying questions, no mid-flow approval gates.
+   - **(b) `ptp-writing-plans`** — produces the step-by-step implementation plan that feeds `tasks.md`. Must cover: files to add/modify, data/contract changes, migration concerns, test plan, rollback plan. Same autonomous-mode rule: no clarifying questions, no mid-flow approval gates.
 
-   Do NOT skip (a) on the assumption that the request "is simple." The depth requirement on `proposal.md` (below) cannot be met without it.
+   Do NOT skip (a) on the assumption that the request "is simple" — the decision and its assumptions still have to come from somewhere.
 
-3. **Populate the OpenSpec change folder** at `openspec/changes/<change-id>/` (already created above, holding `brainstorm.md`). Add these files alongside it:
+3. **Populate the OpenSpec change folder** at `openspec/changes/<change-id>/` (already created above,
+   holding `brainstorm.md`). Write each artifact in the shape the **compact artifact contract** defines
+   (owned by the `compact-artifact-contract` capability — do not restate its shapes here):
 
-   - `proposal.md` — must include **all** of these sections, populated from the design doc and brainstorming output. The first two (`## Why` / `## What Changes`) are OpenSpec's canonical proposal headers — emit them verbatim so `openspec validate`/`archive` recognize the proposal and do not warn; the remaining sections are the ptp superset layered on top for review depth:
-     - `## Why` — 1–2 sentences of motivation: the problem this solves and why it matters now. This is the synthesized lead-in to `## Context` (the full prose lives there); keep it tight.
-     - `## What Changes` — a short bulleted list of the concrete changes (one bullet per observable change). Mark breaking changes with a leading `**BREAKING**`. This is the at-a-glance counterpart to the detail in `## Goals` / `## Design`.
-     - `## Context` — current state and the gap (1–3 short paragraphs of prose, not bullet points). Cite specific files / components by path so a reader can locate the surface area.
-     - `## Goals` — concrete, testable outcomes. "User can X" / "System produces Y under condition Z."
-     - `## Non-goals` — what this change explicitly does NOT do. Helps future readers understand scope boundaries.
-     - `## Alternatives considered` — at least 2 alternatives from brainstorming with their tradeoffs (risk / effort / reversibility / blast radius) and why the chosen approach won. If brainstorming truly surfaced only one viable option, document that explicitly with the reason.
-     - `## Design` — UI/UX, data model, API contract, state machine, error handling — whichever apply. Cite existing files/components by path. Include any non-obvious wiring (guards, derivation order, side-effect ordering).
-     - `## Risks & edge cases` — what could go wrong, how it's handled. Include both happy-path edge cases (empty / boundary / concurrent) and unhappy paths (network failure, validation failure, race).
-     - `## Impact` — affected spec capabilities (cite spec files), backwards-compatibility note (or "N/A — pre-production"), telemetry / docs / migration implications.
-     - `## Success criteria` — observable conditions that prove the change worked. Should be checkable during `/ptp:review`.
-     - `## Source` — absolute path to `openspec/changes/<change-id>/brainstorm.md` (the brainstorm source) and any other supporting docs.
+   - `proposal.md` — the compact proposal shape. Emit OpenSpec's canonical `## Why` and `## What Changes`
+     headers verbatim so `openspec validate` and `archive` recognize the proposal. Omit a section that has
+     nothing to say rather than filling it with "None".
+   - `proposal.md > Success criteria` is **conditional**: write it when a manual-verification intent has
+     been relocated out of `tasks.md` (see the `tasks.md` bullet), or when an observable outcome would
+     otherwise have no owner. Otherwise omit the section.
+   - `design.md` — **conditional**. Create it only when the change has at least one non-obvious decision,
+     invariant, interface, or failure/migration behavior that no other artifact owns. Mechanical changes
+     get no `design.md`. If the folder already holds one and that test now fails, **delete it** — a stale
+     design is obsolete truth standing beside current truth.
+   - `tasks.md` — concise, dependency-ordered, agent-executable checkboxes derived from the writing-plans
+     output. Each checkbox names the edit to make and the automated check that proves it. No rationale
+     essays, no copied requirement or spec text, no review history. Include a final verification task
+     naming the automated checks the implementing agent runs. **Every checkbox MUST be completable by the
+     implementing agent unaided** — it can both perform the task and establish that it succeeded (a test, a
+     script's exit code or output, an assertion over a file it can read, an
+     `npx -y openspec validate <change-id> --strict` run, an automated browser check) with **no human
+     performing, observing, or confirming any step**. Banned shapes — and any paraphrase of them, the list
+     being exemplary rather than exhaustive — are: **manual QA**, **manual or exploratory testing**,
+     **"manually verify"**, **"verify by hand"**, **"check in the browser"**, **"have a human confirm"**,
+     **"ask the user to try"**. Judge the *actor*, not the wording. Manual-verification **intent is never
+     deleted**: **(1) substitute** an automated equivalent the agent can run and read the result of, or —
+     only if none exists — **(2) relocate** the intent into `proposal.md > Success criteria` as a plain
+     **non-checkbox** note, creating that section for the purpose. The final verification task is itself
+     bound by this rule and never pulls a relocated note back into a checkbox. The full contract lives in
+     the `tasks-authoring` capability.
+   - `specs/<capability>/spec.md` — spec deltas, **only if** behavior changes. Follow the format OpenSpec
+     uses elsewhere in the repo (top-level `## ADDED/MODIFIED/REMOVED/RENAMED Requirements`, then
+     `### Requirement: ...` with SHALL/MUST, then `#### Scenario:` blocks). If
+     `openspec/specs/<capability>/` doesn't exist yet, treat this as a new capability.
+   - `effort.md` — written after `tasks.md` exists. See step 5.
+   - Do **not** create `TLDR.md`. If the folder already holds one from before this contract, leave it in
+     place and never read it as an input.
 
-   - `design.md` — **always required**. Contains the deeper architectural drill-down: component interactions, data flow, non-obvious wiring, and any tradeoffs that informed the design. For mechanical changes, this can be brief, but the file must be created. `proposal.md > Design` is the summary; `design.md` is the substance.
-   - `tasks.md` — small, sequential, checkbox-style tasks derived from the `superpowers:writing-plans` output. Each task should be independently verifiable — and **every checkbox MUST be completable by the implementing agent unaided**: it can both perform the task and establish that it succeeded (a test, a script's exit code or output, an assertion over a file it can read, an `npx -y openspec validate <change-id> --strict` run, an automated browser check) with **no human performing, observing, or confirming any step**. Banned shapes — and any paraphrase of them, the list being exemplary rather than exhaustive — are: **manual QA**, **manual or exploratory testing**, **"manually verify"**, **"verify by hand"**, **"check in the browser"**, **"have a human confirm"**, **"ask the user to try"**. Judge the *actor*, not the wording: "Confirm the layout looks right" matches no listed phrase and is still banned, while "Add a test asserting the manual fallback logs a warning" merely names manual subject matter and is fine. Manual-verification **intent is never deleted** — apply this ordered rule: **(1) substitute** — rewrite it as an automated equivalent the agent can run and read the result of, keeping it a `tasks.md` checkbox; **(2) relocate** — if and only if no automated equivalent exists, move the intent **out of `tasks.md`** into `proposal.md > Success criteria` as a plain **non-checkbox** note (prose or a plain bullet, never `- [ ]`), so nothing is lost and no un-tickable box is left behind. Include a final "verification" task that maps to the `Success criteria` block in `proposal.md` — **that final task is itself bound by this rule** and must be automatable, so it maps to the *automatable* criteria and never pulls a relocated human-observation note back into a checkbox. The full contract lives in the `tasks-authoring` capability.
-   - `specs/<capability>/spec.md` — spec deltas, **only if** behavior changes. Follow the format OpenSpec uses elsewhere in the repo (top-level `## ADDED/MODIFIED/REMOVED/RENAMED Requirements`, then `### Requirement: ...` with SHALL/MUST, then `#### Scenario:` blocks). If `openspec/specs/<capability>/` doesn't exist yet, treat this as a new capability and structure accordingly.
-   - `effort.md` — **always required**. Written after `tasks.md` exists (the recommendation is derived from the tasks shape). Machine-readable apply recommendation; first line is exactly `{model}.{effort}` (e.g. `opus.high`). Generated by running the `/ptp:effort` analysis; do **not** hand-format a second copy of the layout — invoke the `ptp:effort` skill or apply its rubric and write the strict format.
-   - `TLDR.md` — **always required**. Written **last**, derived from the artifacts above (so it summarizes them rather than being guessed up front). A very high-level, human-facing at-a-glance summary — not a source of truth and not an implementation input. Required structure:
-     - `# TLDR — <change-id>` heading.
-     - A non-authoritative banner: *"Human-facing summary. NOT a source of truth and NOT an implementation input — see proposal.md / design.md / tasks.md / specs for the authoritative detail."*
-     - `**In one sentence:**` — one sentence describing the whole change.
-     - `## What changes` — a short bulleted list of the high-level changes.
-     - `## Surface area` — four labeled entries: **Files** (`path — added | modified | removed — ≤1-line why`), **Classes / components**, **Methods / functions**, **Models / data**. Any category with no changes SHALL render the literal word `None` rather than being omitted, so a reader can tell "nothing changes here" from an author omission.
+4. **Validate.** Run `npx -y openspec validate <change-id> --strict`. Fix any validation errors
+   **without** changing the agreed direction. If validation forces a real direction change, stop and
+   surface that to the user.
 
-4. **Validate** by running:
-   - `npx -y openspec validate <change-id> --strict`
-   - Fix any validation errors **without** changing the agreed direction. If validation forces a real direction change, stop and surface that to the user.
+5. **Write `effort.md`, then lint.** Apply the `/ptp:effort` apply rubric — defined once in
+   `commands/effort.md`, which is its **only** owner — to the shape of the `tasks.md` you just wrote, and
+   write `openspec/changes/<change-id>/effort.md` containing **exactly one line**, `{model}.{effort}`
+   (e.g. `opus.high`), lowercase and dot-joined with no decoration, followed by a trailing newline.
+   Persist no justification and no note of any kind.
 
-5. **Produce `effort.md` for `/ptp:apply`.** Based on the implementation work you just planned (the shape of `tasks.md`, not the planning effort), apply the `/ptp:effort` analysis — use the rubric below (same rubric, same signals) — and **write `openspec/changes/<change-id>/effort.md`** in the strict two-part format: first line `{model}.{effort}` (e.g. `opus.high`) lowercase dot-joined with no decoration, second line empty, lines 3+ a short justification grounded in the actual tasks. Do **not** hand-format a second layout — the format is defined once in `/ptp:effort`; `/ptp:plan` delegates to that same rubric and writes the same file.
+   Then — with every artifact now on disk — run the **compactness linter** published by the
+   `compact-artifact-contract` capability over `<change-id>`:
 
-6. **STOP.** Do not start implementation. Report:
-   - The change id
-   - Files created (`proposal.md`, `design.md`, `tasks.md`, `effort.md`, `TLDR.md`, spec deltas if any, and `openspec/changes/<change-id>/brainstorm.md` if you wrote/invoked brainstorming)
-   - Validation result
-   - **Recommended apply settings:** the first line of `effort.md` (e.g. `opus.high`) + the justification paragraph from `effort.md`
-   - The exact next command: `/ptp:apply <change-id>`
+   ```
+   node scripts/ptp-compact-lint.js --change <change-id>
+   ```
 
-## Model + effort rubric for `/ptp:apply`
+   and carry its findings into the step-6 report. It is a **reporting** check: it never truncates an
+   artifact, never blocks the STOP, and never aborts planning. If it is unavailable or exits non-zero for
+   its own reasons, say so in one line and continue.
 
-Judge the *implementation* complexity from `tasks.md`, not how hard the planning was. Weigh: number of files/tasks, architectural subtlety, state/concurrency/async, security or data-integrity sensitivity, test difficulty, and how much judgment each task leaves open vs. being fully specified.
-
-Model and effort are **two independent dials** — pick each on its own, then combine. Valid efforts: `low`, `medium`, `high`, `xhigh`. So `sonnet · high`, `opus · medium`, and `opus · xhigh` are all legitimate (and common) recommendations, not just the anchor pairs below.
-
-**Model** — how much raw capability the hardest task needs:
-- **Haiku** — trivial, fully-specified, mechanical work with zero design judgment left.
-- **Sonnet** — standard features and refactors with clear, well-scoped tasks. The default for most changes.
-- **Opus** — high subtlety or blast radius: non-trivial state machines, concurrency/race handling, security- or data-integrity-sensitive paths, cross-cutting changes touching many files or multiple spec capabilities, or tasks that still require real design judgment during implementation.
-
-**Effort** — how much reasoning each task demands before the right edit is obvious:
-- **low** — the edit is obvious from the task text; little to reason about.
-- **medium** — ordinary logic and tests; some local reasoning per task. Default.
-- **high** — interacting constraints, non-obvious wiring, or tricky tests that need careful step-by-step reasoning.
-- **xhigh** — deep or easy-to-get-subtly-wrong work (concurrency, invariants, security, intricate state) where extra deliberation materially lowers the risk of a wrong implementation.
-
-Anchor combinations to calibrate against: `haiku · low` (mechanical copy/config edits) → `sonnet · medium` (typical feature) → `sonnet · high` (clear scope but fiddly logic/tests) → `opus · medium` (broad reach or contract subtlety, but `tasks.md` leaves no design judgment open) → `opus · high` (subtle or cross-cutting) → `opus · xhigh` (subtle *and* high-stakes).
-
-When a change straddles two levels on either dial, round up to the safer (more capable / higher effort) option and say why in the justification.
-
-**Round-down trigger (EFFORT dial only).** When `tasks.md` is already written at a level of detail that leaves **no design judgment open** during implementation — each task names the file to touch, the concrete edit to make, and how to verify it, so the implementer is *transcribing* decisions rather than *making* them (the verification half may be discharged per task or by a `## Verification` section that maps back to the same edits and to `proposal.md > Success criteria`; what matters is that nothing is left for the implementer to decide, not that every line carries the word *Verify*) — round the EFFORT dial **one step down** from the anchor row (`xhigh`→`high`, `high`→`medium`, `medium`→`low`) and say so in the justification. **Not applied twice:** the `sonnet | low` and `opus | medium` rows already have this condition built into them, so when the anchor row is one of those two the round-down is already reflected in the row — take the row's effort as written and do not lower it again.
-
-- **EFFORT dial only.** This never lowers the MODEL dial. Every opus trigger — subtlety, blast radius, security/concurrency/migration, cross-cutting reach — still resolves to opus. A detailed `tasks.md` makes the work *cheaper to reason about per task*; it does not make the work *smaller in reach*. The common landing spot for this repo is therefore `opus.medium`.
-- **One step, never two.** `xhigh` rounds down to `high`, never to `medium`. `low` is the floor.
-- **Precedence over the round-up rule.** When a change straddles two levels *and* this trigger fires, **this trigger wins on the EFFORT dial** and the justification MUST name it. The round-up rule continues to govern the MODEL dial unchanged, and continues to govern the EFFORT dial for straddles that have nothing to do with task detail.
-- **Does not fire when the risk is executional rather than design.** Detail in `tasks.md` removes the risk of *deciding wrongly*; it does not remove the risk of *getting a correctly-decided edit subtly wrong*. Concurrency, invariants, security, auth, and data migration keep their `high` / `xhigh` effort no matter how precisely the tasks are written.
-
-`commands/effort.md` step 4 is the authoritative statement of this rubric; if this mirror ever disagrees with it, `commands/effort.md` wins.
-
-**This mirror covers `apply` scoring only.** `/ptp:effort <selector> mode:fix` scores a different job — fixing a **frozen set of confirmed review findings** — under a different rubric, built on four fix-specific signals: finding count, severity mix, file count and spread, and transcription vs open design judgment. That fix rubric is defined **only** in `commands/effort.md` (its `## Fix mode (mode:fix)` section), which remains authoritative; nothing of it is copied here, so the two files cannot drift on fix content.
+6. **STOP.** Do not start implementation. Report only: the change id; `effort: <model>.<effort>`; the
+   validation result; the linter findings (or that it was unavailable); and the next command
+   `/ptp:apply <change-id>`. Do not list the created files — the layout is deterministic.
 
 ## Hard rules
 
-- Do **not** call `/opsx:propose` (nor the vendored `ptp:openspec-propose` skill) to generate proposal/design text. Superpowers produced the thinking; you are just transcribing it into OpenSpec's file format.
+- Do **not** call `/opsx:propose` (nor the vendored `ptp:openspec-propose` skill) to generate proposal/design text. The PTP planning skills produced the thinking; you are just transcribing it into OpenSpec's file format.
 - Do **not** edit any OpenSpec managed/regenerated instruction blocks.
 - Do **not** start implementing. That is `/ptp:apply`.
-- Do **not** write a `proposal.md` whose content was not first produced by `superpowers:brainstorming` (or pulled from an existing brainstorming design doc). If you skipped brainstorming, you are violating the spirit of ptp — go back and invoke it.
-- Do **not** omit any required section in `proposal.md`. If a section truly has nothing to say (e.g. `## Risks & edge cases` for a one-line color tweak), state that explicitly: *"None — purely cosmetic change to a static label."* — do not delete the heading.
+- Do **not** write a `proposal.md` whose content was not first produced by `ptp-brainstorming` (or pulled from an existing brainstorming design doc). If you skipped brainstorming, you are violating the spirit of ptp — go back and invoke it.
 - Do **not** write a `tasks.md` checkbox the implementing agent cannot complete unaided — no manual QA, no manual or exploratory testing, no "manually verify" / "verify by hand" / "check in the browser" / "have a human confirm" / "ask the user to try", and no paraphrase of those. Substitute an automated equivalent; if none exists, move the intent into `proposal.md > Success criteria` as a **non-checkbox** note rather than deleting it. This binds the final verification task too. The ban is **authoring-time only**: it does not retroactively rewrite existing changes, and it removes nothing from the downstream manual-only recovery path — `/ptp:apply` still refuses to check off a box whose acceptance condition was not verified, and `/ptp:backlog-continue` remains the recovery route for an epic halted that way.
 - Do **not** stop the flow and ask the user to run `/ptp:brainstorm` first. `/ptp:plan` is autonomous: if the design doc is missing, run brainstorming inline (autonomous mode — no clarifying questions, document assumptions instead) and continue all the way through validation.
-- Do **not** ask clarifying questions mid-flow. The autonomous contract is: take the request, make reasonable assumptions when ambiguous, document them clearly in the design doc / proposal, and produce validated artifacts. The user reviews the artifacts at the end; corrections happen during `/ptp:apply` or via a follow-up edit.
-- Do **not** use `TLDR.md` as an input to `/ptp:apply` or any other implementation step. It is human-facing only — where it conflicts with `proposal.md` / `design.md` / `tasks.md` / spec deltas, those artifacts win.
+- Do **not** ask clarifying questions mid-flow. The autonomous contract is: take the request, make reasonable assumptions when ambiguous, document them clearly in `brainstorm.md`'s decision capsule, and produce validated artifacts. The user reviews the artifacts at the end; corrections happen during `/ptp:apply` or via a follow-up edit.
+- Do **not** create `TLDR.md`, and do **not** read a pre-existing one as an input.
+- Apply the compact artifact contract's **current-state-only** rule to every artifact you write or touch:
+  replace obsolete text in place, delete contradicted text, and never append `Amendment`, `Correction`,
+  `Previously`, `Earlier draft`, `Historical record`, `What changed`, or review-iteration narrative. After
+  any review-fix pass, run a compaction pass over the artifacts you touched — removing stale alternatives,
+  duplicated rationale, resolved open questions and review meta-commentary without changing semantics.

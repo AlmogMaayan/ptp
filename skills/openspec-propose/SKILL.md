@@ -1,6 +1,6 @@
 ---
 name: openspec-propose
-description: Propose a new change with all artifacts generated in one step. Use when the user wants to quickly describe what they want to build and get a complete proposal with design, specs, and tasks ready for implementation.
+description: Turn a request into a change proposal with spec deltas, tasks, and a design note
 license: MIT
 compatibility: Requires openspec CLI.
 metadata:
@@ -9,12 +9,9 @@ metadata:
   generatedBy: "1.3.1"
 ---
 
-Propose a new change - create the change and generate all artifacts in one step.
-
-I'll create a change with artifacts:
-- proposal.md (what & why)
-- design.md (how)
-- tasks.md (implementation steps)
+Propose a new change - create the change and generate all artifacts in one step. The artifact set
+comes from the schema's `applyRequires` (typically proposal, tasks, spec deltas, plus design only
+when required) — never a hard-coded list.
 
 When ready to implement, run /opsx:apply
 
@@ -79,18 +76,10 @@ When ready to implement, run /opsx:apply
       - Use **AskUserQuestion tool** to clarify
       - Then continue with creation
 
-5. **Show final status**
-   ```bash
-   openspec status --change "<name>"
-   ```
-
 **Output**
 
-After completing all artifacts, summarize:
-- Change name and location
-- List of artifacts created with brief descriptions
-- What's ready: "All artifacts created! Ready for implementation."
-- Prompt: "Run `/opsx:apply` or ask me to implement to start working on the tasks."
+After completing all artifacts, report a single result line: the change name, its path
+(`openspec/changes/<name>/`), and `Next: /opsx:apply`.
 
 **Artifact Creation Guidelines**
 

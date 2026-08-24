@@ -1,126 +1,16 @@
 ---
-description: Orchestrate plan-multiple then per-slice review-plan-full across every slice of an oversized change — read-only planning, never applies code or archives (Codex per codex.mode — only required hard-requires the codex CLI; auto-missing/off runs Superpowers-only)
+description: Decompose an oversized change into slices and review each slice's plan until it converges
 argument-hint: "<big-change-id-or-request>"
 ---
 
-You are running **`/ptp:full-plan`** — a planning orchestrator that decomposes an oversized change into slices and then runs the full two-phase plan review on every slice, in one invocation. It chains the existing `/ptp:plan-multiple` and `/ptp:review-plan-full` commands so a multi-slice change can be planned-and-plan-reviewed end to end without typing each stage by hand.
+## Arguments
 
-This is a **read-only planning** flow. It never applies code and never archives. The next step after it is `/ptp:full-apply`.
+Parse and strip the per-invocation `parallel:` and `fast:` tokens, then take the remainder as a change id or a free-text request. Resolve the change selector through the `ptp-change-selector` skill. Stop after planning; apply nothing.
 
-## Inputs
+## Owner
 
-The oversized change id or request: $ARGUMENTS
+Invoke the `ptp-full` skill (`skills/ptp-full/SKILL.md`).
 
-Interpret it both ways, exactly as `/ptp:plan-multiple` does: if `$ARGUMENTS` names an existing `openspec/changes/<id>/` folder, treat it as a monolithic plan to re-cut; otherwise treat it as a fresh request to plan as multiple slices. `$ARGUMENTS` may additionally carry an anywhere-in-text `fast:on` / `fast:off` switch (default off) declaring that this invocation's opus stages should run in Claude Code fast mode, and an anywhere-in-text `parallel:on` / `parallel:off` switch declaring whether this invocation's per-item main runs may overlap. See "Parse the per-invocation switches" below (precondition 2); neither grammar/validation/refusal contract is restated here — `fast:` lives in `ptp-run-at-model`'s `fast:` section and `parallel:` lives in the **`ptp-parallel-fanout`** skill (§ *The per-invocation `parallel:on` / `parallel:off` token*, which itself defines it by reference to that same `fast:` section).
+## Report
 
-## Preconditions
-
-Check before doing any work, **in this order**:
-
-1. **Resolve `codex.mode` per the `ptp-codex-mode` skill** and apply its decision contract (the per-slice `review-plan-full` stage is the Codex consumer). Under **`required`**, run `codex --version`; if missing, **STOP** with the install-or-change-mode message and do **not** invoke `ptp:plan-multiple`. Under **`auto`** or **`off`**, **proceed**: each slice's `review-plan-full` applies the per-slice Codex skip itself (Superpowers-only, non-silent) and reports a mode-skipped review as a green terminal state. The full resolution + decision rule lives in the `ptp-codex-mode` skill — do not restate it here.
-
-2. **Parse the per-invocation switches — `fast:` and `parallel:`.** Both are parsed and stripped here, in this command's outer session, from the raw `$ARGUMENTS` text. They are independent of each other: any combination may appear, both are stripped, and an invalid candidate of **either** kind refuses.
-
-   **a. The `fast:` switch.** Scan the raw `$ARGUMENTS` text for an optional `fast:on` / `fast:off` candidate per the "Optional caller-side `fast:` switch" section of **`ptp-run-at-model`** — do not restate that grammar/validation here.
-
-   - **Absent** → fast off; behavior unchanged; nothing to strip.
-   - **`fast:off`** → strip the token from `$ARGUMENTS`, resolve the boolean to `false`; run **no** preflight and emit **no** announcement (an unstripped `fast:off` would contaminate the request-text handoff to `ptp:plan-multiple` exactly as `fast:on` would).
-   - **`fast:on`** → strip the token from `$ARGUMENTS`, resolve the boolean to `true`, and run the fast-mode preflight **once**, emitting its single announcement (see the preflight-input pin below).
-   - **Invalid** (bad value or two or more candidates) → **STOP in the outer session** — before the `plan-multiple` handoff, before branch-name derivation and the branch guard, and before any subagent spawn — reporting the offending candidate(s) and the two valid values (`on`, `off`).
-
-   **Preflight-input pin.** The **non-opus no-op never fires** for this command (every stage `full-plan` runs targets `opus.high`), but — unlike `/ptp:full` and `/ptp:full-apply` — this command launches **no** workflow and delegates every stage to `ptp-run-at-model` callers, so under `roles.main=codex` the **`main=codex` no-op does apply** and is announced exactly as `ptp-run-at-model` specifies. See that skill's outcome list — its precedence rules are not restated here.
-
-   **b. The `parallel:` switch.** Scan the raw `$ARGUMENTS` text for an optional `parallel:on` / `parallel:off` candidate per the **`ptp-parallel-fanout`** skill (§ *The per-invocation `parallel:on` / `parallel:off` token*) — its grammar, two-stage detect-then-validate recognition, lowercase-prefix-only candidate rule, at-most-one-candidate rule, and strip-before-use ordering are that skill's, and are **not** restated here.
-
-   - **Absent** → the resolved `parallel.mode` applies. **Absent is not `off`** (see the skill).
-   - **Valid `parallel:on` / `parallel:off`** → **strip the token from `$ARGUMENTS`** and use it as this invocation's parallel posture; read no config file for a written value and write none.
-   - **Invalid** (a recognized candidate with a bad value, e.g. `parallel:true`, or two or more candidates such as both `parallel:on` and `parallel:off`) → **STOP in the outer session** — before the `plan-multiple` handoff, before branch-name derivation and the branch guard, and **before any member or subagent is started** (phrased this way rather than "before any subagent is spawned" because under `roles.main=codex` a member is a `codex exec` run, not a subagent) — reporting **every** detected candidate and the two valid values (`on`, `off`).
-
-   Resolving the posture — token when a valid one was present, otherwise the resolved `parallel.mode` — happens **once**, here, and the result is what precondition 3 threads down and what step 2 feeds into the effective-decision rule.
-
-   Both parses run after the `codex.mode` guaranteed-abort (precondition 1) and before the `plan-multiple` handoff, so no derived slice description, change id, or branch name can contain either token — and before the branch guard, so an invalid token of either kind aborts before a branch is cut.
-
-3. **The resolved `fast` posture stays in this command's outer session; the resolved `parallel` posture is threaded down.**
-
-   - **`fast`** — the delegated `/ptp:plan-multiple` and `/ptp:review-plan-full` sub-steps are handed only **stripped** argument text and are given **no** `fast` input, because stripping plus the outer-session preflight is already sufficient — they cannot re-parse a token that is gone and cannot re-run a preflight they never own, so no duplicate advisory is possible. This slice edits neither delegated file and therefore does **not** claim the informational note reaches those sub-steps' own spawned subagents — that is `0031_01`'s `run-at-model` surface, and the note is informational only, so its absence there is a deliberate limitation, not a gap.
-   - **`parallel`** — the sub-steps still receive **stripped** text, but the **resolved parallel posture is threaded into `ptp:plan-multiple` as an explicit input**. This is a deliberate divergence from the `fast` rule above, and the reason is that `parallel:` governs **two** fan-outs rather than one: the decompose's per-slice planning (owned by `/ptp:plan-multiple`) and this command's per-slice reviewing (step 2). Stripping alone would therefore produce a half-effect — `full-plan … parallel:on` would fan out the reviews while silently leaving the per-slice planning on the resolved config — so one token must govern both stages. Leaving the token **unstripped** for `plan-multiple` to re-parse is not the alternative: it would violate the strip-before-use ordering above (a leftover token can contaminate a derived slice description or a branch name) and would make one user token refusable in two places. `/ptp:review-plan-full` receives **no** parallel input: it is a fan-out **member** here, not a fan-out orchestrator.
-
-## Branch safety (first write-affecting step)
-
-Run the **`ptp-branch-guard`** preamble **once**, after the abort-guaranteeing preconditions above, before delegating to `plan-multiple`: check `git rev-parse --abbrev-ref HEAD`; if it is the base branch (`master`/`main`), derive a feature-branch name from this request (or the fresh epic → `ptp/epic-XXXX`) and launch the minimal `ptp-branch-prep` workflow (stash → checkout the base branch → pull → cut the branch) **before** any sub-step runs; if you are already on a feature branch it is a **no-op** — proceed as-is. Delegated sub-commands re-run the guard as a no-op once HEAD is on the branch. The full rule lives in the **`ptp-branch-guard`** skill — do not restate it here.
-
-## What this command does
-
-1. **Decompose.** Invoke the `ptp:plan-multiple` skill with the **stripped** `$ARGUMENTS` **plus the resolved parallel posture** from precondition 3. It produces an ordered set of slice change-ids (`XXXX_NN_…` epic-then-story order under one allocated epic) and writes each slice's OpenSpec artifacts.
-
-   **Take the slice set from `plan-multiple`'s step-6 report** — the deterministic, ascending-change-id report it emits after joining its members. That report already carries everything this command needs: every planned slice's full `XXXX_NN_<desc>` **change id**, its **one-line scope**, and its **declared dependencies** (step 3's report needs the scopes and step 2e's cross-slice recheck needs the dependency edges, so there is nothing to re-derive). Capture all three per slice. Do **not** re-derive the slice set from `npx -y openspec list` or any other source: the report is the single definition of the slice set, so the two commands cannot disagree about it.
-
-   Do **not** parse `PLAN-MULTIPLE-SLICES` / `PLAN-MULTIPLE-FALLBACK`. Those sentinels are `plan-multiple`'s **internal beat-2 → beat-3 handoff**, consumed by its own outer session and never its return to a caller; parsing them would reach inside another command's internals and would break the moment its beats were restructured.
-
-   - **Single-change fallback.** If `plan-multiple` determines the work is one coherent unit, it falls back to a single `/ptp:plan` and reports exactly one change id (`XXXX_01_<desc>`). That is fine — the slice set is one id and step 2 runs `review-plan-full` once.
-   - **A refused or partially failed decompose does not reach step 2.** If `plan-multiple` reports a **refusal**, or reports **any** slice as failed, unsuccessful (`needs-human-action` included), or **cross-reference-unverified**, **STOP here** — before step 2, and therefore before any fan-out or any member is started. There is nothing coherent to plan-review. Relay `plan-multiple`'s own report and do **not** report the run as successful.
-
-2. **Plan-review the slices.** Each slice's plan review is one `ptp:review-plan-full` run: the two-phase main-agent→reviewer-agent artifact-review loop, run to its terminal state over that slice's `proposal.md` / `design.md` / `tasks.md` / spec deltas.
-
-   **a. Assert the four `ptp-parallel-fanout` safety conditions**, and where each is established. The conditions are named here **solely to record that establishment** — their normative definitions live in the **`ptp-parallel-fanout`** skill (§ *The four safety conditions*); cite it, do not restate it:
-
-   | Condition | Where this command establishes it |
-   |---|---|
-   | 1. Write sets provably disjoint by construction | Each `review-plan-full` edits only its own slice's `proposal.md` / `design.md` / `tasks.md` / spec deltas, and writes its convergence marker under **that slice's own** `openspec/changes/<id>/stages/` directory — the marker is **per-slice, not a shared review store**, which is the one thing a reader could plausibly get wrong here. Ids are pre-allocated by step 1, so there is no allocation race. Writes into the shared `ptp-telemetry` store through that store's enumerated concurrency-safe protocols are the contract's **closed exception** (per `0034_01`) and do **not** defeat this condition. No other shared path is written. |
-   | 2. No git state change in members | The `ptp-branch-guard` preamble ran **once** in this command's outer session, after the abort-guaranteeing preconditions; `review-plan-full` never branches, stashes, checks out, commits, or archives. |
-   | 3. Order-independent aggregation | Member results are collected into one set and **sorted by ascending change id** before the convergence gate and before the report. |
-   | 4. Join-then-gate | On the parallel path the gate is applied **only after every member has returned** (and after the recheck in 2e). |
-
-   **b. Resolve the effective decision:** the parallel posture resolved in precondition 2b, then downgraded to serial if **any** of the four conditions is unestablished (resolution and downgrade rule per `ptp-parallel-fanout` § *Effective decision*; `parallel:on` is a permission, never a safety override).
-
-   **c. Parallel path — effective `on` *and* all four conditions established.** Fan out **one `review-plan-full` member per slice** at the `opus.high` target. At most `parallel.maxConcurrency` members run simultaneously and the rest run in successive batches — the cap, its batching semantics, and the single end-of-run sort are the **`ptp-parallel-fanout`** skill's; do not restate them here.
-
-   Each member is exactly **one `ptp-run-at-model` main run** at `opus.high`, started by this outer session, and it starts **no further main run**. That invariant is direction-neutral: the per-direction mechanism is `0034_01`'s `run-at-model` amendment (as summarized in `ptp-parallel-fanout` § *Purpose*) — **cite it, do not reproduce it here**.
-
-   **Join every member.** A member that failed, refused, was throttled, or returned `needs-human-action` is **recorded as unsuccessful**, never dropped and never silently omitted. Alongside each member's terminal state, collect its **fixes-applied signal** — the total findings fixed that `review-plan-full` already relays from `ptp-review-loop`'s terminal report; the signal is "that total is greater than zero". `review-plan-full` reports that total **per phase** (a Phase 1 summary and a Phase 2 summary), so the signal is the sum across **both** phases — a slice whose Phase 2 alone applied fixes is dirty exactly as one whose Phase 1 did. Collect it from **every** member, including one that terminated non-green, because a capped member may still have applied fixes before capping. If a member's signal is missing or cannot be determined, treat its slice as **dirty** in 2e — the unknown case fails safe toward rechecking, never toward skipping.
-
-   **d. Serial path — effective `off`, or any condition unestablished.** Review the slices one at a time in ascending story order, exactly as before this change: for each slice id in the ascending order captured in step 1, invoke the `ptp:review-plan-full` command. If a slice's `review-plan-full` terminates with `PHASE 2 ITERATION CAP REACHED` (or `ITERATION CAP REACHED`), **STOP** after that slice. Report which slice did not converge and do **not** start the plan review of any later slice. A slice whose review **failed, refused, was throttled, or returned `needs-human-action`** is non-green for 2f's rule exactly as a capped one is, and stops the serial path the same way — "the first non-green slice" throughout this command means the first slice that is not in one of the two green states, not merely the first capped one.
-
-   Fail-fast is **retained here on purpose**: it is an **economy** mechanism, not a safety one — its job is to avoid spending later slices' `opus.high` two-phase reviews once the run is already doomed — and unlike on the fan-out path, where later members have already started, stopping early is both possible and free when the runs are sequenced.
-
-   **e. Post-join cross-slice recheck — parallel path only, between the join and the gate.** Condition 1 governs **writes**, and it holds; but a plan review legitimately **reads** its dependency slices when checking cross-slice consistency, and the serial path gave a second property for free that no condition names: a dependent slice was always reviewed **after** its dependencies had finished being fixed. Fan-out destroys that ordering, so per-slice greenness alone is **no longer** evidence that the slice **set** is mutually coherent. Do not wave this away with "condition 1 governs writes" — nothing is corrupted, but the coherence evidence is gone. Restore it with a single **ascending walk**:
-
-   1. **Seed** a `dirty` set with every slice whose own member applied inline fixes (2c's signal; an unavailable signal ⇒ dirty).
-   2. **Walk the slice set once, in ascending change id order.** For each slice that declares **any** member of `dirty` as a dependency — the dependency edges being the ones step 1 captured from `plan-multiple`'s step-6 report; if a slice's dependencies cannot be determined from it, fall back to that slice's own `proposal.md > Source` declaration, and if they still cannot be determined treat the slice as depending on **every** lower-id slice, so the unknown case fails safe toward rechecking here too — run **one** further `review-plan-full` pass over it, serially. If that pass itself applies inline fixes, add that slice to `dirty` before continuing the walk — and **the same fail-safe applies to a recheck pass as to an initial member**: if a recheck's fixes-applied signal is missing or cannot be determined, add its slice to `dirty` too. The unknown case fails safe toward rechecking at **every** point in the walk, not only at the seed; an asymmetry there would reopen the hole from the other end.
-   3. **Then apply the gate (2f)** over the slice outcomes **as updated by the walk**.
-
-   **Why one pass suffices, with no iteration cap.** `0034_02` guarantees slice ids are unique, strictly ascending, and free of forward or self dependencies, so every dependency edge points from a higher change id to a lower one. A fix can therefore only affect slices **later** in the walk, which have not been rechecked yet. Each slice is rechecked **at most once** and none is left stale behind the walk — including transitively: in `A → B → C`, `A`'s member applies fixes, so `B` is rechecked; `B`'s recheck applies fixes of its own, so `B` enters `dirty`; `C`, later in the walk, is therefore rechecked as well.
-
-   A slice still non-green **after** its recheck fails the gate like any other. When no slice that another slice depends on was fixed, the walk rechecks nothing. The **serial path runs no recheck** — its ordering already establishes the property. Eliminating the stale read at its source is out of scope: `0034_01`'s reserved **dependency-wave fan-out** variant is the eventual structural remedy, and this command does **not** implement it.
-
-   **f. The convergence gate — one decision rule, two join points.** The rule is stated **once** and is identical on both paths: both `BOTH PHASES DONE` and `PHASE 1 DONE — CODEX SKIPPED (mode=…)` (Codex intentionally skipped by `codex.mode`; per `ptp-codex-mode` this is gate-success) are green and converged; the gate passes only if **every** slice in the set is green, and any slice reaching `ITERATION CAP REACHED` or `PHASE 2 ITERATION CAP REACHED` fails it.
-
-   Only the **join point** differs. Serial: the gate is applied after each slice, which is what makes 2d's fail-fast STOP possible. Parallel: every member is joined, then 2e's recheck runs, and only then is the gate applied over the whole joined set — because later members have already started and cannot be prevented from running. Same rule, same verdict; the two paths simply evaluate **different amounts of evidence**, since the serial path never produces results for the slices after the first non-green one.
-
-   **g. Report coverage differs by path — deliberately.** The parallel path reports **every** slice; the serial fail-fast path reports only the slices actually reviewed, up to and including the first non-green one. That is correct rather than inconsistent: two different amounts of work were done. This is also a conscious divergence from sibling slice `0034_02`, which unified `/ptp:plan-multiple` to join-then-gate on **both** paths. The two stages produce different things: `plan-multiple`'s product is the **slice set itself**, so a member that never ran leaves an unplanned slice in a set the user is about to carry forward and every member must complete for the output to be coherent; these per-slice reviews are **independent verdicts** over already-planned slices, so once one slice is non-green the gate is already decided and every later review is pure waste. Where completing every member buys correctness, `0034_02` completes them; where it buys nothing, this command stops.
-
-3. **Report.** After the gate (or at a serial convergence STOP), report — **sorted by ascending change id**, and **byte-stable with respect to member completion order** (a parallel run repeated with a different completion order produces the same report):
-   - Every slice covered by this run, in ascending change id order, each with its one-line scope (from step 1's report).
-   - Per-slice plan-review terminal state (`BOTH PHASES DONE` / `PHASE 1 DONE — CODEX SKIPPED (mode=…)` / `PHASE 2 ITERATION CAP REACHED` / `ITERATION CAP REACHED`); never collapse a mode-skipped slice into a plain both-phases label, so the skip stays visible.
-   - **Every unsuccessful member** — failed, refused, throttled, or `needs-human-action` — named with its reason. A run in which any member was unsuccessful is **never** reported as successful.
-   - **Any slice that received a post-join cross-slice recheck** (2e), so the extra pass is visible rather than silent. On the serial path there is none.
-   - **Which coverage this report has**: on the parallel path say plainly that it lists every slice in the set; on the serial fail-fast path say plainly that it lists the slices reviewed **up to and including** the first non-green one, and that later slices were not reviewed — never let the report imply it enumerates every slice when it does not.
-   - The exact next command: `/ptp:full-apply` (which applies each slice at the model from its `effort.md` automatically — the apply runs in a workflow agent that carries that model). Offer it **only** when the gate passed.
-
-## Model/effort posture
-
-`full-plan` has **no apply stage** — every stage it runs (planning via `plan-multiple`, plan review via `review-plan-full`) targets `opus.high`, the policy default for all non-apply stages. It therefore has **no effort gate** and there is deliberately **no `full-plan-effort` variant**: the gate only exists to honor `effort.md` at apply time, which this command never reaches. It runs entirely at the current session model/effort (expected `opus.high`). If the session is below `opus.high`, **note a reminder** but do **not** stop. Every `opus.high` this command names is a **plan-phase** target, and this command makes no claim about the model or effort of any **code**-review agent — that is `/ptp:full-apply`'s per-story resolved review target, which this command neither sets nor reads.
-
-## Hard rules
-
-- Do **not** apply code. This command plans and plan-reviews only; the next command is `/ptp:full-apply`.
-- Do **not** archive any change. Archiving is always an explicit `/ptp:archive <id>` user action.
-- Do **not** auto-commit any edits made during planning or plan review.
-- **Non-convergence is path-aware, and never proceeds past the gate.** On the **serial** path, do **not** start a later slice's plan review if an earlier slice did not converge (`PHASE 2 ITERATION CAP REACHED` or `ITERATION CAP REACHED`). On the **parallel** path the later members have already started, so there is nothing to prevent: join them all, run the post-join cross-slice recheck, and apply the gate over the joined set. Either way, a non-green slice fails the gate, is named in the report, and **no code is applied** — that part is not path-aware.
-- **Consume the `ptp-parallel-fanout` contract; never redefine it.** Cite the skill for the four conditions, the config resolution, the token grammar, the cap and its batching, the aggregation rule, and the join-then-gate rule — do not restate or vary any of them here.
-- **The serial path stays live.** With the shipped default `parallel.mode` = `off`, with `parallel:off`, or with any of the four safety conditions unestablished, the per-slice plan reviews run serially in ascending story order with the fail-fast STOP. Never delete, bypass, or degrade that path in favor of the fan-out one.
-- **Take the slice set from `plan-multiple`'s step-6 report.** Never re-derive it with `npx -y openspec list`, and never parse the internal `PLAN-MULTIPLE-SLICES` / `PLAN-MULTIPLE-FALLBACK` beat sentinels.
-- **Codex per `codex.mode`** (see the `ptp-codex-mode` skill) — resolve the mode before any work; only `required` hard-requires Codex (STOP without work if `codex --version` fails). Under `auto`/`off`, proceed and each slice's `review-plan-full` applies its own non-silent Codex skip.
-- Do **not** stop to switch models — `full-plan` has no effort gate; at most it reminds when the session is below `opus.high`.
-- One `fast:` parse per invocation and, when the posture resolves on, one preflight and one announcement (absent / `fast:off` → neither); this command launches no workflow, so there is no `fast` arg to thread anywhere — the resolved **`fast`** posture stays in this command's outer session and is never given to `ptp:plan-multiple` / `ptp:review-plan-full` as an input.
-- One `parallel:` parse per invocation, in this outer session, and the resolved **`parallel`** posture is threaded into `ptp:plan-multiple` as an explicit input so one token governs both fan-outs. Never leave the token unstripped for a delegated command to re-parse, and never give a `parallel` input to `ptp:review-plan-full` — it is a fan-out member here, not an orchestrator.
+Report the change id where the command resolved one, the resulting state, any failures, and the next command to run.

@@ -1,6 +1,6 @@
 # PtP — autonomous, dual-reviewed change pipeline for Claude Code
 
-PtP turns a one-line feature or bug description into implemented, dual-reviewed code. It composes **Superpowers** (brainstorm/plan/review discipline), **OpenSpec** (durable artifacts and execution order), and **Codex** (an independent second reviewer).
+PtP turns a one-line feature or bug description into implemented, dual-reviewed code. It composes **OpenSpec** (durable artifacts and execution order) and **Codex** (an independent second reviewer), on top of PtP's own brainstorm/plan/review discipline skills.
 
 Drive it a step at a time (`brainstorm → plan → apply → review → archive`), or hand it everything with `/ptp:full`.
 
@@ -11,13 +11,14 @@ Drive it a step at a time (`brainstorm → plan → apply → review → archive
 | # | Install | Command |
 |---|---------|---------|
 | 1 | **OpenSpec CLI** (required) | `npm install -g openspec` — falls back to `npx -y openspec ...` |
-| 2 | **Superpowers** (required) | `/plugin marketplace add obra/superpowers-marketplace` then `/plugin install superpowers@superpowers-marketplace` |
-| 3 | **prd-taskmaster** (optional, for `/ptp:prd`) | `/plugin marketplace add anombyte93/prd-taskmaster` then `/plugin install prd` |
-| 4 | **Codex CLI** (optional, second reviewer) | put `codex` on PATH; verify with `codex --version` |
+| 2 | **prd-taskmaster** (optional, for `/ptp:prd`) | `/plugin marketplace add anombyte93/prd-taskmaster` then `/plugin install prd` |
+| 3 | **Codex CLI** (optional, second reviewer) | put `codex` on PATH; verify with `codex --version` |
 
 **Node** is needed only for the bundled telemetry receiver.
 
-Without Superpowers, PtP falls back to inline structured work. Without prd-taskmaster, `/ptp:prd` authors the PRD inline. Without Codex, behavior follows `codex.mode`.
+Without prd-taskmaster, `/ptp:prd` authors the PRD inline. Without Codex, behavior follows `codex.mode`.
+
+**Migration note — PtP no longer invokes Superpowers.** PtP's own commands, agents, skills, and workflows invoke only PtP-owned skills, so conflict-free operation requires the Superpowers plugin **absent or disabled**. An installed Superpowers plugin registers its own `SessionStart` hook, which can inject `superpowers:using-superpowers` and direct an agent toward applicable Superpowers skills — a mechanism outside PtP's reach, so removing PtP's own invocations is not a guarantee that no agent ever invokes a Superpowers skill.
 
 ---
 
@@ -63,7 +64,7 @@ Any missing file, missing key, bad JSON, or invalid value falls back to the prev
 
 | Key | Values | Default | Effect |
 |-----|--------|---------|--------|
-| `codex.mode` | `auto` \| `required` \| `off` | `auto` | `auto`: use Codex when on PATH, else run Superpowers-only and report the skip. `required`: stop when `codex` is missing. `off`: never use Codex. Explicit `/ptp:codex-*` commands run Codex regardless of the mode. |
+| `codex.mode` | `auto` \| `required` \| `off` | `auto` | `auto`: use Codex when on PATH, else run main-only and report the skip. `required`: stop when `codex` is missing. `off`: never use Codex. Explicit `/ptp:codex-*` commands run Codex regardless of the mode. |
 | `codex.model` | string | unset | Passed as `-m <model>` to `codex exec`. |
 | `codex.reasoningEffort` | `minimal` \| `low` \| `medium` \| `high` | unset | Passed as `-c model_reasoning_effort=<effort>`. |
 | `roles.main` | `claude` \| `codex` | `claude` | Which agent plans/implements; the reviewer is the other one. When unset in both files, the `PTP_MAIN_AGENT` env var is read. |
@@ -175,11 +176,11 @@ Anywhere a change argument is taken:
 
 | Command | Does |
 |---------|------|
-| `/ptp:plan [change-id]` | Writes `proposal.md`, `design.md`, `tasks.md`, `TLDR.md`, `effort.md`, and `specs/<capability>/spec.md` deltas, then runs `openspec validate <id> --strict`. |
+| `/ptp:plan [change-id]` | Writes `proposal.md`, `tasks.md`, `effort.md` (one `{model}.{effort}` line), and `specs/<capability>/spec.md` deltas, plus `design.md` only when the change carries non-obvious decisions or invariants, then runs `npx -y openspec validate <id> --strict`. |
 | `/ptp:plan-multiple <request \| id>` | Decomposes oversized work into slices under one epic and runs `/ptp:plan` per slice. |
 | `/ptp:review-plan [change-id]` | Read-only artifact-quality gate over proposal/design/tasks/spec deltas. Flags any `tasks.md` task needing manual QA, manual testing, or any human executor as **High**. Reports PASS / WARN / FAIL; advisory. |
-| `/ptp:review-plan-loop <selector>` | Superpowers artifact review + inline fixes, looped to convergence. |
-| `/ptp:review-plan-full <selector>` | Dual-reviewer artifact loop: Superpowers to convergence, then Codex to convergence. |
+| `/ptp:review-plan-loop <selector>` | Main-agent artifact review + inline fixes, looped to convergence. |
+| `/ptp:review-plan-full <selector>` | Dual-reviewer artifact loop: the main agent to convergence, then Codex to convergence. |
 | `/ptp:codex-review-plan <selector>` | Codex single-pass artifact review. |
 | `/ptp:codex-review-plan-loop <selector>` | Codex artifact review + fixes, looped. |
 | `/ptp:effort <change-id>` | Prints the recommended model + effort for `/ptp:apply`. |
@@ -189,9 +190,9 @@ Anywhere a change argument is taken:
 | Command | Does |
 |---------|------|
 | `/ptp:apply <selector>` | Implements `tasks.md` sequentially with TDD discipline, checking off each task after verifying it. Runs at the model/effort in `effort.md`. |
-| `/ptp:review <selector>` | Superpowers code review of the diff against the artifacts. Findings Critical / High / Medium / Low. |
+| `/ptp:review <selector>` | Main-agent code review of the diff against the artifacts. Findings Critical / High / Medium / Low. |
 | `/ptp:review-loop <selector>` | `/ptp:review` + inline fixes until no findings at or above `review.minSeverity`, or the cap. |
-| `/ptp:review-full <selector>` | Dual-reviewer code loop: Superpowers to convergence, then Codex to convergence. |
+| `/ptp:review-full <selector>` | Dual-reviewer code loop: the main agent to convergence, then Codex to convergence. |
 | `/ptp:review-fix [selector]` | Fixes the confirmed findings of the latest review in the conversation, then runs tests/lint/validate. |
 | `/ptp:codex-review <selector>` | Codex single-pass code review. |
 | `/ptp:codex-review-loop <selector>` | Codex code review + fixes, looped. |
@@ -219,7 +220,7 @@ Anywhere a change argument is taken:
 | `/ptp:config` | Interactive config editor for every key above. |
 | `/ptp:version` | Installed vs. latest version verdict. Read-only. |
 | `/ptp:update` | Runs `claude plugin update ptp@ptp`. Restart Claude Code afterwards. |
-| `/opsx:explore [topic]` · `/opsx:propose [name]` · `/opsx:apply [name]` · `/opsx:archive [name]` | Experimental OpenSpec-only commands (no Superpowers layer). |
+| `/opsx:explore [topic]` · `/opsx:propose [name]` · `/opsx:apply [name]` · `/opsx:archive [name]` | Experimental OpenSpec-only commands (no PtP discipline layer). |
 
 ---
 
@@ -281,6 +282,11 @@ To turn it off: set `telemetry.mode=off` and run `/ptp:telemetry stop`. Nothing 
 
 Claude invokes these automatically; you don't call them directly. `ptp`, `ptp-prd`, `ptp-change-selector`, `ptp-branch-guard`, `ptp-branch-prep`, `ptp-run-at-model`, `ptp-agent-roles`, `ptp-codex-mode`, `ptp-full`, `ptp-full-apply`, `ptp-brainstorm-full`, `ptp-review-brainstorm`, `ptp-review-brainstorm-full`, `ptp-review-prd`, `ptp-review-prd-full`, `ptp-prd-full`, `ptp-review-loop`, `ptp-telemetry`, `ptp-telemetry-status`, `ptp-telemetry-report`, `ptp-telemetry-analyze`, `ptp-telemetry-setup`, `ptp-telemetry-start`, `ptp-telemetry-stop`, `ptp-telemetry-export`, `ptp-parallel-fanout`, `ptp-backlog`, `ptp-backlog-write`, `ptp-backlog-run`, `ptp-backlog-continue`, `ptp-github-projects-gh`, `ptp-archive-force`. The `openspec-*` skills back the `opsx:` commands.
 
+The `openspec-*` skills are edited only in `skills/openspec-*/`. `.claude/skills/openspec-*/` and
+`.codex/skills/openspec-*/` are generated from that single source and must not be hand-edited — run
+`node scripts/sync-openspec-skills.js` to regenerate them and `node scripts/sync-openspec-skills.js --check`
+to verify there is no drift.
+
 Every write-capable command runs a branch guard first: on `master` it stashes, pulls, and cuts a fresh `ptp/<…>` branch before writing anything.
 
 ---
@@ -336,6 +342,7 @@ Experimental     /opsx:explore | /opsx:propose | /opsx:apply | /opsx:archive
 
 | Version | Changes |
 |---------|---------|
+| **1.0.0** | Milestone version bump — the plugin's major component moves from 0.2.38 to 1.0.0 to mark the PTP token-reduction program (epic 0057). This is a deliberate milestone marker, **not** a compatibility break: no command, skill, agent, workflow, or behavior changed with the bump, and PTP publishes no API-compatibility contract tied to its version number. `/ptp:version` and `/ptp:update` resolve and compare versions exactly as before — only the value they read moved (0057_12). |
 | **0.2.38** | `/ptp:analyze` now runs its investigation and analysis-doc write via `ptp-run-at-model` at `opus.high` in one foreground main run, instead of inline at the session's own model/effort — matching every other judgment-carrying ptp command. The branch guard is its only outer-session precondition; change-folder resolution/allocation and the doc write happen inside the routed run, and the terminal result relays as `completed`/`refused`/`needs-human-action` (0056_01). |
 | **0.2.37** | `/ptp:merge-to-master` no longer refuses outright on `master`/`main`. It classifies the tree first: clean still STOPs verbatim, but a dirty tree now recovers automatically — derive a branch name, cache-heal, run `ptp-branch-prep` (stash `-u` → cut → pop), gate on its return, then continue the unchanged merge-only pipeline. A failed or conflicted prep hard-STOPs before any git write, so conflict markers can never be committed — including on a re-run. `/ptp:deploy`, `/ptp:deploy-pr-approved`, and `/ptp:archive-and-deploy` keep refusing unconditionally (0055_01). |
 | **0.2.36** | `/ptp:backlog-continue` no longer re-runs `/ptp:review-full` or evaluates any `stages/code.json` review marker on its bare flow — code review is already converged by `/ptp:full` before a change can reach `blocked`/`in-review`, so the bare flow is now sign off → re-verify → archive → `done`, unconditionally. |

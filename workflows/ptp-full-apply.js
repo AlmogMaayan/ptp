@@ -39,13 +39,47 @@ function parseFixTarget(raw, models, efforts) {
   return { model: parts[0], effort: parts[1] }
 }
 
+// The review result's fix counts, read per ROLE and never per pair.
+//
+// The role-named fields (mainFixes / reviewerFixes) are preferred; a result written before the
+// rename carries the agent-named superpowersFixes / codexFixes instead, and each role falls back
+// to ITS OWN legacy field independently — so a mixed result such as { mainFixes, codexFixes } is
+// read correctly rather than treated as wholly legacy or wholly new. A role resolved through its
+// legacy field implies its agent under the default roles.main=claude pairing (main=claude,
+// reviewer=codex); that agent is an INFERENCE, not a record — the agent-named fields did not
+// predate roles.main — so it is flagged agentInferred and must never be presented as evidence of
+// which agent actually ran. The counts themselves are exact either way. A role carrying neither
+// field is reported as the string "unknown": no absent value is ever substituted by 0.
+function readReviewFixCounts(review) {
+  const r = review || {}
+  const int = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : null)
+  const role = (fresh, legacy, inferredAgent, agentField) => {
+    const own = int(r[fresh])
+    const recordedAgent = typeof r[agentField] === 'string' && r[agentField] !== '' ? r[agentField] : null
+    if (own !== null) {
+      return { count: own, agent: recordedAgent, agentInferred: false }
+    }
+    const old = int(r[legacy])
+    if (old !== null) {
+      return recordedAgent
+        ? { count: old, agent: recordedAgent, agentInferred: false }
+        : { count: old, agent: inferredAgent, agentInferred: true }
+    }
+    return { count: 'unknown', agent: recordedAgent, agentInferred: false }
+  }
+  return {
+    main: role('mainFixes', 'superpowersFixes', 'claude', 'mainAgent'),
+    reviewer: role('reviewerFixes', 'codexFixes', 'codex', 'reviewerAgent'),
+  }
+}
+
 // The review agent's prompt, used for BOTH the first review spawn and the (at most one) escalated
 // re-spawn — the escalated run gets the identical protocol with the target's model/effort
 // substituted plus one extra directive line. The running model is stated explicitly because an
 // agent cannot otherwise know it, and the ladder comparison in agents/ptp-review.md depends on it.
 function reviewPromptLines(id, model, effort, escalated) {
   return [
-    `Run the review-full protocol (the main-agent loop then the reviewer-agent loop; at the default roles.main=claude this is the Superpowers loop then the Codex loop) on the OpenSpec change \`${id}\`, per your system prompt.`,
+    `Run the review-full protocol (the main-agent loop then the reviewer-agent loop; at the default roles.main=claude this is the Claude loop then the Codex loop) on the OpenSpec change \`${id}\`, per your system prompt.`,
     `Change folder: openspec/changes/${id}/`,
     `You are running at model \`${model}\`.`,
     `Work at **${effort}** effort: ${effortDirective(effort)} Fix only confirmed findings inline. Do NOT commit. Do NOT archive.`,
@@ -112,12 +146,16 @@ const REVIEW_SCHEMA = {
     terminalState: { type: 'string', enum: ['BOTH_PHASES_DONE', 'PHASE1_CAP', 'PHASE2_CAP', 'FIX_TARGET_ESCALATION'] },
     // Internal telemetry only (not read by the gate). These are the fix counts the
     // ptp-review agent (agents/ptp-review.md) actually returns; keep the names matching
-    // that producer's contract. The fields are agent-named, not phase-named:
-    // superpowersFixes = the Superpowers reviewer's fix count and codexFixes = the Codex
-    // reviewer's fix count, regardless of which phase each ran in (at the default
-    // roles.main=claude, Superpowers is Phase 1 and Codex is Phase 2).
-    superpowersFixes: { type: 'integer' },
-    codexFixes: { type: 'integer' },
+    // that producer's contract. The counts are ROLE-named, not agent-named: mainFixes is the
+    // main phase's confirmed fix count and reviewerFixes the reviewer phase's, in either
+    // roles.main direction. Which AGENT filled each role is carried separately, by the optional
+    // mainAgent/reviewerAgent strings ("claude" | "codex"), so the role/agent split is explicit
+    // rather than implied by a field name. None of the four is required: a result predating the
+    // rename carries superpowersFixes/codexFixes instead and is read by readReviewFixCounts().
+    mainFixes: { type: 'integer' },
+    reviewerFixes: { type: 'integer' },
+    mainAgent: { type: 'string' },
+    reviewerAgent: { type: 'string' },
     openFindings: { type: 'integer' },
     // The effective review.minSeverity floor the review actually ran at (lowercase canonical:
     // low | medium | high | critical). Reporting-only — no gate keys on it — so it is a plain
@@ -286,7 +324,7 @@ for (let i = 0; i < stories.length; i++) {
     }
   }
 
-  const storyRecord = { id: s.id, applyOk: true, apply, review: finalReview || null }
+  const storyRecord = { id: s.id, applyOk: true, apply, review: finalReview || null, fixCounts: readReviewFixCounts(finalReview) }
   // An escalated story keeps the ESCALATED run's result in `review` — that is the one the gate
   // reads — and retains the first run's result for reporting only.
   if (escalatedFrom) storyRecord.reviewEscalatedFrom = escalatedFrom

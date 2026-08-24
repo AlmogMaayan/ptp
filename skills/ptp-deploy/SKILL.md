@@ -1,11 +1,19 @@
 ---
 name: ptp-deploy
-description: Use this skill when the user wants to ship / deploy / release the current feature branch — commit all changes, push, open a PR, merge to master, delete the merged branch, run the project's deploy (CI/CD) action, autonomously fix conflicts/CI/deploy failures within a bounded retry budget, and finally return to a clean master. The one ptp step that deliberately commits, pushes, and merges. Never self-approves a PR (GitHub forbids it); stops for a human approval only when branch protection requires one. Drives /ptp:deploy, /ptp:deploy-pr-approved, and the merge-only variant /ptp:merge-to-master (which skips the deploy and deploy-fix phases and lands directly on master after a successful merge).
+description: Own shipping a branch, the one ptp step that commits, pushes, merges, and deploys
 ---
+
+**Owned commands.** This skill is the owning skill of the following commands, whose directories
+are not `skills/ptp-<name>/`, so ownership is declared here on the owner's side:
+
+Owns command: /ptp:deploy-pr-approved
+Owns command: /ptp:merge-to-master
 
 # ptp-deploy — the terminal "ship it" pipeline
 
 ## Purpose
+
+**Model dispatch target.** `/ptp:deploy`, `/ptp:deploy-pr-approved` and `/ptp:merge-to-master` run this skill's work at `sonnet.medium` via `ptp-run-at-model` (`skills/ptp-run-at-model/SKILL.md`), which owns the spawn-and-relay mechanics and requires its caller to supply the target. This names the target only; it restates none of that contract.
 
 This skill is the **terminal step of the ptp pipeline**: it takes the work already applied
 and reviewed on the current feature branch and lands it in production. It is the single ptp

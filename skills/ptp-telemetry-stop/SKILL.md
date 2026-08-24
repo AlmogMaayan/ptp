@@ -1,6 +1,6 @@
 ---
 name: ptp-telemetry-stop
-description: Take this store's OTLP receiver down manually — the verify-before-signal ordering (probe the recorded port, reload, verify pid liveness, pid identity, launch token and store identity, only then signal, and unlink only once the recorded port goes unserved), the absent-lockfile probe path that treats a missing record as unknown rather than as stopped, the outcome vocabulary the bundled receiver reports, and the posture that nothing but the receiver process and its own lockfile is ever touched. Reached from both `/ptp:telemetry stop` and `/ptp:telemetry-stop`, which are two front doors onto this one skill. The lockfile record, its three named states, the receiver's self-heal and the reload-after-probe rule stay in the `ptp-telemetry` skill and are cited here by anchor, never restated; so do the hard lifecycle rules that bind every lifecycle command.
+description: Own stopping the local ptp telemetry receiver and leaving the recorded store in place
 ---
 
 <!-- ptp-telemetry:anchor id=stop-methodology class=leaf owner=stop -->

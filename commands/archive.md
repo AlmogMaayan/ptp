@@ -1,5 +1,5 @@
 ---
-description: Archive a completed, reviewed OpenSpec change — syncs delta specs into main specs via the OpenSpec CLI
+description: Archive a completed, reviewed change and sync its delta specs into the main specs
 argument-hint: "[change-selector] — id, epic:all, epic:XXXX, story:NN, or epic:XXXX story:NN; empty = all active changes (openspec list disambiguation)"
 ---
 
@@ -97,3 +97,9 @@ fan-out (the branch guard is a no-op after the first cut).
 - **Never** silently skip the spec sync. Use `--skip-specs` only for changes that genuinely have no spec deltas, and say so in the report.
 - Do **not** edit the spec deltas to make validation pass — if validation fails, bounce back to `/ptp:plan`.
 - Prefer the `openspec` CLI; only fall back to a manual move when the CLI cannot handle the change name.
+- The archive gates are exactly tasks-complete, strict validation, and the review-clean confirmation —
+  artifact presence is never a gate, so an absent `design.md` / `TLDR.md` / `brainstorm.md` /
+  `analysis.md` / `effort.md` never refuses, warns, or delays an archive.
+- The archive rewrites, compacts, trims, reformats, or deletes **no** artifact of the change being
+  archived and **no** artifact already under `openspec/changes/archive/` — its only writes are the
+  folder move, the delta-spec sync, and `stages/archive.json`.

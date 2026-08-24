@@ -1,13 +1,13 @@
 ---
 name: ptp-codex-mode
-description: Resolve codex.mode, codex.model, and codex.reasoningEffort from layered ptp config, decide whether a dual-reviewer step runs its Codex phase, and own the canonical flag-append rule every `codex exec` call site references. The single source of truth every dual-reviewer orchestrator (the code/plan/brainstorm/PRD -full reviews and the full/full-apply/brainstorm-full/prd-full orchestrators) and every codex-invoking command references instead of hard-requiring Codex or hardcoding its invocation — covers mode resolution (default auto), the three-mode decision contract, the /ptp:codex-* override, the non-silent-skip rule, the mode-skip terminal state the convergence gates treat as success, and the model/reasoning-effort resolution + flag-append rule.
+description: Own Codex mode resolution, model and effort resolution, and the reviewer gate each dual-reviewer step reads
 ---
 
 # ptp-codex-mode — resolve `codex.mode` and gate the Codex phase
 
 ## Purpose
 
-ptp's dual-reviewer flow runs a Superpowers review loop and then a Codex review loop. Whether the
+ptp's dual-reviewer flow runs a main-agent review loop and then a Codex review loop. Whether the
 Codex loop runs at all is governed by `codex.mode` (`auto` default | `required` | `off`). This skill
 is the **single source of truth** for (1) resolving that mode from layered config and (2) deciding
 whether a given dual-reviewer step runs its Codex phase — the same "the skill owns the rule" pattern
@@ -33,6 +33,8 @@ them is itself the opt-in to Codex, so they bypass the mode gate entirely and ar
 to record that they do.
 
 ## Resolution (mirror `ptp-deploy:60-74`)
+
+### Codex mode resolution
 
 Read and merge the optional ptp config — global `~/.claude/ptp/config.json` first, then project
 `<repo>/.claude/ptp/config.json` overriding **key-by-key** (the same two files and precedence
@@ -195,13 +197,13 @@ skill from `roles.main` — the derived pair `{ main, reviewer }`, where `review
 agent that is not `main`. This skill asks `ptp-agent-roles` who the reviewer is, then branches on
 the reviewer identity.
 
-Today's rule ("the Superpowers phase always runs; only the Codex phase is gated") is exactly the
+Today's rule ("the main phase always runs; only the Codex phase is gated") is exactly the
 special case where `roles.main = claude`, so the main agent is Claude and the reviewer is Codex.
 That default direction is specified byte-identically below.
 
 ### reviewer = codex (default; `roles.main = claude`)
 
-This is the byte-identical-to-today path. The **Superpowers (Claude, non-Codex) phase always
+This is the byte-identical-to-today path. The **main (Claude, non-Codex) phase always
 runs**, regardless of mode. Only the **Codex reviewer phase** is gated, by the resolved mode and
 (for `required`/`auto`) whether `codex` is on PATH:
 
@@ -210,8 +212,8 @@ runs**, regardless of mode. Only the **Codex reviewer phase** is gated, by the r
 | `required` | yes | **Run** the Codex phase. |
 | `required` | no | **STOP** — tell the user to install Codex or change the mode (`/ptp:config`). This is today's behavior, preserved. |
 | `auto` | yes | **Run** the Codex phase (unchanged from before this change — the common path). |
-| `auto` | no | **Skip** the Codex phase, run Superpowers-only, and report `Codex phase skipped (mode=auto, codex not found)`. |
-| `off` | (not probed) | **Skip** the Codex phase without probing PATH, run Superpowers-only, and report `Codex phase skipped (mode=off)`. |
+| `auto` | no | **Skip** the Codex phase, run main-only, and report `Codex phase skipped (mode=auto, codex not found)`. |
+| `off` | (not probed) | **Skip** the Codex phase without probing PATH, run main-only, and report `Codex phase skipped (mode=off)`. |
 
 Probe PATH with `codex --version`. In `off` mode, do **not** probe — the skip is unconditional.
 When the Codex reviewer runs, the `codex.model`/`codex.reasoningEffort` resolution and the
@@ -222,8 +224,8 @@ rule — are identical to their behavior before this change.
 
 ### reviewer = claude (`roles.main = codex`)
 
-When the resolved reviewer is Claude, the reviewer phase **is** the Superpowers review loop and it
-**always runs** — mirroring how the Superpowers phase always runs in the default direction. For a
+When the resolved reviewer is Claude, the reviewer phase **is** the PTP review loop and it
+**always runs** — mirroring how the main phase always runs in the default direction. For a
 Claude reviewer:
 
 - `codex.mode` is **NOT** consulted for the reviewer gate.
@@ -287,7 +289,7 @@ print sites that emit these strings are not edited here (that is 0027_03).
 ## Mode-skip terminal state
 
 When a `*-full` review (`/ptp:review-full`, `/ptp:review-plan-full`, `/ptp:review-brainstorm-full`, or
-`/ptp:review-prd-full`) converges its Superpowers phase and the Codex phase is skipped by mode, it
+`/ptp:review-prd-full`) converges its main phase and the Codex phase is skipped by mode, it
 terminates in a distinct, **green-class** terminal state — separate from the both-phases label so a
 human can tell the two apart:
 
@@ -325,10 +327,10 @@ in `ptp-full-apply`, no pre-run stop in `/ptp:full`), with the skip always named
   same forgiving reader posture.
 - The reviewer gate is symmetric: the MAIN agent's phase always runs; only the REVIEWER agent's
   phase is gated. Main/reviewer come from `ptp-agent-roles`' `{ main, reviewer }`. At the default
-  `roles.main = claude` (reviewer=codex) this reduces to "the Superpowers phase always runs; only
+  `roles.main = claude` (reviewer=codex) this reduces to "the main phase always runs; only
   the Codex phase is gated by `codex.mode`."
 - `codex.mode` gates the reviewer phase **iff the reviewer is Codex**; it never gates a Claude
-  phase. A Claude reviewer (`roles.main = codex`) is the Superpowers loop and always runs — no
+  phase. A Claude reviewer (`roles.main = codex`) is the PTP review loop and always runs — no
   `codex.mode`, no `codex --version` probe, no `codex exec`.
 - reviewer=codex: `required` + missing codex → STOP. `auto` + missing codex → skip + report. `off`
   → skip without probing + report.

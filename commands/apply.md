@@ -1,5 +1,5 @@
 ---
-description: Implement an OpenSpec change sequentially from tasks.md with Superpowers implementation discipline
+description: Implement one change sequentially from its task list, checking off each task as it is verified
 argument-hint: "<change-selector> — id, epic:XXXX, story:NN, or epic:XXXX story:NN"
 ---
 
@@ -36,11 +36,12 @@ The **main run's own `ptp-branch-guard` check is a no-op**: HEAD is already on t
 
 The subagent runs the following steps for the single change assigned to it:
 
-1. **Read the change artifacts** under `openspec/changes/<change-id>/`:
-   - `proposal.md` — what and why
-   - `design.md` (if present) — decisions and tradeoffs
+1. **Read the change artifacts** under `openspec/changes/<change-id>/`, in this order and only when
+   needed:
    - `tasks.md` — the execution order (source of truth)
    - `specs/**/spec.md` — the behavior contract being established
+   - `design.md` — only when present — decisions and tradeoffs
+   - `proposal.md` — only when a task's intent is unclear — what and why
 2. **Re-validate** before starting:
    - `npx -y openspec validate <change-id> --strict`
    - If validation fails, **stop** and surface the error. Do not edit the spec deltas to make it pass — that would defeat the planning step. Return to `/ptp:plan` if the artifacts genuinely need to change.

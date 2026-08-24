@@ -1,65 +1,16 @@
 ---
-description: Loop Codex code review + inline fixes until zero open findings at or above the configured `review.minSeverity` floor (default `low` = every severity) or configured iteration cap reached (default 5; requires codex CLI on PATH)
+description: Loop Codex code review and inline fixes until findings clear or the iteration cap is reached
 argument-hint: "<change-selector> — id, epic:XXXX, story:NN, or epic:XXXX story:NN"
 ---
 
-You are running the **Codex-powered loop variant of `/ptp:codex-review`** — an external Codex CLI code-review loop that alternates closed-book review, confirmation, and fix passes automatically until every finding at or above the configured `review.minSeverity` floor (default `low` — Critical, High, Medium, Low) is resolved or the configured iteration cap (default 5) is reached. Findings below the floor are reported but never auto-fixed. Use this when you want an independent second-opinion reviewer (a different model) to drive the review loop rather than Superpowers.
+## Arguments
 
-## Inputs
+Take `$ARGUMENTS` as a change selector. Resolve the change selector through the `ptp-change-selector` skill. Run the loop with kind `code` and reviewer `codex`, whose review pass runs the `commands/codex-review.md` protocol inline.
 
-Change id: $ARGUMENTS
+## Owner
 
-Resolve `$ARGUMENTS` as a change selector per the `ptp-change-selector` skill; if it resolves to more than one change, run the steps below for each, in story order, reporting per change.
+Invoke the `ptp-review-loop` skill (`skills/ptp-review-loop/SKILL.md`).
 
-## Branch safety (first step)
+## Report
 
-This loop applies inline code fixes, so before any fix run the **`ptp-branch-guard`** preamble: check `git rev-parse --abbrev-ref HEAD`; if it is the base branch (`master`/`main`), derive a feature-branch name from the resolved change id (→ `ptp/<change-id>`) and launch the minimal `ptp-branch-prep` workflow (stash → checkout the base branch → pull → cut the branch) **before** writing anything; if you are already on a feature branch it is a **no-op** — proceed as-is. The full rule lives in the **`ptp-branch-guard`** skill — do not restate it here.
-
-## Preconditions
-
-- The `codex` CLI must be on PATH. Run `codex --version` to check. If missing, **STOP** and tell the user to install it — do **not** silently fall back to Superpowers.
-- `openspec/changes/<change-id>/` must exist. If it does not, **STOP** and redirect the user to run `/ptp:plan` first.
-
-## What this command does
-
-The codex-review-loop work runs **at a deterministic model** via the **`ptp-run-at-model`** skill at
-`opus.high`. The outer session runs only the abort-guaranteeing preconditions first — the
-`ptp-branch-guard` preamble (above), the `codex --version` presence check (STOP if missing), the
-change-folder existence check, and selector disambiguation that must STOP and ask the user — so a
-guaranteed abort never spawns a subagent. It then invokes
-**`ptp-run-at-model`** with target `opus.high` and the work below; that spawns one foreground `opus`
-subagent (high effort directive) which runs the loop (the Claude-side closed-book prompt
-construction, confirmation, and relay; the external `codex exec` remains a Bash subprocess governed
-by its own CLI config), and its terminal state (DONE or ITERATION CAP REACHED) is relayed back per
-`ptp-run-at-model`'s *Result relay* — never downgraded to success.
-
-The subagent invokes the `ptp-review-loop` skill with:
-
-- `kind = code`
-- `reviewer = codex`
-- `change-id = $ARGUMENTS`
-- `fixDispatch = inline`
-- `runningTarget = <this command's resolved main-run target per ptp-agent-roles>`
-
-**Fix target.** The fix pass runs at a freshly evaluated fix target rather than at this command's
-review target; because this whole orchestration already runs inside one `ptp-run-at-model` main run,
-it passes `fixDispatch = inline` and never spawns a second run. The evaluation rule, the dispatch
-modes, the fallback, and the reporting obligation live in `ptp-review-loop` — this command does not
-restate them.
-
-The skill drives the full loop. For each iteration's review pass it runs the `codex-review.md` protocol inline: you (the caller) read the contract, capture the merge-base diff, run `npx -y openspec validate <change-id> --strict` and relevant tests, build a single closed-book prompt with all of this inlined, and pipe it to `codex exec -s read-only` over stdin. Findings are confirmed via `superpowers:receiving-code-review` before any fix is applied.
-
-**Review-convergence marker:** at either terminal state the loop stamps `openspec/changes/<change-id>/stages/code.json` per `ptp-review-loop`'s **## Review-convergence marker** and **## Code-marker fingerprint** sections — `kind: "code"`, `terminalState` `converged` (DONE) or `cap-reached` (ITERATION CAP REACHED), `gateState` `LOOP_DONE` or `LOOP_CAP` (a standalone loop has no two-phase gate), `reviewers: ["codex"]`, the iteration count, the effective `minSeverity`, a timestamp, and — when it can be computed — the content `fingerprint`. No `/ptp:status` column reads this marker; it exists so a later caller can prove this review's convergence still describes the current code.
-
-## Hard rules
-
-- Do **not** spawn a second `ptp-run-at-model` run for the fix pass — this command's orchestration already occupies the one Agent-nesting level.
-- Do **not** invoke `/ptp:apply`. Code fixes are applied inline.
-- Do **not** archive the change. Archiving is always an explicit user action.
-- Do **not** auto-commit any edits.
-- Do **not** fix any finding that was not independently CONFIRMED — especially Codex findings, which must be verified against the actual code before touching anything. Rejected findings' stable keys are carried over within this invocation to prevent re-confirmation across iterations; carry-over resets on a new `/ptp:codex-review-loop` run.
-- Do **not** count findings whose only suggested remediation is a manual check or a missing test against convergence.
-- Do **not** edit spec deltas or planning artifacts in this command. Use `/ptp:codex-review-plan-loop` for artifact fixes.
-- Iteration cap is configurable via `review.maxIterations` in ptp config; default 5.
-- Run Codex under `codex exec -s read-only` with the prompt piped over **stdin** (`-`), assembled per the `ptp-codex-mode` flag-append rule (resolved `-m`/`-c` flags before the trailing `-` when configured). Never pass `--full-auto`, `--sandbox workspace-write`, or `--dangerously-bypass-approvals-and-sandbox`.
-- **You (the caller) run `openspec validate` and all file reads** before each iteration. Codex receives an inlined, self-contained prompt and runs **no** `npx`, network, or install commands. Pass the prompt over stdin, not as an argv string.
+Report the change id where the command resolved one, the resulting state, any failures, and the next command to run.

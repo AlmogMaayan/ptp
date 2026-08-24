@@ -1,6 +1,6 @@
 ---
 name: ptp-telemetry-status
-description: The read-only `/ptp:telemetry status` report — the resolved telemetry.mode and telemetry.root, and the per-epic total / closed / unclosed run counts with `_unattributed/` reported as its own bucket alongside the epics. Reached from both `/ptp:telemetry status` (including the omitted-argument default) and `/ptp:telemetry-status`, which are two front doors onto this one skill. Holds the `status` methodology only; every substrate contract it depends on stays in the `ptp-telemetry` skill and is cited here by anchor, never restated.
+description: Own reporting whether the local ptp telemetry receiver is running and where its store lives
 ---
 
 # ptp-telemetry-status — the read-only `status` contract

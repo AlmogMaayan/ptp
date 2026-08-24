@@ -1,6 +1,6 @@
 ---
 name: ptp-telemetry-analyze
-description: Single source of truth for `/ptp:telemetry analyze` — the predefined analysis engine over the ptp raw span store. Owns the engine's flag surface and exit codes, the raw-preferred source selection and its `spans.csv` degradation (under which the bash-by-command output is omitted rather than approximated), the wrapper-exclusion invariant keyed on `tool_name` / `raw_span_name` and never on `tool_class`, the per-leaf nesting-method resolution and the footer that always names the method used, the two permitted arithmetic forms and the still-banned wall-minus-components subtraction, the six outputs, the mandatory data-quality footer, the takes-no-selector and creates-nothing/deletes-nothing posture, and the `/ptp:telemetry analyze` vs `/ptp:analyze` disambiguation. Its one executable copy is `scripts/ptp-telemetry-analyze.js`; changing this skill and changing that script is one change, never two. The store layout, the span record, the OTel-attribute and `tool_class` mapping tables, the ledger join, retention, and the `report` methodology are NOT owned here — they are reached through `skills/ptp-telemetry/SKILL.md`, which owns the shared substrate outright and retains the numbering (and a forwarding stub) for the per-subcommand methodologies that have moved to sibling skills. This skill cites that file and restates none of it.
+description: Own answering a question from recorded ptp telemetry about model, effort, and cost patterns
 ---
 
 # ptp-telemetry-analyze — the `analyze` contract

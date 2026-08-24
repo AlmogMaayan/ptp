@@ -1,9 +1,9 @@
 ---
-description: Code review of an implemented OpenSpec change using the external Codex CLI (codex exec), graded against its proposal/design/spec deltas
+description: Run one closed-book Codex review of a change's code diff and report its findings
 argument-hint: "<change-selector> — id, epic:XXXX, story:NN, or epic:XXXX story:NN"
 ---
 
-You are running a **Codex-powered** variant of step 4 of the ptp flow. Instead of the Superpowers code-review skill, you delegate the review to the external **Codex CLI** via `codex exec`, then relay and classify its findings.
+You are running a **Codex-powered** variant of step 4 of the ptp flow. Instead of the main agent's own code-review skills, you delegate the review to the external **Codex CLI** via `codex exec`, then relay and classify its findings.
 
 Use this when you want a second, independent reviewer (a different model/agent) to grade an implemented change against its OpenSpec contract.
 
@@ -23,7 +23,7 @@ Resolve `$ARGUMENTS` as a change selector per the `ptp-change-selector` skill; i
 
 ## Reliability: caller supplies the inputs, Codex runs no fragile commands
 
-Codex runs under `codex exec -s read-only` with `approval: never`, shelling out via `pwsh` on Windows. Three things break runs: **`npx`/install commands** (the read-only sandbox auto-denies network, so `npx -y openspec validate` and `npm test` die), **nested-quote PowerShell one-liners** (rejected by policy), and **transient Windows sandbox spawn errors**. So **you (the caller) capture the diff and the contract, run any validation/tests yourself, and inline all of it into the prompt.** Codex MAY read additional source files for context with *simple* reads, but must never run `npx`/network/install commands. Pass the prompt over **stdin**. (Plain read-only `git diff`/`git show` are generally allowed inside Codex, but inlining the diff makes the run deterministic and immune to the spawn flakiness.)
+Codex runs under `codex exec -s read-only` with `approval: never`, shelling out via `pwsh` on Windows. Three things break runs: **`npx`/install commands** (the read-only sandbox auto-denies network, so `npx -y openspec validate` and `npm test` die), **nested-quote PowerShell one-liners** (rejected by policy), and **transient Windows sandbox spawn errors**. So **you (the caller) capture the diff and the contract, run any validation/tests yourself, and inline all of it into the prompt.** Codex opens **no** file by path and runs **no** command at all — every excerpt it needs is inlined by you (step 3b), which is what keeps the review closed-book. Pass the prompt over **stdin**. (Plain read-only `git diff`/`git show` are generally allowed inside Codex, but inlining the diff makes the run deterministic and immune to the spawn flakiness.)
 
 ## Steps
 
@@ -40,9 +40,15 @@ classifying the findings — **fixing nothing**, and the subagent's outcome is r
 `ptp-run-at-model`'s *Result relay*. (For a multi-change selector, the one subagent handles the whole
 per-change pass.)
 
-1. **Read the contract yourself (you, via Read):** `openspec/changes/<change-id>/` — `proposal.md`, `design.md`, `tasks.md`, and `specs/**/spec.md`. You will inline these so Codex grades against them without reading.
-2. **Capture the diff scope (you, via Bash):** prefer the merge-base diff against main — `git merge-base HEAD master` then `git diff <base>...HEAD`. Fall back to the files the tasks touched if not on a feature branch. Capture the full diff text.
-3. **Run validation/tests yourself and capture results (you, via Bash):** e.g. `npx -y openspec validate <change-id> --strict` and any cheap, relevant typecheck/lint/test commands the change implies. These results are **authoritative** and will be inlined; Codex must not re-run them.
+1. **Gather the `code` review kind's required set (you, via Read) — and nothing outside it:** the contract artifacts under `openspec/changes/<change-id>/` — `proposal.md`, `design.md` when present, `tasks.md`, and `specs/**/spec.md`. You will inline these so Codex grades against them without reading.
+2. **Capture the merge-base diff (you, via Bash):** `git merge-base HEAD master` then `git diff <base>...HEAD`. If HEAD is the base branch, so the merge-base diff is empty, capture the working-tree scope instead — `git diff HEAD` plus the contents of untracked files — and label it as such in the prompt; never substitute a task-derived file set for the diff. Capture the full diff text.
+3. **Run validation and tests yourself and capture both (you, via Bash):** `npx -y openspec validate <change-id> --strict` and any cheap, relevant typecheck/lint/test commands the change implies. The validate result and the test results are **authoritative** and will be inlined; Codex must not re-run them.
+3b. **Collect the cited source excerpts (you, via Read/Grep):** for each `path:line` reference the contract artifacts or the diff make, read a small window around the cited line so Codex can check the reference without shelling out.
+
+The required set is therefore: the contract artifacts, the merge-base diff, the `openspec validate --strict` result, the test results, and the cited source excerpts. Nothing else is inlined.
+
+`TLDR.md` and `effort.md` are never inlined for any kind.
+
 4. **Build ONE prompt over stdin.**
 
    **Severity threshold (resolved caller-side, inlined as a literal).** Resolve `review.minSeverity`
@@ -70,7 +76,7 @@ per-change pass.)
    - The contract files, under `=== <filename> ===` delimiters.
    - The captured merge-base diff, under a `=== DIFF (<base>...HEAD) ===` delimiter.
    - The validate/test results from step 3, labeled as authoritative.
-   - A hard instruction block: *"The contract, diff, and validation results are inlined above — review those. Do NOT run `npx`, installers, `npm test`, or any network command; the validation/test results given are authoritative. You MAY read additional source files for surrounding context, but only with SIMPLE reads (`cat` / `Get-Content <path>`) — never nested-quote one-liners. If a read is blocked, note the point as 'unverifiable from sandbox' and continue; never retry with a more complex command."*
+   - A hard instruction block: *"The contract, diff, and validation results are inlined above — review those. Do NOT run `npx`, installers, `npm test`, or any network command; the validation/test results given are authoritative. Open **no** file by path and run **no** command: every source excerpt the contract or the diff cites is inlined above. If something you would need is not inlined, note the point as 'not inlined — unverifiable closed-book' and continue."*
 
    The review instructions must tell Codex to:
    - Grade the implementation **against** the proposal (intent), the spec deltas (behavior contract + edge cases), and `tasks.md` (was each task actually done, not just checked).

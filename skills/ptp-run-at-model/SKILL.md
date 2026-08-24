@@ -1,6 +1,6 @@
 ---
 name: ptp-run-at-model
-description: Single source of truth for running a ptp command's work at a deterministic model+effort as the resolved main agent (via ptp-agent-roles). Because the session model cannot be changed in place, this skill owns the contract for running the command's real work either by spawning ONE foreground Claude Agent-tool subagent at a caller-named target model with effort injected as a prompt directive (main=claude, the default, mirroring workflows/ptp-full-apply.js) or by shelling out to a write-capable codex exec with model/effort from codex.model/codex.reasoningEffort (main=codex) — then relaying the main run's terminal result (completed / refused / needs-human-action) back to the session verbatim. The branch guard and abort-preconditions run in the outer session before any main work in both directions. Commands reference this skill instead of restating the run-and-relay, the same way ptp-branch-guard owns branch safety and ptp-codex-mode owns the Codex reviewer gate plus the codex.model/codex.reasoningEffort resolution reused here. Also owns the optional per-invocation `fast:on`/`fast:off` switch contract — fast mode being a session-scoped Claude Code setting that is never set per spawn, honored via a read-only preflight and advisory rather than an enablement mechanism.
+description: Own model dispatch, running a ptp step's real work at a deterministic model and effort
 ---
 
 # ptp-run-at-model — run a command's work at a deterministic model+effort
@@ -55,6 +55,8 @@ The `full`/`full-plan`/`full-apply` family does **not** use this skill — it al
 workflow agents at chosen models (see `ptp-full-apply` and `workflows/ptp-full-apply.js`).
 
 ## The contract
+
+### Model dispatch
 
 The caller passes:
 
@@ -155,6 +157,15 @@ The skill then runs, **in this order**:
    never STOPs, never retries, never alters the relayed terminal state, and never writes a Claude
    Code setting.
 
+   **Command bracket (telemetry).** Still in this same slot, **after** the preamble and **before**
+   the ledger open below, append the **open** line of the outer-session **command bracket** defined
+   in `skills/ptp-telemetry/SKILL.md` [command-bracket] — the run that attributes this command's
+   outer-session work to the command itself. **Reference** that definition; restate **no** field,
+   label form, or derivation here. It **reuses the preamble's single resolution of `telemetry.mode`**
+   and resolves nothing of its own, so the off path still performs exactly one layered config read.
+   Opening it before the ledger open below is what makes its window strictly enclose the spawned
+   run's; the write is fire-and-forget on the same terms as that ledger open.
+
    **Ledger open (telemetry).** After step 4 and **before** step 5 — the same slot the `fast:`
    preflight already occupies — append the telemetry run ledger's **open** line for this main run,
    per the `ptp-telemetry` skill. This slot is chosen because it is the earliest point at which
@@ -234,6 +245,14 @@ The skill then runs, **in this order**:
    Closing here — at the **single funnel** both the `main=claude` and `main=codex` branches return
    through — rather than at the two per-branch return sites is deliberate: one bracket cannot drift
    the way two would. The close never delays, blocks, or alters the relay itself.
+
+   **Command bracket close (telemetry).** Immediately **after** that close line, append the
+   outer-session command bracket's own close line — the one opened in step 4 per
+   `skills/ptp-telemetry/SKILL.md` [command-bracket] — carrying the same relayed terminal state as
+   its `outcome`, and before the outer session reports. That ordering is load-bearing: appending the
+   bracket's close **after** the spawned run's is what keeps the bracket's window strictly enclosing
+   that run's, which is the sole basis of the no-double-counting property. Restate no field here; the
+   close is fire-and-forget on the same terms as the one above.
 
 ## Telemetry: bracketing the main run
 

@@ -1,6 +1,6 @@
 ---
 name: ptp-archive-and-deploy
-description: End-to-end archive-then-deploy orchestration for /ptp:archive-and-deploy. Archives every resolved change through the existing, unweakened /ptp:archive gates in story order, gates on full archive convergence, then deploys the current feature branch exactly once via ptp-deploy — only if every archive succeeded. Never commits outside deploy, never archives a half-set then deploys, never self-approves a PR.
+description: Own the combined archive-then-ship flow, ordering the archive step ahead of the deploy step
 ---
 
 # ptp-archive-and-deploy — archive-then-deploy end-to-end orchestration
@@ -192,7 +192,11 @@ Report at whichever terminal point is reached:
   unresolved **actionable** Critical/High findings — its severity cutoff is now *configured* rather
   than hardcoded, and at the default `low` it blocks on Critical and High exactly as today.
   **tasks-complete** and **validation-passes** remain absolute and unconditional, entirely unaffected
-  by `review.minSeverity`.
+  by `review.minSeverity`. `commands/archive.md` owns the precise statement of the two facts Phase A
+  inherits unchanged rather than restating: artifact presence is never a gate (so an absent
+  `design.md` / `TLDR.md` / `brainstorm.md` / `analysis.md` / `effort.md` never refuses, warns, or
+  delays), and the archive rewrites, compacts, trims, reformats, or deletes no artifact of the change
+  being archived or already under `openspec/changes/archive/`.
 - **Interactive confirmations stay outer.** The review-clean and confirm-action confirmations are
   performed in the outer session **before** each change's archive subagent is spawned, because the
   subagent is non-interactive.

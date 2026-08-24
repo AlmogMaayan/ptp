@@ -1,5 +1,5 @@
 ---
-description: Review an epic's PRD (openspec/changes/<id>/prd.md) using the external Codex CLI (codex exec) — read-only, single-pass, closed-book, no openspec validate
+description: Run one closed-book Codex review of a product requirements document and report its findings
 argument-hint: "<epic-selector> — id, epic:XXXX, story:NN, or epic:XXXX story:NN (omit to audit all active epics' PRDs)"
 ---
 
@@ -65,10 +65,16 @@ multi-epic or empty-argument audit-all selector, the one subagent handles the wh
 1. **Resolve scope and read the PRD (you, via Read/Bash — not Codex).**
    - If `$ARGUMENTS` names an epic, audit just it. If empty, audit **every** active epic's PRD (repeat
      steps 2–4 per epic; do not stop at the first).
-   - For each epic, resolve `openspec/changes/<id>/prd.md` and read it. If the file is absent, note
-     "NO PRD — Critical: no PRD to review" in place of the PRD text (do **not** abort).
+   - For each epic, gather the `prd` review kind's **required set** and nothing outside it:
+     `openspec/changes/<id>/prd.md`, plus the cited source excerpts collected in step 2. If the PRD
+     file is absent, note "NO PRD — Critical: no PRD to review" in place of the PRD text (do **not**
+     abort).
+   - The `prd` kind carries **no** `openspec validate` result: a PRD precedes any proposal or spec,
+     so there is nothing to validate.
 
-2. **Collect any cited context (you, via Read/Grep — optional).**
+`TLDR.md` and `effort.md` are never inlined for any kind.
+
+2. **Collect the cited source excerpts (you, via Read/Grep — optional).**
    - If the PRD cites source files or other docs, read a small window around each citation so Codex can
      judge them without shelling out. Keep it proportionate.
 

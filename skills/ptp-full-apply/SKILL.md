@@ -1,6 +1,6 @@
 ---
 name: ptp-full-apply
-description: Workflow-backed sequential apply→review-full orchestration for /ptp:full-apply. Resolves a change selector, reads each story's effort.md model, and launches the ptp-full-apply workflow which runs apply (at the story's model, effort as a prompt directive) then review-full (at that story's resolved review target, derived from the same effort.md) per story, one story fully before the next. Stops the whole run if a story's review fails to converge. Never commits, never archives.
+description: Own applying every slice of a planned oversized change and reviewing each slice's code
 ---
 
 # ptp-full-apply — workflow-backed sequential apply→review orchestration
@@ -132,7 +132,7 @@ After the workflow returns `{ results, halted, total }`, the command renders a r
 3. **Resume command** for the unprocessed tail — `/ptp:full-apply <ids…>` listing the `never-started` ids (and the `applied (review pending)` story handled per the Resume hint below).
 4. **`/ptp:archive <id>` per fully-processed story** — recommend to the user for each `processed` story; **never auto-run**.
 
-Each converged story's `ptp-review` agent leaves a durable `openspec/changes/<id>/stages/code.json` review-convergence marker (per `ptp-review-loop`'s **## Review-convergence marker** section), so a later settle path — `/ptp:backlog-continue`, typically in a new session — can prove that review happened against this exact content instead of re-running it. **On a multi-story run that proof is scoped to each story's own diff footprint** (per `ptp-review-loop`'s **## Code-marker fingerprint** section): story N's marker records the path set story N's review evaluated, so it survives story N+1's apply **unless** story N+1 edits a file inside story N's footprint — in which case denying the skip is correct, story N's review genuinely not having seen that edit. A story whose marker is denied falls back to running `/ptp:review-full`, exactly as it does today. This adds **no** report column and **no** workflow argument.
+Each converged story's `ptp-review` agent leaves a durable `openspec/changes/<id>/stages/code.json` review-convergence marker (per `ptp-review-loop`'s **## Review-convergence marker** section), so a later settle path — `/ptp:backlog-continue`, typically in a new session — can prove that review happened against this exact content instead of re-running it. **On a multi-story run that proof is scoped to each story's own diff footprint** (per `skills/ptp-review-loop/references/code-marker-fingerprint.md`): story N's marker records the path set story N's review evaluated, so it survives story N+1's apply **unless** story N+1 edits a file inside story N's footprint — in which case denying the skip is correct, story N's review genuinely not having seen that edit. A story whose marker is denied falls back to running `/ptp:review-full`, exactly as it does today. This adds **no** report column and **no** workflow argument.
 
 ## Resume
 

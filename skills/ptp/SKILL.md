@@ -1,202 +1,89 @@
 ---
 name: ptp
-description: Use this skill whenever the user is in a repo that has an `openspec/` directory AND is starting a non-trivial change (new feature, refactor, behavior change, ambiguous task). The skill routes brainstorming/planning/review to Superpowers and routes durable proposal/spec/tasks artifacts to OpenSpec. Trigger phrases include "let's design X", "I want to add X", "how should we approach X", "refactor X", or any time the user opens an OpenSpec change folder. Do NOT use for typos, one-line bug fixes, dependency bumps, or renames.
+description: Route a ptp request to the command that owns it and to each policy's owning file
 ---
 
-# ptp — Superpowers reasoning, OpenSpec artifacts
+# ptp — router
 
-## Role split (memorize this)
+This skill routes. It names the file that owns each `/ptp:*` command and the file that owns each
+indexed policy, and it states none of their behavior: no steps, no variants, no terminal states.
+Read the owning file for those.
 
-| Concern                             | System          |
-| ----------------------------------- | --------------- |
-| Brainstorm, options, tradeoffs      | **Superpowers** |
-| Design exploration, plan sketch     | **Superpowers** |
-| Implementation plan                 | **Superpowers** |
-| Artifact-quality review (pre-apply) | **Superpowers** |
-| Code review                         | **Superpowers** |
-| Confirm + fix review findings       | **Superpowers** |
-| Change IDs                          | **OpenSpec**    |
-| `proposal.md` / `design.md`         | **OpenSpec**    |
-| `tasks.md` (execution order)        | **OpenSpec**    |
-| Spec deltas under `specs/`          | **OpenSpec**    |
-| `openspec validate --strict`        | **OpenSpec**    |
-| Sync / archive of done changes      | **OpenSpec**    |
+## Commands
 
-Superpowers decides **what should be done and why**.
-OpenSpec **records the decision and controls execution order**.
+A command whose owner is a skill is a thin front door: it parses its arguments, invokes that one
+skill, and reports. A command that owns itself carries its own contract.
 
-## The flow
+| Command | Owner |
+|---|---|
+| `commands/analyze.md` | `skills/ptp-analyze/SKILL.md` |
+| `commands/apply.md` | `commands/apply.md` |
+| `commands/archive-and-deploy.md` | `skills/ptp-archive-and-deploy/SKILL.md` |
+| `commands/archive-force.md` | `skills/ptp-archive-force/SKILL.md` |
+| `commands/archive.md` | `commands/archive.md` |
+| `commands/backlog-add.md` | `skills/ptp-backlog/SKILL.md` |
+| `commands/backlog-continue.md` | `skills/ptp-backlog-continue/SKILL.md` |
+| `commands/backlog-edit.md` | `skills/ptp-backlog/SKILL.md` |
+| `commands/backlog-run.md` | `skills/ptp-backlog-run/SKILL.md` |
+| `commands/backlog.md` | `skills/ptp-backlog/SKILL.md` |
+| `commands/brainstorm-full.md` | `skills/ptp-brainstorm-full/SKILL.md` |
+| `commands/brainstorm-only.md` | `commands/brainstorm-only.md` |
+| `commands/brainstorm.md` | `commands/brainstorm.md` |
+| `commands/codex-review-loop.md` | `skills/ptp-review-loop/SKILL.md` |
+| `commands/codex-review-plan-loop.md` | `skills/ptp-review-loop/SKILL.md` |
+| `commands/codex-review-plan.md` | `commands/codex-review-plan.md` |
+| `commands/codex-review-prd-loop.md` | `skills/ptp-review-loop/SKILL.md` |
+| `commands/codex-review-prd.md` | `commands/codex-review-prd.md` |
+| `commands/codex-review-uncommitted.md` | `commands/codex-review-uncommitted.md` |
+| `commands/codex-review.md` | `commands/codex-review.md` |
+| `commands/config.md` | `skills/ptp-config/SKILL.md` |
+| `commands/deploy-master.md` | `skills/ptp-deploy-master/SKILL.md` |
+| `commands/deploy-pr-approved.md` | `skills/ptp-deploy/SKILL.md` |
+| `commands/deploy.md` | `skills/ptp-deploy/SKILL.md` |
+| `commands/effort.md` | `commands/effort.md` |
+| `commands/full-apply.md` | `skills/ptp-full-apply/SKILL.md` |
+| `commands/full-plan.md` | `skills/ptp-full/SKILL.md` |
+| `commands/full.md` | `skills/ptp-full/SKILL.md` |
+| `commands/master.md` | `skills/ptp-master/SKILL.md` |
+| `commands/merge-to-master.md` | `skills/ptp-deploy/SKILL.md` |
+| `commands/plan-multiple.md` | `commands/plan-multiple.md` |
+| `commands/plan.md` | `commands/plan.md` |
+| `commands/prd-full.md` | `skills/ptp-prd-full/SKILL.md` |
+| `commands/prd.md` | `skills/ptp-prd/SKILL.md` |
+| `commands/review-brainstorm-full.md` | `skills/ptp-review-brainstorm-full/SKILL.md` |
+| `commands/review-brainstorm.md` | `skills/ptp-review-brainstorm/SKILL.md` |
+| `commands/review-fix.md` | `commands/review-fix.md` |
+| `commands/review-full.md` | `commands/review-full.md` |
+| `commands/review-loop.md` | `skills/ptp-review-loop/SKILL.md` |
+| `commands/review-plan-full.md` | `commands/review-plan-full.md` |
+| `commands/review-plan-loop.md` | `skills/ptp-review-loop/SKILL.md` |
+| `commands/review-plan.md` | `commands/review-plan.md` |
+| `commands/review-prd-full.md` | `skills/ptp-review-prd-full/SKILL.md` |
+| `commands/review-prd.md` | `skills/ptp-review-prd/SKILL.md` |
+| `commands/review.md` | `commands/review.md` |
+| `commands/status.md` | `commands/status.md` |
+| `commands/telemetry-analyze.md` | `skills/ptp-telemetry-analyze/SKILL.md` |
+| `commands/telemetry-export.md` | `skills/ptp-telemetry-export/SKILL.md` |
+| `commands/telemetry-report.md` | `skills/ptp-telemetry-report/SKILL.md` |
+| `commands/telemetry-setup.md` | `skills/ptp-telemetry-setup/SKILL.md` |
+| `commands/telemetry-start.md` | `skills/ptp-telemetry-start/SKILL.md` |
+| `commands/telemetry-status.md` | `skills/ptp-telemetry-status/SKILL.md` |
+| `commands/telemetry-stop.md` | `skills/ptp-telemetry-stop/SKILL.md` |
+| `commands/telemetry.md` | `skills/ptp-telemetry/SKILL.md` |
+| `commands/update.md` | `commands/update.md` |
+| `commands/version.md` | `skills/ptp-version/SKILL.md` |
 
-For any non-trivial change, route through these commands in order:
+## Policies
 
-1. `/ptp:brainstorm "<request>"` *(optional, interactive)* — Superpowers brainstorm + options + tradeoffs with clarifying-question Q&A for a **specific change**. Derives a change-id and writes the result to `openspec/changes/<id>/brainstorm.md` (co-located with the change). Stops before writing the full OpenSpec artifacts. Use this when you want to think out loud with the user before committing to a direction.
-   - `/ptp:brainstorm-only "<topic>"` *(optional, interactive)* — same brainstorm, but **change-agnostic**: for exploring a direction *before* it's a concrete change. Writes to the shared `openspec/brainstorms/` folder instead of a change folder. When the idea crystallizes into a change, `/ptp:plan` finds it there and copies it into the change folder.
-2. `/ptp:plan [change-id]` — Autonomous end-to-end planning. If a design doc from step 1 exists, it's consumed as input. **If not, `/ptp:plan` runs brainstorming inline in autonomous mode** (no clarifying questions; documents assumptions instead), writes the design doc, then transcribes everything into `openspec/changes/<id>/proposal.md` / `design.md` / `tasks.md` / spec deltas, and runs `openspec validate <id> --strict`. Single invocation, no mid-flow prompts.
-   - `/ptp:plan-multiple <change-id-or-request>` *(multi-change variant)* — for changes too big to plan and ship as one unit. Autonomously decomposes the work into a small set of coherent, independently-shippable slices (`XXXX_NN_<kebab-description>` under one freshly-allocated epic, e.g. `0001_01_landing-page-list-bulk-export`, `0001_02_landing-page-bulk-import`), **deletes the monolithic plan** if one was already created, then runs `/ptp:plan` for each slice in dependency order. If the change turns out not to be big enough to split, it falls back to a single `/ptp:plan`. No umbrella doc — the split rationale and inter-slice dependencies are cross-referenced inside each slice's `proposal.md`.
-   - `/ptp:review-plan [change-id]` *(optional, read-only)* — Artifact-quality gate. Audits the planning artifacts (`proposal.md` / `design.md` / `tasks.md` / spec deltas) for completeness, cross-artifact consistency, spec-delta format, and validation — **before** any code is written. Omit the id to review all active changes. Reports findings + a PASS/WARN/FAIL verdict; it does **not** edit artifacts (re-run `/ptp:plan` to fix) and does **not** review code (that's step 4). Advisory: a non-PASS verdict does not hard-block `/ptp:apply`.
-3. `/ptp:apply <change-id>` — Implement tasks sequentially. Check off each task only after it's verified.
-4. `/ptp:review <change-id>` — Superpowers code review against the proposal, design, and spec deltas. Fix **actionable** Critical + High before archiving (Critical/High at or above the resolved `review.minSeverity`; default `low` ⇒ Critical/High, exactly as today).
-   - `/ptp:review-fix [change-id]` *(optional, the fix counterpart to review)* — takes the findings of the **latest** review in the conversation (code **or** artifacts), independently **confirms** each one (rejecting false positives via the Superpowers `receiving-code-review` skill), and **fixes the confirmed ones** — code findings inline, artifact findings as targeted hand-edits. It then runs tests/lint/validate and reports. It is the **only** ptp command that edits in response to review findings; the review commands themselves never fix. Explicit-invocation only; never invokes `/ptp:apply` or `/ptp:plan`, never archives, never auto-commits.
+Each policy below is carried, as a section of that name, by exactly one file. No other file
+under `commands/`, `skills/` or `agents/` carries that section heading.
 
-   **Loop alternatives** — when you want the review→confirm→fix cycle automated rather than driven turn-by-turn, these commands iterate until zero open findings at or above the configured `review.minSeverity` floor (default `low` = every severity, via ptp config) or the configured iteration cap (default 5, via `review.maxIterations` in ptp config) is hit. Findings below the floor are **reported** — counted per iteration and listed in the terminal report — but never auto-fixed and never counted toward convergence. The same hard rules apply: no `/ptp:apply`, no archive, no auto-commit, no fixing unconfirmed findings, no counting manual-check / tests-required suggestions against convergence. Rejected findings carry over across iterations so they cannot cause infinite loops.
-
-   - `/ptp:review-loop <change-id>` *(loop variant of `/ptp:review`)* — Superpowers code-review loop. Alternates review, confirmation, and inline code-fix passes automatically.
-   - `/ptp:review-plan-loop <change-id>` *(loop variant of `/ptp:review-plan`)* — Superpowers artifact-review loop. Alternates the artifact-quality rubric, confirmation, and targeted artifact-fix passes automatically. Per-iteration verification is `openspec validate --strict`.
-   - `/ptp:review-full <change-id>` *(full dual-reviewer variant of `/ptp:review-loop`)* — Runs the Superpowers code-review loop to convergence, then the Codex code-review loop to convergence, in a single invocation. Phase 2 starts only if Phase 1 terminates DONE. Uses Codex per `codex.mode` (see the `ptp-codex-mode` skill): only `required` hard-requires `codex` on PATH (STOP if missing); under `auto` with `codex` absent or `off`, Phase 2 is skipped (non-silently) and the run is Superpowers-only.
-   - `/ptp:review-plan-full <change-id>` *(full dual-reviewer variant of `/ptp:review-plan-loop`)* — Same two-phase pattern for artifact review: Superpowers artifact loop → Codex artifact loop. Phase 2 starts only if Phase 1 terminates DONE. Uses Codex per `codex.mode` (same gate as `/ptp:review-full`): only `required` hard-requires `codex`; `auto`-missing or `off` skips Phase 2 non-silently and runs Superpowers-only.
-5. `/ptp:archive <change-id>` — enforce the archive gates (tasks checked, review clean, validation passes), then `openspec archive` to move the change and sync delta specs into the main specs.
-   - `/ptp:archive-force [change-id]` *(escape hatch)* — bypasses the three archive gates (tasks-complete, review-clean, validation-passes) but still syncs delta specs. Use for abandoned, superseded, or done-but-never-reviewed changes. Empty argument = all active changes (with one-time scope-confirmation stop). Always reports which gates were bypassed — force is never silent. `/ptp:archive` remains the default safe path.
-
-`/ptp:status [change-id]` is a read-only command that tells the user where they are in the flow and what to run next.
-
-`/ptp:analyze "<subject>"` is an auxiliary, diagnostic command. Use it to root-cause a bug, explain an observed behavior, or investigate a subsystem *before* deciding whether a change is warranted. It writes a structured analysis doc into the appropriate `openspec/changes/<change-id>/` folder (allocating a minimal change folder via `ptp-change-selector` §4 only when no relevant active change exists) and never produces a change proposal or modifies source. Contrast with `/ptp:brainstorm-only`, which explores *prospective* design options — `/ptp:analyze` diagnoses an *existing* phenomenon.
-
-`/ptp:master` is an auxiliary utility command — a "return to clean master" convenience. Use it after a change is merged/archived and you want to switch back to `master` and pull the latest. It runs only when the working tree is clean (empty `git status --porcelain --untracked-files=all`), uses `--ff-only` so it can never create a merge commit, and is **exempt from `ptp-branch-guard`** (its purpose is to land on master, not leave it).
-
-`/ptp:deploy` is the terminal **"ship it"** step — the one ptp command that deliberately
-commits, pushes, and merges. After a change is applied and reviewed (and typically archived),
-run it from the feature branch to commit → push → open a PR → squash-merge to `master` → delete
-the branch → run the project's deploy CI/CD action → fix conflicts/CI/deploy failures within a
-bounded retry budget → return to a clean `master` (via `/ptp:master`). It **never self-approves**
-(GitHub forbids approving your own PR) and merges straight through whenever the repo doesn't
-*require* an approving review; if branch protection requires one it stops at the open PR, and
-`/ptp:deploy-pr-approved` finishes the merge+deploy after a *different* collaborator approves. It
-refuses to run on `master`/`main` (the inverse of `/ptp:master`) and is a documented special case in
-`ptp-branch-guard`. See the README Configuration section for the `deploy` block.
-
-### PRD stage (epic-scoped, before planning)
-
-For an **epic-scoped** feature — larger than a single change — an optional PRD stage sits *before*
-`/ptp:plan`, mirroring the brainstorm stage one level up:
-
-- `/ptp:prd <selector>` — authors an epic Product Requirements Document into
-  `openspec/changes/<id>/prd.md` (the epic's lowest-numbered story folder). Free-text producer; delegates
-  to the `ptp-prd` skill.
-- `/ptp:review-prd <selector>` *(read-only)* — PRD-quality gate; PASS/WARN/FAIL, edits nothing.
-- `/ptp:review-prd-full <selector>` — dual-reviewer (Superpowers + Codex) inline-fix PRD-review loop.
-- `/ptp:prd-full <selector>` — seam-free `/ptp:prd` then `/ptp:review-prd-full` in one flow (the
-  PRD-stage analog of `/ptp:brainstorm-full`).
-
-### Brainstorm/plan review variants
-
-- `/ptp:brainstorm-full "<request>"` — `/ptp:brainstorm` then the dual-reviewer brainstorm-review loop
-  in one flow.
-- `/ptp:review-brainstorm [change-id]` *(read-only)* — brainstorm-quality gate between `/ptp:brainstorm`
-  and `/ptp:plan`; PASS/WARN/FAIL, edits nothing.
-- `/ptp:review-brainstorm-full [change-id]` — dual-reviewer inline-fix brainstorm-review loop.
-- `/ptp:effort [change-id]` — reads a planned change's artifacts and recommends the apply model/effort
-  (writes/refreshes `effort.md`). `/ptp:plan` already emits one; use this to re-derive it.
-
-### Orchestrators (multi-step, one invocation)
-
-- `/ptp:full-plan <request>` — `/ptp:plan-multiple` (decompose) then per-slice `/ptp:review-plan-full`;
-  read-only planning, never applies code.
-- `/ptp:full-apply <selector>` — apply-then-`review-full` every change sequentially; each story's apply
-  runs at its `effort.md` model.
-- `/ptp:full <request>` — end-to-end: `full-plan` then, on plan convergence, `full-apply`. Plans and runs
-  an oversized change in one invocation; never archives.
-
-### Ship variants (deploy family)
-
-- `/ptp:merge-to-master` — the merge-only variant of `/ptp:deploy`: commit → push → PR → squash-merge →
-  return to clean `master`, **without** running the deploy CI/CD action.
-- `/ptp:deploy-pr-approved` — finishes the merge+deploy after a required PR approval landed (the
-  follow-up `/ptp:deploy` hands off to).
-- `/ptp:archive-and-deploy <selector>` — archives every resolved change (through the standard archive
-  gates) then deploys once via `/ptp:deploy`, only if every archive succeeded.
-
-### Codex-powered review alternatives (external second opinion)
-
-These commands delegate review to the external **Codex CLI** (the prompt is piped over stdin — `printf '%s' "$PROMPT" | codex exec -s read-only -` — assembled per the `ptp-codex-mode` flag-append rule: resolved `-m <model>` / `-c model_reasoning_effort=<effort>` flags appended before the trailing stdin marker `-` when `codex.model` / `codex.reasoningEffort` are configured) instead of the Superpowers code-review skill. Use them when you want an independent reviewer (a different model/agent) as a second opinion. The single-shot variants (`codex-review`, `codex-review-plan`, `codex-review-uncommitted`) only review and display findings — **they NEVER fix anything.** Codex runs read-only and never edits code or artifacts; applying any fix is always a separate, explicit user action — `/ptp:review-fix`, which independently confirms each Codex finding before touching anything.
-
-- `/ptp:codex-review <change-id>` — Codex variant of step 4: grades the implemented diff against the change's proposal/design/spec deltas.
-- `/ptp:codex-review-plan <change-id>` — Codex variant of `/ptp:review-plan`: audits the OpenSpec **artifacts** (proposal/design/tasks/spec deltas) only, no code.
-- `/ptp:codex-review-uncommitted [change-id]` — Codex review of the **uncommitted** working-tree changes only (staged + unstaged + untracked); for catching issues mid-implementation before committing.
-- `/ptp:codex-review-loop <change-id>` *(loop variant of `/ptp:codex-review`)* — Codex code-review loop; same posture as `/ptp:review-loop` but the reviewer is Codex. Caller inlines diff + validation results each iteration; Codex runs no `npx`/network/install commands.
-- `/ptp:codex-review-plan-loop <change-id>` *(loop variant of `/ptp:codex-review-plan`)* — Codex artifact-review loop; caller assembles the closed-book prompt each iteration; Codex runs no commands.
-- `/ptp:codex-review-prd <selector>` — Codex review of the epic PRD (`prd.md`); no code, no artifacts.
-- `/ptp:codex-review-prd-loop <selector>` — Codex PRD-review loop; one pass per resolved epic.
-- `/ptp:review-full <change-id>` *(full dual-reviewer code-review loop)* — Superpowers code-review loop followed by the Codex code-review loop in a single invocation; both must converge (unless `codex.mode` skips Phase 2 — `auto`-missing or `off` — in which case the converged Superpowers phase alone is a green, non-silent success). Phase 2 (Codex) starts only if Phase 1 (Superpowers) terminates DONE and `codex.mode` permits. Unlike the single-shot commands, this loop does fix confirmed findings inline.
-- `/ptp:review-plan-full <change-id>` *(full dual-reviewer artifact-review loop)* — Same two-phase pattern for artifact review: Superpowers artifact loop → Codex artifact loop; Phase 2 starts only if Phase 1 terminates DONE.
-
-These Codex-powered commands require the `codex` CLI on PATH. The explicit `/ptp:codex-*` commands (`codex-review`, `codex-review-plan`, `codex-review-uncommitted`, `codex-review-loop`, `codex-review-plan-loop`) always attempt Codex (invoking them is the opt-in) and supplement, not replace, the Superpowers review steps — the role split above still holds. The `-full` commands (`review-full`, `review-plan-full`) are self-contained: each runs the Superpowers loop as Phase 1 and the Codex loop as Phase 2, so they replace separately running both loops; their Phase 2 is gated by `codex.mode` (only `required` hard-requires `codex`; `auto`-missing or `off` runs Superpowers-only, non-silently — see the `ptp-codex-mode` skill).
-
-### When to use `/ptp:brainstorm` vs jumping straight to `/ptp:plan`
-
-- **Use `/ptp:brainstorm` first** when the request is ambiguous, you want to compare options interactively, or the user explicitly asks to think before planning.
-- **Jump straight to `/ptp:plan`** when the request is concrete enough that autonomous assumptions are acceptable. `/ptp:plan` will still produce a design doc (via inline autonomous brainstorming) — you just won't be consulted while it's being written.
-
-## Branch safety
-
-Every ptp step that **creates or updates files** runs the **`ptp-branch-guard`** preamble as its first write-affecting action: if HEAD is on the base branch (`master`/`main`), it derives a feature-branch name from the change's context and launches the minimal `ptp-branch-prep` workflow (stash → checkout the base branch → pull → cut the branch) **before** any file is written; if you are already on a feature branch, it is a no-op and you proceed on that branch. The read-only review/status steps skip it. The rule — including the exact write-capable/read-only split and the order relative to a command's own preconditions — is defined once in the **`ptp-branch-guard`** skill; every write-capable command references it rather than restating it.
-
-## Artifact chain
-
-Each step produces a durable artifact the next step reads. **Downstream steps refuse to proceed if the upstream artifact is missing** — no fabricating, no shortcutting.
-
-| Step | Produces | Consumed by |
-| ---- | -------- | ----------- |
-| `/ptp:brainstorm` | `openspec/changes/<id>/brainstorm.md` (alternatives, tradeoffs, recommended approach, success criteria) | `/ptp:plan` |
-| `/ptp:brainstorm-only` *(optional)* | `openspec/brainstorms/YYYY-MM-DD-<topic>-brainstorm.md` (change-agnostic exploration) | `/ptp:plan` (copies it into the change folder) |
-| `/ptp:plan` | `openspec/changes/<id>/proposal.md` (with required sections: Context, Goals, Non-goals, Alternatives, Design, Risks, Impact, Success criteria, Source), `tasks.md`, `design.md`, spec deltas, `effort.md` (machine-readable apply recommendation; first line `{model}.{effort}`), `TLDR.md` (human-facing at-a-glance summary — not an apply input) | `/ptp:review-plan`, `/ptp:apply`, `/ptp:review` |
-| `/ptp:plan-multiple` *(variant of `/ptp:plan`)* | several sibling change folders `XXXX_NN_<id>` under one epic (each the full `/ptp:plan` output, cross-referencing its siblings); deletes the monolithic folder if one existed | `/ptp:apply` (one slice at a time, in story order) |
-| `/ptp:review-plan` *(optional)* | artifact-review notes; verdict PASS/WARN/FAIL; **actionable** Critical/High to fix by re-running `/ptp:plan` | `/ptp:apply` (advisory — does not hard-block) |
-| `/ptp:apply` | source-code changes; checked tasks in `tasks.md` | `/ptp:review` |
-| `/ptp:review` | review notes; **actionable** Critical/High to fix | `/ptp:archive` (or `/ptp:review-fix` to act on the findings) |
-| `/ptp:review-fix` *(optional)* | confirmed findings fixed in place (code inline / artifacts hand-edited); rejected findings reported; tests/lint/validate run | re-review, then `/ptp:archive` |
-| `/ptp:review-loop` *(optional)* | zero-or-cap residual findings (no new persistent files — state is in-conversation only); same result as manually alternating `/ptp:review` + `/ptp:review-fix` until clean | `/ptp:archive` |
-| `/ptp:codex-review-loop` *(optional)* | same as `/ptp:review-loop` but reviewer is Codex | `/ptp:archive` |
-| `/ptp:review-plan-loop` *(optional)* | zero-or-cap residual artifact findings (loop control state is in-conversation only; on its terminal state it stamps the durable `stages/plan.json` review-convergence marker read by `/ptp:status`); same result as manually alternating `/ptp:review-plan` + `/ptp:review-fix` until clean | `/ptp:apply` |
-| `/ptp:codex-review-plan-loop` *(optional)* | same as `/ptp:review-plan-loop` but reviewer is Codex | `/ptp:apply` |
-| `/ptp:review-full` *(optional)* | Phase 1 (Superpowers) + Phase 2 (Codex) combined code-review summary; zero-or-cap residual findings per phase | `/ptp:archive` |
-| `/ptp:review-plan-full` *(optional)* | Phase 1 (Superpowers) + Phase 2 (Codex) combined artifact-review summary; zero-or-cap residual findings per phase | `/ptp:apply` |
-
-### Why this matters
-
-If `/ptp:plan` runs on the raw user request (no brainstorming artifact), the `proposal.md` will be thin — it will name what was built but not record *why this approach, what alternatives lost, what could go wrong*. That defeats the entire purpose of OpenSpec as a durable design record. **Superpowers brainstorming is the source of depth; OpenSpec is the format for persisting it. You need both.**
-
-## Change ids & selectors
-
-Every change born through the ptp flow is named `XXXX_NN_<kebab-description>` — a 4-digit zero-padded epic, a 2-digit zero-padded story, and a kebab description (e.g. `0001_01_landing-page-list-bulk-export`). The full id format, selector grammar, resolution algorithm, and epic allocation are defined in exactly one place — the **`ptp-change-selector`** skill — and every command that takes a change argument resolves it through that skill rather than restating the rules.
-
-Quick selector reference:
-
-| Form | Resolves to |
-| ---- | ----------- |
-| `epic:all` | All active changes across every epic (ascending by `(epic, story)`); legacy ids appended after |
-| `epic:XXXX` | All active changes in epic `XXXX`, ascending by story |
-| `epic:XXXX story:NN` | The single change `XXXX_NN_*` |
-| `story:NN` | The one active change with that story (if unambiguous) |
-| bare id | That one change by exact folder match |
-| empty | Command's own existing default |
-
-Legacy ids (pre-epic `NN_…` or plain `kebab` ids) still resolve by exact match only.
-
-## Conflict-resolution rule
-
-If OpenSpec's own prompts conflict with Superpowers reasoning:
-
-- **Superpowers wins** for *reasoning process*.
-- **OpenSpec wins** for *artifact format, validation, and lifecycle*.
-
-## Hard prohibitions
-
-- **Never** invoke `/opsx:propose` or `/opsx:explore` (nor the vendored `ptp:openspec-propose` / `ptp:openspec-explore` skills) as the primary planning step — that is what `/ptp:brainstorm` and `/ptp:plan` replace.
-- **Never** start implementation directly from OpenSpec explore/propose output.
-- **Never** edit OpenSpec's managed/regenerated instruction blocks.
-- **Never** skip `openspec validate <id> --strict` before implementation.
-- **Never** archive a change with unchecked tasks or unresolved **actionable** Critical/High review findings (Critical/High at or above the resolved `review.minSeverity`; default `low` ⇒ Critical/High, exactly as today).
-- **Never** write `proposal.md` content from the raw user request — it must come from brainstorming output (a change-scoped `openspec/changes/<id>/brainstorm.md`, a general `openspec/brainstorms/*-brainstorm.md`, or one produced inline by `/ptp:plan` in autonomous mode). Going straight from request → proposal.md produces thin records that defeat OpenSpec's purpose.
-- **Never** stop `/ptp:plan` to ask the user to run `/ptp:brainstorm` first. If the design doc is missing, run brainstorming inline (autonomous mode) and continue. The user opted into end-to-end execution by invoking `/ptp:plan`.
-- **Never** ask the user clarifying questions during `/ptp:plan` execution. Make reasonable assumptions and document them in the design doc / proposal so the user can correct course at review time.
-- **Never** invoke or trigger `/ptp:apply` automatically — not after `/ptp:plan` completes, not after `/ptp:review` findings, not in response to "fix the findings" or any other implicit prompt. `/ptp:apply` runs **only** when the user explicitly types `/ptp:apply <change-id>`. When review findings need fixing, apply the fixes inline (edit the code directly) without invoking the apply command — or, when the user explicitly types `/ptp:review-fix`, let that command confirm and fix them (it also never calls `/ptp:apply`).
-- **Never** trigger `/ptp:review-fix` automatically. Like the review and apply commands, it runs **only** on explicit user invocation; a review command finishing, or the user saying "fix the findings" to a review command, does not invoke it. The review commands report and stop; fixing is always a separate, deliberate `/ptp:review-fix` (or inline edit).
-- **Never** write ptp files (planning artifacts, code, inline review fixes, or archive moves) onto `master`. Every write-capable step runs the `ptp-branch-guard` preamble first; on `master` it cuts a feature branch via the `ptp-branch-prep` workflow before writing. Already on a feature branch → no-op (proceed on it). Read-only review/status commands are exempt. The full rule lives in the `ptp-branch-guard` skill. The sole command that *does* commit/push/merge — `/ptp:deploy` — is the documented exception: it ships an already-cut feature branch and still never commits directly to `master` (its deploy-fixes go through `ptp/deploy-fix-*` PR mini-flows).
-
-## When the user just asks for something directly
-
-If the user types `/ptp:apply X` without going through brainstorm/plan first, **check** whether `openspec/changes/<X>/` exists and is valid. If not, redirect them to `/ptp:brainstorm` first instead of fabricating a change folder.
-
-## Triviality exception
-
-Typos, comment fixes, dependency bumps, renames, and single-line bug fixes: skip the flow. Edit directly. The flow exists for changes that warrant a spec delta.
+| Policy | Owner |
+|---|---|
+| Model + effort rubric | `commands/effort.md` |
+| Review severity behavior | `skills/ptp-review-loop/SKILL.md` |
+| Branch safety | `skills/ptp-branch-guard/SKILL.md` |
+| Model dispatch | `skills/ptp-run-at-model/SKILL.md` |
+| Terminal states | `skills/ptp-review-loop/SKILL.md` |
+| Codex mode resolution | `skills/ptp-codex-mode/SKILL.md` |
+| Selector grammar | `skills/ptp-change-selector/SKILL.md` |

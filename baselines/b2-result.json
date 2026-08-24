@@ -1,0 +1,401 @@
+{
+  "schema": 1,
+  "kind": "comparison",
+  "frozen": true,
+  "comparedAt": "2026-08-24T18:02:22.013Z",
+  "gitRef": "9ebb93c165ce79619c3a96d79cd08b7af0d34425",
+  "countingRule": 1,
+  "sources": {
+    "before": {
+      "name": "b2-pre",
+      "path": "baselines/b2-pre.json",
+      "digest": "d0b7e3ea8eba1191a0718ee374e0b5814fea588a43509e42511f47beaf0efe4c"
+    },
+    "after": {
+      "name": "b2-post",
+      "path": "baselines/b2-post.json",
+      "digest": "092f175adcee58814b92354445b2911252ef32b938f7095f27c91df2755d3d59"
+    }
+  },
+  "headline": {
+    "scope": "b2",
+    "total": 45,
+    "files": 18,
+    "added": 0,
+    "removed": 0,
+    "entries": [
+      {
+        "path": "skills/ptp-brainstorming/SKILL.md",
+        "state": "counted",
+        "before": 502,
+        "after": 502,
+        "delta": 0
+      },
+      {
+        "path": "skills/ptp-writing-plans/SKILL.md",
+        "state": "counted",
+        "before": 499,
+        "after": 499,
+        "delta": 0
+      },
+      {
+        "path": "skills/ptp-test-driven-development/SKILL.md",
+        "state": "counted",
+        "before": 491,
+        "after": 491,
+        "delta": 0
+      },
+      {
+        "path": "skills/ptp-systematic-debugging/SKILL.md",
+        "state": "counted",
+        "before": 457,
+        "after": 457,
+        "delta": 0
+      },
+      {
+        "path": "skills/ptp-requesting-code-review/SKILL.md",
+        "state": "counted",
+        "before": 399,
+        "after": 399,
+        "delta": 0
+      },
+      {
+        "path": "skills/ptp-receiving-code-review/SKILL.md",
+        "state": "counted",
+        "before": 275,
+        "after": 275,
+        "delta": 0
+      },
+      {
+        "path": "skills/ptp-verification-before-completion/SKILL.md",
+        "state": "counted",
+        "before": 209,
+        "after": 209,
+        "delta": 0
+      },
+      {
+        "path": "skills/ptp-skill-contract/SKILL.md",
+        "state": "counted",
+        "before": 1143,
+        "after": 1134,
+        "delta": -9
+      },
+      {
+        "path": "skills/ptp-analyze/SKILL.md",
+        "state": "counted",
+        "before": 1309,
+        "after": 1309,
+        "delta": 0
+      },
+      {
+        "path": "skills/ptp-config/SKILL.md",
+        "state": "counted",
+        "before": 6399,
+        "after": 6403,
+        "delta": 4
+      },
+      {
+        "path": "skills/ptp-full/SKILL.md",
+        "state": "counted",
+        "before": 3160,
+        "after": 3160,
+        "delta": 0
+      },
+      {
+        "path": "skills/ptp-prd/SKILL.md",
+        "state": "counted",
+        "before": 2475,
+        "after": 2479,
+        "delta": 4
+      },
+      {
+        "path": "skills/ptp-prd-full/SKILL.md",
+        "state": "counted",
+        "before": 1426,
+        "after": 1426,
+        "delta": 0
+      },
+      {
+        "path": "skills/ptp-review-brainstorm-full/SKILL.md",
+        "state": "counted",
+        "before": 1960,
+        "after": 1984,
+        "delta": 24
+      },
+      {
+        "path": "skills/ptp-review-prd-full/SKILL.md",
+        "state": "counted",
+        "before": 2362,
+        "after": 2389,
+        "delta": 27
+      },
+      {
+        "path": "commands/review.md",
+        "state": "counted",
+        "before": 983,
+        "after": 956,
+        "delta": -27
+      },
+      {
+        "path": "commands/review-fix.md",
+        "state": "counted",
+        "before": 1914,
+        "after": 1936,
+        "delta": 22
+      },
+      {
+        "path": "commands/review-loop.md",
+        "state": "counted",
+        "before": 70,
+        "after": 70,
+        "delta": 0
+      }
+    ]
+  },
+  "excluded": [
+    {
+      "class": "shared",
+      "path": "commands/brainstorm.md",
+      "state": "counted",
+      "before": 1453,
+      "after": 1410,
+      "delta": -43
+    },
+    {
+      "class": "shared",
+      "path": "commands/brainstorm-only.md",
+      "state": "counted",
+      "before": 930,
+      "after": 886,
+      "delta": -44
+    },
+    {
+      "class": "shared",
+      "path": "commands/plan.md",
+      "state": "counted",
+      "before": 2325,
+      "after": 2323,
+      "delta": -2
+    },
+    {
+      "class": "shared",
+      "path": "commands/plan-multiple.md",
+      "state": "counted",
+      "before": 5455,
+      "after": 5455,
+      "delta": 0
+    },
+    {
+      "class": "shared",
+      "path": "commands/review-full.md",
+      "state": "counted",
+      "before": 2401,
+      "after": 2429,
+      "delta": 28
+    },
+    {
+      "class": "shared",
+      "path": "commands/review-plan.md",
+      "state": "counted",
+      "before": 2493,
+      "after": 2493,
+      "delta": 0
+    },
+    {
+      "class": "shared",
+      "path": "commands/review-plan-full.md",
+      "state": "counted",
+      "before": 2103,
+      "after": 2131,
+      "delta": 28
+    },
+    {
+      "class": "shared",
+      "path": "commands/review-plan-loop.md",
+      "state": "counted",
+      "before": 69,
+      "after": 69,
+      "delta": 0
+    },
+    {
+      "class": "shared",
+      "path": "commands/codex-review.md",
+      "state": "counted",
+      "before": 1845,
+      "after": 1847,
+      "delta": 2
+    },
+    {
+      "class": "shared",
+      "path": "commands/status.md",
+      "state": "counted",
+      "before": 2726,
+      "after": 2774,
+      "delta": 48
+    },
+    {
+      "class": "shared",
+      "path": "agents/ptp-apply.md",
+      "state": "absent-from-both",
+      "before": null,
+      "after": null,
+      "delta": null
+    },
+    {
+      "class": "shared",
+      "path": "agents/ptp-review.md",
+      "state": "absent-from-both",
+      "before": null,
+      "after": null,
+      "delta": null
+    },
+    {
+      "class": "shared",
+      "path": "skills/ptp-brainstorm-full/SKILL.md",
+      "state": "counted",
+      "before": 1443,
+      "after": 1443,
+      "delta": 0
+    },
+    {
+      "class": "shared",
+      "path": "skills/ptp-codex-mode/SKILL.md",
+      "state": "counted",
+      "before": 3221,
+      "after": 3222,
+      "delta": 1
+    },
+    {
+      "class": "shared",
+      "path": "skills/ptp-review-loop/SKILL.md",
+      "state": "counted",
+      "before": 8948,
+      "after": 9016,
+      "delta": 68
+    },
+    {
+      "class": "shared",
+      "path": "README.md",
+      "state": "absent-from-both",
+      "before": null,
+      "after": null,
+      "delta": null
+    }
+  ],
+  "external": {
+    "status": "measured",
+    "total": -7257,
+    "measured": 7,
+    "unavailable": 0,
+    "entries": [
+      {
+        "path": "~/.claude/plugins/cache/superpowers-marketplace/superpowers/6.2.0/skills/brainstorming/SKILL.md",
+        "status": "measured",
+        "before": 1494,
+        "after": 0,
+        "delta": -1494
+      },
+      {
+        "path": "~/.claude/plugins/cache/superpowers-marketplace/superpowers/6.2.0/skills/writing-plans/SKILL.md",
+        "status": "measured",
+        "before": 1034,
+        "after": 0,
+        "delta": -1034
+      },
+      {
+        "path": "~/.claude/plugins/cache/superpowers-marketplace/superpowers/6.2.0/skills/test-driven-development/SKILL.md",
+        "status": "measured",
+        "before": 1375,
+        "after": 0,
+        "delta": -1375
+      },
+      {
+        "path": "~/.claude/plugins/cache/superpowers-marketplace/superpowers/6.2.0/skills/systematic-debugging/SKILL.md",
+        "status": "measured",
+        "before": 1440,
+        "after": 0,
+        "delta": -1440
+      },
+      {
+        "path": "~/.claude/plugins/cache/superpowers-marketplace/superpowers/6.2.0/skills/requesting-code-review/SKILL.md",
+        "status": "measured",
+        "before": 421,
+        "after": 0,
+        "delta": -421
+      },
+      {
+        "path": "~/.claude/plugins/cache/superpowers-marketplace/superpowers/6.2.0/skills/receiving-code-review/SKILL.md",
+        "status": "measured",
+        "before": 913,
+        "after": 0,
+        "delta": -913
+      },
+      {
+        "path": "~/.claude/plugins/cache/superpowers-marketplace/superpowers/6.2.0/skills/verification-before-completion/SKILL.md",
+        "status": "measured",
+        "before": 580,
+        "after": 0,
+        "delta": -580
+      }
+    ]
+  },
+  "missing": [],
+  "scopeDefects": [
+    {
+      "path": "skills/ptp-brainstorming/pressure-tests.md",
+      "class": "b2",
+      "reason": "named by the scope list but present in neither captured record"
+    },
+    {
+      "path": "skills/ptp-systematic-debugging/behavior-tests.md",
+      "class": "b2",
+      "reason": "named by the scope list but present in neither captured record"
+    },
+    {
+      "path": "skills/ptp-test-driven-development/behavior-tests.md",
+      "class": "b2",
+      "reason": "named by the scope list but present in neither captured record"
+    },
+    {
+      "path": "skills/ptp-review-loop/references/code-marker-skip-eligibility.md",
+      "class": "b2",
+      "reason": "named by the scope list but present in neither captured record"
+    },
+    {
+      "path": "workflows/ptp-full-apply.js",
+      "class": "b2",
+      "reason": "named by the scope list but present in neither captured record"
+    },
+    {
+      "path": "scripts/ptp-skill-behavior-tests.js",
+      "class": "b2",
+      "reason": "named by the scope list but present in neither captured record"
+    },
+    {
+      "path": "scripts/ptp-token-baseline.js",
+      "class": "b2",
+      "reason": "named by the scope list but present in neither captured record"
+    },
+    {
+      "path": ".claude-plugin/plugin.json",
+      "class": "b2",
+      "reason": "named by the scope list but present in neither captured record"
+    },
+    {
+      "path": "agents/ptp-apply.md",
+      "class": "shared",
+      "reason": "named by the scope list but present in neither captured record"
+    },
+    {
+      "path": "agents/ptp-review.md",
+      "class": "shared",
+      "reason": "named by the scope list but present in neither captured record"
+    },
+    {
+      "path": "README.md",
+      "class": "shared",
+      "reason": "named by the scope list but present in neither captured record"
+    }
+  ],
+  "unclassified": []
+}

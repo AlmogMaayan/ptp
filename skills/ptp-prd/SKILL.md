@@ -1,6 +1,6 @@
 ---
 name: ptp-prd
-description: Use this skill when orchestrating the PRD-authoring flow behind /ptp:prd. Owns selector-to-epic projection (additive layer on top of ptp-change-selector), ptp-run-at-model at opus.high (one foreground subagent per epic in sequence), Phase-0 prd-taskmaster backend detection, epic-context pre-load, prd:generate invocation and output relocation to openspec/changes/<id>/, and the inline auto-degrade fallback when the plugin is absent or fails. Never emits proposal/design/tasks/spec deltas/code. Non-interactive. Recommends /ptp:plan next.
+description: Own writing a product requirements document for a change from a free-text request
 ---
 
 # ptp-prd — PRD-authoring protocol
@@ -15,7 +15,7 @@ epic co-located in the change folder. When prd-taskmaster is available, the skil
 interactive `prd:discover` flow), invokes `prd:generate` non-interactively, and relocates its output
 to `openspec/changes/<id>/prd.md` (where `<id>` is the epic's lowest-numbered story). When the plugin
 or backend is absent — or generation produces no fresh output — the skill authors a structured PRD
-inline and says so explicitly, mirroring the Superpowers graceful-degrade contract. The `/ptp:prd`
+inline and says so explicitly, mirroring the graceful-degrade contract of the other authoring commands. The `/ptp:prd`
 command is the thin front door; this skill holds the substance.
 
 No standalone `openspec/prds/` folder is created — the PRD is written directly into the change

@@ -1,5 +1,5 @@
 ---
-description: Plan an oversized change as multiple smaller OpenSpec changes — decompose into independently-shippable slices, then run /ptp:plan for each
+description: Plan an oversized change as several independently shippable slices, then plan each slice in turn
 argument-hint: "<change-id-or-request> (the big change to split; XXXX_NN_<kebab-description> id of an existing monolithic plan, or a short description)"
 ---
 
@@ -69,7 +69,7 @@ the one permitted Agent nesting level — the outer session is the only site tha
 ### Beat 1 — outer session
 
 1. **Gather input — do not delete anything yet** (outer session, beat 1). This whole step stays outer because it carries a **guaranteed abort** (a guaranteed abort must never spawn a subagent, and must never fan out):
-   - If `openspec/changes/<id>/` already exists (a monolithic plan was created from `/ptp:plan` or `/ptp:brainstorm`), read its artifacts first (`brainstorm.md`, `proposal.md`, `design.md`, `tasks.md`, spec deltas). That existing thinking is your richest decomposition input — fold it in, don't discard it.
+   - If `openspec/changes/<id>/` already exists (a monolithic plan was created from `/ptp:plan` or `/ptp:brainstorm`), read its artifacts first (`brainstorm.md`, `proposal.md`, `design.md` (if present), `tasks.md`, spec deltas). That existing thinking is your richest decomposition input — fold it in, don't discard it.
    - **Check whether implementation has already started** on that monolithic change: any checked task (`- [x]`) in its `tasks.md`, or a non-empty `git diff` touching the surface area its `proposal.md`/spec deltas describe. If so, **STOP** — do not decompose or delete, **and do not spawn the subagent**. Report that the change is partially applied and that deleting it would orphan the implemented code from its spec; let the user decide how to proceed (e.g. finish/revert it first, or split only the not-yet-built remainder by hand). Deleting an in-progress change is never automatic.
    - Run `npx -y openspec list` and `npx -y openspec list --specs` to see existing changes/capabilities and avoid id collisions. **Retain this capture** — under `roles.main=claude` it is handed down as `ptp-run-at-model`'s optional part (f) input to beat 2 below, so the decompose run reuses it instead of re-running either command; under `roles.main=codex` no such pass-down applies.
 
@@ -95,7 +95,7 @@ outer session) runs the members. Notes the beat-2 prompt MUST carry:
 - Its own `ptp-branch-guard` check is a **no-op** (HEAD is already on the feature branch from the outer
   guard), so it must **NOT** attempt to launch the `ptp-branch-prep` Workflow.
 - It must **start no further main run** — no Agent, no Workflow, no nested `codex exec`. It runs steps
-  2–4 inline in its own context (invoking `superpowers:brainstorming` inline is a Skill invocation, not
+  2–4 inline in its own context (invoking `ptp-brainstorming` inline is a Skill invocation, not
   a spawn) and then returns. The per-slice `/ptp:plan` runs are **beat 3's** members, started by the
   outer session under the member contract below — they are not beat 2's work.
 - On the **fallback** path (step 3 decides the work is one coherent unit) it returns
@@ -117,7 +117,7 @@ outer session) runs the members. Notes the beat-2 prompt MUST carry:
   follow-up command, and stops. It is **not** re-labelled an unparseable-return refusal, and beat 3
   does not run. The parsing rules below apply only to a `completed` return.
 
-2. **Decompose (autonomous brainstorm).** Invoke **`superpowers:brainstorming`** via the Skill tool in **autonomous mode** (no clarifying questions — document assumptions instead, exactly as `/ptp:plan` does), focused on a single question: *what is the smallest set of coherent, independently-shippable changes that together cover this request?* Produce an ordered list where each slice has:
+2. **Decompose (autonomous brainstorm).** Invoke **`ptp-brainstorming`** via the Skill tool in **autonomous mode** (no clarifying questions — document assumptions instead, exactly as `/ptp:plan` does), focused on a single question: *what is the smallest set of coherent, independently-shippable changes that together cover this request?* Produce an ordered list where each slice has:
    - a sub-change id `XXXX_NN_<kebab-description>` — a single epic allocated via `ptp-change-selector` (§4, epic allocation), then two-digit zero-padded story, then kebab description (e.g. `0001_01_landing-page-list-bulk-export`, `0001_02_landing-page-bulk-import`, `0001_03_landing-page-server-side-import`). The story number is the recommended apply order. All slices share the same epic.
    - a one-paragraph scope (what's in, what's out).
    - explicit dependencies — a slice may depend **only on lower-story slices** (no cycles, no forward references). State them as `depends on XXXX_NN_…`.

@@ -1,5 +1,5 @@
 ---
-description: Confirm the findings of the latest ptp review (code or artifacts) and fix the confirmed ones inline — the explicit fix counterpart to the review commands
+description: Apply the fixes for findings a review already raised, without running a new review
 argument-hint: "[change-selector] (optional — id, epic:XXXX, story:NN, or epic:XXXX story:NN; used to locate the contract for artifact re-validation)"
 disable-model-invocation: true
 ---
@@ -27,7 +27,7 @@ Reviews in this workflow are **displayed in the conversation, not persisted to a
 1. **Locate and freeze the latest review in the conversation context (outer session).** Find the most recent review output and determine its kind:
    - **Code review** — produced by `/ptp:review`, `/ptp:codex-review`, or `/ptp:codex-review-uncommitted`. Findings target source code.
    - **Artifact review** — produced by `/ptp:review-plan` or `/ptp:codex-review-plan`. Findings target `proposal.md` / `design.md` / `tasks.md` / spec deltas.
-   - **Brainstorm review** — produced by `/ptp:review-brainstorm` (or the Superpowers/Codex brainstorm review phases). Findings target `brainstorm.md`. Confirmed brainstorm findings are fixed by minimal targeted edits to `brainstorm.md` (never regenerated via `/ptp:brainstorm`), and there is no `openspec validate` step for a brainstorm (a brainstorm precedes any proposal/spec) — the post-fix verification is simply that every CONFIRMED brainstorm finding was resolved.
+   - **Brainstorm review** — produced by `/ptp:review-brainstorm` (or the main-agent/Codex brainstorm review phases). Findings target `brainstorm.md`. Confirmed brainstorm findings are fixed by minimal targeted edits to `brainstorm.md` (never regenerated via `/ptp:brainstorm`), and there is no `openspec validate` step for a brainstorm (a brainstorm precedes any proposal/spec) — the post-fix verification is simply that every CONFIRMED brainstorm finding was resolved.
 
    If several reviews are present, use the **latest** one and say which you picked. Extract (freeze) its findings: severity, file:line, description, and any suggested fix.
 
@@ -61,7 +61,7 @@ Reviews in this workflow are **displayed in the conversation, not persisted to a
    `/ptp:brainstorm`, never archive, never commit — because a fresh main run does not inherit them
    by osmosis.
 
-3. **Confirm every finding independently.** Invoke the `superpowers:receiving-code-review` skill via the Skill tool and apply its rigor: for **each** finding, read the actual code or artifact at the cited location and judge whether it describes a **real defect** — not a false positive, not already-correct code, not a misunderstanding of intent or conventions.
+3. **Confirm every finding independently.** Invoke the `ptp-receiving-code-review` skill via the Skill tool and apply its rigor: for **each** finding, read the actual code or artifact at the cited location and judge whether it describes a **real defect** — not a false positive, not already-correct code, not a misunderstanding of intent or conventions.
    - Mark each finding `CONFIRMED` or `REJECTED`, each with a one-line reason.
    - Do this for **all** findings regardless of severity. Confirmation is **especially** important for findings from the external Codex reviewer — never fix a Codex finding you cannot independently verify.
 
@@ -93,7 +93,7 @@ Reviews in this workflow are **displayed in the conversation, not persisted to a
 
 7. **Stamp the review-convergence marker (artifact / brainstorm fixes only).** `/ptp:review-fix` does NOT drive `ptp-review-loop` (no loop, no iteration cap), but on completion it stamps the **same** per-kind marker the loops write, reusing the shared schema / location / **atomic write-temp-then-rename** protocol from `ptp-review-loop`'s **## Review-convergence marker** section. Mapping the single confirm→fix→verify pass to marker fields:
    - **`kind`** — from the **frozen review's** kind: a frozen **artifact** review → `stages/plan.json`; a frozen **brainstorm** review → `stages/brainstorm.json`; a frozen **code** review → **NO marker**, because a single frozen-set fix pass is not a convergence proof, and because its edits move the code marker's content fingerprint, so any existing `stages/code.json` self-invalidates. Note that a `kind = code` loop **does** now write `stages/code.json` (per `ptp-review-loop`'s **## Review-convergence marker** section) — `/ptp:review-fix` is the deliberate exception, not an instance of the old rule.
-   - **`reviewers`** — the frozen review's reviewer(s): `["superpowers"]` for a Superpowers review, `["codex"]` for a Codex review. `/ptp:review-fix` runs no second reviewer, so it **never** synthesizes a combined set.
+   - **`reviewers`** — the frozen review's reviewer(s): `["ptp"]` for a main-phase review, `["codex"]` for a Codex review. When the frozen review carries the legacy literal `"superpowers"`, write `"ptp"` in the new marker and leave the frozen review file unmodified. `/ptp:review-fix` runs no second reviewer, so it **never** synthesizes a combined set.
    - **`terminalState`** — `"converged"` **only** when the post-fix verification is **fully clean** (every CONFIRMED finding fixed AND `npx -y openspec validate <id> --strict` / the re-check passes), **including the all-`REJECTED` no-op** outcome (nothing to fix, artifact clean as-reviewed). `"cap-reached"` in **every** non-clean post-fix outcome — whether CONFIRMED findings remain unfixed (`CONFIRMED but could not fix`) OR all findings were applied but the post-fix verification is still not clean (e.g. a fix introduced a validation error).
    - **`iterations`** — `1` (the single pass; there is no loop count).
    - **`minSeverity`** — always the constant `"low"`, because `/ptp:review-fix` fixes every CONFIRMED finding in its frozen set without applying a severity floor. It resolves no threshold and reads no `review.minSeverity` config.

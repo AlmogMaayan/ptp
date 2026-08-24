@@ -1,21 +1,21 @@
 ---
 name: ptp-analyze
-description: Use this skill when the user wants to analyze, diagnose, or root-cause an issue — trigger phrases include "analyze", "diagnose", "root cause", "understand why", "why is X happening", "how does X work", "what is causing", "investigate". Writes a durable analysis doc into the appropriate openspec/changes/<change-id>/ folder (allocating a minimal change folder via ptp-change-selector §4 when no relevant active change exists). Never produces a change proposal and never writes proposal/design/tasks/spec-delta files. Do NOT use for design exploration (that is /ptp:brainstorm-only) or for producing a change proposal (that is /ptp:plan).
+description: Own read-only diagnosis, writing a durable analysis doc into a change folder and proposing nothing
 ---
 
 # ptp-analyze — read-only investigation, durable analysis doc
 
 ## Purpose
 
+**Model dispatch target.** `/ptp:analyze` runs this skill's work at `opus.high` via `ptp-run-at-model` (`skills/ptp-run-at-model/SKILL.md`), which owns the spawn-and-relay mechanics and requires its caller to supply the target. This names the target only; it restates none of that contract.
+
 This skill conducts a **read-only investigation** of a bug, observed behavior, problem, or question and writes a structured, evidence-backed analysis document into the appropriate `openspec/changes/<change-id>/` folder. It is a **limited producer** (in the `ptp-change-selector` §5 Role A sense): it never produces a change *proposal* — it never writes proposal/design/tasks/spec-delta files and never applies a fix — but it may allocate a minimal change folder (via `ptp-change-selector` §4) only to house the analysis doc when no relevant active change exists. When a fix is warranted it recommends the appropriate next ptp step and stops.
 
 Contrast with `/ptp:brainstorm-only` (design exploration of a prospective change) — this skill diagnoses an *existing* phenomenon, not an *envisioned* feature. If diagnosis reveals that a change is warranted, the next step is `/ptp:plan` (or `/ptp:brainstorm` if you want to think through options first).
 
-## Branch safety
-
-This skill is **write-capable** — it writes the analysis document. Before writing any file, run the **`ptp-branch-guard`** preamble. The full rule (the guard logic, the `ptp-branch-prep` workflow, the hard rules) lives in the `ptp-branch-guard` skill — do not restate it here.
-
-When this skill runs as the main run spawned by `/ptp:analyze` via `ptp-run-at-model` (the normal path), the outer session has **already** run the guard, so this check is a **no-op** (HEAD is already on the feature branch) — it MUST NOT launch `ptp-branch-prep`.
+This skill is write-capable, so it runs the `ptp-branch-guard` preamble before writing any file, and
+that preamble is a no-op when the outer session already ran the guard. The rule itself is defined in
+`skills/ptp-branch-guard/SKILL.md`.
 
 ## Classify the input
 
@@ -29,8 +29,8 @@ Record your classification at the top of the investigation trail.
 
 ## Route
 
-- **Bug / failure** → invoke `superpowers:systematic-debugging` via the Skill tool for the investigation phase. Feed it the subject and the context you have loaded. Then return here to write the analysis doc.
-- **Explain / understand** or **Open problem** → conduct a structured, hypothesis-driven read-only investigation yourself (see **Investigate** below). You are not required to invoke `superpowers:systematic-debugging`, but you may if the open problem turns out to be bug-shaped once you start looking.
+- **Bug / failure** → invoke `ptp-systematic-debugging` via the Skill tool for the investigation phase. Feed it the subject and the context you have loaded. Then return here to write the analysis doc.
+- **Explain / understand** or **Open problem** → conduct a structured, hypothesis-driven read-only investigation yourself (see **Investigate** below). You are not required to invoke `ptp-systematic-debugging`, but you may if the open problem turns out to be bug-shaped once you start looking.
 
 ## Investigate (read-only)
 

@@ -1,137 +1,16 @@
 ---
-description: Dual-reviewer inline-fix PRD-review loop — runs the main-agent PRD loop then the reviewer-agent PRD loop (default roles.main=claude: Superpowers then Codex; a Codex reviewer gated per codex.mode), editing the epic PRD openspec/changes/<id>/prd.md to resolve confirmed findings until each phase converges or the iteration cap is reached; Phase 2 starts only if Phase 1 converges; epic-scoped; runs no openspec validate (a PRD precedes any spec — the one divergence from /ptp:review-plan-full)
+description: Review a product requirements document with both reviewers in sequence until each phase converges
 argument-hint: "[epic-selector] (optional — id, epic:XXXX, story:NN, or epic:XXXX story:NN; omit to review ALL active epics' PRDs)"
 ---
 
-You are running **`/ptp:review-prd-full`** — the **dual-reviewer** (main agent + reviewer agent;
-default Superpowers + Codex) variant of
-`/ptp:review-prd`, exactly as `/ptp:review-plan-full` is to `/ptp:review-plan` and
-`/ptp:review-brainstorm-full` is to `/ptp:review-brainstorm`. Resolve `{ main, reviewer }` from
-`roles.main` via the **`ptp-agent-roles`** skill; at the default `roles.main=claude` Phase 1 is the
-Superpowers loop and Phase 2 is the gated Codex loop (byte-identical to before). It audits an epic's **PRD**
-(`openspec/changes/<id>/prd.md`, where `<id>` is the epic's lowest-numbered story), before any
-proposal/spec/brainstorm artifacts for the epic plan exist, with two independent reviewers run as
-**inline-fix convergence loops** — **editing the PRD** to resolve confirmed findings until each phase
-converges to zero confirmed findings or the configured iteration cap is reached — so a thin or placeholder
-PRD is caught *and fixed* from two angles *before* it silently yields a thin epic plan.
+## Arguments
 
-This mirrors `/ptp:review-plan-full` (which loops over the plan artifacts) and
-`/ptp:review-brainstorm-full` (which loops over the brainstorm) — the `-full` suffix means a
-dual-reviewer inline-fix loop. It differs from `/ptp:review-plan-full` in **two** deliberate ways: it
-audits the **epic PRD** (epic-scoped, not change-scoped), and it runs **no** `openspec validate` — a PRD
-precedes any proposal/spec, so there is nothing to validate.
+Take `$ARGUMENTS` as an optional epic selector, empty meaning every active epic. Resolve the epic selector through the `ptp-change-selector` skill.
 
-## Inputs
+## Owner
 
-Epic selector (optional): $ARGUMENTS
+Invoke the `ptp-review-prd-full` skill (`skills/ptp-review-prd-full/SKILL.md`).
 
-Resolve `$ARGUMENTS` via the `ptp-prd` selector→epic projection (the additive layer over
-`ptp-change-selector`): a bare id / `story:NN` projects to the change's epic; `epic:XXXX` is that epic;
-`epic:all` / **omitted** = **all active epics' PRDs**. The empty-argument review-all default is
-preserved. The command is **selector-only** — it takes epic selectors, never standalone file paths. If
-it resolves to more than one epic, run the loop below for each, reporting per epic.
+## Report
 
-## Branch safety (first step)
-
-Both phases apply inline edits to the PRD, so before Phase 1 run the **`ptp-branch-guard`** preamble:
-check `git rev-parse --abbrev-ref HEAD`; if it is the base branch (`master`/`main`), derive a feature-branch name from the
-resolved epic (→ `ptp/<change-id>` using the epic's lowest-numbered story id) and launch the minimal
-`ptp-branch-prep` workflow (stash → checkout the base branch → pull → cut the branch) **before** writing
-anything; if you are already on a feature branch it is a **no-op** — proceed as-is. The full rule lives
-in the **`ptp-branch-guard`** skill — do not restate it here.
-
-## Preconditions
-
-The outer session runs only the abort-guaranteeing preconditions first — so a guaranteed abort never
-spawns a subagent:
-
-1. **Selector disambiguation that STOPs and asks.** Resolve `$ARGUMENTS` via the `ptp-prd` selector→epic
-   projection. If it is ambiguous in a way that must STOP and ask the user, do that here (the subagent
-   is non-interactive and cannot ask). Preserve the empty-argument review-all-active default. A
-   legacy/unprefixed id that cannot project to an epic is reported unsupported and skipped (per
-   `ptp-prd`).
-2. **Resolve `{ main, reviewer }` per `ptp-agent-roles`, then resolve the reviewer gate per the
-   `ptp-codex-mode` skill** and apply its symmetric decision contract — do not
-   hard-require Codex here. Phase 1 (the main agent's PRD loop) always runs regardless of mode. The
-   reviewer phase is gated only when the reviewer is Codex: **only
-   `required` + `codex` missing STOPs** here (with the install-or-change-mode message). Under `auto` +
-   `codex` missing or `off`, Phase 2 is skipped **inside** the subagent (not an outer STOP), and the
-   skip is reported (never silent). A Claude reviewer is never gated and always runs. The full
-   resolution + decision rule lives in the `ptp-codex-mode` skill — do not restate it here.
-
-The per-epic **PRD-file existence** check is part of Phase 1's rubric (a missing PRD is a Critical
-finding the loop cannot fix, not an outer abort), so it runs **inside** the subagent — exactly as
-`/ptp:review-prd` does. **PRD-file existence is NOT an outer abort.**
-
-## What this command does
-
-This entire two-phase orchestration runs **at a deterministic model** via the **`ptp-run-at-model`**
-skill at `opus.high`. The outer session runs only the abort-guaranteeing preconditions first — the
-`ptp-branch-guard` preamble (above), the selector disambiguation, and the role resolution per
-`ptp-agent-roles` + the reviewer-gate resolution per
-`ptp-codex-mode` (including the `required` + `codex` missing STOP for a Codex reviewer) — so a guaranteed abort never spawns a
-subagent. It then invokes **`ptp-run-at-model`** with target `opus.high`, passing the already-resolved
-role pair and reviewer-gate decision and the resolved epic(s) + PRD path(s), and the work being "run the
-**`ptp-review-prd-full`** skill over the already-resolved scope." That spawns one foreground `opus`
-subagent (high effort directive) which performs Phase 1 (the main agent's `kind = prd` loop) → the
-convergence-based Phase-1-gates-Phase-2 gate → Phase 2 (the reviewer agent's `kind = prd` loop, gated per the reviewer
-gate) → the combined terminal state + single combined marker write + report, **editing the PRD inline**,
-and the subagent's outcome (including the mode-skip success state
-`PHASE 1 DONE — CODEX SKIPPED (mode=…)`) is relayed back per `ptp-run-at-model`'s *Result relay* — never
-downgraded to or away from its true meaning. Do **not** split the phases across multiple subagents and
-do **not** add a nesting guard — every inner step is inline skill work or an external `codex exec` Bash
-subprocess, neither of which spawns an Agent or a Workflow. For a multi-epic or empty-argument
-review-all selector, the one subagent handles the whole per-epic pass.
-
-**Fix dispatch (both phases).** Each phase's `ptp-review-loop` invocation is additionally passed:
-
-- Phase 1 — `fixDispatch = inline`, `runningTarget = <this command's resolved main-run target per ptp-agent-roles>`
-- Phase 2 — `fixDispatch = inline`, `runningTarget = <this command's resolved main-run target per ptp-agent-roles>`
-
-**Fix target.** The fix pass runs at a freshly evaluated fix target rather than at this command's
-review target; because this whole orchestration already runs inside one `ptp-run-at-model` main run,
-it passes `fixDispatch = inline` and never spawns a second run. The evaluation rule, the dispatch
-modes, the fallback, and the reporting obligation live in `ptp-review-loop` — this command does not
-restate them.
-
-Keep this command **thin**: the two phases, the rubric, the convergence-based Phase-1-gates-Phase-2
-gate, the combined terminal state, the report shape, the single-combined-marker-write protocol, and the
-deliberate no-`openspec validate` divergence all live in the **`ptp-review-prd-full`** skill (the
-`commands/config.md` → `skills/ptp-config` split). Do not restate the skill's methodology here.
-
-On completion the run stamps the combined `openspec/changes/<id>/stages/prd.json` review-convergence
-marker once per epic (per the `ptp-review-prd-full` skill's single-combined-write protocol).
-
-## Hard rules
-
-- Do **not** spawn a second `ptp-run-at-model` run for the fix pass — this command's orchestration already occupies the one Agent-nesting level.
-- Do **not** start Phase 2 unless Phase 1 terminated with `DONE`. A Phase 1 `ITERATION CAP REACHED`
-  STOPs the run — Phase 2 does not start.
-- Do **not** invoke `/ptp:apply`. This loop fixes the PRD, not source code or OpenSpec artifacts.
-- This command **edits the PRD** inline to resolve confirmed findings. It does **not** archive the
-  change (archiving is always an explicit `/ptp:archive <change-id>`), does **not** auto-commit any
-  edits, and does **not** regenerate the PRD via `/ptp:prd` (targeted hand-edits only — fill a missing
-  schema section, sharpen a vague acceptance criterion, add a measurable goal).
-- Do **not** run `openspec validate` — a PRD precedes any proposal/spec, so there is nothing to validate
-  (the one deliberate divergence from `/ptp:review-plan-full`); per-iteration verification is
-  `N/A (PRD precedes any spec)`.
-- Do **not** fix any finding — especially a Codex finding — that was not independently CONFIRMED against
-  the actual PRD text. Rejected findings stay as-is; their stable keys are carried over within each
-  phase to prevent re-confirmation in later iterations of that phase. Phase 2 starts with fresh loop
-  state — Phase 1's rejected set does not carry into Phase 2.
-- Do **not** count findings whose only suggested remediation is a manual check or a missing test against
-  convergence in either phase.
-- A phase converges on findings **at or above the configured severity threshold**; findings below it are
-  **reported**, not fixed, and do not block convergence. The threshold, its resolution, and the
-  partition rule live in `ptp-review-loop` — this command does not restate them.
-- Iteration cap per phase is `review.maxIterations` in ptp config; default 5. Each phase has its own
-  independent cap.
-- Run Codex only under `codex exec -s read-only` with the prompt piped over **stdin** (`-`), assembled
-  per the `ptp-codex-mode` flag-append rule (resolved `-m`/`-c` flags before the trailing `-` when
-  configured). Never pass `--full-auto`, `--sandbox workspace-write`, or
-  `--dangerously-bypass-approvals-and-sandbox`. Codex runs **no** commands.
-- Recommend the next command in **text only** (the user runs it explicitly): `/ptp:plan <change-id>` (the
-  epic's lowest-numbered story id) on either green state (`BOTH PHASES DONE` or
-  `PHASE 1 DONE — CODEX SKIPPED (mode=…)`); on a cap (`ITERATION CAP REACHED` — including the missing-PRD
-  Critical, author it via `/ptp:prd <epic>` first — or `PHASE 2 ITERATION CAP REACHED`), resolve the
-  remaining findings then re-run `/ptp:review-prd-full <epic>`.
+Report the change id where the command resolved one, the resulting state, any failures, and the next command to run.

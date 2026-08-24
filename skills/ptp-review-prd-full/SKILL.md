@@ -1,19 +1,19 @@
 ---
 name: ptp-review-prd-full
-description: "Use this skill when running the dual-reviewer inline-fix PRD-review loop behind /ptp:review-prd-full — the main-agent + reviewer-agent (default Superpowers + Codex) variant of /ptp:review-prd. Owns the dual-reviewer PRD-review contract as an inline-fix convergence loop over the epic PRD openspec/changes/<id>/prd.md: Phase 1 main-agent PRD loop (driving ptp-review-loop kind=prd), a convergence-based Phase-1-gates-Phase-2 gate, Phase 2 reviewer-agent PRD loop (a Codex reviewer runs closed-book read-only, gated per ptp-codex-mode; a Claude reviewer always runs; no openspec validate), a single combined change-folder marker write, and a combined terminal state. Resolves { main, reviewer } from roles.main via ptp-agent-roles; default roles.main=claude is byte-identical to Superpowers-then-Codex. Edits the PRD inline to resolve confirmed findings until each phase converges or the iteration cap is reached; never archives, never commits, never regenerates the PRD via /ptp:prd, runs no openspec validate."
+description: Own the dual-reviewer requirements review, running the main loop and then the reviewer loop
 ---
 
 # ptp-review-prd-full — the dual-reviewer inline-fix PRD-review methodology
 
 ## Purpose
 
-This skill owns the **dual-reviewer (main agent + reviewer agent; default Superpowers + Codex)
+This skill owns the **dual-reviewer (main agent + reviewer agent; default Claude + Codex)
 inline-fix convergence loop** PRD-review
 contract and is the **single source of truth** the thin `/ptp:review-prd-full` command delegates to —
 the same command-backed-by-a-skill split as `commands/config.md` → `skills/ptp-config/SKILL.md`. The
 command is a front door; this skill holds the substance. Resolve `{ main, reviewer }` from `roles.main`
-via the **`ptp-agent-roles`** skill; at the default `roles.main=claude` the main agent is Superpowers
-and the reviewer is Codex, so Phase 1 is the Superpowers loop and Phase 2 is the gated Codex loop —
+via the **`ptp-agent-roles`** skill; at the default `roles.main=claude` the main agent is Claude
+and the reviewer is Codex, so Phase 1 is the main-agent loop and Phase 2 is the gated Codex loop —
 byte-identical to before this change.
 
 It is the **dual-reviewer variant of `/ptp:review-prd`**, exactly as `/ptp:review-plan-full` is to
@@ -43,7 +43,7 @@ command); this skill is its substance.
 | Input | Values | Source |
 |-------|--------|--------|
 | resolved epic + PRD path | the epic and `openspec/changes/<id>/prd.md` (where `<id>` is the epic's lowest-numbered story across active + archived changes, per `ptp-prd`) | Resolved by the command's outer session via the `ptp-prd` selector→epic projection; passed in. |
-| role pair `{ main, reviewer }` | resolved from `roles.main` via `ptp-agent-roles` | Resolved once in the outer session; threaded through so this skill does not re-resolve it. Default `roles.main=claude` → main=superpowers, reviewer=codex. |
+| role pair `{ main, reviewer }` | resolved from `roles.main` via `ptp-agent-roles` | Resolved once in the outer session; threaded through so this skill does not re-resolve it. Default `roles.main=claude` → main=claude (the `ptp` phase), reviewer=codex. |
 | reviewer-gate decision | already-resolved reviewer-gate decision from `ptp-codex-mode` (only gates a Codex reviewer) | Resolved once in the outer session; threaded through to Phase 2 so this skill does not re-resolve it. |
 
 The skill does **not** re-run the branch guard, re-resolve the reviewer gate / `codex.mode`, or re-resolve the epic — the
@@ -56,11 +56,11 @@ iteration-cap backstop handles it).
 ## Phase 1 — main-agent `kind = prd` loop
 
 Phase 1 is the **main agent's** PRD loop (always runs). At the default `roles.main=claude` the main
-agent is Superpowers, so pass `reviewer = superpowers`; when `roles.main=codex` the main agent is
-Codex, so pass `reviewer = codex`. Invoke the **`ptp-review-loop`** skill with:
+agent is Claude and runs the PTP phase, so pass `reviewer = ptp`; when `roles.main=codex` the main
+agent is Codex, so pass `reviewer = codex`. Invoke the **`ptp-review-loop`** skill with:
 
 - `kind = prd`
-- `reviewer = <the main agent>` (`superpowers` by default; `codex` when `roles.main=codex`)
+- `reviewer = <the main phase>` (`ptp` by default; `codex` when `roles.main=codex`)
 - the resolved **epic** and the **PRD file path** `openspec/changes/<id>/prd.md` (the change-folder
   PRD path, in place of a change folder's `brainstorm.md` or artifact)
 - `deferMarker = true`
@@ -122,7 +122,7 @@ Codex**; a Claude reviewer is never gated and always runs.
 **`ptp-review-loop`** skill with:
 
 - `kind = prd`
-- `reviewer = <the reviewer agent>` (`codex` by default; `superpowers` when `roles.main=codex`)
+- `reviewer = <the reviewer phase>` (`codex` by default; `ptp` when `roles.main=codex`)
 - the resolved **epic** and the **PRD file path** `openspec/changes/<id>/prd.md`
 - `deferMarker = true`
 
@@ -192,11 +192,11 @@ run resolves (after Phase 2, or after Phase 1 if Phase 2 is gated off), the orch
 `stages/brainstorm.json` and `stages/plan.json`), per the combined-outcome rule:
 
 - `kind: "prd"`.
-- `reviewers` = the **union of phases that actually ran**, each named by the agent that ran it — the
-  main agent alone (`["superpowers"]` at the default `roles.main=claude`) if Phase 1 capped (Phase 2
-  never ran) or a Codex reviewer was mode-skipped, else both agents that ran (`["superpowers","codex"]`
-  at the default). When `roles.main=codex` these are named for the actual agents (main=codex,
-  reviewer=superpowers).
+- `reviewers` = the **union of phases that actually ran**, each named by the phase rather than by the
+  agent that ran it — the main phase alone (`["ptp"]`) if Phase 1 capped (Phase 2 never ran) or a
+  Codex reviewer was mode-skipped, else both phases that ran (`["ptp","codex"]`). The same two values
+  are written in either `roles.main` direction; the agent that filled each role travels separately.
+  A reader accepts the legacy literal `"superpowers"` as naming the same identity as `"ptp"`.
 - `terminalState` = that of the **last phase that ran** (`converged` if the last phase that ran reached
   `DONE`, else `cap-reached`).
 - `iterations` = the **last phase's** iteration count.

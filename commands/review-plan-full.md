@@ -1,9 +1,9 @@
 ---
-description: Full dual-reviewer artifact-review loop — runs the main-agent artifact loop then the reviewer-agent artifact loop in sequence (default roles.main=claude: Superpowers then Codex); Phase 2 starts only if Phase 1 converges (reviews proposal/design/tasks/spec-deltas, not code; a Codex reviewer per codex.mode — only required hard-requires the codex CLI; auto-missing/off runs main-only)
+description: Review a change's planning artifacts with both reviewers in sequence until each phase converges
 argument-hint: "<change-selector> — id, epic:XXXX, story:NN, or epic:XXXX story:NN"
 ---
 
-You are running **`/ptp:review-plan-full`** — a two-phase artifact-review loop that first runs the **main agent's** artifact-quality loop to convergence, then (when the reviewer gate permits) runs the **reviewer agent's** artifact-quality loop to convergence, in a single invocation. Resolve `{ main, reviewer }` from `roles.main` via the **`ptp-agent-roles`** skill; at the default `roles.main=claude` the main agent is Superpowers (Claude) and the reviewer is Codex, so this is byte-identical to "Superpowers loop then Codex loop." Both reviewers must sign off on the planning artifacts before the change proceeds to implementation — except when the reviewer gate skips the reviewer phase (only possible for a Codex reviewer: `auto` with `codex` absent, or `off`), in which case a converged main phase alone is a successful single-reviewer run (the skip is reported, never silent). A Claude reviewer (`roles.main=codex`) is never gated and always runs.
+You are running **`/ptp:review-plan-full`** — a two-phase artifact-review loop that first runs the **main agent's** artifact-quality loop to convergence, then (when the reviewer gate permits) runs the **reviewer agent's** artifact-quality loop to convergence, in a single invocation. Resolve `{ main, reviewer }` from `roles.main` via the **`ptp-agent-roles`** skill; at the default `roles.main=claude` the main agent is Claude and the reviewer is Codex, so this is byte-identical to "main-agent loop then Codex loop." Both reviewers must sign off on the planning artifacts before the change proceeds to implementation — except when the reviewer gate skips the reviewer phase (only possible for a Codex reviewer: `auto` with `codex` absent, or `off`), in which case a converged main phase alone is a successful single-reviewer run (the skip is reported, never silent). A Claude reviewer (`roles.main=codex`) is never gated and always runs.
 
 This is **not** a code-review loop. It reviews the *planning artifacts* (`proposal.md`, `design.md`, `tasks.md`, and spec deltas), not source code. Use `/ptp:review-full` or `/ptp:codex-review-loop` to review implemented code.
 
@@ -49,15 +49,15 @@ restate them.
 
 ### Phase 1 — main-agent artifact-review loop
 
-Phase 1 is the **main agent's** artifact loop (always runs). At the default `roles.main=claude` the main agent is Superpowers, so pass `reviewer = superpowers`; when `roles.main=codex` the main agent is Codex, so pass `reviewer = codex`. Invoke the `ptp-review-loop` skill with:
+Phase 1 is the **main agent's** artifact loop (always runs). At the default `roles.main=claude` the main agent is Claude and runs the PTP phase, so pass `reviewer = ptp`; when `roles.main=codex` the main agent is Codex, so pass `reviewer = codex`. Invoke the `ptp-review-loop` skill with:
 
 - `kind = artifact`
-- `reviewer = <the main agent>` (`superpowers` by default; `codex` when `roles.main=codex`)
+- `reviewer = <the main phase>` (`ptp` by default; `codex` when `roles.main=codex`)
 - `change-id = $ARGUMENTS`
 - `fixDispatch = inline`
 - `runningTarget = <this command's resolved main-run target per ptp-agent-roles>`
 
-The skill drives the full loop. For each iteration's review pass it runs the `review-plan.md` rubric inline: existence & validation, `proposal.md` completeness, cross-artifact consistency, spec-delta format, `tasks.md` quality (including the banned-manual-task check), reasoning depth, and `TLDR.md` sanity. After confirmation, confirmed findings are fixed via minimal targeted edits and `npx -y openspec validate <change-id> --strict` is run as per-iteration verification.
+The skill drives the full loop. For each iteration's review pass it runs the rubric authored in `commands/review-plan.md` — the exhaustive eight-condition block-list plus the closed must-not-require list, referenced here and never restated — in that file's order: `npx -y openspec validate <change-id> --strict`, then the deterministic compactness lint, then exactly one model review pass returning all of the iteration's findings in one structured emission. The banned-manual-task check rides inside the "a task is not agent-executable, or is not verifiable by an automated check" blocking condition. After confirmation, confirmed findings are fixed via minimal targeted edits and `npx -y openspec validate <change-id> --strict` is run as per-iteration verification.
 
 **Gate:** If Phase 1 terminates with `ITERATION CAP REACHED`, **STOP** here. Report the Phase 1 outcome and open findings. Do NOT start Phase 2. The user should resolve the remaining artifact issues (e.g., by returning to `/ptp:plan`) and then re-run `/ptp:review-plan-full` or run `/ptp:review-plan-loop` directly.
 
@@ -68,12 +68,12 @@ The skill drives the full loop. For each iteration's review pass it runs the `re
 If and only if Phase 1 terminates with `DONE` **and** the gate permits the reviewer phase, invoke the `ptp-review-loop` skill with:
 
 - `kind = artifact`
-- `reviewer = <the reviewer agent>` (`codex` by default; `superpowers` when `roles.main=codex`)
+- `reviewer = <the reviewer phase>` (`codex` by default; `ptp` when `roles.main=codex`)
 - `change-id = $ARGUMENTS`
 - `fixDispatch = inline`
 - `runningTarget = <this command's resolved main-run target per ptp-agent-roles>`
 
-The skill drives the full loop. When the reviewer is Codex, each iteration's review pass runs the `codex-review-plan.md` closed-book protocol inline: you (the caller) read all artifacts, run `npx -y openspec validate <change-id> --strict`, collect cited source excerpts, build a single self-contained prompt with all of this inlined, and pipe it to `codex exec -s read-only` over stdin (assembled per the `ptp-codex-mode` flag-append rule — resolved `-m`/`-c` flags appended before the trailing `-` when `codex.model`/`codex.reasoningEffort` are configured). Findings are confirmed via `superpowers:receiving-code-review` before any artifact is touched.
+The skill drives the full loop. When the reviewer is Codex, each iteration's review pass runs the `codex-review-plan.md` closed-book protocol inline: you (the caller) read all artifacts, run `npx -y openspec validate <change-id> --strict`, collect cited source excerpts, build a single self-contained prompt with all of this inlined, and pipe it to `codex exec -s read-only` over stdin (assembled per the `ptp-codex-mode` flag-append rule — resolved `-m`/`-c` flags appended before the trailing `-` when `codex.model`/`codex.reasoningEffort` are configured). Findings are confirmed via `ptp-receiving-code-review` before any artifact is touched.
 
 **Note:** Phase 2 starts with fresh loop state. The `rejected_findings` list from Phase 1 does NOT carry over into Phase 2 — the reviewer agent is an independent reviewer and its findings should be evaluated on their own merits.
 
@@ -86,14 +86,14 @@ After both phases complete, report:
 3. Overall verdict: BOTH PHASES DONE (both converged), PHASE 1 DONE — CODEX SKIPPED (mode=…) (Phase 1 converged, Codex intentionally skipped by `codex.mode` — a success state), or PHASE 2 ITERATION CAP REACHED (Phase 1 converged, Phase 2 did not).
 4. Next command:
    - If BOTH PHASES DONE → `/ptp:apply $ARGUMENTS` (or `/ptp:review-full $ARGUMENTS` if implementation is already complete).
-   - If PHASE 1 DONE — CODEX SKIPPED → `/ptp:apply $ARGUMENTS` (Superpowers signed off on the artifacts; Codex was skipped by mode — a successful single-reviewer run, not a halt). To add the Codex artifact reviewer, set `codex.mode` via `/ptp:config` (and install `codex`) then run `/ptp:codex-review-plan-loop $ARGUMENTS`.
+   - If PHASE 1 DONE — CODEX SKIPPED → `/ptp:apply $ARGUMENTS` (the main phase signed off on the artifacts; Codex was skipped by mode — a successful single-reviewer run, not a halt). To add the Codex artifact reviewer, set `codex.mode` via `/ptp:config` (and install `codex`) then run `/ptp:codex-review-plan-loop $ARGUMENTS`.
    - If PHASE 2 ITERATION CAP REACHED → resolve remaining Codex artifact findings (e.g., `/ptp:review-fix`), then re-run `/ptp:review-plan-full $ARGUMENTS` or run `/ptp:codex-review-plan-loop $ARGUMENTS` directly.
 
 ### Review-convergence marker (single combined write)
 
 This orchestrator drives **both** phase loops with **`deferMarker = true`** (per `ptp-review-loop`'s **## Review-convergence marker** section), so **no phase writes the marker itself** — each phase returns its terminal outcome (`terminalState`, `reviewer`, `iterations`, `minSeverity`) to this orchestrator. After the run resolves (after Phase 2, or after Phase 1 if Phase 2 is gated off), the orchestrator performs **exactly ONE** combined `stages/plan.json` write per the combined-outcome rule:
 
-- `reviewers` = the **union of phases that actually ran**, each named by the agent that ran it — the main agent alone (`["superpowers"]` at the default `roles.main=claude`) if Phase 1 capped (Phase 2 never ran) or a Codex reviewer was mode-skipped, else both agents that ran (`["superpowers","codex"]` at the default). When `roles.main=codex` these are named for the actual agents (main=codex, reviewer=superpowers).
+- `reviewers` = the **union of phases that actually ran**, each named by the phase rather than by the agent that ran it — the main phase alone (`["ptp"]`) if Phase 1 capped (Phase 2 never ran) or a Codex reviewer was mode-skipped, else both phases that ran (`["ptp","codex"]`). The same two values are written in either `roles.main` direction; the agent that filled each role travels separately, in the result's `mainAgent`/`reviewerAgent`. Readers accept the legacy literal `"superpowers"` as naming the same identity as `"ptp"`.
 - `terminalState` = that of the **last phase that ran** (`converged` if the last phase that ran reached `DONE`, else `cap-reached`).
 - `iterations` = the **last phase's** iteration count.
 - `minSeverity` = the **last phase that ran**'s severity threshold (lowercase canonical), the same last-phase rule as `iterations`. In the normal case both phases resolve the same value and the rule is a no-op.

@@ -1,9 +1,9 @@
 ---
-description: Superpowers code review of an implemented OpenSpec change against its proposal/design/spec deltas
+description: Run one main-agent review pass over a change's code diff and report its findings
 argument-hint: "<change-selector> — id, epic:XXXX, story:NN, or epic:XXXX story:NN"
 ---
 
-You are running **step 4** of the ptp flow. The change has been implemented. Your job is to **invoke Superpowers code review** and grade the diff against the OpenSpec artifacts.
+You are running **step 4** of the ptp flow. The change has been implemented. Your job is to **invoke PTP code review** and grade the diff against the OpenSpec artifacts.
 
 This command never fixes, so the fix-target contract in `ptp-review-loop` is a **no-op** here: no
 fix pass is dispatched and this command's `opus.high` review target is unchanged.
@@ -35,7 +35,7 @@ per-change pass, reporting per change.)
 2. **Identify the diff** for this change. Prefer:
    - `git diff` against the merge base (if in a git repo and a feature branch is in use), OR
    - The files that the tasks explicitly touched.
-3. **Invoke the Superpowers code-review skill** via the Skill tool. Pick the skill matching "code-review" / "review" (prefer the `superpowers` namespace). If none exists, fall back to a structured review you author inline, but say so.
+3. **Invoke the `ptp-requesting-code-review` skill** via the Skill tool.
 4. **Review against**:
    - The proposal — does the implementation match the stated intent?
    - The spec deltas — does the behavior match the contract? Are edge cases covered?

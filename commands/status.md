@@ -1,5 +1,5 @@
 ---
-description: Show OpenSpec state — per-step lifecycle table and next-step recommendation per resolved change
+description: Report where a change stands across its artifacts, reviews, tasks, and archive readiness
 argument-hint: "[change-selector] (optional — id, epic:XXXX, story:NN, or epic:XXXX story:NN; omit for full status)"
 ---
 
@@ -71,12 +71,19 @@ Using the artifact presence and validate result from Steps B and C, derive the s
 | **analysis** | `analysis.md` present? | file present | "not started (optional)" — neutral, never a problem |
 | **brainstorm** | `brainstorm.md` present? | file present | "not started" |
 | **brainstorm review** | prefer `stages/brainstorm.json` marker; else inferred | marker present & well-formed | render the marker (`converged` / `cap-reached` + note); else `inferred / not tracked` (see Step D-review below) |
-| **plan** | `proposal.md` + `design.md` + `tasks.md` present AND (`specs/` present or no behavior deltas) AND validate_pass | all required artifacts present AND validate passes | "not started" if none present; "incomplete" if partially present or `specs/` missing when required; "invalid" if all artifacts present but validate fails |
+| **plan** | `proposal.md` + `tasks.md` present AND (`specs/` present or no behavior deltas) AND validate_pass | required artifacts present AND validate passes | "not started" if none present; "incomplete" if partially present or `specs/` missing when required; "invalid" if all required artifacts present but validate fails |
 | **plan review** | prefer `stages/plan.json` marker; else inferred | marker present & well-formed | render the marker (`converged` / `cap-reached` + note); else `inferred / not tracked` (see Step D-review below) |
 | **apply** | ≥ 1 checkbox checked in `tasks.md` | done ≥ 1 | "not started" |
 | **apply completed** | `tasks.md` has ≥ 1 checkbox total AND open == 0 | total ≥ 1 AND open == 0 | "in progress" (done ≥ 1 and open ≥ 1); "not started" (done == 0 — i.e. all boxes unchecked, or no boxes / no `tasks.md` at all); an empty `tasks.md` with zero checkboxes is NOT apply-completed |
 | **code review** | `stages/code.json` stage record (Step D-stage) | record resolves to `converged` | resolves to `converged` → "converged"; `cap-reached` → a generic "reviewed but not converged"; otherwise **unknown** — "unknown / not tracked", neutral and never an error |
 | **archive** | `stages/archive.json` stage record (Step D-stage), read from the active folder and, when absent there, from the archived copy | record resolves to `archived` | resolves to `archived` → "archived", surfacing the timestamp and the specs-synced/skipped fact when present and usable; otherwise **unknown** — "not archived / not tracked", neutral and never an error |
+
+**`design.md` is conditional under the compact artifact contract.** It is no longer part of the
+**plan** row's derivation above — a change with no `design.md` renders plan-complete once `proposal.md`,
+`tasks.md`, `specs/` (when required), and validate_pass all hold. Step B still inspects `design.md`'s
+presence, and the plan row's Signal/Notes cell (Step F) discloses `design: present` or
+`design: absent (conditional)`. That disclosure never lowers the cell, never reads as a problem, and
+never changes the Step E recommendation — exactly as an absent `analysis.md` is neutral today.
 
 **Apply-row note rule.** The **apply** and **apply completed** cells stay derived **solely from the
 checkbox tally** above. When `openspec/changes/<id>/stages/apply.json` resolves to a terminal state under
@@ -97,9 +104,10 @@ For each row, apply this decision (identical logic for both rows; the only diffe
 1. **Marker file absent** → fall back to the inferred / not-tracked value verbatim (Step F note below). No error.
 2. **Present but unreadable, OR not valid JSON, OR valid JSON missing the required `terminalState`, OR `terminalState` is a value other than `"converged"` / `"cap-reached"`, OR `kind` is absent, OR `kind` is present but does not match the row being read** (e.g. `stages/plan.json` whose `kind` is missing or is not `"plan"`) → treat exactly like an absent marker (fall back). **No error.** Requiring `kind` present-and-matching guards against a kind-less, mis-stamped, or wrong-row file rendering an authoritative-but-wrong cell. A well-formed marker therefore requires BOTH a valid `terminalState` AND a `kind` matching the row.
 3. **Present and well-formed** (valid JSON, `terminalState` ∈ {`converged`, `cap-reached`}, AND `kind` present and matching the row) → render the marker authoritatively:
-   - `converged` → "converged" (reviewed and clean), with a note carrying the reviewer set and iteration count when present, e.g. `converged (superpowers+codex, 2 iters)`.
-   - `cap-reached` → a **generic "reviewed but not converged"** state, visibly distinct from `converged`, e.g. `reviewed but not converged (superpowers, 5 iters)`. Render this **cause-agnostically**: do NOT claim the iteration cap was specifically hit, and do NOT assert that findings necessarily remain open — `cap-reached` is written by a capped loop, by a `/ptp:review-fix` pass that left findings unfixed, AND by a `/ptp:review-fix` pass whose post-fix verification stayed unclean even though every finding was applied.
-   - **Optional-field tolerance:** if a well-formed marker omits `reviewers` and/or `iterations`, OR carries them with an unexpected type (e.g. `reviewers` not an array of strings, `iterations` not an integer), OR carries a correctly-typed but semantically odd value (e.g. `iterations: 0` or negative, an empty `reviewers: []`, a `reviewers` entry outside `{"superpowers","codex"}`) → still render the `terminalState` authoritatively and simply drop or best-effort-render the unusable part of the note. This is **NOT** a fallback and **NOT** an error — only a missing/invalid `terminalState` or a missing/mismatched `kind` triggers fallback.
+   - `converged` → "converged" (reviewed and clean), with a note carrying the reviewer set and iteration count when present, e.g. `converged (ptp+codex, 2 iters)`.
+   - `cap-reached` → a **generic "reviewed but not converged"** state, visibly distinct from `converged`, e.g. `reviewed but not converged (ptp, 5 iters)`. Render this **cause-agnostically**: do NOT claim the iteration cap was specifically hit, and do NOT assert that findings necessarily remain open — `cap-reached` is written by a capped loop, by a `/ptp:review-fix` pass that left findings unfixed, AND by a `/ptp:review-fix` pass whose post-fix verification stayed unclean even though every finding was applied.
+   - **Optional-field tolerance:** if a well-formed marker omits `reviewers` and/or `iterations`, OR carries them with an unexpected type (e.g. `reviewers` not an array of strings, `iterations` not an integer), OR carries a correctly-typed but semantically odd value (e.g. `iterations: 0` or negative, an empty `reviewers: []`, a `reviewers` entry outside `{"ptp","codex"}`) → still render the `terminalState` authoritatively and simply drop or best-effort-render the unusable part of the note. This is **NOT** a fallback and **NOT** an error — only a missing/invalid `terminalState` or a missing/mismatched `kind` triggers fallback.
+   - **Legacy reviewer identity:** the legacy literal `"superpowers"` names the same identity as `"ptp"` (per the `superpowers-migration` capability), so a marker whose `reviewers` carries it renders exactly as its `"ptp"` equivalent — never as an out-of-domain or semantically odd value — and the stored file is never rewritten.
    - Optionally surface the `timestamp`.
 
 ##### Step D-stage — The tolerant read for the code-review and archive rows
@@ -163,7 +171,7 @@ Then emit a markdown table with three columns — **Step | Status | Signal / Not
 | analysis | \<derived> | \<artifact or absence note> |
 | brainstorm | \<derived> | \<artifact or absence note> |
 | brainstorm review | \<derived from `stages/brainstorm.json` per Step D-review> | marker present → `converged` / `reviewed but not converged` + reviewer/iteration note; marker absent or malformed → `inferred / not tracked` (no durable marker on disk) |
-| plan | \<derived> | \<artifact list + validate result> |
+| plan | \<derived> | \<artifact list + validate result, plus `design: present` / `design: absent (conditional)`> |
 | plan review | \<derived from `stages/plan.json` per Step D-review> | marker present → `converged` / `reviewed but not converged` + reviewer/iteration note; marker absent or malformed → `inferred / not tracked` (no durable marker on disk) |
 | apply | \<derived> | \<checkbox tally: N done, M open> |
 | apply completed | \<derived> | \<checkbox tally or "no checkboxes"> |
@@ -181,6 +189,6 @@ Repeat Steps A–F for every remaining change in story order.
 - **Stage records are READ-ONLY here, all six kinds.** Permitted reads include `stages/<kind>.json` — the review markers plus the lifecycle records `stages/apply.json` and `stages/archive.json` (the latter also at `openspec/changes/archive/<YYYY-MM-DD>-<id>/stages/archive.json`). This command creates, repairs, overwrites and deletes **no** stage record; writing one is the job of that kind's writer — the review loops, the apply executor, the archive flow — never of `/ptp:status`.
 - **No stage record steers anything.** The Step E recommendation ladder consults **no** stage record, and `/ptp:status` neither renders nor acts on a `code` record's `fingerprint` or `gateState` — the six-condition code-review skip predicate is not a `/ptp:status` concern.
 - Permitted operations only: `npx -y openspec list`, `npx -y openspec list --specs`, `npx -y openspec show <id>` (or direct folder reads if `show` is unsupported), `npx -y openspec validate <id> --strict`, and reads of files under `openspec/changes/<id>/` (including the `stages/<kind>.json` stage records).
-- An absent artifact maps to a "not started" cell for its step — never to an error. For the plan step specifically, follow Step D's finer rule: all plan artifacts absent → "not started", but a partially present set (or `specs/` missing when required) → "incomplete". Missing review markers render as `inferred / not tracked` — never as an error.
+- An absent artifact maps to a "not started" cell for its step — never to an error. For the plan step specifically, follow Step D's finer rule: all plan artifacts absent → "not started", but a partially present set (or `specs/` missing when required) → "incomplete". An absent `design.md` is neutral like an absent `analysis.md` and never renders the plan step as incomplete — it is disclosed in the plan row's Signal/Notes cell but never lowers the cell. Missing review markers render as `inferred / not tracked` — never as an error.
 - A validate failure is a derived signal for the plan cell only; it does NOT abort the status report.
 - One change with thin or missing artifacts does NOT abort the per-change loop — the remaining changes are rendered normally.
