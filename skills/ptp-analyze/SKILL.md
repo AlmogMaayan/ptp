@@ -7,15 +7,46 @@ description: Own read-only diagnosis, writing a durable analysis doc into a chan
 
 ## Purpose
 
-**Model dispatch target.** `/ptp:analyze` runs this skill's work at `opus.high` via `ptp-run-at-model` (`skills/ptp-run-at-model/SKILL.md`), which owns the spawn-and-relay mechanics and requires its caller to supply the target. This names the target only; it restates none of that contract.
+**Model dispatch target.** `/ptp:analyze` runs this skill's work at `opus.high` via `ptp-run-at-model`,
+one foreground main run. See **## Run at model** below for the full dispatch protocol — the outer-session
+branch guard, the `ptp-run-at-model` invocation, and the result relay; this paragraph names the target
+only and restates none of that contract.
 
 This skill conducts a **read-only investigation** of a bug, observed behavior, problem, or question and writes a structured, evidence-backed analysis document into the appropriate `openspec/changes/<change-id>/` folder. It is a **limited producer** (in the `ptp-change-selector` §5 Role A sense): it never produces a change *proposal* — it never writes proposal/design/tasks/spec-delta files and never applies a fix — but it may allocate a minimal change folder (via `ptp-change-selector` §4) only to house the analysis doc when no relevant active change exists. When a fix is warranted it recommends the appropriate next ptp step and stops.
 
 Contrast with `/ptp:brainstorm-only` (design exploration of a prospective change) — this skill diagnoses an *existing* phenomenon, not an *envisioned* feature. If diagnosis reveals that a change is warranted, the next step is `/ptp:plan` (or `/ptp:brainstorm` if you want to think through options first).
 
-This skill is write-capable, so it runs the `ptp-branch-guard` preamble before writing any file, and
-that preamble is a no-op when the outer session already ran the guard. The rule itself is defined in
+This skill is write-capable, so the **outer session** runs the `ptp-branch-guard` preamble before any
+main work starts (see **## Run at model** below), and the main run's own guard check is a no-op because
+HEAD is already on the feature branch by the time it runs. The guard rule itself is defined in
 `skills/ptp-branch-guard/SKILL.md`.
+
+## Run at model
+
+`/ptp:analyze` runs its classification, routing, read-only investigation, change-folder resolution, and
+analysis-doc write through `ptp-run-at-model`, in one foreground main run — never inline at whatever
+model and effort the session happens to be set to. This section is the imperative dispatch step
+`commands/analyze.md` invokes by way of this skill; `commands/analyze.md` itself restates none of it.
+
+**Outer session — branch guard is the only outer-session precondition.** Run the `ptp-branch-guard`
+preamble first, before anything else, deriving the branch name from a ≤5-kebab-word summary of the
+subject per `ptp-branch-guard` *Branch naming* case 3. This is the command's only outer-session precondition — it allocates no change id in the outer session and asks the user nothing.
+
+**Outer session — invoke `ptp-run-at-model`.** Once the guard has returned (or no-opped), invoke
+`ptp-run-at-model` once at target `opus.high`, with the work being this skill's classification, routing,
+read-only investigation, change-folder resolution, and analysis-doc write — i.e. everything below this
+section, run inside the spawned main run rather than in the outer session.
+
+**The main run's prompt must carry:** the raw subject text (unmodified, so classification, routing,
+change-folder resolution/allocation, and the doc write all run inside the main run against the original
+subject); and a note that its own `ptp-branch-guard` check is a **no-op** — HEAD is already on the
+feature branch — so it must **not** launch `ptp-branch-prep`.
+
+**Result relay.** The outer session relays the main run's terminal result per `ptp-run-at-model`'s
+*Result relay*, keeping `completed`, `refused`, and `needs-human-action` distinct. An investigation that
+ends inconclusively — the doc's *Recommended next step* reading "Needs more info: <what>" — still relays
+as `completed`: it is not re-derived as a `refused` outcome just because the finding itself is
+inconclusive.
 
 ## Classify the input
 
@@ -108,6 +139,10 @@ After writing the file, surface its absolute path to the user.
 
 ## Hard rules
 
+- **The dispatch wiring lives here, not in `commands/analyze.md`.** The `## Run at model` section above
+  is the imperative dispatch step for `/ptp:analyze`. `commands/analyze.md` is an ordinary thin front
+  door — it carries only `## Arguments`, `## Owner`, and `## Report`, and restates none of the
+  model-dispatch policy.
 - **Read-only on source.** Never create, edit, or delete any source file during investigation.
 - **Only the analysis doc under `openspec/changes/`.** The only artifact this skill may write under a change folder is the analysis doc. Never create a proposal, design doc, tasks file, or spec delta under `openspec/changes/`.
 - **Epic allocation only via `ptp-change-selector` §4, and only when needed.** Allocate a fresh change folder only through `ptp-change-selector` §4, and only when no relevant active change exists. Never allocate an epic for any other purpose.

@@ -122,19 +122,22 @@ or `telemetry.root` change, and on any observed health or delivery failure.
 ### 15.6 Coverage — near-universal, not universal
 
 Counted **as of after `0032_01_agent-telemetry-tracking` landed**, which added `commands/telemetry.md`:
-**37 of the 44 files in `commands/` reference `ptp-run-at-model`** and therefore reach this preamble.
-The **seven** that do not, with a verdict each:
+**37 of the 44 files in `commands/` reference `ptp-run-at-model`** — that count is a `commands/`-file
+grep, not itself a claim about which commands reach this preamble: a command reaching the preamble
+through the owning skill it invokes counts as **covered** and carries no row of its own, even though
+its own `commands/` file names `ptp-run-at-model` nowhere. `/ptp:analyze` is exactly that case — the
+dispatch lives in `skills/ptp-analyze/SKILL.md`, not in `commands/analyze.md` — so it carries no row
+here. The **six** commands that do not reach the preamble at all, with a verdict each:
 
 | Command | Verdict |
 |---|---|
 | `/ptp:telemetry` | Outside the funnel **by design** (§15.7) — that is what keeps `status` strictly read-only and stops a status check from starting a process |
 | `/ptp:config`, `/ptp:status`, `/ptp:update`, `/ptp:version` | Read-only or trivial; no receiver wanted |
-| `/ptp:archive-and-deploy` | Reaches the preamble through the commands it delegates to — 38 covered in total |
-| `/ptp:analyze` | Does substantial main work **outside** the funnel, so a session running only `/ptp:analyze` auto-starts nothing |
+| `/ptp:archive-and-deploy` | Reaches the preamble through the commands it delegates to — 39 covered in total |
 
-That last one is an **accepted, bounded gap**, recorded rather than papered over with the phrase
-"every ptp command". Closing it later is a one-line preamble reference in that command, not a
-redesign.
+That residual set is an **accepted, bounded gap**, recorded rather than papered over with the phrase
+"every ptp command". Closing any one of them later is a one-line preamble reference in that command,
+not a redesign.
 
 ### 15.7 `/ptp:telemetry` does not run the preamble
 
