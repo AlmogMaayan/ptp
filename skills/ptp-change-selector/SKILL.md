@@ -57,6 +57,13 @@ Classification rules:
 
 `epic:` and `story:` are **reserved prefixes** — bare ids may not start with them. `all` is reserved within the `epic:` namespace so that `epic:all` is unambiguous as the all-active selector; this reservation is scoped to the `epic:` namespace only and does not change the bare-id form — a legacy folder literally named `all` remains resolvable by exact bare-id match.
 
+**Typo normalization (checked before classification).** A small, fixed set of near-miss spellings are auto-corrected to their documented form before the rules above run, so the command proceeds instead of stopping to ask the user:
+- `epics:all`, `epics:ALL`, `Epic:all` (any case variant of the word `epic`/`epics`, plural or not, paired with `all`) → `epic:all`
+- `epics:XXXX` → `epic:XXXX`
+- `stories:NN` → `story:NN`
+
+Only this literal, closed list is normalized. Anything else that doesn't match a documented form falls through to bare-id handling and its normal "no change `<id>`" stop — do not guess at other typos.
+
 ## 3. Resolution algorithm (deterministic, stateless)
 
 ```

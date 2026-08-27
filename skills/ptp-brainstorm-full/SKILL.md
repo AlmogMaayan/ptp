@@ -137,7 +137,14 @@ Report format:
 2. Brainstorm-gate status.
 3. Phase B combined terminal state and loop summary (per `ptp-review-brainstorm-full`'s report shape)
    — or omitted (with the gate-stop note) if the brainstorm-gate fired.
-4. The next-step recommendation (one of the five rows above).
+4. The relayed **review tally** — the aggregate Phase B's `ptp-review-brainstorm-full` returned,
+   rendered in the shared tally format (`skills/ptp-review-loop/references/review-tally-table.md`) —
+   cited, not restated here. Printed at **every** terminal state in the table above, the two caps
+   (`ITERATION CAP REACHED`, `PHASE 2 ITERATION CAP REACHED`) included: a capped run is exactly when
+   the counts matter most, so the tally is never dropped for not being green. On the
+   **Brainstorm-gate STOP** row Phase B never ran and returned no tally, so this item is the
+   non-table line `Review tally: unknown` — no caption, no header, no rows, no zero counts.
+5. The next-step recommendation (one of the five rows above).
 
 ---
 
@@ -158,5 +165,9 @@ Report format:
 - **No `openspec validate`.** A brainstorm precedes any proposal/spec — there is nothing to validate.
 - **Relay terminal states accurately.** Do not collapse `PHASE 1 DONE — CODEX SKIPPED (mode=…)` into
   a plain done state — the mode-skip must remain visible in the terminal report.
+- **Relay the review tally, never reconstruct it.** Print what Phase B's terminal result carried and
+  nothing else. Never substitute **zero** counts for a tally that was not returned, never **recompute**
+  the tally from `stages/` records, and never re-derive it from the phase summaries' prose — a missing
+  tally renders `unknown` so a relay bug is visible instead of a plausible wrong number.
 - **One `ptp-run-at-model` call per phase.** Phase A and Phase B are sequential; the outer session
   calls `ptp-run-at-model` twice in sequence, never concurrently. No nesting concern.

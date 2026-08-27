@@ -79,10 +79,25 @@ to the agents whose phases actually ran, `iterations` to the last phase that ran
 `BOTH_PHASES_DONE` and records `gateState: "PHASE1_DONE_CODEX_SKIPPED"`. Compute the fingerprint
 after your last fix edit; if it cannot be computed, omit the field entirely and note the omission.
 
+Set `reviewTally` by aggregating your **own two inlined phase loops** exactly as
+`skills/ptp-review-loop/SKILL.md`'s **### Combined review tally** rule states — cited, not restated.
+Only its two consequences for you are stated here: it is **not** resolved last-phase-wins the way
+`iterations` / `minSeverity` above are, and, whenever the field is present at all (in the marker or in the return), its key set equals
+`reviewers`.
+You reach the combined state **by construction** rather than by `deferMarker`. **Render no table**:
+your final message is JSON with no prose, so that rule's `unknown` rendering never applies to you.
+Carry the same aggregate into both this `stages/code.json` write and your returned JSON. If a tally
+cannot be produced, omit the field **entirely** from both — never partial, never zero-filled — and
+note the omission in `notes` per that section's *omit, never fabricate* note; like a marker-write
+failure it changes no returned field. `reviewTally` is non-deciding: no skip-predicate input, no
+fingerprint input. It rides this same single atomic write.
+
 Write **no** marker in exactly two cases: a `FIX_TARGET_ESCALATION` return, which is a dispatch
 signal emitted before any edit rather than a resolved outcome; and the aborting precondition of
 `codex.mode = required` with a Codex reviewer and no `codex` on PATH, where no phase ran. In both,
-a marker would clobber a real one with evidence of a review that never happened. A failed marker
+a marker would clobber a real one with evidence of a review that never happened. Both cases also
+carry **no** `reviewTally` — in the marker or in the return — because no phase resolved, so there is
+nothing to aggregate; a zero-filled tally would be the same fabrication. A failed marker
 write is swallowed into a `notes` line and never changes any returned field.
 
 ## Return
@@ -91,7 +106,7 @@ Your **return contract**: your final message is consumed by a workflow as struct
 only this JSON object and no prose:
 
 `{ terminalState, mainFixes, reviewerFixes, mainAgent, reviewerAgent, openFindings, minSeverity,
-fixTarget, fixTargetHonored, notes }`, where
+fixTarget, fixTargetHonored, reviewTally, notes }`, where
 `terminalState ∈ {"BOTH_PHASES_DONE","PHASE1_CAP","PHASE2_CAP","FIX_TARGET_ESCALATION"}`.
 
 - The fix counts are **role-named**, not agent-named: `mainFixes` is the main phase's confirmed
@@ -109,6 +124,10 @@ fixTarget, fixTargetHonored, notes }`, where
   `{model}.{effort}` you acted on plus `true` on an honored run; the escalation target plus `false`
   on an escalating run; both omitted when there was no fix work to size; and `false` with `fixTarget`
   omitted when the evaluation degraded. No gate reads either field.
+- `reviewTally` is **additive** — a new optional field beside `fixTarget` / `fixTargetHonored`,
+  carrying the aggregate described above as structured data, identical to the one in the
+  `stages/code.json` you wrote. It is omitted entirely when it could not be produced, never partial
+  and never zero-filled, and it is never rendered as a table. No gate reads it.
 - `FIX_TARGET_ESCALATION` may be returned only before any edit for the triggering finding set, and
   never by an already-escalated run. It is not convergence.
 - `notes` MUST carry a below-threshold listing headed

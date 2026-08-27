@@ -129,6 +129,12 @@ nothing of its own — it only invokes Skills (`ptp-brainstorming`, `ptp-writing
    validation result; the linter findings (or that it was unavailable); and the next command
    `/ptp:apply <change-id>`. Do not list the created files — the layout is deterministic.
 
+   **This report carries no review tally.** `/ptp:plan` wraps no review orchestrator, so there is no
+   tally to relay: print no tally table and no `unknown` placeholder in its place. `unknown` is
+   reserved for a report whose wrapped review step returned nothing — it is not a stand-in for "no
+   review ran". The plan-stage tally appears in `/ptp:review-plan-full`, which is where the artifact
+   review actually happens.
+
 ## Hard rules
 
 - Do **not** call `/opsx:propose` (nor the vendored `ptp:openspec-propose` skill) to generate proposal/design text. The PTP planning skills produced the thinking; you are just transcribing it into OpenSpec's file format.

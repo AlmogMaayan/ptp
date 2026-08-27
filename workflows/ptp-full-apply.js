@@ -73,6 +73,26 @@ function readReviewFixCounts(review) {
   }
 }
 
+// The review result's reviewer-keyed review-cycle tally, carried through verbatim.
+//
+// Mirrors readReviewFixCounts's absent-is-"unknown" discipline: a `null` review result (which this
+// script already tolerates) or a result carrying no usable `reviewTally` yields the STRING
+// "unknown", never `{}` and never a zero-filled tally — a fabricated measurement is worse than an
+// admitted gap. Nothing here re-derives, clamps, sums, or reshapes the object: the review agent
+// aggregated it, and the launching skill renders it. This sandbox has no file access, so the
+// returned value is the only in-run source; the on-disk stages/code.json fallback belongs to
+// skills/ptp-full-apply/SKILL.md, which holds Bash. Arrays are rejected alongside null because a
+// tally is a reviewer-keyed map, not a list.
+function readReviewTally(review) {
+  const t = review && review.reviewTally
+  if (t === null || typeof t !== 'object' || Array.isArray(t)) return 'unknown'
+  // A tally with no reviewer key at all is no tally: passing `{}` on would render as the shared
+  // format's empty-reviewer-set case and falsely assert that the run was configured with no
+  // reviewer, so it resolves to "unknown" like any other absent value.
+  if (Object.keys(t).length === 0) return 'unknown'
+  return t
+}
+
 // The review agent's prompt, used for BOTH the first review spawn and the (at most one) escalated
 // re-spawn — the escalated run gets the identical protocol with the target's model/effort
 // substituted plus one extra directive line. The running model is stated explicitly because an
@@ -169,6 +189,15 @@ const REVIEW_SCHEMA = {
     // fixTarget. See agents/ptp-review.md § Fix-target evaluation.
     fixTarget: { type: 'string' },
     fixTargetHonored: { type: 'boolean' },
+    // The reviewer-keyed review-cycle tally the review agent returns (agents/ptp-review.md), so a
+    // returned tally survives this structured-result boundary and reaches the launching skill.
+    // OPTIONAL and deliberately absent from `required`: a review that could not produce a tally
+    // omits it entirely rather than fabricating zeroes, and that must never fail an otherwise
+    // converged story. Reporting only — no gate reads it; terminalState remains the ONLY gate key
+    // and BOTH_PHASES_DONE its ONLY gate-success value. The object's field names and semantics are
+    // owned upstream (the review-cycle-tally capability); this script neither validates nor
+    // interprets them, it only carries the object through.
+    reviewTally: { type: 'object' },
     notes: { type: 'string' },
   },
   required: ['terminalState'],
@@ -324,7 +353,14 @@ for (let i = 0; i < stories.length; i++) {
     }
   }
 
-  const storyRecord = { id: s.id, applyOk: true, apply, review: finalReview || null, fixCounts: readReviewFixCounts(finalReview) }
+  // `reviewTally` rides beside `fixCounts` and is scoped identically: only a record whose review
+  // call was actually REACHED (applyOk: true) carries either field, and both are derived from the
+  // FINAL review result — the escalated run's when an escalation was honored. The first run's
+  // result stays reachable under `reviewEscalatedFrom` below, but it carries no tally of its own:
+  // `escalatedFrom` is set only for a FIX_TARGET_ESCALATION return, which resolves no phase and so
+  // omits reviewTally entirely (agents/ptp-review.md). Nothing here fills that gap — no borrowing
+  // from the escalated run, no zeroes.
+  const storyRecord = { id: s.id, applyOk: true, apply, review: finalReview || null, fixCounts: readReviewFixCounts(finalReview), reviewTally: readReviewTally(finalReview) }
   // An escalated story keeps the ESCALATED run's result in `review` — that is the one the gate
   // reads — and retains the first run's result for reporting only.
   if (escalatedFrom) storyRecord.reviewEscalatedFrom = escalatedFrom

@@ -63,6 +63,8 @@ The subagent runs the following steps for the single change assigned to it:
 
 After all changes have been processed, the outer session reports per change: the change id, the model used (from its `effort.md` by default; when `roles.main=codex`, `codex.model` if set, otherwise report "Codex CLI default (`codex.model` unset)" rather than naming a specific model), and the outcome (completed / refused / needs-human-action). For a **completed** change, tell the user the next command is **`/ptp:review <change-id>`**; for a **refused** or **needs-human-action** outcome, surface that terminal state (and, for `needs-human-action`, the exact follow-up) per the relay above instead of recommending `/ptp:review`.
 
+**This report carries no review tally**, at any outcome. `/ptp:apply` wraps no review orchestrator, so there is no tally to relay: print no tally table and no `unknown` placeholder in its place. `unknown` is reserved for a report whose wrapped review step returned nothing — it is not a stand-in for "no review ran". The code-stage tally appears in `/ptp:review-full`, which is where the code review actually happens.
+
 ## Hard rules
 
 - Do **not** invent new tasks not in `tasks.md`. If a needed task is missing, stop and update the plan.

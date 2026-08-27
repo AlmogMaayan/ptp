@@ -8,7 +8,7 @@
     {
       "name": "ptp",
       "description": "PtP — PRD to PR, peer-reviewed: an autonomous, dual-reviewed change pipeline for Claude Code.",
-      "version": "0.3.1",
+      "version": "0.4.0",
       "source": "./",
       "author": {
         "name": "Maayan Almog"
