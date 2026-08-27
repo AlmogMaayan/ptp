@@ -164,8 +164,14 @@ not a halt. The `Codex phase skipped (mode=…)` line is always reported (never 
   1. Phase 1 loop summary — per-iteration table, total fixes, rejected/carry-over set, terminal state.
   2. Phase 2 loop summary (same) — or, if Codex was mode-skipped, the `Codex phase skipped (mode=…)`
      line in place of a Phase 2 table.
-  3. The combined terminal state.
-  4. The **next step** (`<change-id>` = the epic's lowest-numbered story id):
+  3. The aggregate **review tally**, rendered in the shared tally format
+     (`skills/ptp-review-loop/references/review-tally-table.md`) over the aggregate built by
+     `ptp-review-loop`'s **### Combined review tally** rule — cited, not restated here. **All four
+     rows** of the combined-terminal-state table above print it (`BOTH PHASES DONE`,
+     `PHASE 1 DONE — CODEX SKIPPED (mode=…)`, `PHASE 2 ITERATION CAP REACHED`, and the Phase-1
+     `ITERATION CAP REACHED`). One tally per epic — no tally crosses an epic boundary.
+  4. The combined terminal state.
+  5. The **next step** (`<change-id>` = the epic's lowest-numbered story id):
      - `/ptp:plan <change-id>` on **either** green state — `BOTH PHASES DONE` or
        `PHASE 1 DONE — CODEX SKIPPED (mode=…)` (both mean the PRD is sound; proceed to author the
        OpenSpec artifacts).
@@ -185,7 +191,7 @@ not a halt. The `Codex phase skipped (mode=…)` line is always reported (never 
 
 This orchestrator drives **both** phase loops with **`deferMarker = true`** (per `ptp-review-loop`'s
 **## Review-convergence marker** section), so **no phase writes the marker itself** — each phase instead
-returns its terminal outcome (`terminalState`, `reviewer`, `iterations`, `minSeverity`) to this orchestrator. After the
+returns its terminal outcome (`terminalState`, `reviewer`, `iterations`, `minSeverity`, `reviewTally`) to this orchestrator. After the
 run resolves (after Phase 2, or after Phase 1 if Phase 2 is gated off), the orchestrator performs
 **exactly ONE** combined marker write per epic to
 `openspec/changes/<id>/stages/prd.json` (the `stages/` subfolder created on demand, sibling to
@@ -201,6 +207,17 @@ run resolves (after Phase 2, or after Phase 1 if Phase 2 is gated off), the orch
   `DONE`, else `cap-reached`).
 - `iterations` = the **last phase's** iteration count.
 - `minSeverity` = the **last phase that ran**'s severity threshold (lowercase canonical), the same last-phase rule as `iterations`. In the normal case both phases resolve the same value and the rule is a no-op.
+- `reviewTally` = **the same aggregate** the report's tally item renders, built by `ptp-review-loop`'s
+  **### Combined review tally** rule — cited, not restated. Only its two marker-side consequences are
+  stated here: it is **not** resolved last-phase-wins the way `iterations` / `minSeverity` above are,
+  and, whenever the field is written at all, its key set equals `reviewers`. Any `unknown` the table prints is a **print-side**
+  rendering only: the written record instead follows the `stage-records` capability's
+  **unproducible-tally rule**, per `ptp-review-loop`'s **## Review-convergence marker** *omit, never
+  fabricate* note, which also owns where the omission is reported; the note is reported but not fatal
+  and changes no terminal state. `reviewTally` is non-deciding and rides the **same single per-epic
+  atomic write** below — **no second write**, no additional file, no change to the
+  write-temp-then-rename protocol; one write per epic, carrying only that epic's phases' tallies, and
+  no tally ever crosses an epic boundary.
 
 The combined write uses the **same atomic write-temp-then-rename protocol** as `ptp-review-loop`
 (serialize to a uniquely named temp file in `openspec/changes/<id>/stages/`, then replace

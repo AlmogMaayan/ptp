@@ -43,6 +43,8 @@ trigger rather than with this file:
 
 - `skills/ptp-review-loop/references/code-marker-fingerprint.md` — loaded when computing or comparing a code marker fingerprint.
 - `skills/ptp-review-loop/references/code-marker-skip-eligibility.md` — loaded when deciding whether an existing code marker permits skipping a review.
+- `skills/ptp-review-loop/references/review-tally-table.md` — loaded when printing a tally table.
+- `skills/ptp-review-loop/references/review-cycle-tally.md` — loaded when accumulating, finalizing, or returning `reviewTally`.
 
 ## Inputs
 
@@ -264,6 +266,33 @@ All state lives in the current conversation context. **This state is NEVER persi
 | `MIN_SEVERITY` | resolved from `review.minSeverity` (layered config) at loop start; default `low`; held fixed for the run | string (`low` \| `medium` \| `high` \| `critical`) |
 | `rejected_findings` | `[]` | list of stable finding keys (see below) |
 | `per_iteration_summary` | `[]` | list of per-iteration result objects |
+| `reviewTally` | `{}` | object keyed by reviewer |
+| `fixed_candidates` | `[]` | list of stable finding keys (beside `rejected_findings`) |
+
+## Review cycle tally
+
+`ptp-review-loop` maintains a per-run `reviewTally`, an object keyed by reviewer (`"ptp"` or
+`"codex"`), each key holding `cycles` plus seven counters — `found`, `accepted`, `rejected`,
+`fixed`, `capped`, `belowThreshold`, `droppedManual` — mapped onto the loop's existing steps and
+reconciling as `found = droppedManual + belowThreshold + rejected + accepted`. A standalone run
+carries exactly one key; the **key-wise** map shape lets a `-full` orchestrator merge two phase
+returns per the combined-aggregate subsection below.
+`fixed` and `capped`
+are terminal counters, finalized once at the terminal state from the retained `fixed_candidates` set;
+the rest accumulate per iteration, at step (h) or at the step (f) converging-exit.
+
+`reviewTally` and `fixed_candidates` are **in-conversation state** (see the table below) and are
+covered unchanged by the never-persist rule; the tally reaches disk only as the marker's optional
+`reviewTally` field (see `## Review-convergence marker`), added by that marker's existing single write.
+The terminal outcome returns `reviewTally` at both `DONE` and `ITERATION CAP REACHED`, for all four
+loop kinds, in both `deferMarker` modes — purely additive, no marker version bump. It **decides
+nothing** (see `## Hard rules`) and is the **primary source of truth** for review-cycle counts
+(`ptp-telemetry` is off by default and is not a dependency).
+
+Full accumulation mechanics — the cycle definition, the seven-counter disposition table, the `fixed`
+lifecycle, and the return contract's exact scoping — live in
+`skills/ptp-review-loop/references/review-cycle-tally.md`, loaded when accumulating, finalizing, or
+returning the tally.
 
 ## Review-convergence marker
 
@@ -304,6 +333,10 @@ of any rendering.
   "iterations": 2,
   "minSeverity": "high",
   "timestamp": "2026-06-23T12:34:56Z",
+  "reviewTally": {
+    "ptp":   { "cycles": 2, "found": 7, "accepted": 5, "rejected": 1, "belowThreshold": 1, "droppedManual": 0, "fixed": 5, "capped": 0 },
+    "codex": { "cycles": 1, "found": 2, "accepted": 2, "rejected": 0, "belowThreshold": 0, "droppedManual": 0, "fixed": 2, "capped": 0 }
+  },
   "fingerprint": {
     "version": 1,
     "algorithm": "sha256",
@@ -334,6 +367,7 @@ its shape is exactly what it is today.
 | `iterations` | integer | The iteration count of the last phase that ran (≥ 1). |
 | `minSeverity` | string | The **effective resolved** severity threshold of the run that produced this marker: `"low"`, `"medium"`, `"high"`, or `"critical"` — always the lowercase canonical form, never the raw config text. Under a `-full` orchestrator's single combined write this is the threshold used by the **last phase that ran**, the same rule already applied to `iterations`. |
 | `timestamp` | string | ISO-8601 UTC instant the marker was written. |
+| `reviewTally` | object | **Optional; all four kinds** — unlike `gateState`/`fingerprint`, not code-only; no lifecycle record carries it. Keyed by reviewer (`ptp`\|`codex`), one key per phase that ran (key set = `reviewers`); each value is `cycles` plus the seven counters of **## Review cycle tally**, persisted verbatim, non-negative integers, `capped` a count not a boolean. Purely additive — absent means **unknown**, never a fabricated zero; no migration, no version bump, and no rewrite or backfill of a stored record. Full field-shape rationale: `skills/ptp-review-loop/references/review-cycle-tally.md`. |
 
 **`minSeverity` is purely additive — absent means `low`.** Markers written before this field existed
 carry no `minSeverity`; **any** reader that consumes the field reads an absent value as `"low"`. No
@@ -384,13 +418,14 @@ orchestrator and review-fix write the marker independently of the shared loop's 
   single-reviewer marker directly at its terminal state.
 - `deferMarker = true` (passed by a `-full` orchestrator) → the loop does **all** its normal work and
   produces its normal terminal report but **does NOT write the marker itself**. It instead returns its
-  terminal outcome (`terminalState`, `reviewer`, `iterations`, `minSeverity`) to the orchestrator,
-  which performs
+  terminal outcome (`terminalState`, `reviewer`, `iterations`, `minSeverity`, `reviewTally`) to the
+  orchestrator, which performs
   **exactly one** combined marker write after the whole `-full` run resolves (see
   `ptp-review-brainstorm-full` / `review-plan-full`). The combined write records the **last phase
   that ran**'s `minSeverity`, the same rule already applied to `iterations`; in the normal case both
   phases resolve the same value and the rule is a no-op, and each phase's own report names the
-  threshold it used. This guarantees a `-full` run produces exactly one
+  threshold it used. `reviewTally` is combined the **opposite** way — see
+  the combined-aggregate subsection below. This guarantees a `-full` run produces exactly one
   authoritative marker write with **no** provisional per-phase marker that could survive a later failed
   write.
 
@@ -401,6 +436,26 @@ its marker independently (reusing the same schema/location/atomic protocol descr
 exactly one combined write at its terminal point — **by construction rather than by signal**: it inlines
 its two phase loops instead of invoking this skill, so it takes no `deferMarker` input and none is
 required of it.
+
+### Combined review tally
+
+The **one** statement of how a dual-reviewer orchestrator — including the inlining
+`agents/ptp-review.md` — merges its two phase returns into one reviewer-keyed aggregate. Those
+surfaces cite this and restate none of it.
+
+A phase that ran contributes its returned `reviewTally` **verbatim** under its reviewer key (`ptp` or
+`codex`); the orchestrator re-derives, clamps and zeroes nothing, so `capped` comes from the phase
+that capped. A phase that did **not** run contributes **no entry** and renders as the shared format's
+**skip row**. A phase that ran whose tally is absent or unparseable renders `unknown`, never `0`.
+Neither case aborts the run or changes its terminal state. Rendering belongs to
+`skills/ptp-review-loop/references/review-tally-table.md`.
+
+**`reviewTally`: omit, never fabricate; non-deciding.** A writer that cannot produce a tally omits it
+**entirely** (exactly as with `fingerprint`), noting `Review tally omitted from the stage marker
+(could not be produced).` beside its marker-write-failure line — reported, not fatal, changes no
+terminal state. It is not a `skip-eligibility` condition and steers no gate. Every other marker writer
+references this rule rather than restating it. Full detail:
+`skills/ptp-review-loop/references/review-cycle-tally.md`.
 
 ## Per-iteration steps
 
@@ -505,6 +560,11 @@ state. Below-threshold findings never enter this count, so a review pass that re
 above `MIN_SEVERITY` converges immediately (having fixed nothing) — with the below-threshold list
 rendered in the terminal report.
 
+Before exiting to `DONE`, accumulate this converging iteration's cycle and its `found`,
+`droppedManual`, `belowThreshold`, `rejected`, and `accepted` (`0` here by construction) counters into
+`reviewTally` for this run's `reviewer` — this iteration never reaches step (h), so this is the only
+point its tally is recorded (see **## Review cycle tally**).
+
 ### (g) Fix pass
 
 The fix pass runs at a **fix target** of its own — a `{model}.{effort}` evaluated for the fix work
@@ -555,6 +615,11 @@ dispatch**):
 - `kind=brainstorm` → make minimal targeted edits to `brainstorm.md`. **Never** regenerate the brainstorm via `/ptp:brainstorm`. Corrections only (add a missing option, expand a thin tradeoff, document a missing assumption) — not re-fabrication. A missing `brainstorm.md` Critical finding has nothing to edit and stays unfixed (the iteration cap is the backstop).
 - `kind=prd` → make minimal targeted edits to the PRD file `openspec/changes/<id>/prd.md`. **Never** regenerate the PRD via `/ptp:prd`. Corrections only (fill a missing schema section, sharpen a vague acceptance criterion, add a measurable goal) — not re-fabrication. A missing-PRD Critical finding has nothing to edit and stays unfixed (the iteration cap is the backstop).
 
+For each CONFIRMED finding fixed in this step, record its stable key in `fixed_candidates` as a
+*fixed candidate* (see **## Review cycle tally**). Whenever a step (b) review pass in a later
+iteration raises a finding whose stable key matches an entry already in `fixed_candidates`, remove
+that entry — the fix did not hold.
+
 ### (h) Verify
 
 Run a cheap, fast verification appropriate to `kind`:
@@ -567,6 +632,11 @@ Run a cheap, fast verification appropriate to `kind`:
 A failing verification is **reported in `per_iteration_summary`** but does NOT abort the loop — the next review iteration will pick up regressions. The iteration cap is the backstop.
 
 Append a summary entry to `per_iteration_summary`: iteration number, findings-confirmed count, findings-rejected count, carry-over count, **below-threshold count** (the size of this iteration's `below_threshold` bucket from (c2) — `0` on every run at the default `low`), fixes applied, verification result, and — for an iteration that reached step (g) — the **evaluated `fixTarget`** (lowercase `{model}.{effort}`), whether it was **defaulted** to `opus.high` because the evaluation failed, the resolved **`fixDispatch`** mode, and whether the target was **fully honored**. An iteration that never reached step (g) records **no** fix target rather than a fabricated or carried-over one.
+
+Alongside this `per_iteration_summary` append — the tally sits **beside** that list rather than
+replacing it — accumulate this iteration's cycle and its `found`, `droppedManual`,
+`belowThreshold`, `rejected`, and `accepted` counters into `reviewTally` for this run's `reviewer`
+(see **## Review cycle tally**).
 
 **Divergence rule (mandatory, never silent).** Under `fixDispatch = inline`, when `fixTarget`'s
 **model** differs from `runningTarget`'s model — or when `runningTarget` was absent or unparseable, in
@@ -632,10 +702,11 @@ Reached when step (f) finds zero CONFIRMED **in-scope** findings for the current
 
 Report:
 
-1. **Per-iteration summary table** — one row per iteration: iteration number, confirmed, rejected, carry-over, **below-threshold**, fixes applied, verification result, **fix target** (the evaluated `fixTarget`, marked when it was defaulted to `opus.high`), **fix dispatch** (the resolved `fixDispatch` mode), and **fully honored** (yes / no). An iteration that never reached step (g) leaves the three fix columns empty rather than carrying a value over. Every iteration whose target was not fully honored also carries the mandatory **divergence line** from step (h).
-2. **Total findings fixed** across all iterations.
-3. **Rejected / carry-over set** — list every stable key that was rejected or carried over, with the rejection reason from step (e) or `(carry-over)`.
-4. **Below threshold — not blocking convergence (minSeverity = `<value>`)** — the below-threshold
+1. **Tally table** (`deferMarker=false`), per `references/review-tally-table.md`.
+2. **Per-iteration summary table** — one row per iteration: iteration number, confirmed, rejected, carry-over, **below-threshold**, fixes applied, verification result, **fix target** (the evaluated `fixTarget`, marked when it was defaulted to `opus.high`), **fix dispatch** (the resolved `fixDispatch` mode), and **fully honored** (yes / no). An iteration that never reached step (g) leaves the three fix columns empty rather than carrying a value over. Every iteration whose target was not fully honored also carries the mandatory **divergence line** from step (h).
+3. **Total findings fixed** across all iterations.
+4. **Rejected / carry-over set** — list every stable key that was rejected or carried over, with the rejection reason from step (e) or `(carry-over)`.
+5. **Below threshold — not blocking convergence (minSeverity = `<value>`)** — the below-threshold
    findings of the **last completed review pass** (the same snapshot the `ITERATION CAP REACHED`
    "Open findings" section uses), each carrying its severity label and the literal `(unconfirmed)`
    marker:
@@ -652,7 +723,7 @@ Report:
    word `None`, so a reader can distinguish "nothing below threshold" from an author omission. This
    section is rendered **before** the next-command recommendation, so a `DONE` with a non-empty
    bucket is never misread as "the reviewer found nothing".
-5. **Next command**:
+6. **Next command**:
    - `kind=code`     → `/ptp:archive <change-id>` (or `/ptp:status` first).
    - `kind=artifact` → `/ptp:apply <change-id>` if not yet implemented; `/ptp:review-plan <change-id>` for a post-apply artifact check. (Recommend these to the user — do not invoke them.)
    - `kind=brainstorm` → `/ptp:plan <change-id>` (the brainstorm is sound; proceed to author the OpenSpec artifacts). (Recommend it to the user — do not invoke it.)
@@ -663,15 +734,24 @@ Report:
 `prd`→`openspec/changes/<id>/stages/prd.json`, `code`→`stages/code.json`) per the
 **## Review-convergence marker** section, with `terminalState: "converged"`, `reviewers` = the
 reviewer(s) that ran this loop run, `iterations` = the final `iteration` value, `minSeverity` = the
-effective resolved `MIN_SEVERITY` for this run (lowercase canonical), and `timestamp` = now (UTC
-ISO-8601). For `kind = code` additionally record `gateState: "LOOP_DONE"` (a standalone loop run has no
+effective resolved `MIN_SEVERITY` for this run (lowercase canonical), `timestamp` = now (UTC
+ISO-8601), and `reviewTally` = this run's tally (one key, this run's reviewer, with `fixed` and
+`capped` finalized as below) — omitted entirely, with the omission noted per the marker section's
+*omit, never fabricate* rule, if it cannot be produced. For `kind = code` additionally record `gateState: "LOOP_DONE"` (a standalone loop run has no
 two-phase gate) and the `fingerprint` computed per `skills/ptp-review-loop/references/code-marker-fingerprint.md` after the final fix
 edit and verification, immediately before the write — omitting the field entirely if it cannot be
 computed. Use the atomic write-temp-then-rename protocol. **Skip the write when invoked with
 `deferMarker = true`** (a `-full` phase) — instead return the terminal outcome
-(`terminalState = converged`, `reviewer`, `iterations`, `minSeverity`) to the orchestrator, which performs the single
+(`terminalState = converged`, `reviewer`, `iterations`, `minSeverity`, `reviewTally`) to the orchestrator, which performs the single
 combined write. A marker-write failure is reported but does NOT change the terminal state (the review
 already happened).
+
+**`reviewTally` in the return.** Under `deferMarker = true` the terminal outcome returned to the
+orchestrator carries `reviewTally` alongside `terminalState`, `reviewer`, `iterations`, and
+`minSeverity` (see **## Review cycle tally**). The same outcome — including `reviewTally` — is
+returned identically in the standalone `deferMarker = false` mode, in addition to the marker write
+performed there. Set `fixed` to the retained `fixed_candidates` count and `capped` to `0` **before
+item 1's table is rendered**, not merely before returning.
 
 ### ITERATION CAP REACHED
 
@@ -679,31 +759,40 @@ Reached when step (a) increments `iteration` past `MAX_ITERATIONS` (the resolved
 
 Report:
 
-1. **Open findings** — every finding from the last completed review that is still CONFIRMED and unfixed.
-2. **Rejected / carry-over set** — same as DONE.
-3. **Below threshold — not blocking convergence (minSeverity = `<value>`)** — same section, same
+1. **Tally table** (`deferMarker=false`), per `references/review-tally-table.md`.
+2. **Open findings** — every finding from the last completed review that is still CONFIRMED and unfixed.
+3. **Rejected / carry-over set** — same as DONE.
+4. **Below threshold — not blocking convergence (minSeverity = `<value>`)** — same section, same
    format, and the same `(unconfirmed)` marker and `None`-when-empty rule as DONE, sourced from the
    **same snapshot** as the "Open findings" section above (the last completed review pass).
-4. **Per-iteration summary table** — including the **below-threshold** column and the **fix target**
+5. **Per-iteration summary table** — including the **below-threshold** column and the **fix target**
    (`fixTarget`) / **fix dispatch** (`fixDispatch`) / **fully honored** columns, with the same empty-when-step-(g)-was-never-reached
    rule and the same mandatory **divergence line** for every iteration whose target was not fully
    honored, exactly as in `DONE`.
-5. Explicit statement: "Do not archive. Do not run `/ptp:apply`. Inspect the open findings manually and decide next steps."
+6. Explicit statement: "Do not archive. Do not run `/ptp:apply`. Inspect the open findings manually and decide next steps."
 
 **Marker write (after the report above).** For **every** kind, write the per-kind marker
 (`brainstorm`→`stages/brainstorm.json`, `artifact`→`stages/plan.json`,
 `prd`→`openspec/changes/<id>/stages/prd.json`, `code`→`stages/code.json`) per the
 **## Review-convergence marker** section, with `terminalState: "cap-reached"` and the same `kind` /
 `reviewers` (the reviewer that ran) / `iterations` (the cap value) / `minSeverity` (the effective
-resolved `MIN_SEVERITY` for this run, lowercase canonical) / `timestamp` (now, UTC ISO-8601) fields. For
+resolved `MIN_SEVERITY` for this run, lowercase canonical) / `timestamp` (now, UTC ISO-8601) fields,
+plus `reviewTally` = this run's tally (one key, this run's reviewer, with `fixed` and `capped`
+finalized as below) — omitted entirely, with the omission noted per the marker section's *omit, never
+fabricate* rule, if it cannot be produced. For
 `kind = code` additionally record `gateState: "LOOP_CAP"` and the `fingerprint` computed per
 `skills/ptp-review-loop/references/code-marker-fingerprint.md` immediately before the write, omitting the field entirely if it cannot be
 computed; such a marker authorizes no skip (condition 2 of `skills/ptp-review-loop/references/code-marker-skip-eligibility.md` rejects
 it), it simply records the last review that ran and how it ended. Use the atomic write-temp-then-rename
 protocol. **Skip the write when invoked with `deferMarker = true`**
 (a `-full` phase) — instead return the terminal outcome (`terminalState = cap-reached`, `reviewer`,
-`iterations`, `minSeverity`) to the orchestrator, which performs the single combined write. A marker-write failure is
+`iterations`, `minSeverity`, `reviewTally`) to the orchestrator, which performs the single combined write. A marker-write failure is
 reported but does NOT change the terminal state.
+
+**`reviewTally` in the return.** As with `DONE`, the terminal outcome carries `reviewTally` in both
+`deferMarker = true` and `deferMarker = false` modes (see **## Review cycle tally**). Set `fixed` to
+the retained `fixed_candidates` count and `capped` to the in-scope `CONFIRMED` findings still open
+(item 2's snapshot) **before item 1's table is rendered**, not merely before returning.
 
 ## Hard rules
 
@@ -720,3 +809,5 @@ reported but does NOT change the terminal state.
 - **Iteration cap is resolved from `review.maxIterations` (layered config, default 5).** There is no `--max-iterations` CLI flag. If the cap is hit, report and stop — do not silently increment past it.
 - **Codex variants** (`reviewer=codex`) must run `codex exec -s read-only` with the full prompt piped over stdin (`-`), assembled per the `ptp-codex-mode` flag-append rule (append resolved `-m <model>` / `-c model_reasoning_effort=<effort>` before the trailing `-` when configured). Never pass `--full-auto`, `--sandbox workspace-write`, or `--dangerously-bypass-approvals-and-sandbox`.
 - **The caller runs `openspec validate` (for `kind=code` / `kind=artifact` only — never for `kind=brainstorm` or `kind=prd`, which each precede any proposal/spec) and all file reads for Codex** — Codex executes no `npx`, no network, no install commands. The closed-book / inlined-diff protocol from `codex-review.md` / `codex-review-plan.md` applies.
+- **The `reviewTally` decides nothing.** No counter it holds is an input to convergence, the severity
+  threshold, the iteration cap, any terminal state, the fix target, or the code-marker skip predicate.
