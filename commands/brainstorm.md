@@ -1,6 +1,6 @@
 ---
 description: Explore options and tradeoffs for one specific change, writing a brainstorm beside its artifacts
-argument-hint: "<short description of the change> [change-id] (change-id optional — derived from the request if omitted)"
+argument-hint: "<short description of the change> [change-id] [--workspace <path>] (change-id optional — derived from the request if omitted)"
 ---
 
 You are starting **step 1** of the ptp flow. Your job is to **brainstorm using the `ptp-brainstorming` skill** for a specific change, persist the result **inside that change's folder**, then stop. Do **not** create full OpenSpec artifacts (`proposal.md` / `design.md` / `tasks.md` / spec deltas) in this step — only `brainstorm.md`.
@@ -21,7 +21,7 @@ top of **Steps** below) runs in the outer session **before** this guard — an i
 the command before the guard evaluates or cuts any branch. This "(first step)" concerns only the
 branch-affecting work; the token parse is a read-only precondition that precedes it.
 
-Before creating or updating **any** file, run the **`ptp-branch-guard`** preamble: check `git rev-parse --abbrev-ref HEAD`; if it is the base branch (`master`/`main`), derive a feature-branch name from the change id you allocate in step 1 (→ `ptp/<change-id>`) and launch the minimal `ptp-branch-prep` workflow (stash → checkout the base branch → pull → cut the branch) **before** writing anything; if you are already on a feature branch it is a **no-op** — proceed as-is. The full rule (branch naming, the workflow contract, the hard rules) lives in the **`ptp-branch-guard`** skill — do not restate it here.
+Before creating or updating **any** file, run the **`ptp-branch-guard`** preamble: check `git rev-parse --abbrev-ref HEAD`; if it is the base branch (`master`/`main`), derive a feature-branch name from the change id you allocate in step 1 (leaf: the change id; shape per `ptp-workspace`) and launch the minimal `ptp-branch-prep` workflow (stash → checkout the base branch → pull → cut the branch) **before** writing anything; if you are already on a feature branch it is a **no-op** — proceed as-is. The full rule (branch naming, the workflow contract, the hard rules) lives in the **`ptp-branch-guard`** skill — do not restate it here.
 
 ## Steps
 

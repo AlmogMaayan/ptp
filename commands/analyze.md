@@ -1,6 +1,6 @@
 ---
 description: Read-only investigation of a bug or question, writing an evidence-backed analysis doc into the change folder
-argument-hint: "<bug / observation / problem / question to investigate>"
+argument-hint: "<bug / observation / problem / question to investigate> [--workspace <path>]"
 ---
 
 ## Arguments

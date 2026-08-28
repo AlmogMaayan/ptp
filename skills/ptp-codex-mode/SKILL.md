@@ -36,37 +36,30 @@ to record that they do.
 
 ### Codex mode resolution
 
-Read and merge the optional ptp config — global `~/.claude/ptp/config.json` first, then project
-`<repo>/.claude/ptp/config.json` overriding **key-by-key** (the same two files and precedence
-`ptp-deploy` uses for its `deploy` block, and that `ptp-config` writes). Extract `codex.mode`:
+Resolve `codex.mode` through the layered configuration contract owned by **`ptp-workspace`**
+(`skills/ptp-workspace/SKILL.md`), which owns the layers, their order, and the per-key merge; this
+skill restates none of them and states only the key's own rule:
 
 ```
-mode = "auto"                                # default
-for path in [ ~/.claude/ptp/config.json,     # global first
-              <repo>/.claude/ptp/config.json ]:   # then project (overrides)
-    if file exists and parses as JSON and obj.codex?.mode ∈ {auto, required, off}:
-        mode = obj.codex.mode
+mode = "auto"                                # default, applied LAST
+mode = the resolved value of `codex.mode`, valid ⇔ ∈ {auto, required, off}
 # any missing file / missing key / parse error / out-of-enum value → leave the prior value
 # (ultimately "auto" if nothing valid is found) — never throw, never STOP
 ```
 
-**Reader posture: never crash, never STOP over a config typo.** A missing file, a missing key,
-unparseable JSON, or an out-of-enum value all resolve to `auto` (or to whatever the prior layer
-validly set). This is identical to how `ptp-deploy` reads its `deploy` block. (Contrast `ptp-config`,
-the *writer*, which refuses to overwrite a malformed file — the reader tolerates, the writer
-protects.)
+**Reader posture: never crash, never STOP over a config typo.** That posture is `ptp-workspace`'s: a
+missing file, a missing key, unparseable JSON, or an out-of-enum value all resolve to `auto` (or to
+whatever an earlier layer validly set). `ptp-deploy` reads its `deploy` block through the same
+contract. (Contrast `ptp-config`, the *writer*, which refuses to overwrite a malformed file — the
+reader tolerates, the writer protects.)
 
 ## Resolving `codex.model` (mirror the `codex.mode` resolution above)
 
-Read the same two layered files in the same order — global `~/.claude/ptp/config.json` first, then
-project `<repo>/.claude/ptp/config.json` overriding. Extract `codex.model`:
+Resolve it over the same layers, merged as `ptp-workspace` defines. Extract `codex.model`:
 
 ```
-model = unset                                # default
-for path in [ ~/.claude/ptp/config.json,     # global first
-              <repo>/.claude/ptp/config.json ]:   # then project (overrides)
-    if file exists and parses as JSON and obj.codex?.model is a non-empty string:
-        model = obj.codex.model
+model = unset                                # default, applied LAST
+model = the resolved value of `codex.model`, valid ⇔ a non-empty string
 # any missing file / missing key / parse error / wrong type / empty string → leave the prior value
 # (ultimately unset if nothing valid is found) — never throw, never STOP
 ```
@@ -77,14 +70,11 @@ posture as `codex.mode`: never crash, never STOP over a config typo.
 
 ## Resolving `codex.reasoningEffort` (mirror the `codex.mode` resolution above)
 
-Same two layered files, same order and override rule. Extract `codex.reasoningEffort`:
+Same layers, merged as `ptp-workspace` defines. Extract `codex.reasoningEffort`:
 
 ```
-effort = unset                               # default
-for path in [ ~/.claude/ptp/config.json,     # global first
-              <repo>/.claude/ptp/config.json ]:   # then project (overrides)
-    if file exists and parses as JSON and obj.codex?.reasoningEffort ∈ {minimal, low, medium, high}:
-        effort = obj.codex.reasoningEffort
+effort = unset                               # default, applied LAST
+effort = the resolved value of `codex.reasoningEffort`, valid ⇔ ∈ {minimal, low, medium, high}
 # any missing file / missing key / parse error / out-of-set value → leave the prior value
 # (ultimately unset if nothing valid is found) — never throw, never STOP
 ```

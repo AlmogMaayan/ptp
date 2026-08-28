@@ -24,6 +24,9 @@ const os = require('os');
 const path = require('path');
 const crypto = require('crypto');
 const { execFileSync } = require('child_process');
+// The layered config reader. `ptp-workspace` (skills/ptp-workspace/SKILL.md) owns the layer list and
+// its precedence; this file states neither and supplies only `telemetry.root`'s validity rule.
+const { configLayers, resolveConfigKey, REJECT } = require('./ptp-resolve-workspace.js');
 
 const USAGE = [
   'ptp-token-baseline — the read-only token-reduction baseline tool',
@@ -279,8 +282,6 @@ const UNATTRIBUTED_DIR = '_unattributed';
 const LLM_KINDS = ['llm_request', 'api_request'];
 const INPUT_TOKENS_EXCLUSION_REASON = 'cache-affected; see analysis §Evidence';
 
-function homeDir() { return process.env.PTP_HOME_DIR || os.homedir(); }
-
 function readJsonFile(p) {
   try { return JSON.parse(fs.readFileSync(p, 'utf8')); } catch (_) { return null; }
 }
@@ -295,20 +296,15 @@ function isValidRoot(v) {
   return parts.length > 0;
 }
 
-/** Layered exactly as the telemetry capability resolves it: global first, repository last. */
+/**
+ * Layered exactly as every other ptp reader layers: `ptp-workspace`
+ * (`skills/ptp-workspace/SKILL.md`) owns the layer list and its precedence, and this file restates
+ * neither. `telemetry.root` stays REPOSITORY-relative whichever layer supplied it.
+ */
 function resolveTelemetryRoot(repoRoot) {
-  let root = DEFAULT_TELEMETRY_ROOT;
-  for (const file of [
-    path.join(homeDir(), '.claude', 'ptp', 'config.json'),
-    path.join(repoRoot, '.claude', 'ptp', 'config.json'),
-  ]) {
-    const obj = readJsonFile(file);
-    if (!obj || typeof obj !== 'object' || Array.isArray(obj)) continue;
-    const t = obj.telemetry;
-    if (!t || typeof t !== 'object' || Array.isArray(t)) continue;
-    if (isValidRoot(t.root)) root = t.root;
-  }
-  return path.resolve(repoRoot, root);
+  const layers = configLayers({ repoRoot });
+  const root = resolveConfigKey(layers, 'telemetry.root', (v) => (isValidRoot(v) ? v : REJECT), DEFAULT_TELEMETRY_ROOT);
+  return path.resolve(repoRoot, root.value);
 }
 
 /**

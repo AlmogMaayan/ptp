@@ -23,48 +23,45 @@ apply/effort file references or consumes this skill yet — that wiring happens 
 
 ## Resolving `roles.main` (mirrors `ptp-codex-mode`'s `codex.mode` resolution)
 
-Resolve `roles.main` by the layered global-then-project config read defined in
-`skills/ptp-codex-mode/SKILL.md`, extracting `roles.main` in place of `codex.mode`. Then — only if
-both layers left it unset — fall back to an opt-in detection step, and only then to the ultimate
-fallback `claude`:
+Resolve `roles.main` through the layered configuration contract owned by **`ptp-workspace`**
+(`skills/ptp-workspace/SKILL.md`), which owns the layers, their order, and the per-key merge; this
+skill restates none of them and states only the key's own rule. Then — only if the layered read left
+`roles.main` unset — fall back to an opt-in detection step, and only then to the ultimate fallback
+`claude`:
 
 ```
-main = undefined
-for path in [ ~/.claude/ptp/config.json,     # global first
-              <repo>/.claude/ptp/config.json ]:   # then project (overrides)
-    if file exists and parses as JSON and obj.roles?.main ∈ {claude, codex}:
-        main = obj.roles.main
+# Tier 1 — the layered config, merged exactly as ptp-workspace defines:
+main = the resolved value of `roles.main`, valid ⇔ ∈ {claude, codex}, else undefined
 # any missing file / missing key / parse error / out-of-enum value → leave the prior value
 
-# Tier 3 — detection (runs ONLY when main is still undefined here):
+# Tier 2 — detection (runs ONLY when main is still undefined here):
 if main is undefined:
     env = PTP_MAIN_AGENT                     # opt-in env var, not driver detection
     if env ∈ {"claude", "codex"} (exact match):
         main = env
     # absent / empty / whitespace / wrong-case / any other value → leave undefined, fall through
 
-# Tier 4 — ultimate fallback:
+# Tier 3 — ultimate fallback:
 if main is undefined:
     main = "claude"
 # never throw, never STOP at any tier
 ```
 
-**Reader posture: never crash, never STOP over a config typo.** A missing file, a missing key,
-unparseable JSON, or an out-of-enum value all resolve to `claude` (or to whatever the prior layer
-validly set) — identical to how `ptp-codex-mode` reads `codex.mode`. A valid global value is
-**never** overridden by a missing or malformed project layer; the default `claude` applies only
-when no layer supplies a valid value and detection also yields nothing.
+**Reader posture: never crash, never STOP over a config typo.** That posture is `ptp-workspace`'s
+and holds here unchanged: a missing file, a missing key, unparseable JSON, or an out-of-enum value
+all leave whatever an earlier layer validly set, and a later layer's invalid value never clears it.
+The default `claude` applies only when no layer supplies a valid value and detection also yields
+nothing.
 
 ### Precedence, highest to lowest
 
-1. `roles.main` in the **project** config (`<repo>/.claude/ptp/config.json`).
-2. `roles.main` in the **global** config (`~/.claude/ptp/config.json`).
-3. **Detection (opt-in, only when both config layers are unset):** the environment variable
-   `PTP_MAIN_AGENT`, exact value `claude` or `codex`.
-4. **Ultimate fallback:** `claude`.
+1. `roles.main` from the layered config, merged as `ptp-workspace` defines.
+2. **Detection (opt-in, only when the layered read left `roles.main` unset):** the environment
+   variable `PTP_MAIN_AGENT`, exact value `claude` or `codex`.
+3. **Ultimate fallback:** `claude`.
 
 Explicit config **always** wins over detection — detection only fills an *unset* `roles.main`; it
-never overrides a value either config layer supplies. `PTP_MAIN_AGENT` is a best-effort, **opt-in
+never overrides a value any config layer supplies. `PTP_MAIN_AGENT` is a best-effort, **opt-in
 default**, not driver detection (see "Why true detection is impossible" below): an absent, empty,
 whitespace-only, wrong-case, or otherwise invalid value is treated as absent and falls through to
 `claude`. Nothing at any tier throws or STOPs.
@@ -133,9 +130,9 @@ deliberately inert at the default value.
 
 ## Summary of the contract
 
-- Resolve `roles.main` from layered config (global then project, project overriding key-by-key);
-  never crash or STOP on a typo or out-of-enum value.
-- If — and only if — both config layers leave `roles.main` unset, fall back to the opt-in
+- Resolve `roles.main` from layered config, merged as `ptp-workspace` defines; never crash or STOP
+  on a typo or out-of-enum value.
+- If — and only if — the layered read leaves `roles.main` unset, fall back to the opt-in
   `PTP_MAIN_AGENT` env var (exact `claude`/`codex`); any other/absent value falls through.
 - Ultimate fallback (no config, no valid env var): `claude`.
 - Explicit config always overrides detection; detection only fills an unset key and stores

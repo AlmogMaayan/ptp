@@ -1,6 +1,6 @@
 ---
 description: Decompose an oversized change into slices and review each slice's plan until it converges
-argument-hint: "<big-change-id-or-request>"
+argument-hint: "<big-change-id-or-request> [--workspace <path>]"
 ---
 
 ## Arguments

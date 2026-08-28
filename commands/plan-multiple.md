@@ -1,6 +1,6 @@
 ---
 description: Plan an oversized change as several independently shippable slices, then plan each slice in turn
-argument-hint: "<change-id-or-request> (the big change to split; XXXX_NN_<kebab-description> id of an existing monolithic plan, or a short description)"
+argument-hint: "<change-id-or-request> [--workspace <path>] (the big change to split; XXXX_NN_<kebab-description> id of an existing monolithic plan, or a short description)"
 ---
 
 You are running **step 2 of the ptp flow — the multi-change variant**. Use this instead of `/ptp:plan` when a single change is too big to plan and ship as one unit. Your job is to:
@@ -39,9 +39,9 @@ Epic allocation (beat 1): allocate one fresh epic for all slices per the `ptp-ch
 
 ## Branch safety (beat 1, first write-affecting step)
 
-**Beat 1 runs entirely in the outer session, in this exact order: (1) parse and strip the `parallel:` token (see *Inputs*), (2) allocate the fresh epic per `ptp-change-selector` §4, (3) run the `ptp-branch-guard` preamble once, (4) run step 1's gather-and-gate including its guaranteed-abort "implementation already started" STOP.** Sub-step (1) is **skipped when an orchestrating command supplied a pre-resolved parallel posture** — the token was already parsed and stripped upstream, so there is none to find. Skipping it changes nothing else about beat 1's ordering: (2), (3), and (4) run exactly as written. The epic allocation precedes the guard because the guard derives a fresh-request branch name (`ptp/epic-XXXX`) **from** the allocated epic. **No main run of any kind — not the beat-2 subagent, not a beat-3 member — starts before beat 1 has completed.**
+**Beat 1 runs entirely in the outer session, in this exact order: (1) parse and strip the `parallel:` token (see *Inputs*), (2) allocate the fresh epic per `ptp-change-selector` §4, (3) run the `ptp-branch-guard` preamble once, (4) run step 1's gather-and-gate including its guaranteed-abort "implementation already started" STOP.** Sub-step (1) is **skipped when an orchestrating command supplied a pre-resolved parallel posture** — the token was already parsed and stripped upstream, so there is none to find. Skipping it changes nothing else about beat 1's ordering: (2), (3), and (4) run exactly as written. The epic allocation precedes the guard because the guard derives a fresh-request branch name — leaf `epic-XXXX`, shape per `ptp-workspace` — **from** the allocated epic. **No main run of any kind — not the beat-2 subagent, not a beat-3 member — starts before beat 1 has completed.**
 
-Run the **`ptp-branch-guard`** preamble **once up front**, before delegating to any sub-step that writes: check `git rev-parse --abbrev-ref HEAD`; if it is the base branch (`master`/`main`), derive a feature-branch name from this request (or the fresh epic you allocate → `ptp/epic-XXXX`) and launch the minimal `ptp-branch-prep` workflow (stash → checkout the base branch → pull → cut the branch) **before** any sub-step runs; if you are already on a feature branch it is a **no-op** — proceed as-is. Delegated `/ptp:plan` runs re-run the guard as a no-op once HEAD is on the branch. The full rule lives in the **`ptp-branch-guard`** skill — do not restate it here.
+Run the **`ptp-branch-guard`** preamble **once up front**, before delegating to any sub-step that writes: check `git rev-parse --abbrev-ref HEAD`; if it is the base branch (`master`/`main`), derive a feature-branch name from this request (or the fresh epic you allocate → leaf `epic-XXXX`, shape per `ptp-workspace`) and launch the minimal `ptp-branch-prep` workflow (stash → checkout the base branch → pull → cut the branch) **before** any sub-step runs; if you are already on a feature branch it is a **no-op** — proceed as-is. Delegated `/ptp:plan` runs re-run the guard as a no-op once HEAD is on the branch. The full rule lives in the **`ptp-branch-guard`** skill — do not restate it here.
 
 ## When to use this vs `/ptp:plan`
 

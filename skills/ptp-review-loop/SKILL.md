@@ -68,41 +68,37 @@ The calling command is responsible for precondition checks before invoking this 
 ## Resolution
 
 Resolve `MAX_ITERATIONS` from layered ptp config **once, at the start of a loop run**, then hold it
-fixed for the duration. No mid-loop re-read.
+fixed for the duration. No mid-loop re-read. The layers, their order, and the per-key merge are owned
+by **`ptp-workspace`** (`skills/ptp-workspace/SKILL.md`); this skill restates none of them and states
+only the key's own rule.
 
 ```
-maxIterations = 5                                   # default
-for path in [ ~/.claude/ptp/config.json,            # global first
-              <repo>/.claude/ptp/config.json ]:      # then project (overrides)
-    if file exists and parses as JSON
-       and obj.review?.maxIterations is a positive integer (>= 1):
-        maxIterations = obj.review.maxIterations
+maxIterations = 5                                   # default, applied LAST
+maxIterations = the resolved value of `review.maxIterations`,
+                valid ⇔ a positive integer (>= 1)
 # any missing file / missing key / parse error / invalid value → leave the prior value
 # (ultimately 5 if nothing valid is found) — never throw, never STOP
 ```
 
-**Reader posture: never crash, never STOP over a config typo.** A missing file, a missing key,
-unparseable JSON, or an invalid value all resolve to `5` (or to whatever the prior layer validly
-set). Each layer is evaluated independently: a layer whose file is missing, is unparseable, lacks the
-key, or carries an invalid value (a non-integer such as `5.5`, a JSON string such as `"5"`, `0`, a
-negative number, a boolean such as `true`, or any wrong type) is ignored, leaving the prior valid
-layer in force. The resolved cap falls back to the default `5` only when no layer supplies a valid
-value. A valid value is a positive integer (`>= 1`); no upper bound is enforced.
+**Reader posture: never crash, never STOP over a config typo.** That posture is `ptp-workspace`'s: a
+missing file, a missing key, unparseable JSON, or an invalid value all resolve to `5` (or to whatever
+an earlier layer validly set). Each layer is evaluated independently: a layer whose file is missing,
+is unparseable, lacks the key, or carries an invalid value (a non-integer such as `5.5`, a JSON
+string such as `"5"`, `0`, a negative number, a boolean such as `true`, or any wrong type) is
+ignored, leaving the prior valid layer in force. The resolved cap falls back to the default `5` only
+when no layer supplies a valid value. A valid value is a positive integer (`>= 1`); no upper bound is
+enforced.
 
 The resolved `maxIterations` becomes `MAX_ITERATIONS` — the constant it is today for that run.
 
-**`review.minSeverity` — the convergence severity floor.** A sibling parameter, resolved from the
-**same two files with the same precedence**, naming the **lowest finding severity that is in scope
-for handling**:
+**`review.minSeverity` — the convergence severity floor.** A sibling parameter, resolved over the
+**same layers**, naming the **lowest finding severity that is in scope for handling**:
 
 ```
-minSeverity = "low"                                  # default
-for path in [ ~/.claude/ptp/config.json,             # global first
-              <repo>/.claude/ptp/config.json ]:      # then project (overrides)
-    if file exists and parses as JSON
-       and obj.review?.minSeverity is a string whose lowercased value is
-           exactly one of "low" | "medium" | "high" | "critical":
-        minSeverity = that lowercased value
+minSeverity = "low"                                  # default, applied LAST
+minSeverity = the resolved value of `review.minSeverity`,
+              valid ⇔ a string whose lowercased value is exactly one of
+              "low" | "medium" | "high" | "critical"; it resolves AS that lowercased value
 # any missing file / missing key / parse error / out-of-domain value → leave the prior value
 # (ultimately "low" if nothing valid is found) — never throw, never STOP
 ```

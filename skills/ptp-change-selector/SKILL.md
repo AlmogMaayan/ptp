@@ -37,6 +37,15 @@ Legacy ids are **never produced going forward**. They are resolved by exact matc
 
 ### Selector grammar
 
+**The `--workspace` token is stripped first.** Before any rule below runs, and before the typo
+normalization at the end of this section, a `--workspace <path>` or `--workspace=<path>` token is
+removed from the argument string, so it can never be classified as a bare id. A path containing
+spaces may be quoted. The stripped value is not discarded — it is handed to `ptp-workspace` as the
+override of the one workspace resolution the step performs at its entry; stripping removes the token
+from **this skill's** input only. This adds no selector form: after stripping, the remainder is
+classified and resolved exactly as it is when no token was supplied. The precedent is
+`/ptp:telemetry report`, which strips its own literal `write` keyword the same way.
+
 A command argument string is classified in this order (first match wins):
 
 | Priority | Form | Example | Resolves to |
@@ -55,7 +64,7 @@ Classification rules:
 - Otherwise → bare id (exact folder-name match).
 - Empty → defer to the command's existing default.
 
-`epic:` and `story:` are **reserved prefixes** — bare ids may not start with them. `all` is reserved within the `epic:` namespace so that `epic:all` is unambiguous as the all-active selector; this reservation is scoped to the `epic:` namespace only and does not change the bare-id form — a legacy folder literally named `all` remains resolvable by exact bare-id match.
+`epic:`, `story:`, and `--workspace` are **reserved prefixes** — bare ids may not start with them. `all` is reserved within the `epic:` namespace so that `epic:all` is unambiguous as the all-active selector; this reservation is scoped to the `epic:` namespace only and does not change the bare-id form — a legacy folder literally named `all` remains resolvable by exact bare-id match.
 
 **Typo normalization (checked before classification).** A small, fixed set of near-miss spellings are auto-corrected to their documented form before the rules above run, so the command proceeds instead of stopping to ask the user:
 - `epics:all`, `epics:ALL`, `Epic:all` (any case variant of the word `epic`/`epics`, plural or not, paired with `all`) → `epic:all`
@@ -63,24 +72,28 @@ Classification rules:
 - `stories:NN` → `story:NN`
 
 Only this literal, closed list is normalized. Anything else that doesn't match a documented form falls through to bare-id handling and its normal "no change `<id>`" stop — do not guess at other typos.
+The `--workspace` strip above runs **before** this list, and the list is **not extended** to cover it: a
+misspelling such as `--workspac` is not corrected, and falls through to bare-id handling and that same
+stop.
+
 
 ## 3. Resolution algorithm (deterministic, stateless)
 
 ```
-inputs: selector string
+inputs: selector string; resolved workspace root
 
-1. list = folder names under openspec/changes/ excluding "archive"
+1. list = folder names under <resolved workspace root>/openspec/changes/, excluding "archive"
 2. parse each name:
    - if matches ^\d{4}_\d{2}_[a-z0-9]+(-[a-z0-9]+)*$ → epic-prefixed: (epic, story, desc)
    - else → legacy: (epic=None, story=None, id=name)
 3. switch on selector:
    - epic:all:
-       STOP "no active changes" if list is empty
+       STOP "no active changes under <resolved workspace root>" if list is empty
        return (epic-prefixed ids sorted ascending by (epic, story)) + (legacy/unprefixed ids in listed order)
        [identical set and ordering to the empty-selector "all active changes" default]
    - bare id:
        return [name] if a folder equals it
-       else STOP "no change <id>"
+       else STOP "no change <id> under <resolved workspace root>"
    - epic:XXXX:
        matches = [c for c in list if c.epic == XXXX]
        STOP "no changes in epic XXXX" if matches is empty
@@ -97,7 +110,17 @@ inputs: selector string
        defer to the command's existing default
 ```
 
-Ordering key is `(epic, story)` ascending everywhere. When a resolved set mixes epic-prefixed and legacy/unprefixed ids — e.g. a command's empty-selector "all active changes" default — the epic-prefixed ids sort first by `(epic, story)` ascending and the legacy/unprefixed ids are **appended after** them, in their listed order. Resolution reads only the `openspec/changes/` folder listing — no manifest, no persisted state.
+Ordering key is `(epic, story)` ascending everywhere. When a resolved set mixes epic-prefixed and legacy/unprefixed ids — e.g. a command's empty-selector "all active changes" default — the epic-prefixed ids sort first by `(epic, story)` ascending and the legacy/unprefixed ids are **appended after** them, in their listed order. Resolution reads only the resolved workspace root's `openspec/changes/` folder listing — no manifest, no persisted state.
+
+**Anchored to one root.** The folder listing in step 1 is read under the **resolved workspace root**,
+which `ptp-workspace` resolves **once** per command invocation and which is reused for every change
+this resolution yields — never re-derived per resolved change. A change existing only in another
+workspace therefore does not resolve here.
+
+**A resolution STOP names the root it scanned.** The `no change <id>` STOP and the `no active changes`
+STOP each state the resolved workspace root that was listed, so a selector aimed at the wrong workspace
+reads differently from a genuinely missing change.
+
 
 **Resolution output — use the resolved id, never the raw selector string.** Resolution yields one or more **change folder names** (e.g. `0008_02_landing-page-bulk-import`). The calling command substitutes a resolved change id for `$ARGUMENTS` / `<change-id>` wherever its steps reference the change — when building a path like `openspec/changes/<change-id>/`, when passing `change-id = …` to an inner skill (e.g. `ptp-review-loop`), and when naming the change in a follow-up command. This matters even when a selector resolves to exactly **one** change: a selector form such as `epic:0008 story:02` is *not* itself a folder name, so the command must use the resolved id `0008_02_…`, not the literal `$ARGUMENTS` string. The only case where `$ARGUMENTS` is used verbatim is a bare-id selector, where the resolved id equals `$ARGUMENTS` by definition.
 
@@ -106,8 +129,9 @@ Ordering key is `(epic, story)` ascending everywhere. When a resolved set mixes 
 Producers (`/ptp:plan-multiple`, `/ptp:plan`, `/ptp:brainstorm`, `/ptp:analyze`, and `/ptp:prd` for the free-text case) allocate a fresh epic when creating a new change. The algorithm:
 
 ```
-1. candidates = folder names under openspec/changes/   (excluding "archive")
-             + folder names under openspec/changes/archive/
+1. candidates = folder names under <resolved workspace root>/openspec/changes/
+                 (excluding "archive")
+             + folder names under <resolved workspace root>/openspec/changes/archive/
                with each leading YYYY-MM-DD- date prefix stripped
 2. epics = { leading 4-digit group : name matches ^\d{4}_ }
 3. next = max(epics) + 1   (if epics is non-empty)
@@ -116,6 +140,11 @@ Producers (`/ptp:plan-multiple`, `/ptp:plan`, `/ptp:brainstorm`, `/ptp:analyze`,
 ```
 
 This scans **both** active and archived folders so no active or archived epic number is ever reused. A second `plan-multiple` call in one session re-scans and sees the first run's new folders.
+Both candidate folders sit under the **resolved workspace root** — the same one `ptp-workspace`
+resolved once for this invocation — so epic counters are **per-workspace**: two workspaces in one
+repository may allocate the same epic number, and that is intended. The branch-naming consequence of
+that belongs to `ptp-branch-guard` and is not settled here.
+
 
 **Per-producer usage:**
 - `/ptp:plan-multiple` — calls this once, then assigns `epic_str_01`, `epic_str_02`, … to slices in dependency order.

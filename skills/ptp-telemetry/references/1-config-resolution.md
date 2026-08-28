@@ -2,48 +2,36 @@
 ## 1. Config resolution
 
 Four keys under a `telemetry` parent — `mode` and `root` (every layer of this skill), `port` (the
-span layer only), and `retentionDays` (the report layer only) — read from the same two layered
-files, in the same order and with
-the same **forgiving reader posture**, as `codex.mode` (see `skills/ptp-codex-mode/SKILL.md`) — global
-`~/.claude/ptp/config.json` first, then project `<repo>/.claude/ptp/config.json` overriding
-**key-by-key**:
+span layer only), and `retentionDays` (the report layer only) — resolve through the layered
+configuration contract owned by **`ptp-workspace`** (`skills/ptp-workspace/SKILL.md`), the same
+contract `codex.mode` resolves through (see `skills/ptp-codex-mode/SKILL.md`) and with the same
+**forgiving reader posture**. That contract owns the layers, their order, and the per-key merge; this
+skill restates none of them and states only each key's own rule:
 
 ```
-mode = "off"                                 # default
-for path in [ ~/.claude/ptp/config.json,     # global first
-              <repo>/.claude/ptp/config.json ]:   # then project (overrides)
-    if file exists and parses as JSON and obj.telemetry?.mode ∈ {off, on}:
-        mode = obj.telemetry.mode
+mode = "off"                                 # default, applied LAST
+mode = the resolved value of `telemetry.mode`, valid ⇔ ∈ {off, on}
 # any missing file / missing key / parse error / out-of-enum value → leave the prior value
 # (ultimately "off" if nothing valid is found) — never throw, never STOP
 ```
 
 ```
-root = "openspec/telemetry"                  # default
-for path in [ ~/.claude/ptp/config.json,     # global first
-              <repo>/.claude/ptp/config.json ]:   # then project (overrides)
-    if file exists and parses as JSON and obj.telemetry?.root is a VALID root (see §1.1):
-        root = obj.telemetry.root
+root = "openspec/telemetry"                  # default, applied LAST
+root = the resolved value of `telemetry.root`, valid ⇔ a VALID root (see §1.1)
 # any missing file / missing key / parse error / wrong type / invalid root → leave the prior value
 # (ultimately "openspec/telemetry" if nothing valid is found) — never throw, never STOP
 ```
 
 ```
-port = 4318                                  # default
-for path in [ ~/.claude/ptp/config.json,     # global first
-              <repo>/.claude/ptp/config.json ]:   # then project (overrides)
-    if file exists and parses as JSON and obj.telemetry?.port is an INTEGER in 1..65535:
-        port = obj.telemetry.port
+port = 4318                                  # default, applied LAST
+port = the resolved value of `telemetry.port`, valid ⇔ an INTEGER in 1..65535
 # any missing file / missing key / parse error / non-integer / out of TCP range → leave the prior
 # value (ultimately 4318 if nothing valid is found) — never throw, never STOP
 ```
 
 ```
-retentionDays = 30                           # default
-for path in [ ~/.claude/ptp/config.json,     # global first
-              <repo>/.claude/ptp/config.json ]:   # then project (overrides)
-    if file exists and parses as JSON and obj.telemetry?.retentionDays is a POSITIVE INTEGER:
-        retentionDays = obj.telemetry.retentionDays
+retentionDays = 30                           # default, applied LAST
+retentionDays = the resolved value of `telemetry.retentionDays`, valid ⇔ a POSITIVE INTEGER
 # any missing file / missing key / parse error / non-integer / ZERO / negative → leave the prior
 # value (ultimately 30 if nothing valid is found) — never throw, never STOP
 ```
@@ -61,9 +49,9 @@ posture is **layered exactly like the mode and the root**: an invalid layer is *
 whatever an earlier layer validly resolved, and `4318` applies only when **no** layer supplied a
 valid value — so a valid global port survives an invalid project one.
 
-**Reader posture: never crash, never STOP over a config typo.** A missing file, a missing key,
-unparseable JSON, a wrong-typed value, or an out-of-enum value all leave whatever the prior layer
-validly resolved. **A later layer's invalid value never clears an earlier layer's valid value**: a
+**Reader posture: never crash, never STOP over a config typo.** That posture is `ptp-workspace`'s: a
+missing file, a missing key, unparseable JSON, a wrong-typed value, or an out-of-enum value all leave
+whatever the prior layer validly resolved. **A later layer's invalid value never clears an earlier layer's valid value**: a
 valid global `telemetry.mode: "on"` survives a project layer whose `telemetry` block is malformed or
 out of enum, and `off` is the result only when **no** layer validly set a value.
 
@@ -72,6 +60,11 @@ rather than writing it. Reader forgives, writer protects; do not align one to th
 
 <!-- ptp-telemetry:anchor id=telemetry-root-validation class=substrate -->
 ### 1.1 `telemetry.root` validation
+
+**`telemetry.root` is REPOSITORY-relative, whichever layer supplied it.** The resolved value is
+interpreted relative to the repository root and validated by the rules below; it never becomes
+relative to any other root, so one repository holds its telemetry store beneath its own root no
+matter which layer named the path.
 
 A `telemetry.root` value is **valid** only when it is:
 

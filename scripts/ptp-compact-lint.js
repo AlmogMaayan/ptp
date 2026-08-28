@@ -15,10 +15,13 @@
  * subprocess of any kind, and issues no version-control command.
  *
  * Invocation:
- *   node scripts/ptp-compact-lint.js --change <change-id> [--repo <root>] [--format=text|json]
- *                                    [--assume-contract=ptp-compact]
+ *   node scripts/ptp-compact-lint.js --change <change-id> [--repo <root> | --workspace <root>]
+ *                                    [--format=text|json] [--assume-contract=ptp-compact]
  *   node scripts/ptp-compact-lint.js --path <change-dir> [--format=text|json]
  *                                    [--assume-contract=ptp-compact]
+ *
+ * `--workspace` is an alias of `--repo`: both spellings, with a space or an `=`, write the same
+ * root, and when both appear the last occurrence wins. `--path <change-dir>` bypasses the root.
  *
  * Exit codes: 0 whenever a report was produced (findings or not). 2 for a usage error, a missing or
  * unreadable change directory, an unreadable artifact, or an `.openspec.yaml` naming a schema that
@@ -137,6 +140,14 @@ function parseArgs(argv) {
       i += 1;
     } else if (arg.startsWith('--repo=')) {
       args.repo = arg.slice('--repo='.length);
+    } else if (arg === '--workspace') {
+      // Alias of --repo, writing the same root. `--repo` already names the REPOSITORY root in
+      // scripts/ptp-otel-sink.js, so the workspace spelling exists rather than a rename. When both
+      // appear the last occurrence wins, which is this loop's existing behavior for a repeated flag.
+      args.repo = argv[i + 1];
+      i += 1;
+    } else if (arg.startsWith('--workspace=')) {
+      args.repo = arg.slice('--workspace='.length);
     } else if (arg.startsWith('--format=')) {
       args.format = arg.slice('--format='.length);
     } else if (arg.startsWith('--assume-contract=')) {
@@ -603,7 +614,7 @@ function main() {
   const args = parseArgs(process.argv.slice(2));
 
   if (!args.change && !args.path) {
-    usageError('Usage: ptp-compact-lint.js (--change <id> | --path <dir>) [--repo <root>] [--format=text|json] [--assume-contract=ptp-compact]');
+    usageError('Usage: ptp-compact-lint.js (--change <id> | --path <dir>) [--repo <root> | --workspace <root>] [--format=text|json] [--assume-contract=ptp-compact]');
     return;
   }
 

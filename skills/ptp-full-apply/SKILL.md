@@ -33,10 +33,10 @@ For the same reason, the `apply` stage record (`openspec/changes/<id>/stages/app
    ```
    // Launch the workflow EXACTLY ONCE. The two forms below are mutually exclusive —
    // pick the one matching the resolved telemetry.mode; never issue both.
-   Workflow({ name: 'ptp:ptp-full-apply', args: { stories, fast } })                   // telemetry.mode !== 'on' (property omitted entirely)
-   Workflow({ name: 'ptp:ptp-full-apply', args: { stories, fast, telemetry: true } })  // telemetry.mode === 'on'
+   Workflow({ name: 'ptp:ptp-full-apply', args: { stories, workspaceRoot, fast } })                   // telemetry.mode !== 'on' (property omitted entirely)
+   Workflow({ name: 'ptp:ptp-full-apply', args: { stories, workspaceRoot, fast, telemetry: true } })  // telemetry.mode === 'on'
    ```
-   where `stories = [{ id, model, effort, reviewModel, reviewEffort }, …]` in apply order and `fast` is a **top-level**, invocation-level boolean (never per story — and neither is `telemetry`) resolved by the command's outer session — an omitted `fast` is read as `false` by the script, adding no fast-mode note. (Use the named form — the plugin ships `workflows/ptp-full-apply.js` whose `meta.name` is `ptp-full-apply`. There is no project-relative `scriptPath` under a global plugin install.) The workflow loops the stories in order, spawning `agentType:'ptp:ptp-apply'` at the story's `model` then `agentType:'ptp:ptp-review'` at the story's `reviewModel`, each agent's effort injected as a prompt directive; it returns `{ results, halted, total }`. The two review fields are read by **strict membership** in their closed vocabularies (`haiku`/`sonnet`/`opus` and `low`/`medium`/`high`/`xhigh`), so an omitted or unrecognized value falls back to `opus` / `high` — the pre-existing constants — and the fallback is logged when a supplied value was the one rejected. The Opus-only per-agent note condition is now **one rule covering both prompts**: an agent gets the fast-mode note only when fast is on **and that agent's own resolved model is `opus`** — the apply agent on the story's `model`, the review agent on its `reviewModel`, and an escalated re-spawn on the escalated model.
+   where `stories = [{ id, model, effort, reviewModel, reviewEffort }, …]` in apply order and `fast` is a **top-level**, invocation-level boolean (never per story — and neither is `telemetry`) resolved by the command's outer session — an omitted `fast` is read as `false` by the script, adding no fast-mode note. `workspaceRoot` is the **resolved workspace root** this session resolved once at entry (`ptp-workspace`), carried top-level beside `stories`: the script prefixes it onto each agent prompt's change-folder path and names it on its own `Workspace root:` line, so no spawned agent re-derives a root; omitting it leaves the pre-change bare relative path. (Use the named form — the plugin ships `workflows/ptp-full-apply.js` whose `meta.name` is `ptp-full-apply`. There is no project-relative `scriptPath` under a global plugin install.) The workflow loops the stories in order, spawning `agentType:'ptp:ptp-apply'` at the story's `model` then `agentType:'ptp:ptp-review'` at the story's `reviewModel`, each agent's effort injected as a prompt directive; it returns `{ results, halted, total }`. The two review fields are read by **strict membership** in their closed vocabularies (`haiku`/`sonnet`/`opus` and `low`/`medium`/`high`/`xhigh`), so an omitted or unrecognized value falls back to `opus` / `high` — the pre-existing constants — and the fallback is logged when a supplied value was the one rejected. The Opus-only per-agent note condition is now **one rule covering both prompts**: an agent gets the fast-mode note only when fast is on **and that agent's own resolved model is `opus`** — the apply agent on the story's `model`, the review agent on its `reviewModel`, and an escalated re-spawn on the escalated model.
 
 ## Change discovery and ordering
 
@@ -65,8 +65,9 @@ owns both halves of the fan-out write point. The record shape, the `run_id` mint
 rule, the store layout, the append protocol, and the CSV rules are defined **once**, in the
 `ptp-telemetry` skill (`ptp-telemetry` [ledger-record]); this section **references** them and lists no ledger fields.
 
-**Before the launch — resolve the gate.** Resolve `telemetry.mode` per `ptp-telemetry`'s layered,
-forgiving reader (`ptp-telemetry` [config-resolution]) (global then project, key-by-key; any missing file / missing key / parse error /
+**Before the launch — resolve the gate.** Resolve `telemetry.mode` per `ptp-telemetry`'s
+forgiving reader (`ptp-telemetry` [config-resolution]), over the layers `ptp-workspace`
+(`skills/ptp-workspace/SKILL.md`) defines (any missing file / missing key / parse error /
 out-of-enum value leaves the prior value; never crash, never STOP). Add a **top-level**
 `telemetry: true` to the workflow's `args` **only when it resolves to `on`** — by the same
 strict-boolean-identity convention the existing `fast` argument uses. When it does not resolve to
@@ -169,7 +170,7 @@ The three-bucket terminal report is the **context-loss recovery contract** for w
 
 ## Hard rules
 
-- **Branch safety, once up front.** The `/ptp:full-apply` command runs the `ptp-branch-guard` preamble before launching the workflow: if HEAD is `master`, it cuts a feature branch (`ptp/epic-XXXX`) via the `ptp-branch-prep` workflow so the `ptp-apply` agents never write onto master; if already on a feature branch, no-op. Defined once in the `ptp-branch-guard` skill.
+- **Branch safety, once up front.** The `/ptp:full-apply` command runs the `ptp-branch-guard` preamble before launching the workflow: if HEAD is `master`, it cuts a feature branch whose leaf is `epic-XXXX` — shape per `ptp-workspace` — via the `ptp-branch-prep` workflow so the `ptp-apply` agents never write onto master; if already on a feature branch, no-op. Defined once in the `ptp-branch-guard` skill.
 - **Never auto-archive** any story. Archiving is always an explicit `/ptp:archive <id>` user action.
 - **Never auto-commit** any edits made by the apply or review agents.
 - **Never invoke `/ptp:plan` or `/ptp:plan-multiple`.** This skill orchestrates apply and review only; planning is out of scope.

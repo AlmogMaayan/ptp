@@ -36,6 +36,11 @@ subagent" universally — stating it the latter way would silently exclude the `
 direction. Fan-out relaxes only **whether N such invocations overlap in time**; it changes nothing
 about what a single invocation does.
 
+**One root, handed down.** Every fan-out member receives the caller's one resolved workspace root
+— resolved once at the caller's entry and passed verbatim into the member's prompt
+(`ptp-run-at-model` part (g)). No member resolves a root of its own, so two members can never resolve
+different roots, and each member's `openspec/changes/<id>/` write set is anchored to that same root.
+
 This skill is a **pure prose contract**: it spawns nothing, runs no git command, probes no CLI, and
 edits no file. It states obligations that callers must satisfy.
 
@@ -112,26 +117,18 @@ oversight:
 
 ## Config resolution — `parallel.mode` and `parallel.maxConcurrency`
 
-Resolution mirrors `skills/ptp-agent-roles/SKILL.md`'s layered, **forgiving** reader: global
-`~/.claude/ptp/config.json` first, then project `<repo>/.claude/ptp/config.json` overriding
-**key-by-key** — the same two files and precedence `ptp-codex-mode`, `ptp-agent-roles`, and
-`ptp-telemetry` use, and the same files `ptp-config` edits.
+Both keys resolve through the layered configuration contract owned by **`ptp-workspace`**
+(`skills/ptp-workspace/SKILL.md`), which owns the layers, their order, and the per-key **forgiving**
+merge — the same contract `ptp-codex-mode`, `ptp-agent-roles`, and `ptp-telemetry` resolve through.
+This skill restates none of it and states only the two keys' own rules:
 
 ```
-mode           = "off"       # ultimate fallback
-maxConcurrency = 3           # ultimate fallback
+mode           = "off"       # ultimate fallback, applied LAST
+maxConcurrency = 3           # ultimate fallback, applied LAST
 
-for path in [ ~/.claude/ptp/config.json,          # global first
-              <repo>/.claude/ptp/config.json ]:   # then project (overrides)
-    # (a) file missing         -> leave the prior values
-    # (b) contents unparseable -> leave the prior values
-    if file exists and parses as JSON:
-        # (c) key absent -> leave the prior value for that key
-        # (d) value out of enum/range or of the wrong type -> leave the prior value for that key
-        if obj.parallel?.mode ∈ {on, off}:
-            mode = obj.parallel.mode
-        if obj.parallel?.maxConcurrency is an integer in [1, 10]:
-            maxConcurrency = obj.parallel.maxConcurrency
+mode           = the resolved value of `parallel.mode`, valid ⇔ ∈ {on, off}
+maxConcurrency = the resolved value of `parallel.maxConcurrency`,
+                 valid ⇔ an integer in [1, 10]
 # never throw, never STOP over a configuration typo
 ```
 
@@ -140,11 +137,11 @@ for path in [ ~/.claude/ptp/config.json,          # global first
 | `parallel.mode` | enum | `off` \| `on` | `off` |
 | `parallel.maxConcurrency` | integer | 1–10 inclusive | `3` |
 
-All four failure modes — **(a)** missing file, **(b)** unparseable JSON, **(c)** absent key, **(d)**
-out-of-enum / out-of-range / wrong-type value — leave the previously resolved value in place. A
-**valid global value is never overridden by a missing or malformed project layer.** Values such as
-`0`, `-1`, `2.5`, `"3"`, and `11` are invalid for `maxConcurrency`; the prior value (ultimately `3`)
-stands and the command proceeds. Resolution never throws and never STOPs.
+All four failure modes `ptp-workspace` names — **(a)** missing file, **(b)** unparseable JSON,
+**(c)** absent key, **(d)** out-of-enum / out-of-range / wrong-type value — leave the previously
+resolved value in place, and a later layer's invalid value never clears an earlier layer's valid
+one. Values such as `0`, `-1`, `2.5`, `"3"`, and `11` are invalid for `maxConcurrency`; the prior
+value (ultimately `3`) stands and the command proceeds. Resolution never throws and never STOPs.
 
 Both keys resolve **independently** of each other and of `codex.mode`, `roles.main`, and
 `telemetry.mode`.
@@ -258,9 +255,9 @@ matter what `parallel.mode` resolves to.
   dual-write's atomic-rename initialization, the idempotent policy files, and lazy directory
   creation — admitting nothing by analogy.
 - `parallel.mode` (`off`|`on`, default `off`) and `parallel.maxConcurrency` (integer 1–10, default
-  `3`) resolve from layered global→project config with a **forgiving** reader: missing file, absent
-  key, unparseable JSON, or out-of-range/wrong-type value leaves the prior value; never throws,
-  never STOPs.
+  `3`) resolve from layered ptp config, over the layers `ptp-workspace` defines, with a
+  **forgiving** reader: missing file, absent key, unparseable JSON, or out-of-range/wrong-type
+  value leaves the prior value; never throws, never STOPs.
 - A valid `parallel:on|off` token overrides the resolved mode for one invocation and persists
   nothing; **absent ≠ `off`**; it is independent of `fast:` and `model:`; its mechanics are defined
   by reference to `ptp-run-at-model` § *Optional caller-side `fast:` switch*. **No command parses it

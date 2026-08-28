@@ -67,10 +67,10 @@ configured.
 
 ## Configuration (read first, before any write)
 
-Read and merge the optional ptp config (global `~/.claude/ptp/config.json`, then project
-`<repo>/.claude/ptp/config.json` overriding key-by-key — the same files `codex.mode` uses).
-Extract the `deploy` block; apply defaults for any missing file/key/invalid value (never fail
-to start over a config typo):
+Read the optional ptp config through the layered configuration contract owned by **`ptp-workspace`**
+(`skills/ptp-workspace/SKILL.md`) — the same contract `codex.mode` resolves through, whose layer list
+and precedence this skill restates not at all. Extract the `deploy` block; apply defaults for any
+missing file/key/invalid value (never fail to start over a config typo):
 
 | Key | Default | Use |
 |-----|---------|-----|
@@ -93,7 +93,7 @@ owns the rationale for that conditional exemption. In either mode this skill ref
 the base branch (`master`/`main`) — in `mode == merge-only` for the reason just given, and in
 `mode == deploy` because
 there is nothing to deploy from there. Its internal deploy-fix sub-flow (step 8) *does* cut
-`ptp/deploy-fix-*` branches and merges them through the same PR mini-flow, so a fix is
+branches whose leaf is `deploy-fix-<id>` — shaped per `ptp-workspace` — and merges them through the same PR mini-flow, so a fix is
 **never** committed to the base branch directly. The exemption (and its opposite-direction
 rationale to `/ptp:master`) is recorded in the `ptp-branch-guard` skill's "Which steps run the
 guard" section as the single source of truth.
@@ -146,9 +146,14 @@ guidance.)
 ### Phase `commit` (start of `/ptp:deploy`)
 
 **Step 1 — derive the message.** Build a Conventional-Commit subject + body from the branch's
-openspec change(s): inspect `openspec/changes/<id>/` for the change ids present on this branch
-(prefer the branch name `ptp/<change-id>` / `ptp/epic-XXXX`, falling back to changed paths
-under `openspec/changes/`). Use the change's `proposal.md` title/summary for the body and list
+openspec change(s). Read the id from the branch name's **final segment**: the shape
+`ptp-workspace` owns puts the leaf last in both of its forms, so a two-segment `ptp/<leaf>` — the
+root workspace's current shape, and the shape of every branch cut before that shape existed — and a
+three-segment `ptp/<slug>/<leaf>` parse by the one rule, and neither ever needs a rename to ship.
+Take that segment when it is a change id or an `epic-XXXX` selector; when it is anything else (a
+kebab summary, a `deploy-fix-<id>` leaf), fall back to the change folders changed under the resolved
+workspace's `openspec/changes/`, exactly as before. Inspect `openspec/changes/<id>/` for each id so
+resolved. Use the change's `proposal.md` title/summary for the body and list
 the change id(s). If no openspec change is discoverable, fall back to a concise
 diff-summary Conventional-Commit (e.g. `feat: <branch summary>`). Never prompt the user.
 
@@ -235,7 +240,7 @@ and continue to step 9.
 
 **Step 8 — bounded deploy-stage fix loop (≤ `maxFixRounds`).** If the deploy run concludes
 `failure`, the fix cannot be committed to the base branch directly (invariant). Instead:
-1. Cut `ptp/deploy-fix-<short-id>` from the up-to-date base branch. (Cutting this branch and the
+1. Cut a branch whose leaf is `deploy-fix-<id>` — shaped per `ptp-workspace` — from the up-to-date base branch. (Cutting this branch and the
    git operations below are git, not an Agent spawn — they work identically inside a subagent.)
 2. Diagnose from the failed run log and apply the fix. **When running inside a `ptp-run-at-model`
    subagent** (the default for the deploy trio), apply the fix **inline** with the subagent's own
@@ -291,13 +296,13 @@ branch. On any STOP, state exactly what blocked and the single next action.
   (in `merge-only` mode).
 - **Never `--admin`-bypass a required approval.** A required approving review is a deliberate
   human checkpoint, not something to force past.
-- **Never commit a fix directly to the base branch.** Deploy-failure fixes go through a
-  `ptp/deploy-fix-*` branch and the PR mini-flow.
+- **Never commit a fix directly to the base branch.** Deploy-failure fixes go through a branch
+  whose leaf is `deploy-fix-<id>` and the PR mini-flow.
 - **When running inside a `ptp-run-at-model` subagent, resolve all fixes inline and never spawn a
   nested fix subagent.** Both fix loops (step 4 PR-stage, step 8 deploy-stage) resolve conflicts,
   failing checks, and deploy failures inline with the subagent's own Bash/Edit tools; only an
   unwrapped, direct outer-session invocation of this skill MAY optionally delegate a substantial fix
-  to a fix subagent. Git branch-cutting (`ptp/deploy-fix-*`) is unaffected — git is not an Agent
+  to a fix subagent. Git branch-cutting (the `deploy-fix-<id>` leaf) is unaffected — git is not an Agent
   spawn.
 - **A required-but-unmet approval is reported as `needs-human-action`, never swallowed.** It carries
   the reason ("PR requires an approving review (you cannot approve your own PR)"), the PR URL, and the

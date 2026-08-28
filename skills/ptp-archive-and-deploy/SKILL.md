@@ -93,10 +93,10 @@ For each `c`, in order:
 
      **Severity threshold.** Resolve `review.minSeverity` from layered ptp config **once**, here in
      the **outer session** (this confirmation is interactive and must display it), and hold it fixed
-     — global `~/.claude/ptp/config.json`, then project `<repo>/.claude/ptp/config.json` overriding,
-     default `low`; a missing file, missing key, unparseable JSON, or unrecognized value falls back
-     to the prior valid value (ultimately `low`) rather than erroring, and **never** STOPs the
-     command. The `/ptp:config` parameter registry (`commands/config.md`, `skills/ptp-config/`) owns
+     — layered as **`ptp-workspace`** (`skills/ptp-workspace/SKILL.md`) defines, whose layer list and
+     precedence this skill restates not at all; default `low`; a missing file, missing key,
+     unparseable JSON, or unrecognized value falls back to the prior valid value (ultimately `low`)
+     rather than erroring, and **never** STOPs the command. The `/ptp:config` parameter registry (`commands/config.md`, `skills/ptp-config/`) owns
      the key, its domain, and its validation — this is a pointer to that contract, not a second
      reader definition. Severity order is `low < medium < high < critical`. A finding is
      **actionable** when its severity is **at or above** the resolved threshold; a Critical or High
@@ -106,8 +106,8 @@ For each `c`, in order:
      as "unresolved findings at or above the resolved `review.minSeverity`": at the default `low`
      that admits *every* severity and would make an unresolved **Low** nit block the archive — the
      *actionable* qualifier only ever **narrows** the pre-existing Critical/High test, never widens
-     it. State the resolved threshold **and the layer it resolved from** (default / global /
-     project) **in the confirmation prompt**, and when it is not the default, name which severities
+     it. State the resolved threshold **and the layer it resolved from**, named by one of the
+     provenance labels `ptp-workspace` defines, **in the confirmation prompt**, and when it is not the default, name which severities
      it is no longer blocking on. This mirrors `/ptp:archive` step 4 exactly — Phase A **is** that
      flow and never diverges from it. The threshold governs **only** this confirmation: the
      tasks-complete and validation gates above are not severity-based and stay absolute.

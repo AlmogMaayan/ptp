@@ -97,10 +97,10 @@ applies only at the **Verdict** step, and only to what **blocks**.
 ## Verdict
 
 **Severity threshold.** Resolve `review.minSeverity` from layered ptp config **once**, at the start
-of this pass, and hold it fixed for the pass — global `~/.claude/ptp/config.json`, then project
-`<repo>/.claude/ptp/config.json` overriding, default `low`; a missing file, missing key, unparseable
-JSON, or unrecognized value falls back to the prior valid value (ultimately `low`) rather than
-erroring, and **never** STOPs the review. The `/ptp:config` parameter registry (`commands/config.md`,
+of this pass, and hold it fixed for the pass — layered as **`ptp-workspace`**
+(`skills/ptp-workspace/SKILL.md`) defines, whose layer list and precedence this skill restates not at
+all; default `low`; a missing file, missing key, unparseable JSON, or unrecognized value falls back
+to the prior valid value (ultimately `low`) rather than erroring, and **never** STOPs the review. The `/ptp:config` parameter registry (`commands/config.md`,
 `skills/ptp-config/`) owns the key, its domain, and its validation — this is a pointer to that
 contract, not a second reader definition. Severity order is `low < medium < high < critical`. A
 finding is **actionable** when its severity is **at or above** the resolved threshold. Findings
@@ -109,7 +109,8 @@ finding is **actionable** when its severity is **at or above** the resolved thre
 produce a `WARN` or a `FAIL`. Because this verdict never counted Medium or Low toward its outcome,
 `low`, `medium`, and `high` behave identically here; only `critical` changes a verdict, by demoting
 High to reported-only — do **not** "repair" that apparent no-op by making Medium findings `WARN`.
-State the resolved threshold **and the layer it resolved from** (default / global / project) in the
+State the resolved threshold **and the layer it resolved from**, named by one of the provenance
+labels `ptp-workspace` defines, in the
 report, and when the threshold demoted at least one finding out of the blocking set, say so beside
 the verdict. For an empty-argument or multi-epic run, one threshold governs the whole pass, so the
 summary table can never mix thresholds across rows.

@@ -15,7 +15,7 @@ Resolve `$ARGUMENTS` as a change selector per the `ptp-change-selector` skill; i
 
 ## Branch safety (first step)
 
-Archiving moves the change folder and rewrites `openspec/specs/`, so before any move run the **`ptp-branch-guard`** preamble: check `git rev-parse --abbrev-ref HEAD`; if it is the base branch (`master`/`main`), derive a feature-branch name from the resolved change id (→ `ptp/<change-id>`) and launch the minimal `ptp-branch-prep` workflow (stash → checkout the base branch → pull → cut the branch) **before** writing anything; if you are already on a feature branch it is a **no-op** — proceed as-is. The full rule lives in the **`ptp-branch-guard`** skill — do not restate it here.
+Archiving moves the change folder and rewrites `openspec/specs/`, so before any move run the **`ptp-branch-guard`** preamble: check `git rev-parse --abbrev-ref HEAD`; if it is the base branch (`master`/`main`), derive a feature-branch name from the resolved change id (leaf: the change id; shape per `ptp-workspace`) and launch the minimal `ptp-branch-prep` workflow (stash → checkout the base branch → pull → cut the branch) **before** writing anything; if you are already on a feature branch it is a **no-op** — proceed as-is. The full rule lives in the **`ptp-branch-guard`** skill — do not restate it here.
 
 ## Steps
 
@@ -43,23 +43,23 @@ the outer session**, in this exact order:
 
    **Severity threshold.** Resolve `review.minSeverity` from layered ptp config **once**, here in the
    **outer session** (the confirmation is interactive and must display it), and hold it fixed —
-   global `~/.claude/ptp/config.json`, then project `<repo>/.claude/ptp/config.json` overriding,
-   default `low`; a missing file, missing key, unparseable JSON, or unrecognized value falls back to
-   the prior valid value (ultimately `low`) rather than erroring, and **never** STOPs the archive.
-   The `/ptp:config` parameter registry (`commands/config.md`, `skills/ptp-config/`) owns the key,
-   its domain, and its validation — this is a pointer to that contract, not a second reader
-   definition. Severity order is `low < medium < high < critical`. A finding is **actionable** when
-   its severity is **at or above** the resolved threshold; a Critical or High finding **below** the
-   resolved threshold does not block the archive. Because this gate never counted Medium or Low
-   toward a refusal, `low`, `medium`, and `high` behave identically here; only `critical` changes an
-   outcome, by demoting High to non-blocking — do **not** "repair" that apparent no-op by making
-   Medium findings block. **Never** reword this gate as "unresolved findings at or above the resolved
+   layered as `ptp-workspace` (`skills/ptp-workspace/SKILL.md`) defines, default `low`; a missing
+   file, missing key, unparseable JSON, or unrecognized value falls back to the prior valid value
+   (ultimately `low`) rather than erroring, and **never** STOPs the archive. The `/ptp:config`
+   parameter registry (`commands/config.md`, `skills/ptp-config/`) owns the key, its domain, and its
+   validation — this is a pointer to that contract, not a second reader definition. Severity order
+   is `low < medium < high < critical`. A finding is **actionable** when its severity is **at or
+   above** the resolved threshold; a Critical or High finding **below** the resolved threshold does
+   not block the archive. Because this gate never counted Medium or Low toward a refusal, `low`,
+   `medium`, and `high` behave identically here; only `critical` changes an outcome, by demoting
+   High to non-blocking — do **not** "repair" that apparent no-op by making Medium findings block.
+   **Never** reword this gate as "unresolved findings at or above the resolved
    `review.minSeverity`": at the default `low` that admits *every* severity and would make an
    unresolved **Low** nit block the archive. The *actionable* qualifier only ever **narrows** the
    pre-existing Critical/High test, never widens it. State the resolved threshold **and the layer it
-   resolved from** (default / global / project) **in the confirmation prompt**, and when it is not
-   the default, name which severities it is no longer blocking on, so the user confirms with that in
-   view.
+   resolved from** (a `ptp-workspace` provenance label) **in the confirmation prompt**, and when it
+   is not the default, name which severities it is no longer blocking on, so the user confirms with
+   that in view.
 
    `/ptp:review <change-id>` must have been run with no unresolved **actionable** Critical or High findings — Critical or High findings whose severity is at or above the resolved `review.minSeverity` (at the default `low`, that is Critical and High, exactly as today). OpenSpec does not track review state, so **ask the user to confirm** review is done and the actionable Critical/High findings are resolved before continuing. If they haven't reviewed, redirect them to `/ptp:review <change-id>` first. This confirmation must happen in the outer session — the subagent is non-interactive and cannot ask the user.
 

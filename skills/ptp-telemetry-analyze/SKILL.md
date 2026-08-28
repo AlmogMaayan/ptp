@@ -99,9 +99,10 @@ figure `report` prints (§23.9).
 node <plugin>/scripts/ptp-telemetry-analyze.js --repo <repo root> [--format=json]
 ```
 
-- **Dependency-free.** Node standard library only — `fs`, `path`, and `os` (the last for
-  `os.homedir()` alone, which the global config layer of §1 needs and which `scripts/ptp-otel-sink.js`
-  resolves the same way, as `PTP_HOME_DIR || os.homedir()`). No `package.json`, no install step.
+- **Dependency-free.** Node standard library only — `fs` and `path` — plus the sibling
+  `scripts/ptp-resolve-workspace.js`, which builds §1's config layers and locates the global one at
+  `PTP_HOME_DIR || os.homedir()` — one override, honoured identically for every ptp reader. No
+  `package.json`, no install step.
 - **Flag surface.** `--repo <path>` — the internal path the skill passes — and `--format=json`. **Every
   other flag, and every positional argument, is refused with exit code `2`**, mirroring the stray-flag
   whitelist `ptp-otel-sink.js` already applies to `export`: an invented or misspelled flag must never

@@ -51,8 +51,12 @@ trigger rather than with this file:
 
 ## The store
 
-**The backlog is one GitHub Projects v2 board per repository**, resolved through
-`ptp-github-projects-gh`'s `backlog.*` configuration and admitted by its capability preflight.
+**The backlog is one GitHub Projects v2 board per workspace root**, resolved through
+`ptp-github-projects-gh`'s `backlog.*` configuration and admitted by its capability preflight. That
+configuration resolves at the **resolved workspace root** — through the layered contract
+`ptp-workspace` owns, cited here and not restated — so a second workspace in the same repository
+carries its own board **without any repository-level edit**, and a repository whose workspace root
+**is** the repository root resolves the same single board it resolves today.
 
 **There is no local backlog file, no second store, and no fallback.** No ptp command reads, creates,
 modifies, or deletes a local backlog file. No failure path — not an incomplete configuration, not a
@@ -185,7 +189,10 @@ was inferred and may belong to another session" — and `/ptp:backlog`, shipped 
 is required to distinguish all three values.
 
 **`runBaseline`** is the durable pre-run snapshot of the 4-digit prefixes present under
-`openspec/changes/`. `null` means *no run in flight and nothing to reconcile*. This change never sets
+`openspec/changes/` **at the invocation's resolved workspace root** — the set *Recovery and
+reconciliation* defines, scanned at that one root, the reconciliation diff being taken at the same
+root. It gains **no** workspace field: the recognized field set is unchanged and the version marker
+stays `1`. `null` means *no run in flight and nothing to reconcile*. This change never sets
 it and never clears it; it only reads it for the stale-`in-progress` flag.
 
 ### Why every field is defined now

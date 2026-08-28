@@ -1,6 +1,6 @@
 ---
 description: Write a product requirements document for a change from a free-text request
-argument-hint: "<changeid> | epic:XXXX | story:XX | \"<free-text description>\" (one or more; free text allocates a fresh epic; omit = all active epics)"
+argument-hint: "<changeid> | epic:XXXX | story:XX | \"<free-text description>\" [--workspace <path>] (one or more; free text allocates a fresh epic; omit = all active epics)"
 ---
 
 ## Arguments

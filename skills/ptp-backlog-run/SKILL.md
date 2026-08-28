@@ -201,6 +201,17 @@ All five run in the outer session, in **exactly this order**:
    table**. **Name the ground; do not restate the rule** — each ground's content is that skill's. **No
    `gh` command is run**, and this precedes 3b absolutely.
 
+   **The workspace root is bound here, once — inside this sub-step, not beside it.** What is bound is
+   the **one** root `ptp-workspace` resolved at the invocation's entry, per its *One resolution, at the
+   step's entry* rule — this sub-step records that value for the run rather than resolving a second
+   one, which is why step 1's `codex.mode` resolution, over the same layered contract, already read it.
+   The `backlog.*` configuration likewise cannot be resolved without it, so binding it here adds **no**
+   precondition step and **no** aborting precondition, and the ordered 3a-then-3b pair is unchanged.
+   The bound root is held
+   **fixed for the whole invocation**, joining the branch guard, the preflight verdict and the
+   `parallel` posture in the once-per-run set, and is **never re-resolved per epic or per loop
+   iteration**.
+
    **3b. Evaluate the capability preflight verdict**, per `ptp-github-projects-gh` — that skill owns
    the acting identity, the `gh` surface, the preflight algorithm, its three verdicts, its record, and
    its STOP-message shape, and **none of them is restated here** — reached **only** when 3a passed.
@@ -299,6 +310,14 @@ is the same by-reference discipline the `rounds:` grammar applies toward `ptp-ru
 iteration of the loop** — not once up front. **Never carry an in-memory model of the backlog across
 iterations.** A validation defect found on a mid-run re-read **halts the run** and reports every epic
 processed so far (see *store-defect halt* below).
+
+**The re-read re-reads the store, never the workspace binding.** Every recomputed read and its
+ready-set computation, every write group, the `runBaseline` snapshot taken at the take, the
+reconciliation diff, and each inline `ptp-full` use the **one workspace root bound in precondition
+3a**. The mandated per-iteration re-read does **not** license re-resolving it: that re-read exists to
+catch a mid-run hand edit to the **store**, whereas re-resolving the workspace would let a directory
+change or a config edit arriving between epics repoint the board and the change-folder anchor
+mid-loop.
 
 Load-bearing, not an optimization, for two reasons — **mid-run defect detection** and the
 **no-in-memory-model rule** — neither of which is about promotion:
@@ -454,7 +473,9 @@ never `unavailable`.
 
 ## The pre-run blast-radius announcement
 
-Emitted **after the ready set is computed and before the first epic runs**, stating all six of:
+Emitted **after the ready set is computed and before the first epic runs**. Its **preamble** names the
+**resolved workspace root** this invocation is bound to — in the preamble, never as a numbered item, the
+list below neither gaining an item nor being renumbered. The list states all six of:
 
 1. the **effective round cap and its source** — the default, or the `rounds:` token;
 2. the **feature branch** every epic will land on;
@@ -492,9 +513,12 @@ Every one of the following is **`ptp-backlog`'s**, cited here and restated nowhe
 reconciliation**, **the gate**, **the availability table**, **the disposition outcomes**, ***every
 settling edit clears `runBaseline`***, and ***recovery never yields `done`***.
 
-**The change-prefix set is storage-independent because it describes the repository**, not the store. So
-a board-backed backlog still snapshots and diffs **local change folders under `openspec/changes/`**, and
-`diff = after \ runBaseline` remains a diff between **two identically-defined sets**.
+**The change-prefix set is storage-independent because it describes the workspace**, not the store. So
+a board-backed backlog still snapshots and diffs **local change folders under `openspec/changes/`**,
+scanned at the **one workspace root bound in precondition 3a**, and `diff = after \ runBaseline`
+remains a diff between **two identically-defined sets taken at that one root**. That the set is
+anchored at a resolved workspace root, and that every reconciliation names the root it scanned, are
+`ptp-backlog`'s own, cited here and restated nowhere.
 
 Only **three** facts are store-specific, and each is a rule applied rather than a new one:
 `runBaseline` is **one serialized collection field**; it is **merge-written and therefore
@@ -575,6 +599,9 @@ label rather than fabricating buckets:**
   an empty-report row: a plan-convergence STOP is a fully informative report of a different shape.
 
 ### Required report fields
+
+The report names the **resolved workspace root** the invocation was bound to. That is a report
+sentence, **not** a tenth required field: the required-field list below stays **nine**.
 
 Alongside the buckets, the report carries **every one of these**:
 

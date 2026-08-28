@@ -32,6 +32,20 @@ prefixes = { leading 4-digit group of each folder name matching ^\d{4}_ }
                  with each leading YYYY-MM-DD- date prefix stripped
 ```
 
+**The scan is rooted at the invocation's resolved workspace root.** Every `openspec/…` literal above
+is workspace-relative — that anchoring rule is the `workspace` capability's own, owned by
+`ptp-workspace` and cited here rather than restated — so the snapshot and the diff must be taken at
+the **identical root** as well as over the identical definition. A diff whose two sides were scanned
+at different workspace roots is not meaningful, and no artifact describes such a diff as meaningful.
+
+**Nothing is persisted to make that so.** `runBaseline` gains no workspace field, no entry field is
+added, and the store's version marker stays `1`. The cross-invocation case — a baseline snapshotted
+under one workspace root and reconciled under another — is therefore met by **disclosure rather than
+prevention**: every reconciliation and every settling edit **names the workspace root it scanned the
+current set at**, so a diff taken against a baseline from elsewhere is visible in the report instead
+of silent. No report asserts that such a mismatch **occurred** — the store carries nothing with which
+to establish one.
+
 This mirrors `ptp-change-selector` § 4's epic allocation deliberately — the same scan, over the same
 two locations — so **active and archived** change epics both count and a change **archived during the
 run window does not read as a disappearance**. Each prefix is carried **as a string**, leading zeros
@@ -43,7 +57,8 @@ Reconciliation runs **before** the gate below, wherever a **non-null `runBaselin
 on a **stale** entry, and in the unset-or-out-of-enum-status repair the previous section routes here (a null
 `runBaseline` has nothing to diff — see *The hand-edited entry* below):
 
-1. Compute the **current** prefix set per the definition above.
+1. Compute the **current** prefix set per the definition above, at the invocation's **resolved
+   workspace root**.
 2. `recovered = current \ runBaseline`.
 3. For each prefix in `recovered`, in **ascending** order:
    - **already in `attributionWarnings` → skip.** That prefix was already judged *not* this epic's on
@@ -54,6 +69,9 @@ on a **stale** entry, and in the unset-or-out-of-enum-status repair the previous
      that produced it.
    - **otherwise → append** `{ id, attribution: "folder-diff-unconfirmed" }`.
 4. Reconciliation **removes nothing and relabels nothing**.
+
+The reconciliation report **names the resolved workspace root** the current set was computed at,
+beside the prefixes it recovered.
 
 ### The hand-edited entry — `in-progress` with a null `runBaseline`
 

@@ -32,6 +32,9 @@ const path = require('path');
 const http = require('http');
 const crypto = require('crypto');
 const { spawn, execFileSync } = require('child_process');
+// The layered config reader. `ptp-workspace` (skills/ptp-workspace/SKILL.md) owns the layer list and
+// its precedence; this file states neither and supplies only telemetry's own validity rules.
+const { configLayers, resolveConfigKey, REJECT } = require('./ptp-resolve-workspace.js');
 
 /* ------------------------------------------------------------------ constants */
 
@@ -106,7 +109,6 @@ function stripLineBreaks(v) { return String(v).replace(/[\r\n]+/g, ' '); }
 function readJsonFile(p) {
   try { return JSON.parse(fs.readFileSync(p, 'utf8')); } catch (_) { return null; }
 }
-function homeDir() { return process.env.PTP_HOME_DIR || os.homedir(); }
 function sleep(ms) { return new Promise((r) => setTimeout(r, ms)); }
 /**
  * Every OTLP collection is read through this. A JSON body can legally parse while carrying a STRING
@@ -142,24 +144,18 @@ function isValidRoot(v) {
 
 function isValidPort(v) { return Number.isInteger(v) && v >= 1 && v <= 65535; }
 
+/**
+ * §1's layered, FORGIVING resolution. The layer list, its order, its duplicate-path rule, and the
+ * per-key merge are `ptp-workspace`'s (`skills/ptp-workspace/SKILL.md`); this file restates no layer
+ * order and no precedence of its own, and contributes only telemetry's three validity rules as
+ * normalizers. `PTP_HOME_DIR` keeps its meaning inside the shared builder.
+ */
 function resolveConfig(repoRoot) {
-  const layers = [
-    path.join(homeDir(), '.claude', 'ptp', 'config.json'),
-    path.join(repoRoot, '.claude', 'ptp', 'config.json'),
-  ];
-  let mode = 'off';
-  let root = DEFAULT_ROOT;
-  let port = DEFAULT_PORT;
-  for (const file of layers) {
-    const obj = readJsonFile(file);
-    if (!obj || typeof obj !== 'object' || Array.isArray(obj)) continue;
-    const t = obj.telemetry;
-    if (!t || typeof t !== 'object' || Array.isArray(t)) continue;
-    if (t.mode === 'on' || t.mode === 'off') mode = t.mode;
-    if (isValidRoot(t.root)) root = t.root;
-    if (isValidPort(t.port)) port = t.port;
-  }
-  return { mode, root, port };
+  const layers = configLayers({ repoRoot });
+  const mode = resolveConfigKey(layers, 'telemetry.mode', (v) => (v === 'on' || v === 'off' ? v : REJECT), 'off');
+  const root = resolveConfigKey(layers, 'telemetry.root', (v) => (isValidRoot(v) ? v : REJECT), DEFAULT_ROOT);
+  const port = resolveConfigKey(layers, 'telemetry.port', (v) => (isValidPort(v) ? v : REJECT), DEFAULT_PORT);
+  return { mode: mode.value, root: root.value, port: port.value };
 }
 
 function storePaths(repoRoot) {
