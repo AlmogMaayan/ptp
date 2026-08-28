@@ -62,7 +62,7 @@ nothing of its own — it only invokes Skills (`ptp-brainstorming`, `ptp-writing
        - You MAY still load context (read files, run `npx -y openspec list` and `npx -y openspec list --specs`), compare the material alternatives and decide — all of this goes into `brainstorm.md` inline rather than as conversation turns. **If `ptp-run-at-model`'s optional part (f) supplied an inlined `openspec list` / `openspec list --specs` snapshot** (today, only when this run was started as a `/ptp:plan-multiple` per-slice member), use that snapshot in place of running either command **on the occasions you would have loaded that context** — this stays discretionary, exactly as the `MAY` above; the snapshot never obliges you to load context you would otherwise have skipped, and a supplied-but-empty snapshot is honored as a real "no active changes" answer, not treated as missing. **Re-run the listing anyway** if you have yourself created, moved, or deleted anything under `openspec/changes/` during this run, or if you need information the snapshot does not carry (e.g. `--specs` when only the plain listing was inlined). **If no snapshot was supplied** — a standalone `/ptp:plan` invocation, or a `/ptp:plan-multiple` member that its outer session deliberately supplied none because a sibling member had already written — this is unchanged — run the commands yourself when and if you choose to load that context, exactly as before.
        - You MUST still write the brainstorm doc to `openspec/changes/<change-id>/brainstorm.md`. Write it directly into the change folder, at `openspec/changes/<change-id>/brainstorm.md`. That file is the durable handoff to the rest of this command.
 
-   - **(b) `ptp-writing-plans`** — produces the step-by-step implementation plan that feeds `tasks.md`. Must cover: files to add/modify, data/contract changes, migration concerns, test plan, rollback plan. Same autonomous-mode rule: no clarifying questions, no mid-flow approval gates.
+   - **(b) `ptp-writing-plans`** — produces the step-by-step implementation plan that feeds `tasks.md`. Must cover: files to add/modify, data/contract changes, migration concerns, test plan, rollback plan. Same autonomous-mode rule: no clarifying questions, no mid-flow approval gates. If it returns **`NEEDS SPLIT`** (its terminal state — the change does not fit the artifact contract's keyed budgets), do not continue to step 3: carry that state and its proposed division straight to step 6.
 
    Do NOT skip (a) on the assumption that the request "is simple" — the decision and its assumptions still have to come from somewhere.
 
@@ -94,8 +94,13 @@ nothing of its own — it only invokes Skills (`ptp-brainstorming`, `ptp-writing
      deleted**: **(1) substitute** an automated equivalent the agent can run and read the result of, or —
      only if none exists — **(2) relocate** the intent into `proposal.md > Success criteria` as a plain
      **non-checkbox** note, creating that section for the purpose. The final verification task is itself
-     bound by this rule and never pulls a relocated note back into a checkbox. The full contract lives in
-     the `tasks-authoring` capability.
+     bound by this rule and never pulls a relocated note back into a checkbox. Further shapes with no
+     agent executor, in the same spirit: an **operator database backup or restore**, a **service host the
+     repo has no test infrastructure for**, a **deploy sign-off**. Relocation moves the **full gate** to
+     `proposal.md > Success criteria`, preserving every substantive assertion; a short **pointer** naming
+     where the gate went may remain in `tasks.md` as a non-checkbox line. The pointer is not the
+     relocation — a note that still carries the gate's substance inside `tasks.md` is not a fix. The full
+     contract lives in the `tasks-authoring` capability.
    - `specs/<capability>/spec.md` — spec deltas, **only if** behavior changes. Follow the format OpenSpec
      uses elsewhere in the repo (top-level `## ADDED/MODIFIED/REMOVED/RENAMED Requirements`, then
      `### Requirement: ...` with SHALL/MUST, then `#### Scenario:` blocks). If
@@ -121,8 +126,13 @@ nothing of its own — it only invokes Skills (`ptp-brainstorming`, `ptp-writing
    node scripts/ptp-compact-lint.js --workspace <resolved workspace root> --change <change-id>
    ```
 
-   and carry its findings into the step-6 report. It is a **reporting** check: it never truncates an
-   artifact, never blocks the STOP, and never aborts planning. If it is unavailable or exits non-zero for
+   and carry its findings into the step-6 report. A **keyed budget overrun** it reports is the one
+   finding that is not advisory: resolve it by **removing text**. If the overrun cannot be resolved by
+   removal, **re-invoke `ptp-writing-plans` for its `NEEDS SPLIT` division** and take that terminal
+   state at step 6 — the division is the planner's to produce, so never fabricate child ids here, and
+   never report `NEEDS SPLIT` without the payload that skill returned. Every other finding is a
+   **reporting** check — it never truncates an artifact, never blocks the STOP, and never aborts
+   planning. If the linter is unavailable or exits non-zero for
    its own reasons, say so in one line and continue. The root is the one resolved at this command's
    entry (`ptp-workspace`), passed as an argument and never as a working-directory change, because the
    script is named relative to the ptp checkout.
@@ -130,6 +140,17 @@ nothing of its own — it only invokes Skills (`ptp-brainstorming`, `ptp-writing
 6. **STOP.** Do not start implementation. Report only: the change id; `effort: <model>.<effort>`; the
    validation result; the linter findings (or that it was unavailable); and the next command
    `/ptp:apply <change-id>`. Do not list the created files — the layout is deterministic.
+
+   **`NEEDS SPLIT` is this command's other terminal state**, and it is a **success**, not a failure.
+   It is reached in exactly two ways, both of which end with `ptp-writing-plans` having returned the
+   division: the planner returned it at step 2(b), or step 5's unresolvable budget overrun sent the
+   planner back for it. Report the state, the child ids **that skill returned** with a one-line scope
+   for each, and the next command
+   `/ptp:plan-multiple <change-id>` — which re-cuts **this** change into those children per
+   `ptp-change-selector` §4b. Offer no `/ptp:apply` command. Leave the change folder exactly as it
+   stands — **delete nothing and move nothing**: the re-cut owns the parent's replacement, and a
+   `/ptp:plan` that tore the folder down would destroy the brainstorm (and any anchored `prd.md`)
+   the re-cut needs. The state and its payload are `ptp-writing-plans`' — do not restate them here.
 
    **This report carries no review tally.** `/ptp:plan` wraps no review orchestrator, so there is no
    tally to relay: print no tally table and no `unknown` placeholder in its place. `unknown` is

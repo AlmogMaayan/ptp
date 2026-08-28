@@ -39,7 +39,7 @@ Epic allocation (beat 1): allocate one fresh epic for all slices per the `ptp-ch
 
 ## Branch safety (beat 1, first write-affecting step)
 
-**Beat 1 runs entirely in the outer session, in this exact order: (1) parse and strip the `parallel:` token (see *Inputs*), (2) allocate the fresh epic per `ptp-change-selector` §4, (3) run the `ptp-branch-guard` preamble once, (4) run step 1's gather-and-gate including its guaranteed-abort "implementation already started" STOP.** Sub-step (1) is **skipped when an orchestrating command supplied a pre-resolved parallel posture** — the token was already parsed and stripped upstream, so there is none to find. Skipping it changes nothing else about beat 1's ordering: (2), (3), and (4) run exactly as written. The epic allocation precedes the guard because the guard derives a fresh-request branch name — leaf `epic-XXXX`, shape per `ptp-workspace` — **from** the allocated epic. **No main run of any kind — not the beat-2 subagent, not a beat-3 member — starts before beat 1 has completed.**
+**Beat 1 runs entirely in the outer session, in this exact order: (1) parse and strip the `parallel:` token (see *Inputs*), (2) allocate the fresh epic per `ptp-change-selector` §4 — or, in **re-cut mode**, allocate **no** epic and derive the child id prefix from the parent per §4b, the branch guard then deriving its leaf from the parent's epic rather than from a new one, (3) run the `ptp-branch-guard` preamble once, (4) run step 1's gather-and-gate including its guaranteed-abort "implementation already started" STOP.** Sub-step (1) is **skipped when an orchestrating command supplied a pre-resolved parallel posture** — the token was already parsed and stripped upstream, so there is none to find. Skipping it changes nothing else about beat 1's ordering: (2), (3), and (4) run exactly as written. The epic allocation precedes the guard because the guard derives a fresh-request branch name — leaf `epic-XXXX`, shape per `ptp-workspace` — **from** the allocated epic. **No main run of any kind — not the beat-2 subagent, not a beat-3 member — starts before beat 1 has completed.**
 
 Run the **`ptp-branch-guard`** preamble **once up front**, before delegating to any sub-step that writes: check `git rev-parse --abbrev-ref HEAD`; if it is the base branch (`master`/`main`), derive a feature-branch name from this request (or the fresh epic you allocate → leaf `epic-XXXX`, shape per `ptp-workspace`) and launch the minimal `ptp-branch-prep` workflow (stash → checkout the base branch → pull → cut the branch) **before** any sub-step runs; if you are already on a feature branch it is a **no-op** — proceed as-is. Delegated `/ptp:plan` runs re-run the guard as a no-op once HEAD is on the branch. The full rule lives in the **`ptp-branch-guard`** skill — do not restate it here.
 
@@ -48,6 +48,26 @@ Run the **`ptp-branch-guard`** preamble **once up front**, before delegating to 
 - Use **`/ptp:plan`** when the change is one coherent unit of work.
 - Use **`/ptp:plan-multiple`** when the work is large enough that a single `tasks.md` would be unwieldy, spans multiple spec capabilities, or naturally factors into stages that can each be reviewed, applied, and archived on their own.
 - If you inspect it and it turns out **not** to be big enough to split, do **not** force a split — fall back to a single `/ptp:plan` (step 3).
+
+**Two modes, differing only in how slices are named and what step 4 preserves.**
+
+| Mode | Selected by | Slice ids |
+|---|---|---|
+| **Fresh decomposition** (default) | a free-text request, or a monolithic change id that has **not** returned `NEEDS SPLIT` | a freshly allocated epic, `XXXX_01`, `XXXX_02`, … (`ptp-change-selector` §4) |
+| **Re-cut** | a change id that **halted for size** — its `/ptp:plan` returned **`NEEDS SPLIT`**, or its plan review returned **`ARTIFACT BUDGET EXCEEDED`** | **children of that change**, `<parent-minus-desc>_01_<desc>`, `_02_<desc>`, … (`ptp-change-selector` §4b) |
+
+**Re-cut mode is selected by a change id, never by free text.** Both size halts name the change they
+halted on, and every recommendation of this command from a size halt passes that **id**; a free-text
+or scope-shaped argument takes fresh-decomposition mode and would allocate a new epic instead of
+replacing the halted change. When re-cut mode is entered from `ARTIFACT BUDGET EXCEEDED` the parent
+carries no planner-supplied division, so beat 2 derives one exactly as it does for a fresh
+decomposition — the mode governs naming and preservation, not where the division comes from.
+
+Re-cut mode allocates **no epic** and renumbers **no sibling** — the children inherit the parent's
+position in story order. Everything else about the flow (the three beats, the fan-out contract, the
+join, the report) is identical, so the mode is a naming and preservation rule, not a second flow.
+`ptp-change-selector` §4b owns the allocation, the parent's replacement, and the dependency rewrite;
+this command executes them and restates none of them.
 
 ## Steps
 
@@ -118,12 +138,18 @@ outer session) runs the members. Notes the beat-2 prompt MUST carry:
   does not run. The parsing rules below apply only to a `completed` return.
 
 2. **Decompose (autonomous brainstorm).** Invoke **`ptp-brainstorming`** via the Skill tool in **autonomous mode** (no clarifying questions — document assumptions instead, exactly as `/ptp:plan` does), focused on a single question: *what is the smallest set of coherent, independently-shippable changes that together cover this request?* Produce an ordered list where each slice has:
-   - a sub-change id `XXXX_NN_<kebab-description>` — a single epic allocated via `ptp-change-selector` (§4, epic allocation), then two-digit zero-padded story, then kebab description (e.g. `0001_01_landing-page-list-bulk-export`, `0001_02_landing-page-bulk-import`, `0001_03_landing-page-server-side-import`). The story number is the recommended apply order. All slices share the same epic.
+   - a sub-change id. In **fresh decomposition** mode: `XXXX_NN_<kebab-description>` — a single epic allocated via `ptp-change-selector` (§4, epic allocation), then two-digit zero-padded story, then kebab description (e.g. `0001_01_landing-page-list-bulk-export`, `0001_02_landing-page-bulk-import`, `0001_03_landing-page-server-side-import`). In **re-cut** mode: a child of the parent per §4b — `0001_03_01_bulk-load-seam-read`, `0001_03_02_bulk-load-seam-write`. Either way the trailing story segment is the recommended apply order, and all slices share the same epic.
    - a one-paragraph scope (what's in, what's out).
    - explicit dependencies — a slice may depend **only on lower-story slices** (no cycles, no forward references). State them as `depends on XXXX_NN_…`.
    - one sentence on why it stands alone (can be reviewed / applied / archived independently).
 
-   A good decomposition: every slice is shippable on its own, slices are ordered by dependency, and their union covers the original request with no overlap and no gap.
+   **Granularity — one change = one unit of work.** One migration, or one import, or one service change, or one spec-vocabulary change. Independent shippability is necessary but no longer sufficient: **if a slice's design cannot be stated in `artifact.maxDesignWords`, it is not one change — split it further.** A slice needing 5,000+ words of design is typically five changes wearing one folder, and splitting it also surfaces ordering bugs that a combined slice hides by containing both sides of the dependency.
+
+   **Compilability is not a cut constraint.** Cut by **concern**. Never merge two concerns so that a constructor still resolves — that distorts the decomposition to keep the build green, which is not what the cut is for. A slice that does not build on its own declares `Build state: RED — … until <change-id>` in its `proposal.md`; the field, and the contiguous-group rule that makes such a slice ship with its closing slice rather than alone, are owned by the compact artifact contract. "Independently shippable" is read at **group** granularity for those slices.
+
+   **Dependency edges are verified against the code** — constructor injection, call sites, registration — never inferred from topic similarity. Slices that look independent by topic have been found mutually dependent through a single constructor and one nested call site.
+
+   A good decomposition: every slice is one unit of work, slices are ordered by verified dependency, and their union covers the original request with no overlap and no gap.
 
    Do **not** persist this decomposition as its own file. It is working reasoning; it gets recorded durably inside each slice's `proposal.md` in step 5 (cross-reference only — no umbrella doc).
 
@@ -131,14 +157,15 @@ outer session) runs the members. Notes the beat-2 prompt MUST carry:
    - If the work genuinely factors into **≥ 2** independently-shippable slices → continue to step 4, then return the `PLAN-MULTIPLE-SLICES` list.
    - If it is really one unit → **fall back**: return `PLAN-MULTIPLE-FALLBACK` with the original id/request as its single payload line and **stop beat 2 there — do not run step 4**. Do not create artificial slices. (The outer session then invokes a single `/ptp:plan` and reports that no split was needed — see *Beat 2's return* below.)
 
-4. **Preserve the brainstorm, then delete the monolithic plan if one exists — split path only.** Reached **only** when step 3 decided to split; on the fallback path step 3 already returned, so nothing here runs.
+4. **Preserve what the slices do not re-author, then delete the parent plan if one exists — split path only.** Reached **only** when step 3 decided to split; on the fallback path step 3 already returned, so nothing here runs.
    If step 1 found an existing `openspec/changes/<id>/` **and confirmed no implementation had started**:
-   - **a. Preserve first** — if `openspec/changes/<id>/brainstorm.md` exists:
-     - Create `openspec/brainstorms/` if it does not yet exist.
-     - **Move** `brainstorm.md` to `openspec/brainstorms/<id>-brainstorm.md`.
-   - **b. Then delete** the `openspec/changes/<id>/` folder — its content has been folded into the decomposition, and leaving a half-planned giant change beside the slices is confusing.
+   - **a. Preserve first.** The artifacts the slices re-author — `proposal.md`, `design.md`, `tasks.md`, spec deltas, `effort.md` — are discarded, their content having been folded into the decomposition. Every other artifact the folder holds is **moved, never deleted**:
+     - `prd.md` — **decisive in re-cut mode.** A PRD is anchored at its epic's lowest-numbered story folder (`ptp-prd`), so deleting a split story-`01` parent would delete the epic's PRD. Move it into the **first child's** folder, which §4b's story order makes the epic's new lowest-numbered story. Record the move in the step-6 report.
+     - `analysis.md` — move it into the first child's folder likewise.
+     - `brainstorm.md` — move it to `openspec/brainstorms/<id>-brainstorm.md` (creating that folder if absent), or into the first child's folder in re-cut mode, where it is that child's direct input.
+   - **b. Then delete** the `openspec/changes/<id>/` folder — now that it holds nothing unpreserved — because leaving a half-planned parent beside its slices is confusing, and in re-cut mode a parent coexisting with its children would break the story ordering `ptp-change-selector` §1 depends on.
 
-   If no such folder existed, skip this step. Never delete before its thinking has been captured in step 2, and never delete a change whose implementation has already started (step 1 already stopped you in that case).
+   If no such folder existed, skip this step. Never delete before its thinking has been captured in step 2 and every artifact above has been moved, and never delete a change whose implementation has already started (step 1 already stopped you in that case).
 
 #### Beat 2's return — the handoff contract
 
@@ -266,12 +293,16 @@ having missed one — which is why "authoritative for the run" is safe here and 
 
    The "do not invoke `ptp-run-at-model`" line is the single most load-bearing sentence in the member prompt: omitting it re-introduces the second nesting level this whole structure exists to avoid.
 
+   **`NEEDS SPLIT` from a member is a re-cut instruction, never a refusal.** A member whose `/ptp:plan` returns `ptp-writing-plans`' `NEEDS SPLIT` terminal state is reporting that its slice is still more than one unit of work. Record it as **not planned but successful**, carry its proposed child ids and scopes verbatim into the step-6 report, and recommend `/ptp:plan-multiple <that-slice-id>` — the **re-cut** mode above, which splits that slice into those children in place. Never re-run the member unchanged, never treat it as failed or cross-reference-unverified, and never proceed as though the slice were planned.
+
    **e. Join every member.** Collect **all** member results — a member that failed, refused, or was throttled is **recorded as failed**, never dropped and never silently omitted. A member returning `ptp-run-at-model`'s third terminal state, **`needs-human-action`**, is likewise **not a success**: record it as unsuccessful alongside its machine-readable reason and the exact follow-up command it names, report both in step 6, treat its slice as cross-reference-unverified if it left no `proposal.md`, and — exactly as for a failure — offer **no** `/ptp:apply` next command. Only `completed` counts as a member success. Each successful `/ptp:plan` also emits its own validation result and recommended apply model/effort; collect those.
 
    **f. Then guarantee the cross-reference is durable — after the join, serially, in the outer session.** Because you chose *cross-reference only* (no umbrella doc), that cross-ref is the **only** record of the split — so don't rely on `/ptp:plan` having transcribed it. For each slice, **read its `proposal.md` and confirm** the cross-reference line is present; if it is missing or thin, **append it yourself** under `## Context` (or `## Source`):
    - *"Part of splitting `<original request>` into slices `XXXX_01_…`, `XXXX_02_…`, … . This slice depends on `XXXX_NN_…`."*
 
    Editing `proposal.md` for this single line is the one exception to "let `/ptp:plan` write the proposal" — you are adding provenance metadata, not authoring design content.
+
+   **In re-cut mode, also rewrite every sibling's dependency on the parent — same join step, same exception.** The parent id no longer names a change, so any **active sibling** whose `proposal.md` declares `depends on <parent-id>` now points at nothing. Scan the active changes once, and repoint each such reference at the split's **last** child, per `ptp-change-selector` §4b rule 2 — a dependency from outside the split targets the chain's completion, never a mid-chain child, unless this re-cut states why. Report every edit in step 6. A dangling parent reference left behind is a defect, not an untidiness: it survives into `/ptp:full`'s dependency walk, where it reads as a dependency on a change that will never converge.
 
    **If an unsuccessful member — failed, refused, throttled, or `needs-human-action` — left no `proposal.md`**, skip the read for that slice, record it as **cross-reference-unverified**, and preserve its terminal outcome — do **not** create a `proposal.md` for it and do **not** attempt an undefined read.
 
@@ -282,15 +313,19 @@ having missed one — which is why "authoritative for the run" is safe here and 
    - Every slice, in ascending change id order, each with its one-line scope and its dependencies.
    - Per-slice validation result and the recommended apply model/effort each `/ptp:plan` produced.
    - **Every unsuccessful member** — failed, refused, throttled, or `needs-human-action` (with its reason and follow-up command) — and every slice recorded as cross-reference-unverified. Never present a partial run as success — if **any** member was unsuccessful, the overall run is **not** successful.
+   - **Every slice that returned `NEEDS SPLIT`**, with its proposed child ids and their one-line scopes, plus the recommended `/ptp:plan-multiple <that-slice-id>`.
+   - **In re-cut mode:** the parent id that was replaced, where each artifact it held was moved (`prd.md` especially), and every sibling `proposal.md` whose dependency reference was repointed onto the last child. Silence here would hide a PRD relocation and a cross-slice edit. This is a success state, so it is reported separately from the unsuccessful members above — but the epic is not fully planned while one stands, so offer no `/ptp:apply` command.
    - Whether a monolithic plan was deleted (and which id).
-   - **Only when every member completed successfully:** the exact next command `/ptp:apply <first-slice-id>`. When any member was unsuccessful or was left cross-reference-unverified, **name those slices and offer no apply command** — a failed run never recommends applying an unplanned slice. (Reporting the next command is not chaining; actually invoking `/ptp:apply` remains forbidden.)
+   - **Only when every member completed successfully and no member returned `NEEDS SPLIT`:** the exact next command `/ptp:apply <first-slice-id>`. When any member was unsuccessful, returned `NEEDS SPLIT`, or was left cross-reference-unverified, **name those slices and offer no apply command** — a failed run never recommends applying an unplanned slice. (Reporting the next command is not chaining; actually invoking `/ptp:apply` remains forbidden.)
 
 ## Hard rules
 
 - Do **not** force a split. If the change is one coherent unit, fall back to a single `/ptp:plan` (step 3).
 - Do **not** delete the monolithic `openspec/changes/<id>/` folder until its thinking has been folded into the decomposition (step 2 before step 4), and only after its `brainstorm.md` (if any) has been moved to `openspec/brainstorms/<id>-brainstorm.md` — brainstorm history is preserved, while the rest of the folder (proposal/design/tasks/spec deltas, already folded into the slices) is discarded.
 - Do **not** decompose or delete a monolithic change whose implementation has already started (checked tasks or matching code changes). STOP and hand the decision to the user (step 1).
-- Each slice **must** be independently shippable and may depend **only on lower-numbered slices** — no cycles, no forward dependencies.
+- **Re-cut mode allocates no epic and renumbers no sibling.** A change that returned `NEEDS SPLIT` is replaced by its own children per `ptp-change-selector` §4b; never allocate a fresh epic for it, never renumber a sibling to make room, and never leave the parent folder beside its children.
+- **Never delete a parent folder while it still holds an artifact its children do not re-author** — `prd.md` above all, whose deletion would silently destroy the epic's requirements document. Move first, delete second (step 4).
+- Each slice **must** be **one unit of work** (step 2's granularity rule), shippable on its own or as part of the contiguous group its declared `RED` build state names, and may depend **only on lower-numbered slices** — no cycles, no forward dependencies.
 - Do **not** write any slice's `proposal.md` content yourself from the raw request — it must come from that slice's `/ptp:plan` brainstorming, exactly like a normal single change.
 - Do **not** create an umbrella decomposition doc. The rationale + dependencies live as cross-references inside each slice's `proposal.md` (step 5).
 - Do **not** ask the user clarifying questions mid-flow. `/ptp:plan-multiple` is autonomous end-to-end, same contract as `/ptp:plan`: make reasonable assumptions, document them, produce validated artifacts.

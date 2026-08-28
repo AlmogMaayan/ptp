@@ -33,6 +33,11 @@
 const fs = require('fs');
 const path = require('path');
 
+// ptp-workspace's layered configuration contract, executable half. The six `artifact.*` budget keys
+// are resolved through it; the owner skill states their defaults and that they are acceptance
+// criteria, and this file states none of that.
+const { configLayers, resolveConfigKey, REJECT } = require('./ptp-resolve-workspace.js');
+
 const CONTRACT_VERSION = 1;
 
 const EFFORT_RE = /^(haiku|sonnet|opus)\.(low|medium|high|xhigh)$/;
@@ -80,17 +85,51 @@ const DESIGN_OWNED_HEADINGS = [
   'interfaces', 'data flow', 'failure', 'migration', 'risks',
 ];
 
-// §2 — soft word budgets.
-const BUDGETS = {
-  'proposal.md': 400,
-  'design.md': 800,
-  'tasks.md': 600,
+// §2 — budgets. The four KEYED budgets are acceptance criteria: the `budget-exception` marker does
+// not excuse them, and a breach is reported as BUDGET_EXCEEDED (high). `prd.md` keeps the soft
+// posture, where the marker converts a breach into a note (BUDGET_OVERRUN, low).
+const KEYED_BUDGETS = [
+  { artifact: 'proposal.md', key: 'artifact.maxProposalWords', fallback: 400 },
+  { artifact: 'design.md', key: 'artifact.maxDesignWords', fallback: 800 },
+  { artifact: 'tasks.md', key: 'artifact.maxTasksWords', fallback: 600 },
+  { artifact: 'specs/**/spec.md', key: 'artifact.maxSpecDeltaWords', fallback: 1200 },
+];
+
+const SOFT_BUDGETS = {
   'prd.md': 1200,
 };
 
+// A RED declaration must name what breaks and the change that closes it: the contiguous-group rule
+// the contract owner states is unenforceable when the closing change is not identified.
+const BUILD_STATE_RE = /^(GREEN|RED\s*[\u2014\u2013-]\s*\S.*\s+until\s+\S+)$/;
+
 const CHECKBOX_MIN = 5;
-const CHECKBOX_MAX = 15;
-const CHECKBOX_WORD_LIMIT = 60;
+const CHECKBOX_MAX_KEY = 'artifact.maxTaskCount';
+const CHECKBOX_MAX_FALLBACK = 15;
+const CHECKBOX_WORD_KEY = 'artifact.maxTaskWords';
+const CHECKBOX_WORD_FALLBACK = 60;
+
+/**
+ * Resolve the six `artifact.*` budgets over the layered config. Forgiving, exactly like every other
+ * ptp reader: a missing file, missing key, bad JSON, or non-positive / non-integer value leaves the
+ * prior layer's value and finally the fallback. Never throws.
+ */
+function positiveInt(v) {
+  return typeof v === 'number' && Number.isInteger(v) && v >= 1 ? v : REJECT;
+}
+
+function resolveBudgets(repoRoot) {
+  let layers;
+  try {
+    layers = configLayers({ repoRoot: repoRoot });
+  } catch (err) {
+    layers = [];
+  }
+  const pick = (key, fallback) => resolveConfigKey(layers, key, positiveInt, fallback).value;
+  const out = { keyed: {}, checkboxMax: pick(CHECKBOX_MAX_KEY, CHECKBOX_MAX_FALLBACK), checkboxWords: pick(CHECKBOX_WORD_KEY, CHECKBOX_WORD_FALLBACK) };
+  for (const row of KEYED_BUDGETS) out.keyed[row.artifact] = pick(row.key, row.fallback);
+  return out;
+}
 
 const CODE_ORDER = [
   'TLDR_PRESENT',
@@ -101,6 +140,8 @@ const CODE_ORDER = [
   'TASK_RATIONALE_HEAVY',
   'DESIGN_EMPTY',
   'TASK_MANUAL_PHRASE',
+  'BUILD_STATE_MISSING',
+  'BUDGET_EXCEEDED',
   'BUDGET_OVERRUN',
 ];
 
@@ -113,6 +154,8 @@ const SEVERITY = {
   TASK_RATIONALE_HEAVY: 'medium',
   DESIGN_EMPTY: 'low',
   TASK_MANUAL_PHRASE: 'low',
+  BUILD_STATE_MISSING: 'high',
+  BUDGET_EXCEEDED: 'high',
   BUDGET_OVERRUN: 'low',
 };
 
@@ -215,6 +258,49 @@ function countWords(text) {
   return tokens.length;
 }
 
+/**
+ * Word count of one spec-delta file, excluding the VERBATIM reproduction inside its
+ * `## MODIFIED Requirements` blocks. Reproducing an existing requirement in full is mandatory, so
+ * that reproduced text is never counted against the delta budget — but text a MODIFIED block ADDS is
+ * the change's own and counts like any other delta prose, or the block would be an unbudgeted
+ * channel exactly like the one the delta budget exists to close.
+ *
+ * The verbatim test is line-level: a non-empty trimmed line inside a MODIFIED block is excluded only
+ * when that same trimmed line occurs in the capability's CURRENT spec. `currentSpecText` of `null` —
+ * a new capability, or a spec file that could not be read — excludes nothing, which is the
+ * conservative direction. Splitting on top-level `##` headings, and the line-level comparison, are
+ * this file's detection heuristics.
+ */
+function countSpecDeltaWords(text, currentSpecText) {
+  const currentLines = new Set(
+    String(currentSpecText || '')
+      .split('\n')
+      .map((l) => l.trim())
+      .filter((l) => l.length > 0)
+  );
+  const lines = text.split('\n');
+  const kept = [];
+  let inModified = false;
+  for (const line of lines) {
+    const h = line.match(/^##\s+(.*)$/);
+    if (h) inModified = /^MODIFIED\s+Requirements\b/i.test(h[1].trim());
+    if (!inModified) {
+      kept.push(line);
+      continue;
+    }
+    const trimmed = line.trim();
+    if (trimmed.length === 0) continue;
+    if (!currentLines.has(trimmed)) kept.push(line);
+  }
+  return countWords(kept.join('\n'));
+}
+
+/** The capability directory of a delta path `specs/<capability>/....md`, or null. */
+function deltaCapability(relPath) {
+  const m = relPath.match(/^specs\/([^/]+)\//);
+  return m ? m[1] : null;
+}
+
 function findBudgetException(text) {
   const { comments } = stripFencedCodeAndComments(text);
   for (const comment of comments) {
@@ -300,7 +386,7 @@ function headingsInText(text) {
   return out;
 }
 
-function lintChange(dir, changeLabel, assumeContract) {
+function lintChange(dir, changeLabel, assumeContract, budgets, repoRoot) {
   const findings = [];
   const notes = [];
 
@@ -490,12 +576,12 @@ function lintChange(dir, changeLabel, assumeContract) {
     const boxes = extractCheckboxes(tasks);
     for (const box of boxes) {
       const words = checkboxWordCount(box);
-      if (words > CHECKBOX_WORD_LIMIT) {
+      if (words > budgets.checkboxWords) {
         findings.push(makeFinding(
           'TASK_RATIONALE_HEAVY',
           'tasks.md',
           box.startLine,
-          'Checkbox exceeds the 60-word limit (' + words + ' words); the excess is rationale that design.md or proposal.md owns.'
+          'Checkbox exceeds the ' + budgets.checkboxWords + '-word limit (' + words + ' words); the excess is rationale that design.md or proposal.md owns.'
         ));
       }
     }
@@ -532,8 +618,85 @@ function lintChange(dir, changeLabel, assumeContract) {
     }
   }
 
-  // 9. BUDGET_OVERRUN
-  for (const [artifactName, budget] of Object.entries(BUDGETS)) {
+  // 9. BUILD_STATE_MISSING — proposal.md's required one-line build-state declaration.
+  if (proposal !== null) {
+    const m = proposal.match(/^##\s+Build state\s*$/mi);
+    let ok = false;
+    if (m) {
+      const after = proposal.slice(m.index + m[0].length);
+      const body = after.split(/^##\s/m)[0].replace(/<!--[\s\S]*?-->/g, ' ');
+      const declared = body.split('\n').map((l) => l.trim()).filter((l) => l.length > 0);
+      // Exactly one declaration line, and RED must name what breaks AND the change that closes it —
+      // a bare `RED` leaves the contiguous group's closing change unidentifiable.
+      ok = declared.length === 1 && BUILD_STATE_RE.test(declared[0]);
+    }
+    if (!ok) {
+      findings.push(makeFinding(
+        'BUILD_STATE_MISSING',
+        'proposal.md',
+        null,
+        'proposal.md has no "## Build state" section whose body is exactly one line reading GREEN, or RED \u2014 <what breaks> until <change-id>.'
+      ));
+    }
+  }
+
+  // 10a. BUDGET_EXCEEDED — the keyed budgets. No exception marker excuses these.
+  for (const artifactName of ['proposal.md', 'design.md', 'tasks.md']) {
+    const text = artifactTexts[artifactName];
+    if (text === undefined) continue;
+    const budget = budgets.keyed[artifactName];
+    const words = countWords(text);
+    if (words > budget) {
+      findings.push(makeFinding(
+        'BUDGET_EXCEEDED',
+        artifactName,
+        null,
+        artifactName + ' is ' + words + ' words, over its ' + budget + '-word budget. The budget is an acceptance criterion: remove text, or split the change.'
+      ));
+    }
+  }
+  {
+    const deltaFiles = Object.keys(artifactTexts).filter((rel) => rel.startsWith('specs/') && rel.endsWith('.md')).sort();
+    if (deltaFiles.length > 0) {
+      const budget = budgets.keyed['specs/**/spec.md'];
+      let total = 0;
+      for (const rel of deltaFiles) {
+        const capability = deltaCapability(rel);
+        let currentSpec = null;
+        if (capability !== null && repoRoot) {
+          const specPath = path.join(repoRoot, 'openspec', 'specs', capability, 'spec.md');
+          try {
+            if (fs.existsSync(specPath)) currentSpec = normalizeLineEndings(fs.readFileSync(specPath, 'utf8'));
+          } catch (err) {
+            currentSpec = null; // unreadable current spec excludes nothing — the conservative direction
+          }
+        }
+        total += countSpecDeltaWords(artifactTexts[rel], currentSpec);
+      }
+      if (total > budget) {
+        findings.push(makeFinding(
+          'BUDGET_EXCEEDED',
+          'specs/**/spec.md',
+          null,
+          'The spec deltas total ' + total + ' words across ' + deltaFiles.length + ' file(s) (verbatim MODIFIED blocks excluded), over the ' + budget + '-word summed budget. Remove text, or split the change.'
+        ));
+      }
+    }
+  }
+  if (tasks !== null) {
+    const boxes = extractCheckboxes(tasks);
+    if (boxes.length < CHECKBOX_MIN || boxes.length > budgets.checkboxMax) {
+      findings.push(makeFinding(
+        'BUDGET_EXCEEDED',
+        'tasks.md',
+        null,
+        'tasks.md has ' + boxes.length + ' checkboxes, outside the ' + CHECKBOX_MIN + '-' + budgets.checkboxMax + ' range.'
+      ));
+    }
+  }
+
+  // 10b. BUDGET_OVERRUN — the soft budgets, where the exception marker still applies.
+  for (const [artifactName, budget] of Object.entries(SOFT_BUDGETS)) {
     const text = artifactTexts[artifactName];
     if (text === undefined) continue;
     const words = countWords(text);
@@ -547,22 +710,6 @@ function lintChange(dir, changeLabel, assumeContract) {
           artifactName,
           null,
           artifactName + ' is ' + words + ' words, over its ' + budget + '-word soft budget, with no budget-exception marker.'
-        ));
-      }
-    }
-  }
-  if (tasks !== null) {
-    const boxes = extractCheckboxes(tasks);
-    if (boxes.length < CHECKBOX_MIN || boxes.length > CHECKBOX_MAX) {
-      const exception = findBudgetException(tasks);
-      if (exception.present && exception.reason) {
-        notes.push({ artifact: 'tasks.md', reason: exception.reason });
-      } else {
-        findings.push(makeFinding(
-          'BUDGET_OVERRUN',
-          'tasks.md',
-          null,
-          'tasks.md has ' + boxes.length + ' checkboxes, outside the 5-15 range, with no budget-exception marker.'
         ));
       }
     }
@@ -639,7 +786,7 @@ function main() {
     return;
   }
 
-  const report = lintChange(dir, label, args.assumeContract);
+  const report = lintChange(dir, label, args.assumeContract, resolveBudgets(args.repo), args.repo);
   if (report === null) return; // usageError already exited
 
   if (format === 'json') {

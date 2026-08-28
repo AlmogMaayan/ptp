@@ -97,7 +97,7 @@ The required set is therefore: the contract artifacts, the merge-base diff, the 
    `-c model_reasoning_effort=<effort>` before the trailing `-` when `codex.model` /
    `codex.reasoningEffort` resolve to a set value; both unset yields exactly the invocation shown above.
    - Always pipe via **stdin** (`-`); keep `-s read-only`. Do **not** pass `--full-auto`, `--sandbox workspace-write`, or `--dangerously-bypass-approvals-and-sandbox` — loosening the sandbox is the wrong fix for a review.
-   - Running it in the background and polling the output file for the verdict line is fine.
+   - **Run it synchronously**, per `ptp-codex-mode`'s *Every round runs synchronously*.
    - Sandbox noise (`blocked by policy`, `spawn setup refresh`) is harmless — the diff and results are inlined, so Codex needs no commands. Proceed to relay the verdict.
 6. **Relay Codex's output** to the user verbatim (or lightly formatted), then add your own one-paragraph summary: the resolved threshold and the layer it came from, finding counts by severity (below-threshold findings still counted and listed, marked non-blocking), and the verdict. Note the review covers the diff/results you inlined. **Apply the threshold rule yourself** rather than trusting Codex's line blindly: if Codex's emitted verdict line disagrees with the threshold-correct verdict (for example it emits `NEEDS FIXES` for a finding set whose worst finding is a High that the resolved threshold demoted), **say so explicitly** and report the threshold-correct verdict.
 7. **Decide outcome** based on Codex's findings, using the threshold-correct verdict from step 6:

@@ -45,6 +45,8 @@ trigger rather than with this file:
 - `skills/ptp-review-loop/references/code-marker-skip-eligibility.md` — loaded when deciding whether an existing code marker permits skipping a review.
 - `skills/ptp-review-loop/references/review-tally-table.md` — loaded when printing a tally table.
 - `skills/ptp-review-loop/references/review-cycle-tally.md` — loaded when accumulating, finalizing, or returning `reviewTally`.
+- `skills/ptp-review-loop/references/bounded-review.md` — loaded when dispatching a review pass, rejecting a finding, carrying out a fix, or applying step (h)'s size-budget check.
+- `skills/ptp-review-loop/references/stable-finding-key.md` — loaded when computing or comparing a stable finding key.
 
 ## Inputs
 
@@ -176,6 +178,14 @@ four-value schema is unchanged for the labeled findings it already covers; this 
 value to use in the fail-safe case, so carry-over deduplication works on unrankable findings too
 instead of being undefined for them.
 
+## The acceptance bar
+
+Every review pass carries an **acceptance criterion**, never an open-ended adversarial instruction:
+*does the artifact or diff contain a defect that would produce wrong behaviour, wrong data, or a
+failed apply?* Style, thoroughness, and completeness-of-rationale are **not** findings. Step (b)
+carries that sentence into the reviewer's instructions verbatim; step (e) rejects a finding only by
+stating what it checked. Detail: `references/bounded-review.md`.
+
 ## Fix dispatch
 
 `fixDispatch` decides **how** step (g2) carries out the fix at the `fixTarget` step (g1) evaluated. It
@@ -264,6 +274,7 @@ All state lives in the current conversation context. **This state is NEVER persi
 | `per_iteration_summary` | `[]` | list of per-iteration result objects |
 | `reviewTally` | `{}` | object keyed by reviewer |
 | `fixed_candidates` | `[]` | list of stable finding keys (beside `rejected_findings`) |
+| `artifact_sizes` | `[]` | one entry per completed iteration: `{ iteration, <artifact>: <words>, … }` (see step (h)) |
 
 ## Review cycle tally
 
@@ -469,22 +480,26 @@ assembled per the `ptp-codex-mode` canonical flag-append rule (append resolved `
 `codex.reasoningEffort` are set; both unset ⇒ the literal `codex exec -s read-only -` shown here):
 
 - `ptp` / `code` — invoke the `ptp-requesting-code-review` skill. Load the contract (`proposal.md`, `design.md`, `tasks.md`, `specs/**/spec.md`) and the merge-base diff (`git merge-base HEAD master` → `git diff <base>...HEAD`) and pass them as context.
-- `codex` / `code` — run the `codex-review.md` protocol inline: read the contract yourself (you, via Read), capture the merge-base diff (you, via Bash), run `npx -y openspec validate <change-id> --strict` and any relevant tests yourself (you, via Bash), build a single closed-book prompt with all of this inlined, and pipe it to `codex exec -s read-only` over stdin. Do NOT pass `--full-auto`, `--sandbox workspace-write`, or `--dangerously-bypass-approvals-and-sandbox`. Codex runs NO `npx` / network / install commands.
-  - **First-iteration payload (kind `code`).** Inline exactly the required set: the contract artifacts (`proposal.md`, `design.md` when present, `tasks.md`, `specs/**/spec.md`), the merge-base diff, the `openspec validate --strict` result, the test results, and the cited source excerpts. `TLDR.md` and `effort.md` are never inlined for any kind.
-  - **Later iterations (task 7.3 rule).** On any iteration after the first, running in a **fresh Codex process**, re-inline the *current* text of the `code` required set above plus the compact open and rejected finding state this loop already tracks. Never inline an earlier version of an artifact, never an unchanged unrelated file, and never narrative iteration history.
+- `codex` / `code` — run the `codex-review.md` protocol inline: read the contract yourself (you, via Read), capture the merge-base diff (you, via Bash), run `npx -y openspec validate <change-id> --strict` and any relevant tests yourself (you, via Bash), build a single closed-book prompt with all of this inlined, and pipe it to `codex exec -s read-only` over stdin.
+  - **First-iteration payload (kind `code`).** Inline exactly the required set: the contract artifacts (`proposal.md`, `design.md` when present, `tasks.md`, `specs/**/spec.md`), the merge-base diff, the `openspec validate --strict` result, the test results, and the cited source excerpts.
 - `ptp` / `artifact` — run the artifact rubric authored in `commands/review-plan.md` inline, referencing it rather than re-authoring it: the exhaustive eight-condition block-list (validation fails; scope/capability mapping missing or contradictory; a normative requirement with no scenario; a requirement with no implementing task; a task that is not agent-executable or automatically verifiable — which carries the banned-manual-task check; a missing non-obvious decision or invariant; two artifacts disagreeing; one artifact carrying current and obsolete truth) plus the closed must-not-require list. Run it in that file's order: `npx -y openspec validate <change-id> --strict` first, then the deterministic compactness lint (unavailable lint = non-blocking note), then exactly one model review pass emitting all of the iteration's findings at once.
-- `codex` / `artifact` — run the `codex-review-plan.md` closed-book protocol inline over the same `commands/review-plan.md` rubric: read the review inputs yourself (you, via Read), run `npx -y openspec validate <change-id> --strict` yourself (you, via Bash), run the compactness lint yourself (you, via Bash) and inline its report as authoritative text, collect cited source excerpts (you, via Read/Grep), build a single self-contained prompt carrying the block-list, the must-not-require list, and the banned-manual-task check, and pipe to `codex exec -s read-only` over stdin. Codex runs NO commands.
-  - **First-iteration payload (kind `artifact`).** Inline exactly the required set: `proposal.md`, `design.md` when present, `tasks.md`, `specs/**/spec.md`, the authoritative `openspec validate --strict` result, and the cited source excerpts. `TLDR.md` and `effort.md` are never inlined for any kind.
+- `codex` / `artifact` — run the `codex-review-plan.md` closed-book protocol inline over the same `commands/review-plan.md` rubric: read the review inputs yourself (you, via Read), run `npx -y openspec validate <change-id> --strict` yourself (you, via Bash), run the compactness lint yourself (you, via Bash) and inline its report as authoritative text, collect cited source excerpts (you, via Read/Grep), build a single self-contained prompt carrying the block-list, the must-not-require list, and the banned-manual-task check, and pipe to `codex exec -s read-only` over stdin.
+  - **First-iteration payload (kind `artifact`).** Inline exactly the required set: `proposal.md`, `design.md` when present, `tasks.md`, `specs/**/spec.md`, the authoritative `openspec validate --strict` result, and the cited source excerpts.
   - **Disputed-decision carve-out (kind `artifact` only).** `brainstorm.md` is not part of the fixed required set, but when this iteration carries an open finding disputing where a decision came from, inline it for **that iteration only** — it is then part of the kind's **effective** required set, so carrying it is required rather than prohibited (per `commands/codex-review-plan.md`). Once that finding is fixed or rejected, the next iteration's prompt carries the fixed required set alone again.
-  - **Later iterations (task 7.3 rule).** On any iteration after the first, running in a **fresh Codex process**, re-inline the *current* text of the `artifact` **effective** required set above — the fixed set plus `brainstorm.md` when the carve-out applies to that iteration — plus the compact open and rejected finding state this loop already tracks. Never inline an earlier version of an artifact, never an unchanged unrelated file, and never narrative iteration history.
 - `ptp` / `brainstorm` — run the `ptp-review-brainstorm` rubric inline over the located `brainstorm.md`: a semantic-sufficiency check (existence & non-placeholder; a stated decision; every materially available alternative named with the reason it was not taken; recorded assumptions; internal consistency with no coexisting current and obsolete truth; a usable handoff to `/ptp:plan`) with no fixed option count and no fixed set of tradeoff axes. A missing `brainstorm.md` is recorded as a Critical "no brainstorm to review" finding inside this pass (the loop cannot fix it). Do NOT re-author the rubric here — it lives in `ptp-review-brainstorm`.
-- `codex` / `brainstorm` — run the `codex-review-plan.md` closed-book protocol inline, **retargeted to `brainstorm.md`** and with **NO** `openspec validate` (a brainstorm precedes any proposal/spec, so there is nothing to validate): read `brainstorm.md` and any cited context yourself (you, via Read), build a single self-contained prompt carrying the brainstorm rubric as the audit instructions plus the full brainstorm text and any cited source excerpts, and pipe it to `codex exec -s read-only` over stdin. Codex runs NO commands (no `npx`, no `openspec validate`, no network, no installs). As with the `ptp` variant, a missing `brainstorm.md` is recorded as a Critical "no brainstorm to review" finding inside this pass (the loop cannot fix it) — do not attempt to build a Codex prompt over an absent file.
-  - **First-iteration payload (kind `brainstorm`).** Inline exactly the required set: `brainstorm.md` and the cited source excerpts, and no `openspec validate` result. `TLDR.md` and `effort.md` are never inlined for any kind.
-  - **Later iterations (task 7.3 rule).** On any iteration after the first, running in a **fresh Codex process**, re-inline the *current* text of the `brainstorm` required set above plus the compact open and rejected finding state this loop already tracks. Never inline an earlier version of an artifact, never an unchanged unrelated file, and never narrative iteration history.
+- `codex` / `brainstorm` — run the `codex-review-plan.md` closed-book protocol inline, **retargeted to `brainstorm.md`** and with **NO** `openspec validate` (a brainstorm precedes any proposal/spec, so there is nothing to validate): read `brainstorm.md` and any cited context yourself (you, via Read), build a single self-contained prompt carrying the brainstorm rubric as the audit instructions plus the full brainstorm text and any cited source excerpts, and pipe it to `codex exec -s read-only` over stdin. As with the `ptp` variant, a missing `brainstorm.md` is recorded as a Critical "no brainstorm to review" finding inside this pass (the loop cannot fix it) — do not attempt to build a Codex prompt over an absent file.
+  - **First-iteration payload (kind `brainstorm`).** Inline exactly the required set: `brainstorm.md` and the cited source excerpts, and no `openspec validate` result.
 - `ptp` / `prd` — run the `ptp-review-prd` rubric inline over the resolved PRD file `openspec/changes/<id>/prd.md` (PRD existence & non-placeholder; all schema sections present; requirements split functional/non-functional and trace to goals; testable acceptance criteria; scope/non-goal consistency; measurable goals; real Dependencies/Risks/Open questions). A missing PRD file is recorded as a Critical "no PRD to review" finding inside this pass (the loop cannot fix it). Do NOT re-author the rubric here — it lives in `ptp-review-prd`. (Used by slice 2's `/ptp:review-prd-full` orchestrator; documented now so the kind is complete.)
-- `codex` / `prd` — run the `codex-review-plan.md` closed-book protocol inline, **retargeted to the PRD file `openspec/changes/<id>/prd.md`** and with **NO** `openspec validate` (a PRD precedes any proposal/spec, so there is nothing to validate): read the PRD file and any cited context yourself (you, via Read), build a single self-contained prompt carrying the PRD rubric as the audit instructions plus the full PRD text and any cited source excerpts, and pipe it to `codex exec -s read-only` over stdin. Codex runs NO commands (no `npx`, no `openspec validate`, no network, no installs). As with the `ptp` variant, a missing PRD file is recorded as a Critical "no PRD to review" finding inside this pass (the loop cannot fix it) — surface the missing-PRD note in the prompt in place of the PRD text rather than building a Codex prompt over an absent file.
-  - **First-iteration payload (kind `prd`).** Inline exactly the required set: `prd.md` and the cited source excerpts, and no `openspec validate` result. `TLDR.md` and `effort.md` are never inlined for any kind.
-  - **Later iterations (task 7.3 rule).** On any iteration after the first, running in a **fresh Codex process**, re-inline the *current* text of the `prd` required set above plus the compact open and rejected finding state this loop already tracks. Never inline an earlier version of an artifact, never an unchanged unrelated file, and never narrative iteration history.
+- `codex` / `prd` — run the `codex-review-plan.md` closed-book protocol inline, **retargeted to the PRD file `openspec/changes/<id>/prd.md`** and with **NO** `openspec validate` (a PRD precedes any proposal/spec, so there is nothing to validate): read the PRD file and any cited context yourself (you, via Read), build a single self-contained prompt carrying the PRD rubric as the audit instructions plus the full PRD text and any cited source excerpts, and pipe it to `codex exec -s read-only` over stdin. As with the `ptp` variant, a missing PRD file is recorded as a Critical "no PRD to review" finding inside this pass (the loop cannot fix it) — surface the missing-PRD note in the prompt in place of the PRD text rather than building a Codex prompt over an absent file.
+  - **First-iteration payload (kind `prd`).** Inline exactly the required set: `prd.md` and the cited source excerpts, and no `openspec validate` result.
+
+**Two rules bind every Codex payload above, stated once (task 7.3).** `TLDR.md` and `effort.md` are
+never inlined, for any kind. And on any iteration after the first, running in a **fresh Codex
+process**, re-inline the *current* text of that kind's required set — its **effective** set where one
+is defined, which today means the `artifact` fixed set plus `brainstorm.md` when the
+disputed-decision carve-out applies to that iteration — plus the compact open and rejected finding
+state this loop already tracks. Never inline an earlier version of an artifact, never an unchanged
+unrelated file, and never narrative iteration history.
 
 Collect the full list of findings (severity, location, description, suggested fix) from the review output.
 
@@ -611,6 +626,8 @@ dispatch**):
 - `kind=brainstorm` → make minimal targeted edits to `brainstorm.md`. **Never** regenerate the brainstorm via `/ptp:brainstorm`. Corrections only (add a missing option, expand a thin tradeoff, document a missing assumption) — not re-fabrication. A missing `brainstorm.md` Critical finding has nothing to edit and stays unfixed (the iteration cap is the backstop).
 - `kind=prd` → make minimal targeted edits to the PRD file `openspec/changes/<id>/prd.md`. **Never** regenerate the PRD via `/ptp:prd`. Corrections only (fill a missing schema section, sharpen a vague acceptance criterion, add a measurable goal) — not re-fabrication. A missing-PRD Critical finding has nothing to edit and stays unfixed (the iteration cap is the backstop).
 
+**Prefer removal, and pay for each addition by deleting** — `references/bounded-review.md`.
+
 For each CONFIRMED finding fixed in this step, record its stable key in `fixed_candidates` as a
 *fixed candidate* (see **## Review cycle tally**). Whenever a step (b) review pass in a later
 iteration raises a finding whose stable key matches an entry already in `fixed_candidates`, remove
@@ -628,6 +645,11 @@ Run a cheap, fast verification appropriate to `kind`:
 A failing verification is **reported in `per_iteration_summary`** but does NOT abort the loop — the next review iteration will pick up regressions. The iteration cap is the backstop.
 
 Append a summary entry to `per_iteration_summary`: iteration number, findings-confirmed count, findings-rejected count, carry-over count, **below-threshold count** (the size of this iteration's `below_threshold` bucket from (c2) — `0` on every run at the default `low`), fixes applied, verification result, and — for an iteration that reached step (g) — the **evaluated `fixTarget`** (lowercase `{model}.{effort}`), whether it was **defaulted** to `opus.high` because the evaluation failed, the resolved **`fixDispatch`** mode, and whether the target was **fully honored**. An iteration that never reached step (g) records **no** fix target rather than a fabricated or carried-over one.
+
+**Size measurement and the budget check (mandatory; `kind` ∈ {`artifact`, `brainstorm`, `prd`}).**
+Measure the artifacts this `kind` owns, append this iteration's `artifact_sizes` entry, and apply the
+two halt conditions in `references/bounded-review.md`; either ends the run in
+`ARTIFACT BUDGET EXCEEDED` in place of another iteration. `kind = code` measures nothing.
 
 Alongside this `per_iteration_summary` append — the tally sits **beside** that list rather than
 replacing it — accumulate this iteration's cycle and its `found`, `droppedManual`,
@@ -656,39 +678,9 @@ Go back to step (a).
 
 ## Stable finding key
 
-Used to match findings across iterations for carry-over rejection deduplication.
-
-**For `kind=code`:**
-
-```
-key = {
-  normalized_repo_path: path with backslashes normalised to forward slashes,
-  line_range_bucket:    round(first_cited_line / 5) * 5,   // tolerates small drift
-  severity:             Critical | High | Medium | Low,
-                        // fail-safe case only: an unrankable finding records the reviewer's raw
-                        // label verbatim, or `<unlabeled>` when none was emitted
-                        // (see ## Severity threshold)
-  summary:              finding_one_line_description[:60]
-}
-```
-
-The `line_range_bucket` rounding tolerates the few-line drift that a fix typically introduces in surrounding line numbers.
-
-**For `kind=artifact`:**
-
-```
-key = {
-  artifact_filename: basename of the artifact file (e.g. "proposal.md", "spec.md"),
-  section_heading:   nearest enclosing ## / ### heading text,
-  summary:           finding_one_line_description[:60]
-}
-```
-
-Artifact keys do not use line numbers because section headings renumber after edits.
-
-**For `kind=brainstorm`:** reuse the `kind=artifact` key with `artifact_filename = "brainstorm.md"` (plus the nearest enclosing `section_heading` and the truncated `summary`). Like artifact keys, it uses no line numbers so findings deduplicate across iterations as section headings renumber. The missing-`brainstorm.md` Critical finding has no enclosing heading, so it uses the sentinel `section_heading = "<missing file>"` — `artifact_filename` + this sentinel + its constant `summary` stay stable across iterations, so the unfixable finding deduplicates correctly until the iteration-cap backstop.
-
-**For `kind=prd`:** reuse the `kind=artifact` key with `artifact_filename = "prd.md"` (the constant PRD basename; plus the nearest enclosing `section_heading` and the truncated `summary`). Like artifact keys, it uses no line numbers so findings deduplicate across iterations as section headings renumber. The missing-PRD Critical finding has no enclosing heading, so it uses the sentinel `section_heading = "<missing file>"` — `artifact_filename` + this sentinel + its constant `summary` stay stable across iterations, so the unfixable finding deduplicates correctly until the iteration-cap backstop.
+Used at step (d) to match findings across iterations for carry-over rejection deduplication. The
+per-kind key shapes — `code`, `artifact`, `brainstorm`, `prd`, and the sentinels the unfixable
+missing-file findings use — are in `skills/ptp-review-loop/references/stable-finding-key.md`.
 
 ## Terminal states
 
@@ -749,9 +741,23 @@ returned identically in the standalone `deferMarker = false` mode, in addition t
 performed there. Set `fixed` to the retained `fixed_candidates` count and `capped` to `0` **before
 item 1's table is rendered**, not merely before returning.
 
+**Converged-on-the-final-round line.** When `iteration == MAX_ITERATIONS`, `DONE` carries the line
+`Converged on the final round (N of N)` — a size signal worth seeing, not a defect, and not grounds
+for splitting a change whose findings were all genuine.
+
+### ARTIFACT BUDGET EXCEEDED
+
+Reached when step (h)'s budget check fires, for `kind` ∈ {`artifact`, `brainstorm`, `prd`} only. A
+**halt, not a round**: the remedy it recommends is a **split**, never a longer review. Its report,
+its marker write, and the two halt conditions are in `references/bounded-review.md`.
+
 ### ITERATION CAP REACHED
 
 Reached when step (a) increments `iteration` past `MAX_ITERATIONS` (the resolved cap).
+
+**Reaching the cap is evidence the change is too large, not that the review was too short**, budgets
+being enforced. Converging on the final round ends in `DONE` with the line above; still producing
+actionable findings at the cap ends here, and **that** is the one to split.
 
 Report:
 
@@ -765,7 +771,7 @@ Report:
    (`fixTarget`) / **fix dispatch** (`fixDispatch`) / **fully honored** columns, with the same empty-when-step-(g)-was-never-reached
    rule and the same mandatory **divergence line** for every iteration whose target was not fully
    honored, exactly as in `DONE`.
-6. Explicit statement: "Do not archive. Do not run `/ptp:apply`. Inspect the open findings manually and decide next steps."
+6. Explicit statement: "Do not archive. Do not run `/ptp:apply`. Inspect the open findings manually and decide next steps." Add, when open findings remain: "Still finding actionable defects at the cap — the change is a candidate for splitting."
 
 **Marker write (after the report above).** For **every** kind, write the per-kind marker
 (`brainstorm`→`stages/brainstorm.json`, `artifact`→`stages/plan.json`,
@@ -802,7 +808,10 @@ the retained `fixed_candidates` count and `capped` to the in-scope `CONFIRMED` f
 - **Never persist loop control state to disk.** `iteration`, `rejected_findings`, and `per_iteration_summary` live only in conversation context. This rule does NOT forbid the durable terminal review-convergence marker below — that marker is a deliberate exception and is the loop's only on-disk side effect beyond the artifact edits it already makes.
 - **Write the per-kind review-convergence marker on terminal states for every kind** (`brainstorm`→`stages/brainstorm.json`, `artifact`→`stages/plan.json`, `prd`→`openspec/changes/<id>/stages/prd.json`, `code`→`stages/code.json`), per the **## Review-convergence marker** section, with a `kind = code` marker additionally carrying `gateState` and — when computable — the `fingerprint` from `skills/ptp-review-loop/references/code-marker-fingerprint.md`. **Never** write a marker when invoked with `deferMarker = true` (the `-full` orchestrator performs the single combined write). The marker is written via the atomic write-temp-then-rename protocol; a marker-write failure is reported but does not change the terminal state.
 - **Never skip a review on anything but an eligible marker.** The six conjunctive conditions in `skills/ptp-review-loop/references/code-marker-skip-eligibility.md` are the only basis for skipping an otherwise-mandatory code review, evaluating them never mutates a marker, and any ineligible outcome runs the review exactly as it would without a marker. Condition 6 in particular is resolved against `ptp-codex-mode`'s decision contract **at check time**, never against a mode carried by the marker.
-- **Iteration cap is resolved from `review.maxIterations` (layered config, default 5).** There is no `--max-iterations` CLI flag. If the cap is hit, report and stop — do not silently increment past it.
+- **Iteration cap is resolved from `review.maxIterations` (layered config, default 5).** There is no `--max-iterations` CLI flag. If the cap is hit, report and stop — do not silently increment past it. The cap is not a safety net to spend: reaching it while findings remain is evidence the change is too large.
+- **Never dispatch a review pass without the acceptance bar**, and never reject a finding without stating the check behind it.
+- **Never resolve a finding by adding text where removing or tightening it would do**, and never let a round grow an artifact without deleting equivalent text in the same round.
+- **Never run another round past the budget check.** Measuring artifact sizes each round is mandatory for `kind` ∈ {`artifact`, `brainstorm`, `prd`}; a breach ends the loop in `ARTIFACT BUDGET EXCEEDED` with a split recommendation. Omitting the measurement is a violation of this rule, not an optimization.
 - **Codex variants** (`reviewer=codex`) must run `codex exec -s read-only` with the full prompt piped over stdin (`-`), assembled per the `ptp-codex-mode` flag-append rule (append resolved `-m <model>` / `-c model_reasoning_effort=<effort>` before the trailing `-` when configured). Never pass `--full-auto`, `--sandbox workspace-write`, or `--dangerously-bypass-approvals-and-sandbox`.
 - **The caller runs `openspec validate` (for `kind=code` / `kind=artifact` only — never for `kind=brainstorm` or `kind=prd`, which each precede any proposal/spec) and all file reads for Codex** — Codex executes no `npx`, no network, no install commands. The closed-book / inlined-diff protocol from `codex-review.md` / `codex-review-plan.md` applies.
 - **The `reviewTally` decides nothing.** No counter it holds is an input to convergence, the severity

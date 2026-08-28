@@ -54,6 +54,8 @@ Any missing file, missing key, bad JSON, or invalid value is skipped for that ke
   "review":    { "maxIterations": 5, "minSeverity": "low" },
   "telemetry": { "mode": "off", "root": "openspec/telemetry", "port": 4318, "retentionDays": 30 },
   "parallel":  { "mode": "off", "maxConcurrency": 3 },
+  "artifact":  { "maxProposalWords": 400, "maxDesignWords": 800, "maxTasksWords": 600,
+                 "maxTaskCount": 15, "maxTaskWords": 60, "maxSpecDeltaWords": 1200 },
   "backlog":   { "projectOwner": "<github-org-or-user-login>", "projectNumber": 7 },
   "deploy":    { "mergeMethod": "squash", "maxFixRounds": 3, "workflow": null, "inputs": {} }
 }
@@ -77,6 +79,12 @@ Any missing file, missing key, bad JSON, or invalid value is skipped for that ke
 | `telemetry.retentionDays` | integer ≥ 1 | `30` | Days of raw span files kept (N days plus today). Pruned only by `/ptp:telemetry report`, only in the reported epic's `raw/`. |
 | `parallel.mode` | `off` \| `on` | `off` | `on` permits eligible stages (`/ptp:plan-multiple`, `/ptp:full-plan`, `/ptp:full` Phase A) to run per-item runs concurrently. `/ptp:apply`, `/ptp:full-apply`, and `/ptp:archive` always run serially. |
 | `parallel.maxConcurrency` | `1`–`10` | `3` | Members run at once; extras run in batches. |
+| `artifact.maxProposalWords` | integer ≥ 1 | `400` | Word budget for `proposal.md`. An acceptance criterion, not guidance: an over-budget artifact is a defect, fixed by removing text or splitting the change. |
+| `artifact.maxDesignWords` | integer ≥ 1 | `800` | Word budget for `design.md`. |
+| `artifact.maxTasksWords` | integer ≥ 1 | `600` | Word budget for `tasks.md`. |
+| `artifact.maxTaskCount` | integer ≥ 1 | `15` | Maximum `tasks.md` checkboxes (the minimum, 5, is fixed). |
+| `artifact.maxTaskWords` | integer ≥ 1 | `60` | Maximum words in one checkbox, continuation lines included. |
+| `artifact.maxSpecDeltaWords` | integer ≥ 1 | `1200` | Word budget for the spec deltas **summed** across the change's delta files, excluding verbatim `MODIFIED` replacement text. |
 | `backlog.projectOwner` | GitHub org/user login | unset | Owner of the backlog board. A login, not a URL. Required for every backlog command. |
 | `backlog.projectNumber` | integer ≥ 1 | unset | Board project number. Required for every backlog command. |
 | `backlog.statusOptions` | object, see below | unset | Maps entry statuses onto your board's own `Status` option names. |

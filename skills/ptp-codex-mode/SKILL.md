@@ -111,6 +111,21 @@ codex exec -s read-only [ -m <model> ] [ -c model_reasoning_effort=<effort> ] -
 - **Both keys unset** (the default) yields exactly `codex exec -s read-only -` — byte-identical to the
   invocation before this change.
 
+### Every round runs synchronously
+
+Run each Codex round as **one blocking call**: pipe the prompt, wait for the process to exit, read its
+output. **Never** background it, **never** launch-and-poll, and **never** return an in-progress note —
+if room runs out, return the terminal state actually reached with an honest tally of the rounds that
+did run. Give the call a generous timeout; a closed-book review of a bounded artifact set takes
+minutes. Three separate review runs have been lost to a backgrounded `codex exec` whose caller
+reported progress instead of a terminal state.
+
+**The default model works and needs no `-m` flag.** A spurious "unsupported model" error has been
+observed. When one appears, verify with a one-line smoke test —
+`printf 'reply OK' | codex exec -s read-only -` — before concluding Codex is unavailable. Under
+`codex.mode = required` the reviewer is mandatory, so abandoning the Codex phase on an unverified
+error silently drops a required review.
+
 **The one telemetry relaxation (`0032_06_codex-telemetry`).** Historically this rule added **nothing**
 for telemetry, so a constructed command line was byte-identical with telemetry on or off.
 `0032_05_codex-telemetry-scope-spike`'s decision record **explicitly decided** one narrow relaxation, and
