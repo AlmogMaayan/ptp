@@ -62,7 +62,8 @@ one subagent handles the whole per-change pass.)
    1. `npx -y openspec validate <change-id> --strict`.
    2. The deterministic **compactness lint** published by the `compact-artifact-contract` capability
       (defined by `0057_02_compact-artifact-contract-and-schema`):
-      `node scripts/ptp-compact-lint.js --change <change-id>`.
+      `node scripts/ptp-compact-lint.js --workspace <resolved workspace root> --change <change-id>`
+      — the root resolved at entry (`ptp-workspace`), passed as an argument, never as a `cd`.
    3. Exactly **one** model review pass, which receives the validation result and the lint report as
       inputs and returns **all** findings for that iteration in **one structured** emission — no
       incremental drip, and no second model review pass over the same artifact state.
@@ -175,21 +176,21 @@ one subagent handles the whole per-change pass.)
 5. **Assign a verdict** per change:
 
    **Severity threshold.** Resolve `review.minSeverity` from layered ptp config **once**, at the
-   start of this pass, and hold it fixed for the pass — global `~/.claude/ptp/config.json`, then
-   project `<repo>/.claude/ptp/config.json` overriding, default `low`; a missing file, missing key,
+   start of this pass, and hold it fixed for the pass — layered as `ptp-workspace`
+   (`skills/ptp-workspace/SKILL.md`) defines, default `low`; a missing file, missing key,
    unparseable JSON, or unrecognized value falls back to the prior valid value (ultimately `low`)
    rather than erroring, and **never** STOPs the review. The `/ptp:config` parameter registry
    (`commands/config.md`, `skills/ptp-config/`) owns the key, its domain, and its validation — this
-   is a pointer to that contract, not a second reader definition. Severity order is
-   `low < medium < high < critical`. A finding is **actionable** when its severity is **at or above**
-   the resolved threshold. Findings **below** the threshold are still classified and still listed
-   under their own severity, marked *(below the configured `review.minSeverity` — reported,
-   non-blocking)*; they never by themselves produce a `WARN` or a `FAIL`. Because this verdict never
-   counted Medium or Low toward its outcome, `low`, `medium`, and `high` behave identically here;
-   only `critical` changes a verdict, by demoting High to reported-only — do **not** "repair" that
-   apparent no-op by making Medium findings `WARN`. State the resolved threshold **and the layer it
-   resolved from** (default / global / project) in the report, and when the threshold demoted at
-   least one finding out of the blocking set, say so beside the verdict.
+   is a pointer to that contract, not a second reader definition. Severity order is `low < medium <
+   high < critical`. A finding is **actionable** when its severity is **at or above** the resolved
+   threshold. Findings **below** the threshold are still classified and still listed under their own
+   severity, marked *(below the configured `review.minSeverity` — reported, non-blocking)*; they
+   never by themselves produce a `WARN` or a `FAIL`. Because this verdict never counted Medium or
+   Low toward its outcome, `low`, `medium`, and `high` behave identically here; only `critical`
+   changes a verdict, by demoting High to reported-only — do **not** "repair" that apparent no-op by
+   making Medium findings `WARN`. State the resolved threshold **and the layer it resolved from** (a
+   `ptp-workspace` provenance label) in the report, and when the threshold demoted at least one
+   finding out of the blocking set, say so beside the verdict.
 
    One threshold governs the **whole pass**: for a multi-change or empty-argument review-all run it
    is resolved once, before the first change, and applied uniformly, so the summary table can never

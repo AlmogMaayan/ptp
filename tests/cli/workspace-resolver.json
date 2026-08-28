@@ -1,0 +1,318 @@
+{
+  "script": "scripts/ptp-resolve-workspace.js",
+  "cases": [
+    {
+      "id": "nested-walk-picks-the-nearest-openspec",
+      "tree": {
+        "repo/.git": "dir",
+        "repo/openspec": "dir",
+        "repo/products/foo/openspec": "dir",
+        "repo/products/foo/src": "dir"
+      },
+      "cwd": "repo/products/foo/src",
+      "argv": [],
+      "expect": {
+        "exitCode": 0,
+        "stdout": {
+          "workspaceRoot": "<root>/repo/products/foo",
+          "gitRoot": "<root>/repo",
+          "source": "walk"
+        }
+      }
+    },
+    {
+      "id": "nested-walk-derives-a-path-slug",
+      "tree": {
+        "repo/.git": "dir",
+        "repo/openspec": "dir",
+        "repo/products/foo/openspec": "dir",
+        "repo/products/foo/src": "dir"
+      },
+      "cwd": "repo/products/foo/src",
+      "argv": [],
+      "expect": {
+        "exitCode": 0,
+        "stdout": {
+          "relative": "products/foo",
+          "slug": "products-foo",
+          "isRoot": false
+        }
+      }
+    },
+    {
+      "id": "walk-never-examines-above-the-git-root",
+      "tree": {
+        "openspec": "dir",
+        "repo/.git": "dir",
+        "repo/sub": "dir"
+      },
+      "cwd": "repo/sub",
+      "argv": [],
+      "expect": {
+        "exitCode": 1,
+        "stdoutEmpty": true,
+        "stderrCode": "no-workspace"
+      }
+    },
+    {
+      "id": "outside-a-repository-fails-with-no-git-root",
+      "tree": {
+        "loose/openspec": "dir"
+      },
+      "cwd": "loose",
+      "argv": [],
+      "expect": {
+        "exitCode": 1,
+        "stdoutEmpty": true,
+        "stderrCode": "no-git-root"
+      }
+    },
+    {
+      "id": "git-root-openspec-resolves-to-the-git-root-with-an-empty-slug",
+      "tree": {
+        "repo/.git": "dir",
+        "repo/openspec": "dir",
+        "repo/deep/inner": "dir"
+      },
+      "cwd": "repo/deep/inner",
+      "argv": [],
+      "expect": {
+        "exitCode": 0,
+        "stdout": {
+          "workspaceRoot": "<root>/repo",
+          "gitRoot": "<root>/repo",
+          "relative": "",
+          "slug": "",
+          "isRoot": true,
+          "source": "walk"
+        }
+      }
+    },
+    {
+      "id": "a-git-file-marker-bounds-the-walk-like-a-git-directory",
+      "tree": {
+        "repo/.git": "gitdir: /elsewhere/worktrees/repo\n",
+        "repo/openspec": "dir",
+        "repo/deep/inner": "dir"
+      },
+      "cwd": "repo/deep/inner",
+      "argv": [],
+      "expect": {
+        "exitCode": 0,
+        "stdout": {
+          "gitRoot": "<root>/repo",
+          "isRoot": true,
+          "slug": ""
+        }
+      }
+    },
+    {
+      "id": "a-valid-override-wins-over-the-walk",
+      "tree": {
+        "repo/.git": "dir",
+        "repo/openspec": "dir",
+        "repo/products/foo/openspec": "dir",
+        "repo/products/bar/openspec": "dir"
+      },
+      "cwd": "repo/products/foo",
+      "argv": [
+        "--workspace",
+        "../bar"
+      ],
+      "expect": {
+        "exitCode": 0,
+        "stdout": {
+          "workspaceRoot": "<root>/repo/products/bar",
+          "relative": "products/bar",
+          "slug": "products-bar",
+          "isRoot": false,
+          "source": "override"
+        }
+      }
+    },
+    {
+      "id": "a-relative-path-with-no-alphanumeric-takes-the-hash-slug",
+      "tree": {
+        "repo/.git": "dir",
+        "repo/openspec": "dir",
+        "repo/_/openspec": "dir"
+      },
+      "cwd": "repo/_",
+      "argv": [],
+      "expect": {
+        "exitCode": 0,
+        "stdout": {
+          "relative": "_",
+          "slug": "ws-d2e2adf7",
+          "isRoot": false
+        }
+      }
+    },
+    {
+      "id": "a-non-existent-override-is-workspace-missing",
+      "tree": {
+        "repo/.git": "dir",
+        "repo/openspec": "dir"
+      },
+      "cwd": "repo",
+      "argv": [
+        "--workspace",
+        "nope"
+      ],
+      "expect": {
+        "exitCode": 1,
+        "stdoutEmpty": true,
+        "stderrCode": "workspace-missing"
+      }
+    },
+    {
+      "id": "a-file-override-is-workspace-not-a-directory",
+      "tree": {
+        "repo/.git": "dir",
+        "repo/openspec": "dir",
+        "repo/afile.txt": "not a directory\n"
+      },
+      "cwd": "repo",
+      "argv": [
+        "--workspace",
+        "afile.txt"
+      ],
+      "expect": {
+        "exitCode": 1,
+        "stdoutEmpty": true,
+        "stderrCode": "workspace-not-a-directory"
+      }
+    },
+    {
+      "id": "an-override-outside-the-git-root-is-rejected",
+      "tree": {
+        "repo/.git": "dir",
+        "repo/openspec": "dir",
+        "outside/openspec": "dir"
+      },
+      "cwd": "repo",
+      "argv": [
+        "--workspace",
+        "../outside"
+      ],
+      "expect": {
+        "exitCode": 1,
+        "stdoutEmpty": true,
+        "stderrCode": "workspace-outside-git-root"
+      }
+    },
+    {
+      "id": "an-override-without-openspec-is-rejected",
+      "tree": {
+        "repo/.git": "dir",
+        "repo/openspec": "dir",
+        "repo/plain": "dir"
+      },
+      "cwd": "repo",
+      "argv": [
+        "--workspace",
+        "plain"
+      ],
+      "expect": {
+        "exitCode": 1,
+        "stdoutEmpty": true,
+        "stderrCode": "workspace-no-openspec"
+      }
+    },
+    {
+      "id": "workspace-with-no-path-is-a-usage-error",
+      "tree": {
+        "repo/.git": "dir",
+        "repo/openspec": "dir"
+      },
+      "cwd": "repo",
+      "argv": [
+        "--workspace"
+      ],
+      "expect": {
+        "exitCode": 2,
+        "stdoutEmpty": true,
+        "stderrContains": "Usage: node scripts/ptp-resolve-workspace.js [--workspace <path>]"
+      }
+    },
+    {
+      "id": "a-repeated-workspace-is-a-usage-error",
+      "tree": {
+        "repo/.git": "dir",
+        "repo/openspec": "dir"
+      },
+      "cwd": "repo",
+      "argv": [
+        "--workspace",
+        ".",
+        "--workspace",
+        "."
+      ],
+      "expect": {
+        "exitCode": 2,
+        "stdoutEmpty": true,
+        "stderrContains": "Usage: node scripts/ptp-resolve-workspace.js [--workspace <path>]"
+      }
+    },
+    {
+      "id": "an-unknown-argument-is-a-usage-error",
+      "tree": {
+        "repo/.git": "dir",
+        "repo/openspec": "dir"
+      },
+      "cwd": "repo",
+      "argv": [
+        "--bogus"
+      ],
+      "expect": {
+        "exitCode": 2,
+        "stdoutEmpty": true,
+        "stderrContains": "Usage: node scripts/ptp-resolve-workspace.js [--workspace <path>]"
+      }
+    },
+    {
+      "id": "an-in-repo-directory-whose-name-begins-with-dots-is-inside-the-git-root",
+      "tree": {
+        "repo/.git": "dir",
+        "repo/openspec": "dir",
+        "repo/..product/openspec": "dir"
+      },
+      "cwd": "repo",
+      "argv": [
+        "--workspace",
+        "..product"
+      ],
+      "expect": {
+        "exitCode": 0,
+        "stdout": {
+          "workspaceRoot": "<root>/repo/..product",
+          "gitRoot": "<root>/repo",
+          "relative": "..product",
+          "slug": "product",
+          "isRoot": false,
+          "source": "override"
+        }
+      }
+    },
+    {
+      "id": "a-case-root-entry-whose-name-begins-with-dots-is-not-refused-as-traversal",
+      "tree": {
+        "..ws/.git": "dir",
+        "..ws/openspec": "dir"
+      },
+      "cwd": "..ws",
+      "argv": [],
+      "expect": {
+        "exitCode": 0,
+        "stdout": {
+          "workspaceRoot": "<root>/..ws",
+          "gitRoot": "<root>/..ws",
+          "relative": "",
+          "slug": "",
+          "isRoot": true,
+          "source": "walk"
+        }
+      }
+    }
+  ]
+}

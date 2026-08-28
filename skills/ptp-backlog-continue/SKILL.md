@@ -195,6 +195,15 @@ In the outer session, in **exactly this order**:
    table**. **Name the ground; do not restate the rule.** **No `gh` command is run**, and this
    precedes 2b absolutely.
 
+   **The workspace root is bound here, once — inside this sub-step, not beside it.** What is bound is
+   the **one** root `ptp-workspace` resolved at the invocation's entry, per its *One resolution, at the
+   step's entry* rule — this sub-step records that value for the invocation rather than resolving a
+   second one. The `backlog.*` configuration cannot be resolved without it, so binding it here adds
+   **no** precondition step and **no** aborting
+   precondition: the ordered list keeps its steps in the same order, and the binding lands **before
+   target selection** because this whole precondition already does. The bound root is held fixed for
+   the invocation and is never re-resolved by a later step.
+
    **2b. Evaluate the capability preflight verdict**, per `ptp-github-projects-gh` — reached **only**
    when 2a passed. The **verdict disposition table is `ptp-backlog-run`'s**, reused here **by
    citation** and not copied: `ready` proceeds, and `read-only` and `unavailable` both **STOP**
@@ -229,10 +238,22 @@ is visible at a glance rather than discovered after an archive.
 For each prefix in the candidate's `changeEpics`, in array order, and for each of that prefix's change
 folders in ascending story order:
 
-1. **Locate the change folder** `openspec/changes/<prefix>_*`. If a prefix names **no** folder on disk
+1. **Locate the change folder** `openspec/changes/<prefix>_*`, under the **resolved workspace root**
+   bound in precondition 2a. That an `openspec/…` literal is workspace-relative at all is the
+   `workspace` capability's own anchoring rule — owned by `ptp-workspace`, cited here and not restated;
+   what this step adds is only **which** root the lookup uses, and it never falls back to a second
+   lookup at the repository root. If a prefix names **no** folder there
    — already archived by hand, archived by an earlier partial run of this same command, or moved —
    **skip it, note it in the report as already-archived/absent, and continue**. A missing folder is
    not a failure of the invocation; it is the expected shape of a retry after a partial run.
+
+   **Where *every* prefix in `changeEpics` names no folder there**, the report names that
+   **resolved workspace root** prominently beside the absent prefixes and states that the settle
+   **archived nothing**. That statement is a **disclosure, never a refusal**: it does not refuse the
+   settle, does not change the entry's status on its own, and does **not** assert that a workspace
+   mismatch occurred — the store carries nothing with which to establish one. Refusing on this ground
+   would strand a legitimate retry with no writer able to move the entry, the same ground on which a
+   residual unchecked box is reported rather than refused.
 2. **Check off the remaining tasks.** Re-read `tasks.md` and flip every remaining `- [ ]` to `- [x]`.
    The bare invocation **is** the sign-off for exactly those boxes and for nothing else. **No task
    line is invented, reworded, reordered, or removed** — only existing checkboxes are toggled.
@@ -459,7 +480,10 @@ and resolves no telemetry key of its own.
 ## Report contract
 
 Every report names the **branch the command ran on** and **every outstanding structural problem** the
-load-time validation found. It also names the **candidate entry** (`id` and `title`) **whenever one
+load-time validation found. It names the **resolved workspace root** this invocation was bound to —
+and, where a settle ran, looked change folders up under — **whenever that binding happened**, which is
+every shape except a refusal that fires at classification, before precondition 2a binds anything. It
+also names the **candidate entry** (`id` and `title`) **whenever one
 was resolved** — which is every shape except the refusals that fire before or instead of a resolution:
 a **token-only argument** (refused at classification, before the store is even read), **zero
 candidates** (there is no entry to name — the report says so), and **multiple `blocked` candidates**

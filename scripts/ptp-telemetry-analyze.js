@@ -29,14 +29,17 @@
  *   node <plugin>/scripts/ptp-telemetry-analyze.js --repo <repo root> [--format=json]
  *
  * Test/escape hatch: PTP_HOME_DIR overrides the home directory used to locate the *global*
- * `~/.claude/ptp/config.json` layer — byte-for-byte `scripts/ptp-otel-sink.js`'s own `homeDir()`.
+ * `~/.claude/ptp/config.json` layer. The shared builder in `scripts/ptp-resolve-workspace.js`
+ * honours it, so every reader sees the same override.
  */
 
 'use strict';
 
 const fs = require('fs');
-const os = require('os');
 const path = require('path');
+// The layered config reader. `ptp-workspace` (skills/ptp-workspace/SKILL.md) owns the layer list and
+// its precedence; this file states neither and supplies only `telemetry.root`'s validity rule.
+const { configLayers, resolveConfigKey, REJECT } = require('./ptp-resolve-workspace.js');
 
 /* ------------------------------------------------------------------ constants */
 
@@ -57,8 +60,6 @@ const UNATTRIBUTED_DIR = '_unattributed';
 function readJsonFile(p) {
   try { return JSON.parse(fs.readFileSync(p, 'utf8')); } catch (_) { return null; }
 }
-/** Byte-for-byte `scripts/ptp-otel-sink.js`'s `homeDir()` — the sole reason `os` is required here. */
-function homeDir() { return process.env.PTP_HOME_DIR || os.homedir(); }
 function isPlainObject(v) { return Boolean(v) && typeof v === 'object' && !Array.isArray(v); }
 
 /* ------------------------------------------------------------------ config (§1, forgiving) */
@@ -74,27 +75,17 @@ function isValidRoot(v) {
 }
 
 /**
- * §1's layered, FORGIVING resolution — project config over global config over the default. Any
- * missing file, missing key, parse error, or invalid value leaves the prior value and never throws.
+ * §1's layered, FORGIVING resolution. `ptp-workspace` (`skills/ptp-workspace/SKILL.md`) owns the
+ * layer list and its precedence; this file restates neither and never throws. Any missing file,
+ * missing key, parse error, or invalid value leaves whatever an earlier layer validly resolved.
  *
  * analyze reads `telemetry.root` and NO other key: not `mode` (a store recorded earlier is readable
  * whatever the mode is now — §20.4's precedent), not `port`, and not `retentionDays` (it prunes
  * nothing).
  */
 function resolveConfig(repoRoot) {
-  const layers = [
-    path.join(homeDir(), '.claude', 'ptp', 'config.json'),
-    path.join(repoRoot, '.claude', 'ptp', 'config.json'),
-  ];
-  let root = DEFAULT_ROOT;
-  for (const file of layers) {
-    const obj = readJsonFile(file);
-    if (!isPlainObject(obj)) continue;
-    const t = obj.telemetry;
-    if (!isPlainObject(t)) continue;
-    if (isValidRoot(t.root)) root = t.root;
-  }
-  return { root };
+  const layers = configLayers({ repoRoot });
+  return { root: resolveConfigKey(layers, 'telemetry.root', (v) => (isValidRoot(v) ? v : REJECT), DEFAULT_ROOT).value };
 }
 
 /* ------------------------------------------------------------------ value readers (§10.2) */

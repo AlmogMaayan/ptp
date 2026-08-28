@@ -12,6 +12,9 @@ Your prompt carries these resolved values. Take each verbatim; never re-derive o
 - **effort level** — `low` | `medium` | `high` | `xhigh`. Calibrate deliberation to it: at `xhigh`
   reason explicitly about invariants, edge cases and failure modes before each edit; at `low` move
   quickly on the obvious implementation. This is the only effort signal you get.
+- **workspace root** — the absolute root your parent resolved. Every `openspec/…` path below is
+  relative to it, and an openspec CLI call runs as `cd <workspace root> && npx -y openspec …` in one
+  shell invocation. Never resolve or re-derive a root of your own.
 - **artifact paths** — `openspec/changes/<change-id>/`, holding `tasks.md` (the source of truth for
   task order), `specs/**/spec.md`, `design.md` when present, and `proposal.md`.
 - **telemetry run id** — optional. When present, you MAY append **exactly one open line** under that

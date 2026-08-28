@@ -37,14 +37,15 @@ Update with `/plugin marketplace update ptp`, or run `/ptp:update`.
 
 ## Configuration
 
-Two optional JSON files, merged **project over global, key by key**:
+Three optional JSON files. How they merge is owned by `ptp-workspace` (`skills/ptp-workspace/SKILL.md`); this table only says where they live, and states no precedence, override, or merge rule of its own:
 
 | Layer | Path |
 |-------|------|
 | Global | `~/.claude/ptp/config.json` |
 | Project | `<repo>/.claude/ptp/config.json` |
+| Workspace | `<workspace>/.claude/ptp/config.json` |
 
-Any missing file, missing key, bad JSON, or invalid value falls back to the previous layer and finally to the default. Set values with **`/ptp:config`** (interactive: pick target → parameter → value; safe merge-write, never commits).
+Any missing file, missing key, bad JSON, or invalid value is skipped for that key alone, leaving whatever another layer validly supplied and finally the key's default — the forgiving posture that contract defines. Set values with **`/ptp:config`** (interactive: pick target → parameter → value; safe merge-write, never commits).
 
 ```json
 {
@@ -67,7 +68,7 @@ Any missing file, missing key, bad JSON, or invalid value falls back to the prev
 | `codex.mode` | `auto` \| `required` \| `off` | `auto` | `auto`: use Codex when on PATH, else run main-only and report the skip. `required`: stop when `codex` is missing. `off`: never use Codex. Explicit `/ptp:codex-*` commands run Codex regardless of the mode. |
 | `codex.model` | string | unset | Passed as `-m <model>` to `codex exec`. |
 | `codex.reasoningEffort` | `minimal` \| `low` \| `medium` \| `high` | unset | Passed as `-c model_reasoning_effort=<effort>`. |
-| `roles.main` | `claude` \| `codex` | `claude` | Which agent plans/implements; the reviewer is the other one. When unset in both files, the `PTP_MAIN_AGENT` env var is read. |
+| `roles.main` | `claude` \| `codex` | `claude` | Which agent plans/implements; the reviewer is the other one. When no layer sets it, the `PTP_MAIN_AGENT` env var is read. |
 | `review.maxIterations` | integer ≥ 1 | `5` | Iteration cap per review loop (each `-full` phase gets its own). |
 | `review.minSeverity` | `low` \| `medium` \| `high` \| `critical` | `low` | Lowest severity that gets fixed and counted toward convergence. Lower findings are reported only. |
 | `telemetry.mode` | `off` \| `on` | `off` | `on` records a run ledger (`runs.ndjson` + `runs.csv`) and, after `/ptp:telemetry setup`, spans in `spans.csv`. |
@@ -218,6 +219,7 @@ Anywhere a change argument is taken:
 | `/ptp:status [change-id]` | Active changes, validation status, task progress, recommended next command. |
 | `/ptp:analyze "<bug \| question>"` | Read-only investigation → `openspec/changes/<id>/analysis.md`. Produces no proposal, changes no source. |
 | `/ptp:config` | Interactive config editor for every key above. |
+| `/ptp:workspace-init` | Declares the current directory a ptp workspace: `openspec init --tools none .` plus a `{}` seed at `<cwd>/.claude/ptp/config.json` when absent. No arguments; refuses when an `openspec` entry is already there or no git root is found. |
 | `/ptp:version` | Installed vs. latest version verdict. Read-only. |
 | `/ptp:update` | Runs `claude plugin update ptp@ptp`. Restart Claude Code afterwards. |
 | `/opsx:explore [topic]` · `/opsx:propose [name]` · `/opsx:apply [name]` · `/opsx:archive [name]` | Experimental OpenSpec-only commands (no PtP discipline layer). |
@@ -227,6 +229,8 @@ Anywhere a change argument is taken:
 ## Epic backlog
 
 The backlog is a **GitHub Projects v2 board**. Set `backlog.projectOwner` and `backlog.projectNumber`; every backlog command refuses, naming the missing key, until both resolve.
+
+The board resolves **per workspace root**: a repository holding several workspaces can give each its own board without any repository-level edit, and a repository whose workspace root is the repository root resolves the same single board it always has.
 
 **Board setup (one time, done by you — ptp creates and reorders nothing):**
 
@@ -331,6 +335,7 @@ Telemetry (telemetry.mode = on)
 
 Where am I / plugin
   → /ptp:status [change-id] | /ptp:effort <change-id> | /ptp:config
+  → /ptp:workspace-init                        # make the current directory a workspace
   → /ptp:version | /ptp:update
 
 Selectors        epic:all | epic:0021 | epic:0021 story:01 | story:01 | <bare-id> | (omit = all)
@@ -342,6 +347,7 @@ Experimental     /opsx:explore | /opsx:propose | /opsx:apply | /opsx:archive
 
 | Version | Changes |
 |---------|---------|
+| **0.5.0** | New ptp **workspace** concept (epic 0060): a workspace is one product inside a repository — a directory holding its own `openspec/`. `skills/ptp-workspace/SKILL.md` owns resolution (upward walk bounded by the git root, an explicit `--workspace <path>` override, slug derivation), the three-layer configuration merge (`global` → `project` → `workspace`), and the workspace segment in cut branch names (`ptp/<slug>/<leaf>`); `scripts/ptp-resolve-workspace.js` is its derived, dependency-free executable surface. Every command that resolves a change selector or allocates an epic now resolves its workspace root once, at entry, and every bare `openspec/...` path in ptp text is workspace-relative — except `openspec/telemetry`, pinned to the repository root. A repository with a single `openspec/` at its git root resolves and cuts branches exactly as before, byte for byte (0060_01–0060_06). New command **`/ptp:workspace-init`** (epic 0061) declares the current directory a workspace: no arguments, non-interactive, guard-exempt (the guard needs an already-resolved root, which is exactly what this command lacks before it runs), refuses on an existing `openspec/` at cwd or a stray argument, warns on an ancestor workspace, and seeds `.claude/ptp/config.json` with `{}` (0061_01). |
 | **0.4.0** | New review-cycle tally: `ptp-review-loop` now returns a per-reviewer `reviewTally` (`cycles`, `found`, `accepted`, `rejected`, `belowThreshold`, `droppedManual`, `fixed`, `capped`) at every terminal outcome, rendered via a new shared table format (`skills/ptp-review-loop/references/review-tally-table.md`) and persisted in the durable `stages/<kind>.json` marker. The four dual-reviewer orchestrators (`/ptp:review-full`, `/ptp:review-plan-full`, `ptp-review-brainstorm-full`, `ptp-review-prd-full`) join and print it; `/ptp:brainstorm-full` and `/ptp:prd-full` relay it in their single-change reports; `/ptp:full`/`/ptp:full-apply`/`/ptp:full-plan` roll it up per slice across a multi-slice run. `/ptp:apply` and `/ptp:plan`, which wrap no review step, explicitly print no tally. `/ptp:review-fix` synthesizes a one-cycle tally from its frozen single pass (epic 0059). |
 | **0.3.1** | `/ptp:analyze` actually reaches `ptp-run-at-model` now — `0056_01`/`0.2.38` had only documented the `opus.high` dispatch in `skills/ptp-analyze/SKILL.md`'s Purpose section without ever performing it, so the command still ran at the session's own model. The dispatch is now an imperative step of the owning skill (not the command file, which stays in its enforced ordinary-command shape): `skills/ptp-analyze/SKILL.md` invokes `ptp-run-at-model` at `opus.high` directly, and `skills/ptp-run-at-model/SKILL.md`'s spawn-site audit plus the telemetry auto-start coverage docs are updated to match (0058_01). |
 | **0.3.0** | Minor version bump — the plugin moves from 0.2.38 to 0.3.0 to mark the PTP token-reduction program (epic 0057). No command, skill, agent, workflow, or behavior changed with the bump, and PTP publishes no API-compatibility contract tied to its version number. `/ptp:version` and `/ptp:update` resolve and compare versions exactly as before — only the value they read moved (0057_12). |

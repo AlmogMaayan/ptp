@@ -1,6 +1,6 @@
 ---
 description: Plan and apply an oversized change end to end in one invocation
-argument-hint: "<big-change-id-or-request>"
+argument-hint: "<big-change-id-or-request> [--workspace <path>]"
 ---
 
 ## Arguments

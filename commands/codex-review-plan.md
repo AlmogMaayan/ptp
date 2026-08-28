@@ -64,8 +64,9 @@ selector, the one subagent handles the whole per-change pass.)
 
 2. **Run validation and the compactness lint yourself and capture both results (you, via Bash):**
    - `npx -y openspec validate <change-id> --strict` — capture stdout+stderr and the exit status. This result is **authoritative**; Codex will be told it and instructed **not** to re-run it.
-   - `node scripts/ptp-compact-lint.js --change <change-id>` — the deterministic **compactness lint**
-     published by the `compact-artifact-contract` capability. It is run **caller-side**, exactly as
+   - `node scripts/ptp-compact-lint.js --workspace <resolved workspace root> --change <change-id>` — the deterministic **compactness lint**
+     published by the `compact-artifact-contract` capability, run against the root resolved at entry
+     (`ptp-workspace`), passed as an argument and never as a `cd`. It is run **caller-side**, exactly as
      the validation is, and its report is inlined into the step-4 prompt as authoritative text; Codex
      still runs no commands. If the lint is unavailable, errors, or cannot be run, record a one-line
      **non-blocking note** instead and continue — a lint failure never STOPs the review, never
@@ -80,11 +81,11 @@ selector, the one subagent handles the whole per-change pass.)
 
    **Severity threshold (resolved caller-side, inlined as a literal).** Resolve `review.minSeverity`
    from layered ptp config **once**, at the start of this pass, and hold it fixed for the pass —
-   global `~/.claude/ptp/config.json`, then project `<repo>/.claude/ptp/config.json` overriding,
-   default `low`; a missing file, missing key, unparseable JSON, or unrecognized value falls back to
-   the prior valid value (ultimately `low`) rather than erroring, and **never** STOPs the review. The
-   `/ptp:config` parameter registry (`commands/config.md`, `skills/ptp-config/`) owns the key, its
-   domain, and its validation — this is a pointer to that contract, not a second reader definition.
+   layered as `ptp-workspace` (`skills/ptp-workspace/SKILL.md`) defines, default `low`; a missing
+   file, missing key, unparseable JSON, or unrecognized value falls back to the prior valid value
+   (ultimately `low`) rather than erroring, and **never** STOPs the review. The `/ptp:config`
+   parameter registry (`commands/config.md`, `skills/ptp-config/`) owns the key, its domain, and its
+   validation — this is a pointer to that contract, not a second reader definition.
    **You** read the config, exactly as you run the validation and read the artifacts; **Codex is
    never asked to read `config.json`, to resolve the threshold, or to run any command** — the prompt
    is closed-book by design. Severity order is `low < medium < high < critical`. A finding is
@@ -93,11 +94,11 @@ selector, the one subagent handles the whole per-change pass.)
    configured `review.minSeverity` — reported, non-blocking)*; they never by themselves produce a
    `WARN` or a `FAIL`. Because this verdict never counted Medium or Low toward its outcome, `low`,
    `medium`, and `high` behave identically here; only `critical` changes a verdict, by demoting High
-   to reported-only — do **not** "repair" that apparent no-op by making Medium findings `WARN`. State
-   the resolved threshold **and the layer it resolved from** (default / global / project) in your
-   step-6 summary, and when the threshold demoted at least one finding out of the blocking set, say
-   so beside the verdict. One threshold governs the whole pass, including an empty-argument
-   audit-all run, so the per-change verdicts can never mix thresholds.
+   to reported-only — do **not** "repair" that apparent no-op by making Medium findings `WARN`.
+   State the resolved threshold **and the layer it resolved from** (a `ptp-workspace` provenance
+   label) in your step-6 summary, and when the threshold demoted at least one finding out of the
+   blocking set, say so beside the verdict. One threshold governs the whole pass, including an
+   empty-argument audit-all run, so the per-change verdicts can never mix thresholds.
 
    The prompt contains, in order:
    - The audit instructions (below).

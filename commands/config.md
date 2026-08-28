@@ -1,5 +1,5 @@
 ---
-description: Set one ptp configuration value interactively, writing it into the chosen user or project config
+description: Set one ptp configuration value interactively, writing it into the chosen user, project, or workspace config
 argument-hint: "(no arguments — fully interactive)"
 ---
 

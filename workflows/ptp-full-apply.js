@@ -100,7 +100,8 @@ function readReviewTally(review) {
 function reviewPromptLines(id, model, effort, escalated) {
   return [
     `Run the review-full protocol (the main-agent loop then the reviewer-agent loop; at the default roles.main=claude this is the Claude loop then the Codex loop) on the OpenSpec change \`${id}\`, per your system prompt.`,
-    `Change folder: openspec/changes/${id}/`,
+    `Change folder: ${changeFolderPrefix}openspec/changes/${id}/`,
+    ...(workspaceRoot ? [`Workspace root: ${workspaceRoot} — every openspec path in this prompt is relative to it, and an openspec CLI call runs as cd <that root> && npx -y openspec … in one shell invocation. Take it verbatim and resolve no root of your own.`] : []),
     `You are running at model \`${model}\`.`,
     `Work at **${effort}** effort: ${effortDirective(effort)} Fix only confirmed findings inline. Do NOT commit. Do NOT archive.`,
     ...(escalated
@@ -215,6 +216,24 @@ const fast = (parsedArgs && parsedArgs.fast) === true
 // undefined, null, or non-boolean value means telemetry is off and this script captures no
 // timestamp, mints and injects no run id, and emits no `timings` property.
 const telemetry = (parsedArgs && parsedArgs.telemetry) === true
+// The caller's ONE resolved workspace root (skills/ptp-workspace/SKILL.md), supplied by the two
+// launching skills beside `stories`. Every openspec path a spawned agent reads is relative to it,
+// and the agent is TOLD it rather than recovering it by stripping openspec/changes/<id>/ off the
+// change-folder path, which is exactly the re-derivation that contract bans. A launch omitting it
+// (a resume predating this field, or a hand-built call) keeps the pre-change bare relative path and
+// emits no root line, so no prompt ever interpolates an absent value.
+const workspaceRoot =
+  parsedArgs && typeof parsedArgs.workspaceRoot === 'string' ? parsedArgs.workspaceRoot.trim() : ''
+// The separator is appended only when the root does not already end in one, so no input ever
+// yields a DOUBLED separator in the change-folder path: a root that is itself a filesystem root
+// ('/') would otherwise produce '//openspec/…', which POSIX leaves implementation-defined and
+// which MSYS/Cygwin reads as a UNC share name — a different path entirely. A backslash-terminated
+// root is treated the same way rather than gaining a mixed '\/' seam.
+const changeFolderPrefix = !workspaceRoot
+  ? ''
+  : /[\\/]$/.test(workspaceRoot)
+    ? workspaceRoot
+    : workspaceRoot + '/'
 const results = []
 let halted = null
 
@@ -245,7 +264,8 @@ for (let i = 0; i < stories.length; i++) {
 
   const applyPrompt = [
     `Implement the OpenSpec change \`${s.id}\` end-to-end, following the apply protocol in your system prompt.`,
-    `Change folder: openspec/changes/${s.id}/`,
+    `Change folder: ${changeFolderPrefix}openspec/changes/${s.id}/`,
+    ...(workspaceRoot ? [`Workspace root: ${workspaceRoot} — every openspec path in this prompt is relative to it, and an openspec CLI call runs as cd <that root> && npx -y openspec … in one shell invocation. Take it verbatim and resolve no root of your own.`] : []),
     `Work at **${eff}** effort: ${effortDirective(eff)}`,
     `After verifying each task, immediately edit tasks.md to mark it [x] — do this per task as you go, not in a batch at the end. Before returning, re-read tasks.md and confirm every task is [x].`,
     `Do NOT archive. Do NOT commit. Do NOT git add. Return the JSON object when all tasks are [x] and final verification passes.`,

@@ -16,6 +16,9 @@ Your prompt carries the values named below as *given*: take each of those verbat
   `skills/ptp-codex-mode/SKILL.md`'s decision contract. Resolve each **once** at the start of the run
   and hold it fixed: each phase gets its own independent cap, and both phases share one run-wide
   severity floor. Never crash and never stop over a config typo.
+- **workspace root** — the absolute root your parent resolved; every `openspec/…` path here is
+  relative to it, and an openspec CLI call runs as `cd <workspace root> && npx -y openspec …` in one
+  shell invocation. Never re-derive a root of your own.
 - **artifact paths** — `openspec/changes/<change-id>/` must exist. Its `proposal.md`, `design.md`
   when present, `tasks.md` and `specs/**/spec.md` are the contract you review against;
   `stages/code.json` is the marker you write.

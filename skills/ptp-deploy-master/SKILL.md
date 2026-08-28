@@ -16,9 +16,10 @@ feature branch in production, `/ptp:deploy-master` simply re-triggers the deploy
 
 ## Configuration (read first, before any action)
 
-Read and merge the optional ptp config (global `~/.claude/ptp/config.json`, then project
-`<repo>/.claude/ptp/config.json` overriding key-by-key — the same files `ptp-deploy` uses). Only
-two keys of the `deploy` block are relevant here:
+Read the optional ptp config through the layered configuration contract owned by **`ptp-workspace`**
+(`skills/ptp-workspace/SKILL.md`) — the same contract `ptp-deploy` resolves through, whose layer list
+and precedence this skill restates not at all. Only two keys of the `deploy` block are relevant
+here:
 
 | Key | Default | Use |
 |-----|---------|-----|

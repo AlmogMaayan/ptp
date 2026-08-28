@@ -186,6 +186,9 @@ Use `AskUserQuestion` to ask the user which config layer to edit:
 
 - **User / global** — operates on `~/.claude/ptp/config.json`
 - **Project** — operates on `<repo>/.claude/ptp/config.json`
+- **Workspace** — operates on `<workspace-root>/.claude/ptp/config.json`, offered only when its
+  resolved config path **differs** from the Project target's resolved config path (normalized,
+  absolute comparison — see below)
 
 **Path resolution:**
 
@@ -196,11 +199,28 @@ Use `AskUserQuestion` to ask the user which config layer to edit:
   `/.claude/ptp/config.json`. If the command is **not** run inside a git repository, fall back
   to the current working directory (`<cwd>/.claude/ptp/config.json`) and **note the fallback in
   the output** so the user can confirm the intended location before proceeding.
+- **Workspace:** resolve the workspace root through the `ptp-workspace` skill — **never** through
+  `git rev-parse --show-toplevel`, which stays Project's own resolution alone — and append
+  `/.claude/ptp/config.json`. Compare the resulting absolute path against the Project target's
+  resolved path, both normalized (absolute, separators folded, `.`/`..` resolved), case-insensitively
+  on Windows and case-sensitively on POSIX. Offer the Workspace entry only when the two paths
+  **differ**; when they coincide, offer only the two existing entries and state that the workspace
+  root coincides with the project root, so no two menu entries ever resolve to the same file.
 
 After resolving, display the absolute path so the user can confirm it is the right file.
 
-These are the same two files `skills/ptp-deploy/SKILL.md` reads for config, keeping the reader
-and writer pointed at one schema.
+**Two, and only two, omission cases exist for the Workspace entry:**
+
+1. The workspace root resolves and its config path **coincides** with Project's — the entry
+   collapses into today's two entries, and the coincidence is noted.
+2. The workspace root is **missing or its resolution fails** — the entry is omitted with the reason
+   noted, and the command never STOPs over it.
+
+No separate rule exists for running outside a git repository: that case falls under omission case 2,
+because the resolver reports no workspace root there and so yields no path to compare.
+
+`skills/ptp-deploy/SKILL.md` reads these files through the layered configuration contract owned by
+`ptp-workspace`, keeping the reader and writer pointed at one schema.
 
 ### Step 2 — Parameter selection
 
@@ -304,7 +324,11 @@ turns one invocation into several writes. The idempotency/no-op report, the `wri
      the root — and, for `backlog.statusOptions`, an absent `statusOptions` under a present `backlog`)
      are fine — they will be created as empty objects on write. This is not clobbering.
 
-4. Show the **current value** of the selected parameter:
+4. Show the **current value** of the selected parameter. This is the **authoritative** read — from
+   the **selected target file alone** — and it is the sole diagnosis site: the STOP rules above bind
+   only this read.
+   - Name the **selected target** (Global, Project, or Workspace) and its absolute path alongside the
+     value.
    - If the parameter's value is set in the file (at its `jsonPath`), display:
      `Current value: <value>`
    - If it is absent, display: `Current value: unset (default: <entry.default>)`
@@ -314,6 +338,17 @@ turns one invocation into several writes. The idempotency/no-op report, the `wri
      displays that member's own default row** — not the whole default table. For example, for
      `backlog.statusOptions` with `done` selected and nothing stored:
      `Current value: unset (default: done, Done)`
+
+5. Show a **display-only** provenance line, separate from the authoritative read above, naming the
+   layer whose value is **effective** at read time under the layered configuration contract owned by
+   `ptp-workspace` (`skills/ptp-workspace/SKILL.md` — the layer list and precedence live there and are
+   not restated here). Show this line **only when that effective layer is not the selected target**;
+   when the selected target itself supplies the effective value, show no provenance line. For a
+   `map`-kind entry, evaluate provenance at the **effective path** (step 2b), so the answer is per
+   member. This read is **forgiving**: a missing, unparseable, wrong-shape, or invalid non-target
+   layer contributes nothing to it, is never reported as an error, and never stops the command — it
+   never competes with the authoritative read's STOP rules above. The provenance line is informational
+   only: it changes neither the idempotency comparison in step 5 nor what is written.
 
 ### Step 4 — Value selection
 
@@ -415,7 +450,10 @@ suggested value). Then validate the input:
 
 - **Accept:** a **non-empty** string, after trimming leading/trailing whitespace, that is a
   **repository-relative** path resolving **strictly below** the repository root. The value is
-  written as a JSON **string**, trimmed.
+  written as a JSON **string**, trimmed. This rule holds under **every** target — global, project, or
+  workspace — including workspace: the value stays repository-root-relative and
+  repository-root-validated regardless of which file it is written into; it is never re-anchored to
+  the workspace root.
 - **Reject and re-prompt** on any of the following — do NOT write an invalid value:
   - empty or whitespace-only input;
   - an **absolute path** (`/var/telemetry`, `C:\telemetry`, a UNC path, any drive- or root-anchored
@@ -563,7 +601,12 @@ other six rows **the way the resolver would**: take the target file's own `backl
 for a status only where that value is **valid** under `ptp-github-projects-gh`'s per-status-key rules
 (after trimming, dropping empty elements, and dropping case-insensitive duplicates it still yields at
 least one name), and take `ptp-backlog`'s built-in default row for that status otherwise. Do not read
-the other config layer.
+the other config layers.
+
+**The check stays single-layer over the selected target under all three targets.** Whether the
+selected target is Global, Project, or Workspace, the collision check reads that **selected target**
+file alone and no other; adding a third target widens which file may be the selected target, never
+how many are read.
 
 **A present-but-invalid sibling row falls back to its default here, exactly as it does in the resolver —
 and reading it as an empty row instead would open the hole this check exists to close.** With a
@@ -604,9 +647,13 @@ complementary and neither is redundant.
 
 With the resolved path, the base JSON object (from step 3), and the chosen value (from step 4):
 
-1. **Idempotency check:** if the current value of the selected parameter in the base JSON already
-   equals the chosen value, **report a no-op** ("already set to `<value>` — no change made") and
-   end the command. (It is safe to re-write byte-identical content, but prefer reporting the no-op.)
+1. **Idempotency check:** compares the **selected target file's own stored value**, never the
+   effective value the step 3 provenance line names. If the current value of the selected parameter
+   in the base JSON (the target file's own contents) already equals the chosen value, **report a
+   no-op** ("already set to `<value>` — no change made") and end the command. (It is safe to re-write
+   byte-identical content, but prefer reporting the no-op.) Writing an already-**effective** value
+   into a target file that does not itself carry it is therefore a **write**, not a no-op — the target
+   file's own stored value is what is compared, and it did not carry the key.
 
 2. **Set the target path:** in the base JSON object, navigate the selected entry's `jsonPath`:
    - If the parent key is absent from the root, create it as an empty object `{}`.
@@ -687,7 +734,10 @@ Examples:
 | `backlog.statusOptions` absent (under a present or absent `backlog`) | Created as `{}` on write; not clobbering. |
 | `backlog.statusOptions` row input empty, whitespace-only, or containing an empty element (`,Doing`, `Doing,`, `Doing,,WIP`) | Reject, re-prompt; do NOT write. |
 | `backlog.statusOptions` row that would collide with another row of the resolved table | Reject, re-prompt, naming the colliding name and the other status; do NOT write. |
-| Not in a git repo (project target) | Fall back to `<cwd>/.claude/ptp/config.json`; note the fallback in output. |
+| Not in a git repo (project target) | Fall back to `<cwd>/.claude/ptp/config.json`; note the fallback in output. No workspace entry is offered in this case either. |
+| Workspace root equal to the project root | Offer only the two existing targets (no workspace entry); note that the workspace root coincides with the project root. |
+| Unresolvable workspace root | Omit the workspace entry, note the reason; do not STOP — the remaining targets stay selectable. |
+| Malformed workspace file (parse failure, non-object root, or a non-object parent for the selected key) | STOP, report, do **not** overwrite — same rule as any other target. |
 | Chosen value equals current stored value | Report no-op; do not write. |
 
 ---
@@ -696,7 +746,14 @@ Examples:
 
 - **Never commit, push, stage, or otherwise mutate git state.** This is a file write only — no
   history-, index-, or ref-changing git operations. The one allowed git command is the read-only
-  `git rev-parse --show-toplevel` used in step 1 to resolve the project config path.
+  `git rev-parse --show-toplevel` used in step 1 to resolve the project config path; the
+  `ptp-workspace` resolution used to resolve the workspace root invokes no git command of its own.
+- **Never offer two targets that resolve to the same file.** The workspace entry is offered only
+  when its resolved config path differs from the project target's; when the two coincide, offer only
+  the two existing entries.
+- **Never STOP over a non-target layer.** Step 3's authoritative read and its STOP rules bind only
+  the selected target file; the display-only provenance line's read of a non-target layer is
+  forgiving and never stops the command, whatever shape that layer's file is in.
 - **Never overwrite a file with malformed JSON.** If the file exists and does not parse (and is
   not empty/whitespace), STOP and report.
 - **Never overwrite a file with wrong-shape JSON** (non-object root, or a non-object parent value

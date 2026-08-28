@@ -21,6 +21,8 @@ Every ptp step that **creates or updates files** — planning artifacts, source 
 
 **Do NOT run the guard — utility writes outside the repo tree** (they change state, but never a ptp/OpenSpec working-tree artifact, so the base-branch guard does not apply): `update` (updates the *installed plugin*, no repo files), `config` (writes only `.claude/ptp/config.json` tool config, not a ptp artifact), and `backlog-add` / `backlog-edit` (they write a GitHub Projects v2 board over `gh` — creating or editing exactly one board item — and create or modify no repo file). Listed here separately so each category's rationale stays accurate.
 
+**Deliberate no-workspace-yet exemption — `/ptp:workspace-init`:** this command does **not** run the guard either, for a reason of its own. Nothing it writes is a tracked ptp artifact — it creates an `openspec/` skeleton and, when absent, an empty `.claude/ptp/config.json` tool config, neither of which is a ptp/OpenSpec artifact the base-branch guard exists to keep off `master`. More decisively, the guard's branch-cutting path takes the invocation's **already-resolved workspace root** as a **required** `workspace` argument (see step 3 below): on the `no-workspace` resolution that is this command's ordinary case that root does not exist, and where the resolution instead names an **ancestor** workspace the guard would bind the branch to that ancestor rather than to the workspace being created. Guard exemption is **not** a reason to skip `ptp-run-at-model`: that wrap is what pins the command to `haiku.low` and produces its three-state relay, and it stays. Listed here separately rather than in the read-only list above, since the command does write, to keep each category's rationale accurate.
+
 **Deliberate land-on-master exception — `/ptp:master`, `/ptp:deploy-master`:** these commands do **not** run the guard, but for a distinct reason: they author no ptp/OpenSpec artifact (a `git switch` / fast-forward pull, or a deploy CI/CD dispatch, may touch tracked files or trigger a workflow, but neither command creates anything of its own) and their entire purpose is to land on / operate on `master` — running the guard would cut a `ptp/<...>` branch and directly defeat them. `/ptp:deploy-master` additionally commits nothing and cuts no branch of its own; it only triggers the deploy CI/CD action against the current `master`/`main`. Neither is a read-only command (`/ptp:master` changes git state and a pull may update the working tree; `/ptp:deploy-master` dispatches a workflow run), so both are listed here separately rather than in the read-only list above, to keep each category's stated rationale accurate.
 
 **Deliberate ship-from-a-feature-branch exemption, unconditional — `/ptp:deploy`,
@@ -33,8 +35,8 @@ the working tree looks like. Running the guard would be pointless (HEAD is alrea
 branch → no-op) or harmful (on the base branch it would cut a throwaway branch rather than STOP
 as these commands intend) — and auto-recovering an accidental dirty base branch straight into a
 **production deploy** is a blast radius neither command wants. Their internal deploy-fix
-sub-flow *does* cut `ptp/deploy-fix-*` branches and merges them through the PR mini-flow, so a
-fix is never committed to the base branch directly. Like `/ptp:master`, these are listed here
+sub-flow *does* cut branches whose leaf is `deploy-fix-<id>` — shaped per `ptp-workspace` — and
+merges them through the PR mini-flow, so a fix is never committed to the base branch directly. Like `/ptp:master`, these are listed here
 separately rather than in the read-only list, to keep each category's rationale accurate.
 
 **Deliberate ship-from-a-feature-branch exemption, conditional — `/ptp:merge-to-master`:** this
@@ -54,7 +56,7 @@ command is deliberately **not** added to the "Run the guard — write-capable" l
 membership in that list means running the guard as an **unconditional preamble**, whereas this
 command invokes the prep **conditionally from its own step 1**, after a tree classification the
 guard itself does not perform. It also has no deploy phase and therefore cuts no
-`ptp/deploy-fix-*` branches.
+`deploy-fix-<id>` branch.
 
 ## The guard (first write-affecting action, before writing any file)
 
@@ -84,13 +86,14 @@ branch name, detect it via `git symbolic-ref --quiet --short refs/remotes/origin
 2. **If it is anything other than the repo's base branch** — already on a feature branch, or a detached HEAD mid-operation — **proceed as-is.** Do **not** stash, switch, or cut a new branch. The guard is a **no-op**. (This is the confirmed posture: respect the branch the user is already on; never re-cut or re-base it.)
 3. **If it is the repo's base branch** (see *What counts as the base branch* below): do not write onto it. Derive a branch name from context (see below), then launch the minimal git-prep workflow and **wait for it to return** before any file write:
    ```
-   Workflow({ name: 'ptp:ptp-branch-prep', args: { branch, base, description } })
+   Workflow({ name: 'ptp:ptp-branch-prep', args: { branch, base, workspace, description } })
    ```
    - `branch` — the derived feature-branch name (required).
+   - `workspace` — the invocation's already-resolved workspace root, expressed relative to the git root with `/` separators and as the literal `.` at the git-root workspace, so it is never empty (required). The prep records it on a branch it creates and compares it before switching to one that already exists; see `ptp-workspace`.
    - `base` — the detected base branch (`master` or `main`) HEAD is currently on (optional; defaults to `master` for back-compat). Pass the value from step 1 so a `main`-default repo bases off `main`.
    - `description` — a short human description of the change (optional; used only for the agent's context).
 
-   The workflow runs a single **haiku** agent (cheapest model, mechanical effort) that: stashes any dirty changes, checks out `base`, pulls latest, creates-and-checks-out `branch` (or switches to it if it already exists), and pops the stash back onto the new branch. It returns `{ branch, onBranch, created, stashed, stashRestored, baseUpdated, notes }`.
+   The workflow runs a single **haiku** agent (cheapest model, mechanical effort) that: stashes any dirty changes, checks out `base`, pulls latest, creates-and-checks-out `branch` (or switches to it if it already exists), and pops the stash back onto the new branch. It returns `{ branch, onBranch, created, stashed, stashRestored, baseUpdated, notes, error }`.
    - **Proceed only if `onBranch === true`.** If the workflow returns `onBranch: false` (or an `error`, or null) the prep did **not** put you on the feature branch — HEAD may still be on `master`. **STOP, surface the error, and write nothing.** Never fall through to the ptp step's file writes on a failed prep; doing so would defeat the guard.
    - Once `onBranch` is true you are on the fresh feature branch — continue the ptp step normally.
    - If it reports a stash-pop conflict (`stashRestored: false`), surface that to the user before proceeding.
@@ -99,21 +102,29 @@ branch name, detect it via `git symbolic-ref --quiet --short refs/remotes/origin
 
 ## Branch naming (decide from context)
 
-Derive the name from the most specific context available, in this order:
+The guard derives only the **leaf** — the branch name's single final segment. The full name is then
+assembled from that leaf per the branch-name shape `ptp-workspace` owns (its *Branch-name shape*
+section), which alone decides whether a workspace segment precedes the leaf and which STOPs a
+malformed one; nothing here restates it. The guard consumes the workspace root the invocation already
+resolved and derives none of its own.
 
-1. **A known ptp change id** (`XXXX_NN_<desc>`, e.g. from `/ptp:apply 0001_01_foo`) → `ptp/<change-id>` (e.g. `ptp/0001_01_landing-page-export`).
-2. **An epic selector** (`epic:XXXX`) or a freshly-allocated epic → `ptp/epic-XXXX`.
-3. **A fresh request with no id yet** (e.g. `/ptp:plan-multiple "<request>"`, `/ptp:full "<request>"`) → `ptp/<≤5-kebab-word summary of the request>`.
-4. **A no-argument command deriving from the dirty tree** — e.g. `/ptp:merge-to-master` recovering a dirty base branch. Cases 1–3 all assume an argument; this command has none, so the name comes from the *pending work itself*. Apply these sub-rules, most specific first:
-   - 4a. Exactly one `openspec/changes/<change-id>/` prefix among the changed paths → `ptp/<change-id>`.
-   - 4b. Several change folders sharing one epic number `XXXX` → `ptp/epic-XXXX`.
-   - 4c. Otherwise → `ptp/<≤5-kebab-word summary of the changed paths>` (e.g. `ptp/commands-skills-update`).
+Derive the leaf from the most specific context available, in this order:
 
-   **Normalize the paths first.** Read them from `git status --porcelain --untracked-files=all` run at the repo **top level** (`git rev-parse --show-toplevel`), because git prints status paths relative to the *current directory*; for a rename entry (`R  <old> -> <new>`) take the **destination**; and unquote paths git wrapped in `"…"` (special characters / non-ASCII). The lowercase-kebab / single-`ptp/`-segment constraint below applies unchanged.
+1. **A known ptp change id** (`XXXX_NN_<desc>`, e.g. from `/ptp:apply 0001_01_foo`) → the leaf is that
+   change id (e.g. `0001_01_landing-page-export`).
+2. **An epic selector** (`epic:XXXX`) or a freshly-allocated epic → the leaf is `epic-XXXX`.
+3. **A fresh request with no id yet** (e.g. `/ptp:plan-multiple "<request>"`, `/ptp:full "<request>"`) →
+   the leaf is a ≤5-kebab-word summary of the request.
+4. **A no-argument command deriving from the dirty tree** — e.g. `/ptp:merge-to-master` recovering a dirty base branch. Cases 1–3 all assume an argument; this command has none, so the leaf comes from the *pending work itself*. Apply these sub-rules, most specific first:
+   - 4a. Exactly one `openspec/changes/<change-id>/` prefix among the workspace-relative changed paths → the leaf is that `<change-id>`.
+   - 4b. Several change folders sharing one epic number `XXXX` → the leaf is `epic-XXXX`.
+   - 4c. Otherwise → the leaf is a ≤5-kebab-word summary of the changed paths (e.g. `commands-skills-update`).
+
+   **Normalize the paths first, then make them workspace-relative.** Read them from `git status --porcelain --untracked-files=all` run at the repo **top level** (`git rev-parse --show-toplevel`), because git prints status paths relative to the *current directory*; for a rename entry (`R  <old> -> <new>`) take the **destination**; and unquote paths git wrapped in `"…"` (special characters / non-ASCII). That normalisation runs **first** and is unchanged. Only then re-express each repo-relative path **relative to the resolved workspace root** and discard any path falling outside it, before matching 4a/4b's `openspec/changes/<change-id>/` prefix against the result — so a dirty tree spanning two workspaces can never pull another workspace's change id or epic number into the leaf. At the git-root workspace that re-expression is the identity and nothing is ever outside it, so the match is exactly today's. The lowercase-kebab constraint below applies unchanged.
 
    **Reach of 4a/4b.** They fire only where `openspec/` is **tracked** and therefore visible to `git status`. In a repo that gitignores it — ptp itself does — 4c is the live rule, so do not be surprised when the precise sub-rules never trigger.
 
-Keep it lowercase-kebab, no spaces or slashes beyond the single `ptp/` prefix segment. If the derived branch already exists, the prep workflow switches to it rather than failing.
+Keep the leaf lowercase-kebab: no spaces and no `/`, so it stays the single segment the shape requires. If the derived branch already exists, the prep workflow switches to it rather than failing.
 
 ## Why a workflow (not inline git)
 

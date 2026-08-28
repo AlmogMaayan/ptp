@@ -129,7 +129,7 @@ The skill then runs, **in this order**:
    | Every `sonnet.medium` site, named in full: `commands/` — `archive`, `archive-force`, `master`, `deploy`, `deploy-master`, `deploy-pr-approved`, `merge-to-master`; `skills/` — `ptp-archive-and-deploy`, `ptp-deploy-master` | The git plumbing inside them is mechanical, but the *step* is not, and this holds for each one individually: `/ptp:archive` and `/ptp:archive-force` decide whether the gates pass and merge delta specs into the shared `openspec/specs/` tree; `/ptp:master` must distinguish a clean tree from a dirty one and refuse rather than force; `/ptp:deploy`, `/ptp:deploy-pr-approved`, `/ptp:merge-to-master`, `/ptp:deploy-master` and their two skills autonomously diagnose and repair merge conflicts, CI failures, and deploy failures within a retry budget, and decide when a human approval is required. None has a single verifiable correct outcome fixed in advance, so none meets the mechanical test. | Not mechanical; every one stays at `sonnet.medium`. |
    | `/ptp:apply` (`effort.md`-derived per-change target) | The target is the change's own recorded recommendation, and implementation is judgment-carrying by definition. | No fixed target to downgrade; judgment-carrying. |
    | `/ptp:review-fix` (evaluated per-fix-pass target — see the **Fix-work carve-out** above) | It names no fixed target: its single confirm-and-fix run takes the fix target evaluated over the frozen finding set, with `opus.high` as the documented fallback. This is the `/ptp:apply` shape — a target derived per work item rather than a blanket downgrade — so the rule is satisfied the same way it is there. The **review** judgment it acts on was produced at `opus.high` by a separate review command, and this command's own review target is unchanged because it runs no review. | No fixed target to downgrade; judgment-carrying. |
-   | The only `haiku` site: `ptp-branch-prep`, defined in `skills/ptp-branch-guard/SKILL.md` and named by every guarded command that cites it (`brainstorm`, `brainstorm-full`, `plan`, `prd`, `prd-full`, and this skill) | Already runs at `haiku`, and the skill pins it there with a hard no-escalate rule — pure git plumbing (stash/checkout/pull/branch), fully specified, no design judgment, single verifiable outcome. | Already at the cheapest tier; nothing to change. |
+   | Both `haiku` sites, named in full: `ptp-branch-prep`, defined in `skills/ptp-branch-guard/SKILL.md` and named by every guarded command that cites it (`brainstorm`, `brainstorm-full`, `plan`, `prd`, `prd-full`, and this skill); and `ptp-workspace-init` (`skills/ptp-workspace-init/SKILL.md`), which names `haiku.low` for `/ptp:workspace-init` | Each already runs at `haiku`, and each meets the mechanical test individually: `ptp-branch-prep` is pure git plumbing (stash/checkout/pull/branch), pinned there by a hard no-escalate rule; `ptp-workspace-init` runs one fixed CLI invocation, an ordered preflight whose gates are enumerated, and a single conditional file write — fully specified, no design judgment, a single verifiable outcome. | Already at the cheapest tier; nothing to change. |
    | The `full` family's workflow agents (`workflows/ptp-full-apply.js`) | Named outside this skill (the family does not use it): the apply agent takes the per-story recommendation with `opus` as its default, and the code-review agent takes that story's resolved review target — the same recommendation floored at `sonnet`/`high`, with `opus`/`high` as its default — and may be re-spawned once at a more capable model when its own fix-target evaluation names one. Both are judgment-carrying stages, and neither names a fixed target to downgrade. | Judgment-carrying; downgrade forbidden. |
    | `ptp-workflow-cache-heal` | A Bash step invoked directly via the Bash tool, not an agent spawn — it has no `model` parameter to choose at all. | Not a spawn site; no model to name. |
    | `plan-multiple`'s cross-reference verification (step 5f) | Runs in the **outer session**, after the beat-3 join, not inside any spawned agent — it has no `model` parameter to choose. | Not a spawn site; no model to name. |
@@ -222,6 +222,16 @@ The skill then runs, **in this order**:
        change folder). A caller MUST NOT supply a capture that its own flow has already invalidated
        through any run it started — it MUST re-capture before supplying it, or supply nothing, rather
        than relying on the consuming run's trigger 1 to catch a staleness the caller itself introduced.
+
+     - (g) the **resolved workspace root**, taken from the caller's own entry resolution and carried
+       **verbatim**: the subagent anchors every openspec path and CLI call to it and **never re-derives**
+       a root of its own (`ptp-workspace`). **For the one command whose entry resolution yields no root
+       to carry — `/ptp:workspace-init`, whose ordinary case is `no-workspace` because the root does not
+       exist until this run creates it** — the caller passes the **entry resolution's outcome** (the
+       failure code, or the ancestor root when one resolved) in place of a root, together with a note
+       that the subagent performs the post-creation resolution itself. That is the one exception, it is
+       granted and scoped by `ptp-workspace`'s command-scoped exemption rather than here, and no other
+       caller acquires it by analogy.
 
      The spawn is **foreground**: the session **blocks** until the subagent returns.
 
@@ -579,6 +589,8 @@ printf '%s' "$WORK_PROMPT" | codex exec -s workspace-write [ -m <model> ] [ -c m
   `ptp-branch-prep`; **for a guard-exempt command** (e.g. `/ptp:master`, where step 2 was skipped) the
   branch guard does **not** apply and the shelled-out Codex must **not** run it or launch
   `ptp-branch-prep` — plus the same instruction to return a terminal result for the relay.
+- The `$WORK_PROMPT` also carries the **resolved workspace root** verbatim, exactly as part (g) does
+  for the `claude` branch: the shelled-out run resolves no root of its own.
 
 **Ownership boundary (do not confuse with the reviewer).** This write-capable invocation is a
 **NEW call site owned by `ptp-run-at-model`** — it is **NOT** a relaxation of the read-only Codex

@@ -53,11 +53,11 @@ The required set is therefore: the contract artifacts, the merge-base diff, the 
 
    **Severity threshold (resolved caller-side, inlined as a literal).** Resolve `review.minSeverity`
    from layered ptp config **once**, at the start of this pass, and hold it fixed for the pass —
-   global `~/.claude/ptp/config.json`, then project `<repo>/.claude/ptp/config.json` overriding,
-   default `low`; a missing file, missing key, unparseable JSON, or unrecognized value falls back to
-   the prior valid value (ultimately `low`) rather than erroring, and **never** STOPs the review. The
-   `/ptp:config` parameter registry (`commands/config.md`, `skills/ptp-config/`) owns the key, its
-   domain, and its validation — this is a pointer to that contract, not a second reader definition.
+   layered as `ptp-workspace` (`skills/ptp-workspace/SKILL.md`) defines, default `low`; a missing
+   file, missing key, unparseable JSON, or unrecognized value falls back to the prior valid value
+   (ultimately `low`) rather than erroring, and **never** STOPs the review. The `/ptp:config`
+   parameter registry (`commands/config.md`, `skills/ptp-config/`) owns the key, its domain, and its
+   validation — this is a pointer to that contract, not a second reader definition.
    **You** read the config, exactly as you read the diff and run the validation; **Codex is never
    asked to read `config.json`, to resolve the threshold, or to run any additional command** — the
    prompt is closed-book by design. Severity order is `low < medium < high < critical`. A finding is
@@ -67,9 +67,9 @@ The required set is therefore: the contract artifacts, the merge-base diff, the 
    `NEEDS FIXES`. Because this verdict never counted Medium or Low toward its outcome, `low`,
    `medium`, and `high` behave identically here; only `critical` changes a verdict, by demoting High
    to reported-only — do **not** "repair" that apparent no-op by making Medium findings block. State
-   the resolved threshold **and the layer it resolved from** (default / global / project) in your
-   step-6 report, and when the threshold demoted at least one finding out of the blocking set, say so
-   beside the verdict.
+   the resolved threshold **and the layer it resolved from** (a `ptp-workspace` provenance label) in
+   your step-6 report, and when the threshold demoted at least one finding out of the blocking set,
+   say so beside the verdict.
 
    The prompt contains, in order:
    - The review instructions (below).

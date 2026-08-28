@@ -75,15 +75,16 @@ login resolves for organizations and user accounts alike, so no `ownerType` key 
 
 ### Layered resolution
 
-Global first, then project overriding **key by key** — the identical two files and precedence
-`codex.mode`, `review.*`, `telemetry.*`, `roles.main`, and `parallel.*` already use:
+Both keys resolve through the layered configuration contract owned by **`ptp-workspace`**
+(`skills/ptp-workspace/SKILL.md`) — the identical contract `codex.mode`, `review.*`, `telemetry.*`,
+`roles.main`, and `parallel.*` already resolve through. This skill restates neither the layer list nor
+its precedence, and states only what makes a `backlog` value valid:
 
 ```
 projectOwner     = unset
 projectNumber    = unset
 
-for path in [ ~/.claude/ptp/config.json,            # global first
-              <repo>/.claude/ptp/config.json ]:     # then project (overrides)
+for each layer, in the order and with the precedence ptp-workspace defines:
     if file missing, unreadable, or not parseable JSON: continue      # ignore the layer
     obj = parsed root; if obj is not an object: continue
     b = obj.backlog; if b is not an object: continue
@@ -123,16 +124,15 @@ Four properties, each separately load-bearing:
 
 ### Resolving `backlog.statusOptions` — the same per-key reader, one level deeper
 
-`backlog.statusOptions` resolves through the identical forgiving layered reader; the only difference is
-that the unit of independence is a **status key inside the map**, not the map itself. A layer supplies no
-status key at all unless it parses, its root is an object, its `backlog` is an object, **and** its
-`statusOptions` is an object.
+`backlog.statusOptions` resolves over the identical `ptp-workspace` layers with the identical
+forgiving posture; the only difference is that the unit of independence is a **status key inside the
+map**, not the map itself. A layer supplies no status key at all unless it parses, its root is an
+object, its `backlog` is an object, **and** its `statusOptions` is an object.
 
 ```
 overrides = {}                                  # validated per-status overrides; {} means none
 
-for path in [ ~/.claude/ptp/config.json,        # global first
-              <repo>/.claude/ptp/config.json ]: # then project (overrides)
+for each layer, in the order and with the precedence ptp-workspace defines:
     if file missing, unreadable, or not parseable JSON: continue
     obj = parsed root;      if obj is not an object:  continue
     b   = obj.backlog;      if b is not an object:    continue
@@ -182,11 +182,61 @@ must never fail an unrelated command that merely happens to resolve config. The 
 produce any of these values; only a hand edit can, which is exactly the class of input the forgiving
 posture exists to survive.
 
+### The workspace layer: its granularity, and what it leaves untouched
+
+The layer list and its precedence are `ptp-workspace`'s, cited above and not restated here; the
+resolved **workspace root** is one of the **candidate** layers that contract considers — whether it
+survives deduplication, and whether it exists at all, are that contract's to decide, not this one's.
+What this capability owns is the **granularity** of an override across the layers it supplies:
+
+- for `backlog.projectOwner` and for `backlog.projectNumber`, the unit of override is the
+  **individual key**; and
+- for `backlog.statusOptions`, it is the **individual status key** inside the map.
+
+A layer overrides no *block*: it never discards a sibling key it did not itself supply, and never
+resets a status row it said nothing about.
+
+**The added layer changes none of the properties above.** The four load-bearing properties (a)-(d) of
+*Layered resolution* and the four consequences (a)-(d) of the `backlog.statusOptions` reader hold
+across **every** layer the contract supplies, the workspace-root one included: per-key and per-status
+independence; a default applying only when **no** layer supplied a valid value; the per-row default
+applied by `ptp-backlog`'s merge rather than substituted by this resolver; trimming applying to the
+**resolved** value and not only to the validity test; an empty row invalid rather than a wildcard; and
+resolution that never throws and never STOPs. A layer that is missing, unreadable, unparseable,
+non-object-rooted, or whose `backlog` value is not an object is skipped **whichever layer it is**.
+
+**Where the resolved workspace root is the repository root**, `backlog.*` resolves to exactly what it
+resolves to today. Such a repository resolves unchanged: no user action, no key rename, and no stored
+board, item, or node id invalidated. How the contract reaches that outcome for a duplicated candidate
+layer is `ptp-workspace`'s, and is deliberately not restated here.
+
+**No key is added, and the retired one stays retired.** Board identity remains owner-login plus
+project-number. `backlog.mcpServer` is read **at no layer** — a layer adds a file to consult, never a
+key to consult, and this reader consults only the keys it knows (see
+[Migration from the retired transport's configuration key](#migration-from-the-retired-transports-configuration-key)).
+
+### Resolution is rooted at the workspace root path, not at its slug
+
+What is rooted at the workspace **root path** — the workspace's identity, per `ptp-workspace` — is the
+*resolution*: which configuration a workspace reads. What that resolution yields stays **owner-login
+plus project-number**. Two distinct workspace roots whose derived slugs happen to collide therefore
+still resolve independently, each from the configuration at its own root path, and whether their two
+resolutions land on one board depends only on the owner and number they resolve — never on the slug.
+
+This capability consequently owns **no slug-collision detection**: it detects nothing, reports nothing,
+and refuses nothing about a collision, and no artifact names it as that concern's owner. Declining it
+leaves the concern assigned rather than orphaned: under `ptp-workspace`'s own handoff of a slug
+collision to whichever later capability **keys on the slug**, it belongs to ptp's slug-keyed
+**branch naming** — the *Branch-name shape* section of `ptp-workspace`, the one surface that keys on the
+slug rather than on the workspace root path.
+
 ### Completeness verdict
 
-Evaluated **once, on the resolved combination** — never per layer. Key-by-key precedence legitimately
-lets a global layer name the board while a project layer overrides the number, so requiring a single
-layer to carry a complete set would break the precedence rule this contract just stated.
+Evaluated **once, on the resolved combination of every layer the contract supplied** — never per
+layer, and never against a fixed layer count, the contract supplying no workspace-root layer where no
+workspace root resolves one. Key-by-key precedence legitimately lets one layer name the board while a
+later layer — a workspace-root one included — overrides the number, so requiring a single layer to
+carry a complete set would break the precedence rule this contract just stated.
 
 The rule is one invariant:
 
@@ -268,9 +318,11 @@ invalidated.
 
 ### Cross-layer half-configuration
 
-A project layer that sets only `projectNumber` inherits the global layer's `projectOwner`, so it can
-resolve `complete: true` while pointing at the **wrong** board. This is documented as a consequence of
-key-by-key precedence and is deliberately **not** enforced: introducing whole-block precedence for one
+A layer that sets only `projectNumber` — a **workspace-root** layer included — inherits an outer
+layer's `projectOwner`, so it can resolve `complete: true` while pointing at the **wrong** board. The
+added workspace layer **widens** this consequence rather than changing it: it is one more place the
+half-configuration can be written, not a new failure mode. It stays documented as a consequence of
+key-by-key precedence and deliberately **not** enforced: introducing whole-block precedence for one
 key group would diverge from how every other ptp parameter resolves, and the divergence would be
 invisible at the point of use.
 
@@ -734,6 +786,11 @@ configuration under which the preflight does not apply.
 The preflight runs **at most once per ptp invocation**, memoized in memory on the resolved
 `(projectOwner, projectNumber)` pair — re-keyed from the retired contract's server name, there being
 none. Later backlog operations in the same invocation reuse the verdict.
+
+**The key stays the resolved board identity and gains no workspace component.** Two workspace roots
+that resolve the same owner and number address the **same** board, so a workspace component would only
+force a redundant second ladder against one board; two roots resolving different pairs already key
+differently.
 
 - **Never persisted.** Not to a cache file and not into any store. A stored verdict outlives the auth
   state that justified it, and persisting anything would turn a read-only command into a writer.

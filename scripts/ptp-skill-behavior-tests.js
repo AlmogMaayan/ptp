@@ -16,6 +16,11 @@
  *   2. `tests/pressure/*.json` — discovers every case-fixture JSON file, validates its `meta` block,
  *      runs skill conformance / vocabulary / reference / finding-record / coverage passes against the
  *      skills it names (0057_10_ptp-code-review-and-verification-skills).
+ *   3. `tests/cli/*.json` — discovers every command-case fixture, materializes each case's declared
+ *      tree under a fresh temporary directory outside the repository, runs `node <script>` inside it
+ *      with the case's arguments, and grades exit code, stdout and stderr against the case's own
+ *      expectations (0060_01). The script path, the tree, the arguments and the expectations all come
+ *      from the fixture, so this pass stays as content-agnostic as the other two.
  *
  * Plain Node, zero dependencies, no network. Resolves every path from its own location so behavior
  * does not depend on the working directory.
@@ -24,7 +29,9 @@
  */
 
 const fs = require("fs");
+const os = require("os");
 const path = require("path");
+const { spawnSync } = require("child_process");
 
 const REPO_ROOT = path.resolve(__dirname, "..");
 
@@ -99,7 +106,10 @@ function isWithinRoot(root, target) {
     return false;
   }
   const rel = path.relative(realRoot, realTarget);
-  return rel === "" || (!rel.startsWith("..") && !path.isAbsolute(rel));
+  // Only a real parent traversal is outside: the exact `..` segment, or one followed by a separator.
+  // A bare `startsWith("..")` would also reject a contained entry whose own name merely begins with
+  // dots (`<root>/..product` relativises to `..product`), which is at or below the root.
+  return rel === "" || (rel !== ".." && !rel.startsWith(".." + path.sep) && !path.isAbsolute(rel));
 }
 
 function evaluateFixture(root, skillDir, skillName, results) {
@@ -942,6 +952,311 @@ function runPressurePass(repoRoot, problems) {
   }
 }
 
+// ---------------------------------------------------------------------------------------------
+// Command-case pass: tests/cli/*.json
+// ---------------------------------------------------------------------------------------------
+
+function discoverCommandFixtures(repoRoot) {
+  const dir = path.join(repoRoot, "tests", "cli");
+  if (!fs.existsSync(dir)) return [];
+  let entries;
+  try {
+    entries = fs.readdirSync(dir, { withFileTypes: true });
+  } catch (e) {
+    return [];
+  }
+  return entries
+    .filter((e) => e.isFile() && e.name.endsWith(".json"))
+    .map((e) => path.join(dir, e.name))
+    .sort();
+}
+
+// A declared path is usable only when it stays inside the directory it is declared against: never
+// absolute, never drive-qualified, and carrying no `..` segment.
+function isContainedRelativePath(key) {
+  if (typeof key !== "string" || key.length === 0) return false;
+  if (path.isAbsolute(key)) return false;
+  if (/^[A-Za-z]:/.test(key)) return false;
+  if (key.startsWith("/") || key.startsWith("\\")) return false;
+  return !key.split(/[\\/]+/).some((seg) => seg === "..");
+}
+
+// The materialized tree's location differs on every run, so a fixture writes `<root>` where that
+// location belongs and the token is substituted before any comparison. The substituted value is the
+// `/`-separated form of that location (see normPath), so a fixture expectation is byte-comparable on
+// either platform.
+function substituteRoot(value, rootPath) {
+  if (typeof value === "string") return value.split("<root>").join(rootPath);
+  if (Array.isArray(value)) return value.map((v) => substituteRoot(v, rootPath));
+  if (value && typeof value === "object") {
+    const out = {};
+    for (const k of Object.keys(value)) out[k] = substituteRoot(value[k], rootPath);
+    return out;
+  }
+  return value;
+}
+
+function materializeTree(root, tree, label, problems) {
+  const keys = Object.keys(tree);
+  // Validate every key before creating anything, so a traversing entry materializes nothing at all.
+  for (const key of keys) {
+    if (!isContainedRelativePath(key)) {
+      problems.push(label + ": tree entry '" + key + "' is absolute or traverses above the case root");
+      return false;
+    }
+    if (typeof tree[key] !== "string") {
+      problems.push(label + ": tree entry '" + key + "' must be the literal \"dir\" or a string of file content");
+      return false;
+    }
+  }
+  for (const key of keys) {
+    const target = path.join(root, key);
+    if (tree[key] === "dir") {
+      fs.mkdirSync(target, { recursive: true });
+    } else {
+      fs.mkdirSync(path.dirname(target), { recursive: true });
+      fs.writeFileSync(target, tree[key]);
+    }
+  }
+  return true;
+}
+
+// The closed set of keys a case's `expect` object may carry.
+const COMMAND_EXPECT_KEYS = new Set(["exitCode", "stdout", "stderrCode", "stderrContains", "stdoutEmpty"]);
+
+function validateCommandCaseShape(c, label, problems) {
+  let ok = true;
+  const push = (msg) => {
+    problems.push(label + ": " + msg);
+    ok = false;
+  };
+  if (!c || typeof c !== "object" || Array.isArray(c)) {
+    problems.push(label + ": case must be an object");
+    return false;
+  }
+  if (!isNonEmptyString(c.id)) push("field 'id' must be a non-empty string");
+  if (!c.tree || typeof c.tree !== "object" || Array.isArray(c.tree) || Object.keys(c.tree).length === 0) {
+    push("field 'tree' must be a non-empty object");
+  }
+  if (!isNonEmptyString(c.cwd)) {
+    push("field 'cwd' must be a non-empty string");
+  } else if (!isContainedRelativePath(c.cwd)) {
+    push("field 'cwd' must be relative to the case root and must not traverse above it");
+  }
+  if (!Array.isArray(c.argv) || c.argv.some((a) => typeof a !== "string")) {
+    push("field 'argv' must be an array of strings");
+  }
+  if (!c.expect || typeof c.expect !== "object" || Array.isArray(c.expect)) {
+    push("field 'expect' must be an object");
+  } else {
+    // An unrecognized key is a hard error, never silently ignored: a typo such as `stderrCod` would
+    // otherwise leave a case asserting nothing beyond its exit code and passing green. Same posture
+    // as the empty-discovery-set rule below.
+    for (const key of Object.keys(c.expect)) {
+      if (!COMMAND_EXPECT_KEYS.has(key)) {
+        push(
+          "expect carries the unrecognized key '" +
+            key +
+            "'; allowed keys are " +
+            Array.from(COMMAND_EXPECT_KEYS).join(", ")
+        );
+      }
+    }
+    if (typeof c.expect.exitCode !== "number") push("expect.exitCode must be a number");
+    if ("stdout" in c.expect && (!c.expect.stdout || typeof c.expect.stdout !== "object" || Array.isArray(c.expect.stdout))) {
+      push("expect.stdout must be an object when present");
+    }
+    if ("stderrCode" in c.expect && !isNonEmptyString(c.expect.stderrCode)) {
+      push("expect.stderrCode must be a non-empty string when present");
+    }
+    if ("stderrContains" in c.expect && !isNonEmptyString(c.expect.stderrContains)) {
+      push("expect.stderrContains must be a non-empty string when present");
+    }
+    if ("stdoutEmpty" in c.expect && typeof c.expect.stdoutEmpty !== "boolean") {
+      push("expect.stdoutEmpty must be a boolean when present");
+    }
+  }
+  return ok;
+}
+
+function gradeCommandCase(label, expect, rootPath, run, problems) {
+  const push = (msg) => problems.push(label + ": " + msg);
+  const stdout = typeof run.stdout === "string" ? run.stdout : "";
+  const stderr = typeof run.stderr === "string" ? run.stderr : "";
+
+  if (run.status !== expect.exitCode) {
+    push("expected exit code " + expect.exitCode + ", got " + run.status);
+  }
+  if (expect.stdoutEmpty === true && stdout.trim() !== "") {
+    push("expected empty stdout, got " + JSON.stringify(stdout.trim().slice(0, 120)));
+  }
+  if (isNonEmptyString(expect.stderrContains)) {
+    const needle = substituteRoot(expect.stderrContains, rootPath);
+    if (!stderr.includes(needle)) {
+      push("stderr does not contain " + JSON.stringify(needle) + "; got " + JSON.stringify(stderr.trim().slice(0, 200)));
+    }
+  }
+  if (isNonEmptyString(expect.stderrCode)) {
+    let parsed = null;
+    try {
+      parsed = JSON.parse(stderr.trim());
+    } catch (e) {
+      push("stderr is not a single JSON object: " + JSON.stringify(stderr.trim().slice(0, 200)));
+    }
+    if (parsed !== null) {
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+        push("stderr JSON is not an object");
+      } else if (parsed.code !== expect.stderrCode) {
+        push("expected stderr code " + JSON.stringify(expect.stderrCode) + ", got " + JSON.stringify(parsed.code));
+      }
+    }
+  }
+  if (expect.stdout && typeof expect.stdout === "object" && !Array.isArray(expect.stdout)) {
+    let parsed = null;
+    try {
+      parsed = JSON.parse(stdout.trim());
+    } catch (e) {
+      push("stdout is not a single JSON object: " + JSON.stringify(stdout.trim().slice(0, 200)));
+    }
+    if (parsed !== null) {
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+        push("stdout JSON is not an object");
+      } else {
+        // Only the keys the fixture names are compared; anything else in the object is ignored, so a
+        // case pins exactly what it cares about.
+        for (const key of Object.keys(expect.stdout)) {
+          const wanted = substituteRoot(expect.stdout[key], rootPath);
+          if (!(key in parsed)) {
+            push("stdout is missing the key " + JSON.stringify(key));
+            continue;
+          }
+          if (JSON.stringify(parsed[key]) !== JSON.stringify(wanted)) {
+            push("stdout." + key + " is " + JSON.stringify(parsed[key]) + ", expected " + JSON.stringify(wanted));
+          }
+        }
+      }
+    }
+  }
+}
+
+function runCommandCase(label, repoRoot, scriptPath, c, problems) {
+  let tmpRoot = null;
+  try {
+    tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), "ptp-cli-case-"));
+    const root = fs.realpathSync(tmpRoot);
+    // The case tree must be materialized OUTSIDE the repository. os.tmpdir() honours TMPDIR / TEMP,
+    // which a caller or CI image may point inside the checkout, so the location is verified rather
+    // than assumed; the finally block below still removes whatever was created.
+    if (isWithinRoot(repoRoot, root)) {
+      problems.push(
+        label +
+          ": the temporary directory " +
+          normPath(root) +
+          " is inside the repository; point TMPDIR/TEMP at a location outside it"
+      );
+      return;
+    }
+    if (!materializeTree(root, c.tree, label, problems)) return;
+
+    const cwd = path.resolve(root, c.cwd);
+    if (!fs.existsSync(cwd)) {
+      problems.push(label + ": cwd '" + c.cwd + "' was not created by the case tree");
+      return;
+    }
+    if (!isWithinRoot(root, cwd)) {
+      problems.push(label + ": cwd '" + c.cwd + "' resolves outside the case root");
+      return;
+    }
+
+    const run = spawnSync(process.execPath, [scriptPath].concat(c.argv), { cwd: cwd, encoding: "utf8" });
+    if (run.error) {
+      problems.push(label + ": could not run the script: " + run.error.message);
+      return;
+    }
+    gradeCommandCase(label, c.expect, normPath(root), run, problems);
+  } catch (e) {
+    problems.push(label + ": case aborted: " + e.message);
+  } finally {
+    // The temporary tree is removed whether the case passed or failed.
+    if (tmpRoot !== null) {
+      try {
+        fs.rmSync(tmpRoot, { recursive: true, force: true });
+      } catch (e) {
+        /* best effort */
+      }
+    }
+  }
+}
+
+function runCommandFixture(fixturePath, repoRoot, problems) {
+  const relPath = normPath(path.relative(repoRoot, fixturePath));
+  let raw;
+  try {
+    raw = fs.readFileSync(fixturePath, "utf8");
+  } catch (e) {
+    problems.push(relPath + ": fixture is unreadable: " + e.message);
+    return null;
+  }
+  let data;
+  try {
+    data = JSON.parse(raw);
+  } catch (e) {
+    problems.push(relPath + ": fixture is not valid JSON: " + e.message);
+    return null;
+  }
+  if (!data || typeof data !== "object" || Array.isArray(data)) {
+    problems.push(relPath + ": fixture root must be an object");
+    return null;
+  }
+  if (!isNonEmptyString(data.script) || !isContainedRelativePath(data.script)) {
+    problems.push(relPath + ": fixture 'script' must be a repository-relative path with no '..' segment");
+    return null;
+  }
+  const scriptPath = path.join(repoRoot, data.script);
+  if (!fs.existsSync(scriptPath)) {
+    problems.push(relPath + ": fixture 'script' does not exist: " + data.script);
+    return null;
+  }
+  if (!Array.isArray(data.cases) || data.cases.length === 0) {
+    problems.push(relPath + ": fixture 'cases' must be a non-empty array");
+    return null;
+  }
+
+  const seen = new Set();
+  for (let i = 0; i < data.cases.length; i++) {
+    const c = data.cases[i];
+    const label = relPath + " case " + (c && isNonEmptyString(c.id) ? c.id : "#" + i);
+    if (!validateCommandCaseShape(c, label, problems)) continue;
+    if (seen.has(c.id)) {
+      problems.push(label + ": duplicate case id");
+      continue;
+    }
+    seen.add(c.id);
+    runCommandCase(label, repoRoot, scriptPath, c, problems);
+  }
+
+  return { caseCount: data.cases.length };
+}
+
+function runCommandPass(repoRoot, problems) {
+  const fixtures = discoverCommandFixtures(repoRoot);
+  // An empty discovery set is a failure, not a silent pass: a mistyped path or an accidentally
+  // deleted fixture must not present as green. Mirrors runPressurePass above.
+  if (fixtures.length === 0) {
+    problems.push("tests/cli/*.json: no command-case fixture files found");
+    return;
+  }
+  for (const fixturePath of fixtures) {
+    const before = problems.length;
+    const stats = runCommandFixture(fixturePath, repoRoot, problems);
+    if (stats && problems.length === before) {
+      console.log(
+        "PASS " + normPath(path.relative(repoRoot, fixturePath)) + " " + stats.caseCount + " command cases"
+      );
+    }
+  }
+}
+
 function main() {
   const root = process.argv[2] || path.join(__dirname, "..", "skills");
 
@@ -978,14 +1293,21 @@ function main() {
     console.log("FAIL " + p);
   }
 
-  if (results.length > 0 || pressureProblems.length > 0) {
+  // Third fixture shape: tests/cli/*.json command cases (0060_01).
+  const commandProblems = [];
+  runCommandPass(REPO_ROOT, commandProblems);
+  for (const p of commandProblems) {
+    console.log("FAIL " + p);
+  }
+
+  if (results.length > 0 || pressureProblems.length > 0 || commandProblems.length > 0) {
     process.exit(1);
   }
 
   console.log(
     "OK: " +
       fixtureDirs.length +
-      " behavior-test skill(s) clean; pressure fixtures clean (see PASS lines above for per-fixture skill/rule/case/anchor counts)"
+      " behavior-test skill(s) clean; pressure fixtures clean; command-case fixtures clean (see PASS lines above for per-fixture counts)"
   );
   process.exit(0);
 }
