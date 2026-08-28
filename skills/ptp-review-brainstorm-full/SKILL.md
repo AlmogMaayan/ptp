@@ -69,6 +69,9 @@ Phase 2 starts **only if Phase 1 terminates `DONE`** — the convergence-based g
 - **Phase 1 `ITERATION CAP REACHED`** → **STOP**. Report the Phase 1 outcome and the open findings. Do
   **not** start Phase 2. The user should resolve the remaining brainstorm issues (e.g. by re-running
   `/ptp:brainstorm` or hand-revising) and then re-run `/ptp:review-brainstorm-full`.
+- **Phase 1 `ARTIFACT BUDGET EXCEEDED`** → **STOP** the same way, and recommend a **split**
+  (`/ptp:plan-multiple`), never another review round. Neither halt is convergence and neither is a
+  silent failure.
 
 **What "converges" means here.** A phase converges on findings **at or above the configured
 severity threshold**; findings below it are **reported**, not fixed, and do not block
@@ -132,6 +135,8 @@ After the phases complete, fold them into **one** combined terminal state in the
 | `PHASE 1 DONE — CODEX SKIPPED (mode=…)` | Phase 1 `DONE` and Codex skipped by mode | green |
 | `PHASE 2 ITERATION CAP REACHED` | Phase 1 `DONE`, Phase 2 ran but did not converge | non-green |
 | `ITERATION CAP REACHED` | Phase 1 capped (never reached `DONE`); Phase 2 not started | non-green |
+| `PHASE 2 ARTIFACT BUDGET EXCEEDED` | Phase 1 `DONE`, Phase 2 halted on the artifact budget | non-green |
+| `ARTIFACT BUDGET EXCEEDED` | Phase 1 halted on the artifact budget; Phase 2 not started | non-green |
 
 The two green states both mean Phase 1 converged (the main agent signed off on the brainstorm); the
 `PHASE 1 DONE — CODEX SKIPPED (mode=…)` state is a **success** state (a converged single-reviewer run),
@@ -160,6 +165,8 @@ not a halt. The `Codex phase skipped (mode=…)` line is always reported (never 
        `/ptp:review-brainstorm-full <change-id>`.
      - On `PHASE 2 ITERATION CAP REACHED`: resolve the remaining Codex findings, then re-run
        `/ptp:review-brainstorm-full <change-id>`.
+     - On either `ARTIFACT BUDGET EXCEEDED` state: `/ptp:plan-multiple <change-id>` — the resolved **id**, so re-cut mode applies; the
+       brainstorm is over budget or still growing, and more review rounds is the thing that failed.
 - **All changes / multi-change (empty argument):** a **summary table** first
   (`change-id → combined terminal state`), then a **detail block for each change that did not reach a
   green state** (`BOTH PHASES DONE` or `PHASE 1 DONE — CODEX SKIPPED (mode=…)`) — fully-converged
@@ -222,8 +229,10 @@ this orchestrator only ever drives the brainstorm kind.
   validate (the one deliberate divergence from `/ptp:review-plan-full`).
 - **Never archive** the change. Archiving is always an explicit user action (`/ptp:archive`).
 - **Never auto-commit** any edits made during either phase.
-- **Don't start Phase 2 unless Phase 1 terminated `DONE`.** A Phase 1 `ITERATION CAP REACHED` STOPs the
-  run — Phase 2 does not start.
+- **Don't start Phase 2 unless Phase 1 terminated `DONE`.** A Phase 1 `ITERATION CAP REACHED` or
+  `ARTIFACT BUDGET EXCEEDED` STOPs the run — Phase 2 does not start.
+- **Never treat `ARTIFACT BUDGET EXCEEDED` as convergence or as a silent stop.** Report it under its
+  own name and recommend a split, never another review round.
 - **Phase 2 uses fresh loop state.** Phase 1 `rejected_findings` do not carry into Phase 2.
 - **Iteration cap per phase** is `review.maxIterations` from ptp config (default 5); each phase has its
   own independent cap.

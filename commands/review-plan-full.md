@@ -59,7 +59,7 @@ Phase 1 is the **main agent's** artifact loop (always runs). At the default `rol
 
 The skill drives the full loop. For each iteration's review pass it runs the rubric authored in `commands/review-plan.md` — the exhaustive eight-condition block-list plus the closed must-not-require list, referenced here and never restated — in that file's order: `npx -y openspec validate <change-id> --strict`, then the deterministic compactness lint, then exactly one model review pass returning all of the iteration's findings in one structured emission. The banned-manual-task check rides inside the "a task is not agent-executable, or is not verifiable by an automated check" blocking condition. After confirmation, confirmed findings are fixed via minimal targeted edits and `npx -y openspec validate <change-id> --strict` is run as per-iteration verification.
 
-**Gate:** If Phase 1 terminates with `ITERATION CAP REACHED`, **STOP** here. Report the Phase 1 outcome and open findings. Do NOT start Phase 2. **Print the aggregate review tally table on this path too** (*Combined summary* item 3): this STOP short-circuits the combined summary but **not** the table — the same carve-out the combined marker write makes. The user should resolve the remaining artifact issues (e.g., by returning to `/ptp:plan`) and then re-run `/ptp:review-plan-full` or run `/ptp:review-plan-loop` directly.
+**Gate:** If Phase 1 terminates in **any** non-`DONE` state — `ITERATION CAP REACHED` or `ARTIFACT BUDGET EXCEEDED` — **STOP** here. Report the Phase 1 outcome and open findings. Do NOT start Phase 2. **Print the aggregate review tally table on this path too** (*Combined summary* item 3): this STOP short-circuits the combined summary but **not** the table — the same carve-out the combined marker write makes. After `ITERATION CAP REACHED` the user should resolve the remaining artifact issues (e.g., by returning to `/ptp:plan`) and then re-run `/ptp:review-plan-full` or run `/ptp:review-plan-loop` directly. After `ARTIFACT BUDGET EXCEEDED` the remedy is a **split**, not another review: recommend `/ptp:plan-multiple <change-id>`, passing the resolved **id** so `plan-multiple` enters re-cut mode and replaces this change with its children rather than allocating a new epic. Neither state is a silent failure, and neither is convergence.
 
 ### Phase 2 — reviewer-agent artifact-review loop
 
@@ -87,21 +87,23 @@ After both phases complete, report:
    (`skills/ptp-review-loop/references/review-tally-table.md`) over the aggregate built by
    `ptp-review-loop`'s **### Combined review tally** rule — cited, not restated here. It is printed at
    **every** terminal state this command can reach (`BOTH PHASES DONE`,
-   `PHASE 1 DONE — CODEX SKIPPED (mode=…)`, `PHASE 2 ITERATION CAP REACHED`, and the Phase-1
-   `ITERATION CAP REACHED` reached through the *Gate* STOP above), after the two phase summaries and
+   `PHASE 1 DONE — CODEX SKIPPED (mode=…)`, `PHASE 2 ITERATION CAP REACHED`,
+   `PHASE 2 ARTIFACT BUDGET EXCEEDED`, and the Phase-1 `ITERATION CAP REACHED` /
+   `ARTIFACT BUDGET EXCEEDED` reached through the *Gate* STOP above), after the two phase summaries and
    before the verdict.
-4. Overall verdict: BOTH PHASES DONE (both converged), PHASE 1 DONE — CODEX SKIPPED (mode=…) (Phase 1 converged, Codex intentionally skipped by `codex.mode` — a success state), or PHASE 2 ITERATION CAP REACHED (Phase 1 converged, Phase 2 did not).
+4. Overall verdict: BOTH PHASES DONE (both converged), PHASE 1 DONE — CODEX SKIPPED (mode=…) (Phase 1 converged, Codex intentionally skipped by `codex.mode` — a success state), PHASE 2 ITERATION CAP REACHED (Phase 1 converged, Phase 2 did not), or PHASE 2 ARTIFACT BUDGET EXCEEDED (Phase 1 converged, Phase 2 halted on the artifact budget). The Phase-1 `ITERATION CAP REACHED` and `ARTIFACT BUDGET EXCEEDED` states are reported under their own names by the *Gate* STOP above.
 5. Next command:
    - If BOTH PHASES DONE → `/ptp:apply $ARGUMENTS` (or `/ptp:review-full $ARGUMENTS` if implementation is already complete).
    - If PHASE 1 DONE — CODEX SKIPPED → `/ptp:apply $ARGUMENTS` (the main phase signed off on the artifacts; Codex was skipped by mode — a successful single-reviewer run, not a halt). To add the Codex artifact reviewer, set `codex.mode` via `/ptp:config` (and install `codex`) then run `/ptp:codex-review-plan-loop $ARGUMENTS`.
    - If PHASE 2 ITERATION CAP REACHED → resolve remaining Codex artifact findings (e.g., `/ptp:review-fix`), then re-run `/ptp:review-plan-full $ARGUMENTS` or run `/ptp:codex-review-plan-loop $ARGUMENTS` directly.
+   - If ARTIFACT BUDGET EXCEEDED or PHASE 2 ARTIFACT BUDGET EXCEEDED → `/ptp:plan-multiple <change-id>` (the resolved id, so re-cut mode applies). Do **not** recommend another review round; the artifact is over budget or still growing, and more review rounds is the thing that failed.
 
 ### Review-convergence marker (single combined write)
 
 This orchestrator drives **both** phase loops with **`deferMarker = true`** (per `ptp-review-loop`'s **## Review-convergence marker** section), so **no phase writes the marker itself** — each phase returns its terminal outcome (`terminalState`, `reviewer`, `iterations`, `minSeverity`, `reviewTally`) to this orchestrator. After the run resolves (after Phase 2, or after Phase 1 if Phase 2 is gated off), the orchestrator performs **exactly ONE** combined `stages/plan.json` write per the combined-outcome rule:
 
 - `reviewers` = the **union of phases that actually ran**, each named by the phase rather than by the agent that ran it — the main phase alone (`["ptp"]`) if Phase 1 capped (Phase 2 never ran) or a Codex reviewer was mode-skipped, else both phases that ran (`["ptp","codex"]`). The same two values are written in either `roles.main` direction; the agent that filled each role travels separately, in the result's `mainAgent`/`reviewerAgent`. Readers accept the legacy literal `"superpowers"` as naming the same identity as `"ptp"`.
-- `terminalState` = that of the **last phase that ran** (`converged` if the last phase that ran reached `DONE`, else `cap-reached`).
+- `terminalState` = that of the **last phase that ran** (`converged` if the last phase that ran reached `DONE`, else `cap-reached` — which is what an `ARTIFACT BUDGET EXCEEDED` phase records, the marker's two-value domain being unchanged and the state's distinctness living in the report and this command's returned verdict).
 - `iterations` = the **last phase's** iteration count.
 - `minSeverity` = the **last phase that ran**'s severity threshold (lowercase canonical), the same last-phase rule as `iterations`. In the normal case both phases resolve the same value and the rule is a no-op.
 - `reviewTally` = **the same aggregate** *Combined summary* item 3 renders, built by `ptp-review-loop`'s **### Combined review tally** rule — cited, not restated. Only its two marker-side consequences are stated here: it is **not** resolved last-phase-wins the way `iterations` / `minSeverity` above are, and, whenever the field is written at all, its key set equals `reviewers`. It rides the **same single atomic write** below — **no second write**, no additional file, no change to the write-temp-then-rename protocol. Any `unknown` the table prints is a **print-side** rendering only: the written record instead follows the `stage-records` capability's **unproducible-tally rule**, per `ptp-review-loop`'s **## Review-convergence marker** *omit, never fabricate* note, which also owns where the omission is reported; the note is reported but not fatal and changes no terminal state. `reviewTally` is non-deciding.
@@ -112,6 +114,7 @@ The combined write uses the **same atomic write-temp-then-rename protocol** as `
 
 - Do **not** spawn a second `ptp-run-at-model` run for the fix pass — this command's orchestration already occupies the one Agent-nesting level.
 - Do **not** start Phase 2 if Phase 1 did not terminate with `DONE`.
+- Do **not** treat `ARTIFACT BUDGET EXCEEDED` (either phase) as convergence, as a failure to retry, or as a silent stop. It is a **halt with a split recommendation**; report it under its own name and recommend `/ptp:plan-multiple <change-id>`, never another review round and never `/ptp:apply`.
 - Do **not** invoke `/ptp:apply`. This loop fixes artifacts, not source code; it is not a substitute for the implementation step.
 - Do **not** archive the change. Archiving is always an explicit user action (`/ptp:archive <change-id>`).
 - Do **not** auto-commit any edits made during either phase.

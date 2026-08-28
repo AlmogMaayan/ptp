@@ -21,3 +21,9 @@
 
 <!-- code/API/data/compatibility surface affected -->
 - <code/API/data/compatibility surface>
+
+## Build state
+
+<!-- Required, exactly one line: `GREEN`, or `RED — <what breaks> until <change-id>`.
+     What a RED declaration then obliges: skills/ptp-artifact-contract/SKILL.md -->
+GREEN

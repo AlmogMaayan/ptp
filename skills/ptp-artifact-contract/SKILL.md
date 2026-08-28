@@ -16,28 +16,49 @@ emission order, detection heuristics) are owned elsewhere and are not restated h
 
 ## 1. Ownership table (contract v1)
 
-Nine rows. `Soft budget` is words; exceeding it requires an explicit written justification in the
-artifact, never truncation. Exact contracts, security invariants, migration rules, concurrency rules,
-and complex state machines may legitimately need more space: the control this table imposes is "no
-duplicate information," never "delete necessary information."
+Nine rows. `Budget` is words. **A budget carrying a config key is an acceptance criterion, not
+guidance:** an artifact over it is defective, and the only two remedies are to remove text or to
+split the change. Review effort scales with the number of claims a document makes, so an unbounded
+artifact is an unbounded review. The two budgets with no key (`brainstorm.md`, `prd.md`) stay
+**soft** — exceeding one requires an explicit written justification in the artifact, never
+truncation. Under either posture the control is "no duplicate information and no claim the change
+does not need," never "delete necessary information."
 
-| Artifact | Owns | Must not contain | Soft budget |
-|---|---|---|---|
-| `brainstorm.md` | Problem framing, the chosen direction, the material *approach-level* alternatives weighed to choose it, assumptions | Full design, implementation plan, history | 400 |
-| `proposal.md` | Why, scope/change summary, capabilities, impact | Detailed design, scenarios, task plan, alternative essay | 400 |
-| `specs/**/spec.md` | Normative behavior and scenarios | Motivation, implementation detail, review/history prose | none (minimal normative text) |
-| `design.md` | Only non-obvious *implementation* decisions and the technical alternatives rejected within the chosen direction, plus invariants, interfaces, data flow, failure/migration behavior | Proposal repetition, the approach-level choice `brainstorm.md` already made, task list, history | 800 (absent for mechanical work) |
-| `tasks.md` | Ordered agent-executable actions and verification | Rationale essays, copied requirements, review history | 600 (5–15 checkboxes) |
-| `effort.md` | The apply complexity recommendation | Explanation, blank section, Codex runtime configuration | one line |
-| `TLDR.md` | Nothing required by the model workflow | Everything | not created |
-| `prd.md` | Epic-level problem, outcomes, scope, requirements | Per-story design/task repetition, empty boilerplate | 1200 (real multi-story epics only) |
-| `analysis.md` | Conclusion, evidence, unknowns | Investigation diary, revision history | none (current conclusions only) |
+Each key's default is the value in the `Budget` column; the parameter registry
+(`skills/ptp-config/SKILL.md`) owns the keys' domain, defaults, and validation, and resolution is
+layered per `ptp-workspace`.
+
+| Artifact | Owns | Must not contain | Budget | Config key |
+|---|---|---|---|---|
+| `brainstorm.md` | Problem framing, the chosen direction, the material *approach-level* alternatives weighed to choose it, assumptions | Full design, implementation plan, history | 400 (soft) | — |
+| `proposal.md` | Why, scope/change summary, capabilities, impact, build state | Detailed design, scenarios, task plan, alternative essay | 400 | `artifact.maxProposalWords` |
+| `specs/**/spec.md` | Normative behavior and scenarios | Motivation, implementation detail, review/history prose | 1200, **summed across the change's delta files**, excluding verbatim `MODIFIED` replacement text | `artifact.maxSpecDeltaWords` |
+| `design.md` | Only non-obvious *implementation* decisions and the technical alternatives rejected within the chosen direction, plus invariants, interfaces, data flow, failure/migration behavior | Proposal repetition, the approach-level choice `brainstorm.md` already made, task list, history | 800 (absent for mechanical work) | `artifact.maxDesignWords` |
+| `tasks.md` | Ordered agent-executable actions and verification | Rationale essays, copied requirements, review history | 600; 5–15 checkboxes, each ≤ 60 words | `artifact.maxTasksWords`, `artifact.maxTaskCount`, `artifact.maxTaskWords` |
+| `effort.md` | The apply complexity recommendation | Explanation, blank section, Codex runtime configuration | one line | — |
+| `TLDR.md` | Nothing required by the model workflow | Everything | not created | — |
+| `prd.md` | Epic-level problem, outcomes, scope, requirements | Per-story design/task repetition, empty boilerplate | 1200 (soft; real multi-story epics only) | — |
+| `analysis.md` | Conclusion, evidence, unknowns | Investigation diary, revision history | none (current conclusions only) | — |
+
+**The spec deltas are budgeted, and the sum is what is budgeted.** They were historically the one
+artifact nothing bounded, and they grew larger than the designs they served.
 
 The `brainstorm.md` / `design.md` split is a boundary, not an overlap: `brainstorm.md` owns the
 **approach-level** choice — which direction to take and which directions were rejected to get there —
 and `design.md` owns the **implementation-level** decisions taken inside the chosen direction, with
 the technical alternatives rejected at that level. A decision therefore has exactly one owner: ask
 whether rejecting it would change the approach (brainstorm) or only the implementation (design).
+
+**`design.md` states decisions and the reasons for them. It is not an implementation
+specification.** No pseudo-code, no statement-by-statement SQL, no method-body narration. Where an
+exact shape is load-bearing, give one cited example, never a catalogue.
+
+**A writer cites prior established findings; it does not restate them.** Restatement is the primary
+growth mechanism.
+
+**A budget that cannot be met is a decomposition signal, never an exception.** A planner that cannot
+fit a change inside a keyed budget returns `NEEDS SPLIT` and writes no more; that terminal state and
+its payload are owned by `skills/ptp-writing-plans/SKILL.md`.
 
 ## 2. Shape rules
 
@@ -57,9 +78,28 @@ whether rejecting it would change the approach (brainstorm) or only the implemen
   `<edit/action>; verify: <automated check>`. This makes visible the verification `tasks-authoring`
   already requires of every checkbox; it is a shape rule about where the check is written, and the
   rule that the check must be agent-executable stays `tasks-authoring`'s.
-- **A budget overrun is declared, not silent.** The written justification the ownership table
-  requires takes the machine-readable form `<!-- budget-exception: <reason> -->` in the over-budget
-  artifact, with a non-empty `<reason>`.
+- **A soft-budget overrun is declared, not silent; a keyed budget has no such escape.** The written
+  justification a soft budget requires takes the machine-readable form
+  `<!-- budget-exception: <reason> -->` in the over-budget artifact, with a non-empty `<reason>`. That
+  marker never excuses a keyed budget: an over-budget keyed artifact is a defect whose only remedies
+  are removal and splitting.
+- **`proposal.md` carries a required `## Build state` section, one line** — `GREEN`, or
+  `RED — <what breaks> until <change-id>`. Changes are cut small to bound review
+  cost, not to keep the build green at every step, so `RED` is an ordinary declaration rather than a
+  defect. Two rules follow it: a `RED` change **runs no tests**, so every `tasks.md` verification in
+  it is static (grep, file absence, spec enumeration) and the test run is deferred to the change that
+  restores `GREEN` — a checkbox its apply agent cannot satisfy stalls the run; and a `RED` change plus
+  the change that closes it form a **contiguous group** that is never archived or deployed one half at
+  a time, the closing change being named in the `RED` proposal.
+- **A `MODIFIED` delta block reproduces the complete requirement.** Archiving replaces the requirement
+  wholesale, so a truncated or elided `MODIFIED` block silently drops the omitted text at archive
+  time. Every `MODIFIED` block carries the full requirement with every original scenario preserved,
+  and that verbatim replacement text is excluded from the spec-delta budget — reproducing an existing
+  requirement in full is mandatory and is never traded against a word limit.
+- **A removal enumerates against the current spec file.** `openspec validate --strict` does not detect
+  an incomplete removal. A change removing a capability lists its requirements by direct comparison
+  against the current `openspec/specs/<capability>/spec.md`, because archiving an earlier change
+  *adds* requirements to that file after the removal was drafted.
 - **A "word" is defined.** An artifact's word count is its whitespace-separated tokens after CRLF is
   normalized to LF and fenced code blocks and HTML comments are removed. Fenced code and markers
   therefore never push an artifact over budget; Markdown tables are prose and do count.

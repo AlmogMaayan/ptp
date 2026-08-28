@@ -9,7 +9,9 @@ Turn a decided change into the shortest plan an implementing agent can execute u
 authoring rules — agent neutrality and its delivery modes, the per-skill budget, the finding format,
 and the pointer to the artifact contract — are owned by `skills/ptp-skill-contract/SKILL.md`. Load
 it, and every other file this one points to for a rule it does not restate, before applying this
-contract; a Claude role loads them through the Skill tool. This file restates none of it.
+contract; a Claude role loads them through the Skill tool. This file restates none of it. It runs
+over the 500-word skill budget for one stated reason: it hosts the `NEEDS SPLIT` terminal state,
+which no other skill may restate.
 
 ## Inputs
 
@@ -54,6 +56,22 @@ A checkbox that only gates — the isolation check, the final verification box �
 - Repeat spec text, design rationale, risk analysis, or requirement prose. Reference the owner.
 - Write `TBD`, `TODO`, "handle edge cases", "add error handling", or any step whose action or
   verification is unnamed.
+
+## Terminal state: `NEEDS SPLIT`
+
+If the change cannot be stated inside the artifact contract's keyed budgets, **stop and return
+`NEEDS SPLIT`** with a proposed division into two or more changes and a one-line scope for each,
+in dependency order. Write no further artifact text — not a longer `tasks.md`, not a
+budget-exception marker.
+
+Name the proposed changes as **children of the change being split**, per `ptp-change-selector` §4b —
+`<this-change-id-minus-desc>_01_<desc>`, `_02_<desc>`, … . Children inherit the parent's position, so
+no sibling is renumbered. That skill owns the allocation, the parent's replacement, and the
+dependency rewrite; do not restate them.
+
+`NEEDS SPLIT` is a **successful** terminal state: it reports that decomposition, not authoring, is
+the remaining work. A caller treats it as a decomposition instruction and re-cuts. It is never a
+refusal, and never licence to exceed a budget instead.
 
 ## Before returning
 

@@ -104,7 +104,7 @@ config), and relaying the verdict — **fixing nothing**, and the subagent's out
    `-c model_reasoning_effort=<effort>` before the trailing `-` when `codex.model` /
    `codex.reasoningEffort` resolve to a set value; both unset yields exactly the invocation shown above.
    - Always pipe via **stdin** (`-`); keep `-s read-only`. Do **not** pass `--full-auto`, `--sandbox workspace-write`, or `--dangerously-bypass-approvals-and-sandbox`.
-   - Running it in the background and polling the output file for the verdict line is fine.
+   - **Run it synchronously**, per `ptp-codex-mode`'s *Every round runs synchronously*.
    - Sandbox noise (`blocked by policy`, `spawn setup refresh`) is harmless here — the diff is inlined, so Codex needs no commands. Proceed to relay the verdict.
 5. **Relay Codex's output** to the user, then add a one-line summary with the resolved threshold and the layer it came from, the verdict, and finding counts by severity (below-threshold findings still counted and listed, marked non-blocking; an all-below-threshold report still enumerates them and is never rendered as "no findings"). Note that the review covers the diff you inlined. **Apply the threshold rule yourself** rather than trusting Codex's line blindly: if Codex's emitted verdict line disagrees with the threshold-correct verdict (for example `FIX BEFORE COMMIT` for a High the resolved threshold demoted), **say so explicitly** and report the threshold-correct verdict.
 

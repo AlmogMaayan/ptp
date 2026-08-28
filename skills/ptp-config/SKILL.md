@@ -139,6 +139,48 @@ parameters = [
     default:  3
   },
   {
+    key:      "artifact.maxProposalWords",
+    label:    "Max proposal.md words",
+    jsonPath: ["artifact", "maxProposalWords"],
+    kind:     "integer",
+    default:  400
+  },
+  {
+    key:      "artifact.maxDesignWords",
+    label:    "Max design.md words",
+    jsonPath: ["artifact", "maxDesignWords"],
+    kind:     "integer",
+    default:  800
+  },
+  {
+    key:      "artifact.maxTasksWords",
+    label:    "Max tasks.md words",
+    jsonPath: ["artifact", "maxTasksWords"],
+    kind:     "integer",
+    default:  600
+  },
+  {
+    key:      "artifact.maxTaskCount",
+    label:    "Max tasks.md checkboxes",
+    jsonPath: ["artifact", "maxTaskCount"],
+    kind:     "integer",
+    default:  15
+  },
+  {
+    key:      "artifact.maxTaskWords",
+    label:    "Max words per checkbox",
+    jsonPath: ["artifact", "maxTaskWords"],
+    kind:     "integer",
+    default:  60
+  },
+  {
+    key:      "artifact.maxSpecDeltaWords",
+    label:    "Max spec-delta words (summed)",
+    jsonPath: ["artifact", "maxSpecDeltaWords"],
+    kind:     "integer",
+    default:  1200
+  },
+  {
     key:      "backlog.projectOwner",
     label:    "Backlog project owner",
     jsonPath: ["backlog", "projectOwner"],
@@ -172,7 +214,7 @@ parameters = [
 ]
 ```
 
-**Parameter menu:** The registry currently holds fifteen entries. Step 2 builds an `AskUserQuestion`
+**Parameter menu:** The registry currently holds twenty-one entries. Step 2 builds an `AskUserQuestion`
 menu from each entry's `label` value and presents it to the user. The flow is data-driven: adding
 a new entry to the registry automatically adds it to the menu with no further edits to this flow.
 
@@ -238,9 +280,15 @@ Build an `AskUserQuestion` menu from the registry entries' `label` values:
 10. **Telemetry raw-store retention (days)** (`telemetry.retentionDays`)
 11. **Run planning stages in parallel** (`parallel.mode`)
 12. **Max parallel fan-out members** (`parallel.maxConcurrency`)
-13. **Backlog project owner** (`backlog.projectOwner`)
-14. **Backlog project number** (`backlog.projectNumber`)
-15. **Backlog status option names** (`backlog.statusOptions`)
+13. **Max proposal.md words** (`artifact.maxProposalWords`)
+14. **Max design.md words** (`artifact.maxDesignWords`)
+15. **Max tasks.md words** (`artifact.maxTasksWords`)
+16. **Max tasks.md checkboxes** (`artifact.maxTaskCount`)
+17. **Max words per checkbox** (`artifact.maxTaskWords`)
+18. **Max spec-delta words (summed)** (`artifact.maxSpecDeltaWords`)
+19. **Backlog project owner** (`backlog.projectOwner`)
+20. **Backlog project number** (`backlog.projectNumber`)
+21. **Backlog status option names** (`backlog.statusOptions`)
 
 Use the selected entry's `jsonPath`, `kind`, `values` (for enum entries), and `default` for the
 remaining steps. This is data-driven off the registry — adding a parameter requires only a new
@@ -313,6 +361,8 @@ turns one invocation into several writes. The idempotency/no-op report, the `wri
      - For `parallel.mode` or `parallel.maxConcurrency` (they share the same `parallel` parent): if
        `parallel` exists but is not an object (e.g. `{"parallel":"on"}` or `{"parallel":null}`),
        STOP.
+     - For any `artifact.*` key (all six share the same `artifact` parent): if `artifact` exists
+       but is not an object (e.g. `{"artifact":400}` or `{"artifact":null}`), STOP.
      - For `backlog.projectOwner` or `backlog.projectNumber` (they share the same `backlog`
        parent): if `backlog` exists but is not an object (e.g.
        `{"backlog":"github"}` or `{"backlog":null}`), STOP.
@@ -320,8 +370,8 @@ turns one invocation into several writes. The idempotency/no-op report, the `wri
        `backlog` exists but is not an object, STOP; **and** if `backlog.statusOptions` exists but is
        not an object (e.g. `{"backlog":{"statusOptions":"Ready"}}` or
        `{"backlog":{"statusOptions":null}}`), STOP.
-   - Absent parents (`codex`, `review`, `roles`, `telemetry`, `parallel`, or `backlog` not present in
-     the root — and, for `backlog.statusOptions`, an absent `statusOptions` under a present `backlog`)
+   - Absent parents (`codex`, `review`, `roles`, `telemetry`, `parallel`, `artifact`, or `backlog`
+     not present in the root — and, for `backlog.statusOptions`, an absent `statusOptions` under a present `backlog`)
      are fine — they will be created as empty objects on write. This is not clobbering.
 
 4. Show the **current value** of the selected parameter. This is the **authoritative** read — from
@@ -515,7 +565,7 @@ As with every other ptp parameter, the two surfaces are complementary: this edit
 reader is **FORGIVING** (an invalid layer's value is ignored; it never throws and never STOPs). Do not
 align one to the other.
 
-#### kind = `integer` (e.g. `review.maxIterations`, `telemetry.port`, `telemetry.retentionDays`, `parallel.maxConcurrency`, `backlog.projectNumber`)
+#### kind = `integer` (e.g. `review.maxIterations`, `telemetry.port`, `telemetry.retentionDays`, `parallel.maxConcurrency`, `backlog.projectNumber`, the six `artifact.*` budgets)
 
 Prompt the user for an integer value (show the entry's `default` as the suggested value, e.g.
 `default: 5`, or `default: 4318` for `telemetry.port`). Then validate the input:
@@ -554,6 +604,14 @@ overlap: the value must also be **within `1..10`**. Anything above that range (`
 rejected and re-prompted exactly as a zero or a negative value is, so the editor can never produce a
 configuration that disables the cap or invites a rate-limit incident. A value of `1` is valid and
 means "effectively serial". The suggested default is `3`.
+
+**The six `artifact.*` keys carry no extra bound** — any positive integer is valid — but state
+plainly at the point of selection what they govern: they are the **artifact budgets** of the compact
+artifact contract (`skills/ptp-artifact-contract/SKILL.md`), and under that contract a budget is an
+**acceptance criterion**, not guidance. Raising one does not make a long artifact acceptable; it moves
+the line every writer and every reviewer is held to. The remedies for an over-budget artifact are
+removing text and splitting the change — the contract's `NEEDS SPLIT` and the review loop's
+`ARTIFACT BUDGET EXCEEDED` both key on these values.
 
 **`backlog.projectNumber` is a `backlog.*` key, so the *What these keys do now* statement in the
 `backlog.projectOwner` string subsection above applies to it verbatim** — state
@@ -662,7 +720,8 @@ With the resolved path, the base JSON object (from step 3), and the chosen value
      create `roles` as `{}`; for
      `telemetry.mode`, `telemetry.root`, `telemetry.port`, or `telemetry.retentionDays`: create
      `telemetry` as `{}`; for `parallel.mode` or `parallel.maxConcurrency`: create `parallel` as
-     `{}`; for `backlog.projectOwner` or `backlog.projectNumber`: create
+     `{}`; for any `artifact.*` key: create `artifact` as `{}`; for
+     `backlog.projectOwner` or `backlog.projectNumber`: create
      `backlog` as `{}`; for `backlog.statusOptions`: create `backlog` as `{}` and then
      `statusOptions` as `{}` when absent, in the same manner as the existing parents.
    - Set the targeted key to the chosen value.
@@ -726,6 +785,9 @@ Examples:
 | `parallel` absent | Created as `{}` on write; not clobbering. |
 | `parallel.mode` selection outside `off\|on` | Not offered — the enum menu only presents the two valid values. |
 | `parallel.maxConcurrency` input non-integer (`2.5`, `"3"`, `abc`), zero, negative, or outside `1..10` (`11`) | Reject, re-prompt; do NOT write. |
+| `artifact` present but not an object (`"artifact":400`, `"artifact":null`) — applies to all six `artifact.*` keys alike | STOP, report, do **not** overwrite. |
+| `artifact` absent | Created as `{}` on write; not clobbering — applies to all six `artifact.*` keys alike. |
+| An `artifact.*` input non-integer (`400.5`, `"400"`, `abc`), zero, or negative | Reject, re-prompt; do NOT write. |
 | `backlog` present but not an object (`"backlog":"github"`, `"backlog":null`) — applies to `backlog.projectOwner` and `backlog.projectNumber` alike | STOP, report, do **not** overwrite. |
 | `backlog` absent | Created as `{}` on write; not clobbering — applies to all three `backlog.*` keys alike. |
 | `backlog.projectOwner` input empty, whitespace-only, or containing `/`, internal whitespace, or `://` | Reject, re-prompt; do NOT write. |
@@ -801,6 +863,11 @@ Examples:
   range 1 to 10 may be written. Any non-integer, non-numeric, string-typed, zero, negative, or
   above-10 input is rejected and re-prompted — never written, so the editor can never produce a
   configuration that disables the cap or invites a rate-limit incident.
+- **Never write an invalid integer for an `artifact.*` budget.** Only a positive integer (`>= 1`)
+  may be written for `artifact.maxProposalWords`, `artifact.maxDesignWords`, `artifact.maxTasksWords`,
+  `artifact.maxTaskCount`, `artifact.maxTaskWords`, or `artifact.maxSpecDeltaWords`; anything else is
+  rejected and re-prompted. These are the budgets the compact artifact contract enforces as acceptance
+  criteria — this editor writes the value and owns none of its meaning.
 - **Never write a `backlog.projectOwner` containing `/`, internal whitespace, or `://`.** Only a
   non-empty, trimmed login may be written; a pasted board URL is rejected and re-prompted, never
   written.

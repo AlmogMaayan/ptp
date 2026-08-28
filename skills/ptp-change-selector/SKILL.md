@@ -18,14 +18,31 @@ It mirrors how `ptp-full-apply` and `ptp-review-loop` already factor shared prot
 ## 1. Id format
 
 ```
-<epic>_<story>_<kebab-description>
-  epic  = exactly 4 digits, zero-padded   (e.g. 0001)
-  story = exactly 2 digits, zero-padded   (e.g. 01)
-  desc  = kebab-case [a-z0-9] words joined by '-'
-full regex: ^\d{4}_\d{2}_[a-z0-9]+(-[a-z0-9]+)*$
+<epic>_<story-path>_<kebab-description>
+  epic       = exactly 4 digits, zero-padded            (e.g. 0001)
+  story-path = one or more 2-digit zero-padded segments  (e.g. 01, or 03_01)
+  desc       = kebab-case [a-z0-9] words joined by '-', containing at least one letter
+full regex: ^\d{4}(_\d{2})+_(?=[a-z0-9-]*[a-z])[a-z0-9]+(-[a-z0-9]+)*$
 ```
 
-Example: `0001_01_landing-page-list-bulk-export`.
+Example: `0001_01_landing-page-list-bulk-export`. A multi-segment story path arises **only** from a
+`NEEDS SPLIT` re-cut (§4b): the children of story `03` are `03_01`, `03_02`, …, each carrying its own
+desc — `0001_03_01_bulk-load-seam-read`. Parsing is unambiguous by one rule: **the story path is the
+maximal run of all-digit segments after the epic; the remainder is the desc** — which is why the
+grammar requires the desc to contain a letter. Without that requirement `0001_03_12` would be
+ambiguous, the regex reading `12` as a desc while the maximal-run parser reads `03_12` as the story
+path and finds no desc; requiring a letter makes exactly one reading possible. A desc whose first
+word merely *begins* with digits is unaffected — segments split on `_` while desc words join on `-`,
+so `0001_01_10-percent-rollout` and `0001_01_2fa-login` parse as story `01`. Any pre-existing id
+whose desc is all digits (none exists in this repository) is **legacy**, resolvable by exact bare-id
+match and not addressable via `epic:`/`story:`.
+
+**Story order** — the order every "ascending by story", "lower story", and "lowest-numbered story"
+phrase in ptp means — compares story paths segment-wise, numerically. Because every segment is
+2-digit zero-padded and a split **replaces** its parent (parent and children never coexist as
+changes, per §4b), this equals plain lexicographic order of the full ids among coexisting changes:
+`0001_03_01_* < 0001_03_02_* < 0001_04_*`. Children occupy exactly their parent's position, so a
+split never renumbers any sibling.
 
 **Legacy forms** — ids created before this convention — are still valid and resolvable by exact match:
 - Pre-epic slice ids: `^\d{2}_…` (e.g. `01_distinct-activation-steps`)
@@ -52,8 +69,8 @@ A command argument string is classified in this order (first match wins):
 |----------|------|---------|-------------|
 | 0 | `epic:all` | `epic:all` | All active changes across every epic, `(epic, story)` ascending, legacy ids appended after |
 | 1 | `epic:XXXX` | `epic:0008` | All active changes in epic `0008`, ascending by story |
-| 1a | `epic:XXXX story:NN` | `epic:0008 story:02` | The single change `0008_02_*` |
-| 2 | `story:NN` | `story:01` | The one active change with that story — if unambiguous |
+| 1a | `epic:XXXX story:NN` | `epic:0008 story:02` | The change(s) in that story subtree of epic `0008` |
+| 2 | `story:NN` | `story:01` | The active change(s) in that story subtree — if the epic is unambiguous |
 | 3 | bare id | `0008_02_my-change` | The single folder with that name (exact match) |
 | 4 | empty | (none) | Command's own existing default |
 
@@ -63,6 +80,13 @@ Classification rules:
 - Starts with `story:` (without `epic:`) → bare story selector.
 - Otherwise → bare id (exact folder-name match).
 - Empty → defer to the command's existing default.
+
+**`story:` takes a story path and matches its subtree.** `story:NN` (or `story:NN_MM`, one level per
+split) resolves to every active change whose story path **equals or extends** the given path, in
+story order. For an unsplit story that is exactly one change — identical to the pre-split behavior —
+and after a split it is the child set, which is the truthful resolution: the parent id no longer
+names a folder. Set-capable (Role B) consumers iterate the set; a command that requires exactly one
+change STOPs on a multi-change subtree naming the child ids.
 
 `epic:`, `story:`, and `--workspace` are **reserved prefixes** — bare ids may not start with them. `all` is reserved within the `epic:` namespace so that `epic:all` is unambiguous as the all-active selector; this reservation is scoped to the `epic:` namespace only and does not change the bare-id form — a legacy folder literally named `all` remains resolvable by exact bare-id match.
 
@@ -84,7 +108,9 @@ inputs: selector string; resolved workspace root
 
 1. list = folder names under <resolved workspace root>/openspec/changes/, excluding "archive"
 2. parse each name:
-   - if matches ^\d{4}_\d{2}_[a-z0-9]+(-[a-z0-9]+)*$ → epic-prefixed: (epic, story, desc)
+   - if matches ^\d{4}(_\d{2})+_(?=[a-z0-9-]*[a-z])[a-z0-9]+(-[a-z0-9]+)*$ → epic-prefixed:
+     (epic, story-path, desc), the story path being the maximal run of all-digit segments after the
+     epic and the desc containing at least one letter (§1)
    - else → legacy: (epic=None, story=None, id=name)
 3. switch on selector:
    - epic:all:
@@ -99,18 +125,20 @@ inputs: selector string; resolved workspace root
        STOP "no changes in epic XXXX" if matches is empty
        return matches sorted ascending by story
    - epic:XXXX story:NN:
-       return the single c where (epic==XXXX and story==NN)
-       else STOP "no change XXXX_NN_*"
+       matches = [c for c in list if c.epic == XXXX and c.storyPath extends-or-equals NN]
+       STOP "no change XXXX_NN*" if matches is empty
+       return matches sorted in story order (one change for an unsplit story; the child set after a split)
    - story:NN:
-       matches = [c for c in list if c.story == NN]
-       if len==1 return it
-       if len==0 STOP "no active change with story NN"
-       if len>1 STOP "ambiguous story NN across epics <list>; qualify with epic:XXXX story:NN"
+       matches = [c for c in list if c.storyPath extends-or-equals NN]
+       group matches by epic
+       if one epic → return that epic's matches in story order
+       if none    → STOP "no active change with story NN"
+       if several → STOP "ambiguous story NN across epics <list>; qualify with epic:XXXX story:NN"
    - empty:
        defer to the command's existing default
 ```
 
-Ordering key is `(epic, story)` ascending everywhere. When a resolved set mixes epic-prefixed and legacy/unprefixed ids — e.g. a command's empty-selector "all active changes" default — the epic-prefixed ids sort first by `(epic, story)` ascending and the legacy/unprefixed ids are **appended after** them, in their listed order. Resolution reads only the resolved workspace root's `openspec/changes/` folder listing — no manifest, no persisted state.
+Ordering key is `(epic, story path)` ascending everywhere — story order per §1. When a resolved set mixes epic-prefixed and legacy/unprefixed ids — e.g. a command's empty-selector "all active changes" default — the epic-prefixed ids sort first by `(epic, story)` ascending and the legacy/unprefixed ids are **appended after** them, in their listed order. Resolution reads only the resolved workspace root's `openspec/changes/` folder listing — no manifest, no persisted state.
 
 **Anchored to one root.** The folder listing in step 1 is read under the **resolved workspace root**,
 which `ptp-workspace` resolves **once** per command invocation and which is reused for every change
@@ -147,11 +175,43 @@ that belongs to `ptp-branch-guard` and is not settled here.
 
 
 **Per-producer usage:**
-- `/ptp:plan-multiple` — calls this once, then assigns `epic_str_01`, `epic_str_02`, … to slices in dependency order.
+- `/ptp:plan-multiple` — calls this once, then assigns `epic_str_01`, `epic_str_02`, … to slices in dependency order. When it is instead re-cutting a change that returned `NEEDS SPLIT`, it allocates **no** epic and uses §4b's sub-story allocation.
 - `/ptp:plan` — calls this once and assigns `epic_str_01_<desc>` for a standalone change. **Exception:** when `/ptp:plan` is invoked with a fully-formed `XXXX_NN_` id (the `/ptp:plan-multiple` → `/ptp:plan` delegation path), it preserves that id verbatim and does NOT allocate a new epic.
 - `/ptp:brainstorm` — calls this once and assigns `epic_str_01_<desc>` so the later `/ptp:plan` keeps the same id.
 - `/ptp:analyze` — allocates `epic_str_01_<subject-slug>` only to house an analysis doc (no proposal, design, tasks, or spec delta), and only when no relevant active change exists to receive the analysis doc.
 - `/ptp:prd` — allocates `epic_str_01_<desc>` **only** when the argument is **free text** (non-empty, carrying no `epic:`/`story:` token, and matching no existing active change folder); it then creates the change folder and authors the PRD into it. For every selector form (`epic:XXXX`, `epic:XXXX story:NN`, `story:NN`, `epic:all`, a folder-matching bare id, or omitted) it projects/consumes via the `ptp-prd` epic projection and allocates nothing.
+
+### 4b. Sub-story allocation (`NEEDS SPLIT` re-cuts only)
+
+When a change `XXXX_<path>_<desc>` returns `NEEDS SPLIT` (the terminal state owned by
+`ptp-writing-plans`), its replacement changes are its **children**: `XXXX_<path>_01_<desc1>`,
+`XXXX_<path>_02_<desc2>`, …, numbered in dependency order. The same rule applies one level deeper if
+a child itself needs a split (`XXXX_<path>_01_01_…`). No fresh epic is allocated, and no sibling id
+changes — the children inherit the parent's position in story order (§1).
+
+Three rules make this safe:
+
+1. **The parent is replaced, never kept — and its anchored artifacts move first.** The parent folder
+   is deleted only after every artifact it holds that the children do **not** re-author is moved into
+   the **first child**: `brainstorm.md`, `analysis.md`, and — decisively — `prd.md`. A PRD is anchored
+   at its epic's lowest-numbered story folder (`ptp-prd`), so splitting story `01` would otherwise
+   **delete the epic's PRD**; moving it into `XXXX_01_01_…` keeps it anchored, because that child is
+   the epic's new lowest-numbered story under §1's story order. `brainstorm.md` may instead go to
+   `openspec/brainstorms/<parent-id>-brainstorm.md` — **always that path, never a child's own
+   `brainstorm.md`**, which the child's planning run writes for itself and would overwrite, and which
+   in any case describes the parent's whole pre-split scope rather than that child's. Only the
+   regenerable planning artifacts the children re-author — `proposal.md`, `design.md`, `tasks.md`,
+   spec deltas, `effort.md` — are discarded, the same preserve-then-delete order
+   `/ptp:plan-multiple` step 4 uses. Parent and children never coexist, which is what keeps story
+   order equal to plain lexicographic id order.
+2. **Dependency references are rewritten at the re-cut.** Every active sibling whose `proposal.md`
+   declares `depends on <parent-id>` is updated to depend on the split's **last** child (the chain's
+   completion); a dependency **into** the split from outside never targets a mid-chain child unless
+   the re-cut states why. The re-cutting command performs this rewrite in its join step and reports
+   each edit — a dangling parent reference is a defect.
+3. **Children are numbered by re-scan, exactly like epics.** `next child = max(existing child
+   segments under that parent, active and archived) + 1`, so a second re-cut of the same parent (or
+   a re-cut after some children were archived) never reuses a child number.
 
 ## 5. Command roles
 

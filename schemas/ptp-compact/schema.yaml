@@ -9,9 +9,10 @@ artifacts:
     instruction: >
       Create the proposal document that establishes WHY this change is needed.
 
-      Owner and contract: this artifact's ownership, must-not-contain list, and soft word budget
-      (400 words) are defined by `skills/ptp-artifact-contract/SKILL.md`, the normative owner of the
-      compact artifact contract. This instruction adds no rule of its own. `proposal.md` describes
+      Owner and contract: this artifact's ownership, must-not-contain list, required build-state
+      line, and word budget (400 words by default, `artifact.maxProposalWords`) are defined by
+      `skills/ptp-artifact-contract/SKILL.md`, the normative owner of the compact artifact contract.
+      That budget is an acceptance criterion, not guidance. This instruction adds no rule of its own. `proposal.md` describes
       only the current-state-only intended state: replace obsolete text in place rather than
       appending an amendment or correction section — the current-state-only policy is
       `skills/ptp-artifact-contract/SKILL.md`'s.
@@ -27,6 +28,7 @@ artifacts:
         - **New Capabilities**: `<name>`: <scope>. Each becomes a new `specs/<name>/spec.md`. Use kebab-case names.
         - **Modified Capabilities**: `<existing-name>`: <requirement that changes>. Only include if spec-level behavior changes. Check `openspec/specs/` for existing spec names. Leave empty if no requirement changes.
       - **Impact**: code/API/data/compatibility surface affected.
+      - **Build state**: `GREEN`, or `RED — <what breaks> until <change-id>`.
 
       The Capabilities section creates the contract between proposal and specs phases. Research
       existing specs before filling this in.
@@ -67,11 +69,17 @@ artifacts:
         `tasks.md` checkbox that implements or verifies it — the coverage rule
         `skills/ptp-artifact-contract/SKILL.md` states.
 
+      The delta files carry a **summed** word budget across the change
+      (`artifact.maxSpecDeltaWords`), defined by `skills/ptp-artifact-contract/SKILL.md`.
+
       MODIFIED requirements workflow:
       1. Locate the existing requirement in openspec/specs/<capability>/spec.md
       2. Copy the ENTIRE requirement block (from `### Requirement:` through all scenarios)
       3. Paste under `## MODIFIED Requirements` and edit to reflect new behavior
       4. Ensure header text matches exactly (whitespace-insensitive)
+
+      The completeness rules for a MODIFIED block and for a removal are defined by
+      `skills/ptp-artifact-contract/SKILL.md`; follow them there.
 
       Specs should be testable - each scenario is a potential test case. Keep specs minimal and
       normative; motivation and implementation prose belong to `proposal.md` and `design.md`.
@@ -92,8 +100,10 @@ artifacts:
       When created, `design.md` owns only non-obvious implementation decisions and the technical
       alternatives rejected within the chosen direction, plus invariants, interfaces, data flow, and
       failure/migration behavior — not the approach-level choice `brainstorm.md` already made, not a
-      restatement of the proposal, and not a task list or history section. Its soft word budget is
-      800 words. Describe only the current-state-only design: a superseded decision is replaced in
+      restatement of the proposal, and not a task list or history section. It states decisions and
+      the reasons for them and is not an implementation specification: no pseudo-code, no
+      statement-by-statement SQL, no method-body narration. Its word budget is 800 words by default
+      (`artifact.maxDesignWords`), an acceptance criterion rather than guidance. Describe only the current-state-only design: a superseded decision is replaced in
       place, not appended as a correction alongside the original.
 
       Sections:
@@ -112,9 +122,10 @@ artifacts:
       Create the task list that breaks down the implementation work.
 
       Owner and contract: `tasks.md`'s ownership (ordered agent-executable actions and verification),
-      must-not-contain list (rationale essays, copied requirements, review history), and soft word
-      budget (600 words, 5-15 checkboxes) are defined by `skills/ptp-artifact-contract/SKILL.md`. Each
-      checkbox is at most 60 words including continuation lines. Describe only the current-state-only
+      must-not-contain list (rationale essays, copied requirements, review history), and word budget
+      (600 words, 5-15 checkboxes; `artifact.maxTasksWords` / `artifact.maxTaskCount`) are defined by
+      `skills/ptp-artifact-contract/SKILL.md`. Each checkbox is at most 60 words including
+      continuation lines (`artifact.maxTaskWords`). These budgets are acceptance criteria. Describe only the current-state-only
       plan: when a task changes, edit it in place rather than adding a superseded task alongside its
       replacement.
 
