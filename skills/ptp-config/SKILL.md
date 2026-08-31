@@ -78,6 +78,13 @@ parameters = [
     default: "low"
   },
   {
+    key:      "review.autoRecutOnBudgetExceeded",
+    label:    "Auto re-cut on plan-review budget halt",
+    jsonPath: ["review", "autoRecutOnBudgetExceeded"],
+    kind:     "boolean",
+    default:  false
+  },
+  {
     key:      "roles.main",
     label:    "Main agent",
     jsonPath: ["roles", "main"],
@@ -214,7 +221,7 @@ parameters = [
 ]
 ```
 
-**Parameter menu:** The registry currently holds twenty-one entries. Step 2 builds an `AskUserQuestion`
+**Parameter menu:** The registry currently holds twenty-two entries. Step 2 builds an `AskUserQuestion`
 menu from each entry's `label` value and presents it to the user. The flow is data-driven: adding
 a new entry to the registry automatically adds it to the menu with no further edits to this flow.
 
@@ -273,22 +280,23 @@ Build an `AskUserQuestion` menu from the registry entries' `label` values:
 3. **Codex reasoning effort** (`codex.reasoningEffort`)
 4. **Max review-loop iterations** (`review.maxIterations`)
 5. **Lowest severity to handle** (`review.minSeverity`)
-6. **Main agent** (`roles.main`)
-7. **Record ptp run telemetry** (`telemetry.mode`)
-8. **Telemetry store root** (`telemetry.root`)
-9. **Telemetry receiver port** (`telemetry.port`)
-10. **Telemetry raw-store retention (days)** (`telemetry.retentionDays`)
-11. **Run planning stages in parallel** (`parallel.mode`)
-12. **Max parallel fan-out members** (`parallel.maxConcurrency`)
-13. **Max proposal.md words** (`artifact.maxProposalWords`)
-14. **Max design.md words** (`artifact.maxDesignWords`)
-15. **Max tasks.md words** (`artifact.maxTasksWords`)
-16. **Max tasks.md checkboxes** (`artifact.maxTaskCount`)
-17. **Max words per checkbox** (`artifact.maxTaskWords`)
-18. **Max spec-delta words (summed)** (`artifact.maxSpecDeltaWords`)
-19. **Backlog project owner** (`backlog.projectOwner`)
-20. **Backlog project number** (`backlog.projectNumber`)
-21. **Backlog status option names** (`backlog.statusOptions`)
+6. **Auto re-cut on plan-review budget halt** (`review.autoRecutOnBudgetExceeded`)
+7. **Main agent** (`roles.main`)
+8. **Record ptp run telemetry** (`telemetry.mode`)
+9. **Telemetry store root** (`telemetry.root`)
+10. **Telemetry receiver port** (`telemetry.port`)
+11. **Telemetry raw-store retention (days)** (`telemetry.retentionDays`)
+12. **Run planning stages in parallel** (`parallel.mode`)
+13. **Max parallel fan-out members** (`parallel.maxConcurrency`)
+14. **Max proposal.md words** (`artifact.maxProposalWords`)
+15. **Max design.md words** (`artifact.maxDesignWords`)
+16. **Max tasks.md words** (`artifact.maxTasksWords`)
+17. **Max tasks.md checkboxes** (`artifact.maxTaskCount`)
+18. **Max words per checkbox** (`artifact.maxTaskWords`)
+19. **Max spec-delta words (summed)** (`artifact.maxSpecDeltaWords`)
+20. **Backlog project owner** (`backlog.projectOwner`)
+21. **Backlog project number** (`backlog.projectNumber`)
+22. **Backlog status option names** (`backlog.statusOptions`)
 
 Use the selected entry's `jsonPath`, `kind`, `values` (for enum entries), and `default` for the
 remaining steps. This is data-driven off the registry — adding a parameter requires only a new
@@ -350,8 +358,9 @@ turns one invocation into several writes. The idempotency/no-op report, the `wri
      - For `codex.mode`, `codex.model`, or `codex.reasoningEffort` (they share the same `codex`
        parent): if `codex` exists but is not an object (e.g. `{"codex":"auto"}` or
        `{"codex":null}`), STOP.
-     - For `review.maxIterations` or `review.minSeverity` (they share the same `review` parent): if
-       `review` exists but is not an object (e.g. `{"review":"x"}` or `{"review":null}`), STOP.
+     - For `review.maxIterations`, `review.minSeverity`, or `review.autoRecutOnBudgetExceeded` (they
+       share the same `review` parent): if `review` exists but is not an object (e.g. `{"review":"x"}`
+       or `{"review":null}`), STOP.
      - For `roles.main`: if `roles` exists but is not an object (e.g. `{"roles":"claude"}` or
        `{"roles":null}`), STOP.
      - For `telemetry.mode`, `telemetry.root`, `telemetry.port`, or `telemetry.retentionDays`
@@ -452,6 +461,25 @@ critical findings in scope and leaves only low findings out of scope.
 State plainly at the point of selection: **the shared review loop (`ptp-review-loop`) reads this
 key** — findings below the chosen floor are reported but never auto-fixed and never counted toward
 convergence. At the default `low` every severity is in scope, so review behavior is unchanged.
+
+#### kind = `boolean` (e.g. `review.autoRecutOnBudgetExceeded`)
+
+Use `AskUserQuestion` to offer exactly two options:
+
+1. **`on (true)`** — Auto re-cut the offending slice instead of stopping the whole `/ptp:full` (or
+   `/ptp:full-plan`) run
+2. **`off (false)`** — Stop the run and report, exactly as today (default)
+
+These are the only options. **Never write a value that is not a JSON boolean.** The value written to
+the file is the literal JSON boolean `true` or `false` — never the string `"true"`/`"false"`. This is
+the registry's first `boolean`-kind parameter: unlike `codex.mode`/`telemetry.mode`/`parallel.mode`
+(two-value **enums** of the strings `"on"`/`"off"`), this key is a plain JSON boolean, matching the
+shape a pure feature switch with no anticipated third value should take.
+
+State plainly at the point of selection: this governs only `/ptp:full`'s (and `/ptp:full-plan`'s)
+plan-convergence gate reaction to a slice's `ARTIFACT BUDGET EXCEEDED` / `PHASE 2 ARTIFACT BUDGET
+EXCEEDED` — it changes nothing else, and it is capped (see `skills/ptp-full/SKILL.md`) so an auto
+re-cut that keeps failing still falls back to stopping and reporting.
 
 #### kind = `enum` (e.g. `roles.main`)
 
@@ -765,9 +793,10 @@ Examples:
 | Target file present but invalid JSON | STOP, report parse failure, do **not** overwrite. |
 | Root parses to non-object (`[]`, string, number, `null`) | STOP, report, do **not** overwrite. |
 | `codex` present but not an object (`"codex":"auto"`, `"codex":null`) — applies to `codex.mode`, `codex.model`, and `codex.reasoningEffort` alike | STOP, report, do **not** overwrite. |
-| `review` present but not an object (`"review":"x"`, `"review":null`) — applies to `review.maxIterations` and `review.minSeverity` alike | STOP, report, do **not** overwrite. |
-| `review` absent | Created as `{}` on write; not clobbering — applies to `review.maxIterations` and `review.minSeverity` alike. |
+| `review` present but not an object (`"review":"x"`, `"review":null`) — applies to `review.maxIterations`, `review.minSeverity`, and `review.autoRecutOnBudgetExceeded` alike | STOP, report, do **not** overwrite. |
+| `review` absent | Created as `{}` on write; not clobbering — applies to `review.maxIterations`, `review.minSeverity`, and `review.autoRecutOnBudgetExceeded` alike. |
 | `review.minSeverity` selection outside `low|medium|high|critical` | Not offered — the enum menu only presents the four valid values. |
+| `review.autoRecutOnBudgetExceeded` selection outside the two boolean options | Not offered — the boolean menu only presents `on (true)` / `off (false)`. |
 | `roles` present but not an object (`"roles":"claude"`, `"roles":null`) | STOP, report, do **not** overwrite. |
 | `roles` absent | Created as `{}` on write; not clobbering. |
 | `roles.main` selection outside `claude|codex` | Not offered — the enum menu only presents the two valid values. |
@@ -827,6 +856,9 @@ Examples:
 - **Never write an out-of-enum value for `codex.reasoningEffort`.** Only `minimal`, `low`, `medium`,
   or `high` may be written. The value comes from the step 4 enum menu — never from free-form user
   input.
+- **Never write a non-boolean value for `review.autoRecutOnBudgetExceeded`.** Only the literal JSON
+  boolean `true` or `false` may be written, never a string. The value comes from the step 4 boolean
+  menu — never from free-form user input.
 - **Never write an out-of-enum value for `roles.main`.** Only `claude` or `codex` may be written.
   The value comes from the step 4 enum menu — never from free-form user input.
 - **Never write an out-of-enum value for `telemetry.mode`.** Only `off` or `on` may be written. The
