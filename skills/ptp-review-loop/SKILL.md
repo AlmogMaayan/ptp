@@ -515,20 +515,30 @@ Before the convergence check, drop any finding whose suggested fix consists **on
 - `manually verify`, `needs manual QA`, `manual check required`, `verify by hand`
 - `should be covered by a test`, `add a regression test`, `test required`, `needs a test`
 
-A finding that names a concrete code or artifact defect **AND** additionally mentions a missing test stays in scope — the defect half is fixable. Only pure "check this by hand" / "add a test" suggestions with no associated defect pointer are filtered.
+A finding that names a concrete code or artifact defect **AND** additionally mentions a missing test stays in scope — the defect half is fixable. Only pure "check this by hand" / "add a test" suggestions with no defect pointer are filtered.
 
-A finding whose **subject** is a banned manual-task line inside the change's own `tasks.md` is
-likewise **NOT** dropped. Both conditions must hold: the finding cites a task line in the
-change's `tasks.md` that the `tasks-authoring` capability bans (the offending text quoted as
-evidence), **and** its remedy is a concrete edit to that file — replace the offending task with
-one the implementing agent can perform or, absent an automated equivalent, relocate its intent
-as the `tasks-authoring` capability directs, never bare deletion. Such a finding does not ask a human to
-go check something; it asks for an artifact edit that happens to be *about* a manual check, so
-the manual-check words in it are quoted evidence, not the suggested fix. The banned task shapes
-live in the `tasks-authoring` capability and are not restated here. The general test is
-subject-vs-remedy: **(c1) drops a finding for what it asks _you_ to do, never for which words
-appear in it.** Surviving (c1) is not an exemption from (c2) — a carved-out finding is still
-ranked against `MIN_SEVERITY` like any other survivor.
+A finding whose **subject** is a banned manual-task line in the change's own `tasks.md` is likewise
+**NOT** dropped, when **both** hold: it cites a task line the `tasks-authoring` capability bans (the
+offending text quoted as evidence), **and** its remedy is a concrete edit to that file — replace the
+task with an automatable one or, absent an equivalent, relocate its intent as `tasks-authoring`
+directs, never bare deletion. The manual-check words are then quoted evidence, not the suggested
+fix. The banned shapes live in `tasks-authoring` and are not restated here. The general test is
+subject-vs-remedy: **(c1) drops a finding for what it asks _you_ to do, never for which words appear
+in it.** Surviving (c1) is not an exemption from (c2) — a carved-out finding is still ranked against
+`MIN_SEVERITY`.
+
+**The `tdd`-gated missing-test narrowing.** Under `tdd` resolving `mandatory`, the missing-test
+half of the drop is **narrowed**: a finding citing a **specific spec requirement** — naming **both**
+the requirement's spec file (a `…/spec.md` path) **and** its `Requirement: <name>` pointer (e.g.
+`openspec/specs/foo/spec.md`'s `Requirement: Bar`) — with no covering test is **NOT** dropped, that
+pointer being a concrete defect pointer, not a bare test request. A vague `needs more tests` /
+`should be covered by a test` with **no** such pointer is **still dropped** as above. Under
+`tdd` resolving `advisory` — an unset key or any unrecognized value degrading to `advisory` — (c1)
+is **byte-identical** to its pre-`tdd` behavior, adding no carve-out and changing no drop. `tdd` is
+read **once** at pass start alongside `MIN_SEVERITY` through the forgiving layered read
+`ptp-workspace` owns, degrading to `advisory` on an absent or unreadable value without stopping the
+review. The discriminator lives entirely in the finding text, so both reviewers — the main loop and
+the closed-book Codex reviewer — reach the same drop decision closed-book.
 
 Filtered findings do NOT count against convergence and do NOT trigger a fix pass.
 
@@ -541,14 +551,13 @@ Partition every finding that survived (c1) against `MIN_SEVERITY`, per **## Seve
 - **Below threshold** → moved out of the in-scope stream into the `below_threshold` bucket for this
   iteration.
 
-A finding in the `below_threshold` bucket is **not** confirmed (step (e) is never run on it), **not**
-fixed (step (g) never edits on its account), **not** counted toward the step (f) exit check, **not**
-appended to `rejected_findings` (nobody examined it — asserting "not a defect" would be a
-fabrication), and gets **no stable key** (carry-over dedup does not apply).
+A finding in the `below_threshold` bucket is **not** confirmed (step (e) never runs on it), **not**
+fixed, **not** counted toward the step (f) exit check, **not** appended to `rejected_findings`
+(nobody examined it — asserting "not a defect" would be a fabrication), and gets **no stable key**.
 
 The bucket is **re-derived from each iteration's fresh review pass** — never carried across
-iterations and never persisted, the same in-conversation-only rule as all loop control state. It is
-reported per **(h)** and in both terminal states; it is never silently dropped.
+iterations and never persisted. It is reported per **(h)** and in both terminal states; it is never
+silently dropped.
 
 ### (d) Carry-over rejection check
 
@@ -595,22 +604,17 @@ defined in `commands/effort.md` § *Fix mode (`mode:fix`)* — passing:
 
 The result is `fixTarget`, the `{model}.{effort}` on the first line of that mode's output block.
 
-**Evaluated once per fix pass, never once per run.** `MAX_ITERATIONS` and `MIN_SEVERITY` are
-run-scoped policy and stay resolved-once; `fixTarget` is a function of the finding set of the pass it
-serves, and that set differs by iteration by construction. An iteration with zero CONFIRMED in-scope
-findings never reaches step (g) — step (f) exits to `DONE` first — and so performs no evaluation at
-all.
+**Evaluated once per fix pass, never once per run.** `fixTarget` is a function of the pass's finding
+set, which differs by iteration; `MAX_ITERATIONS` / `MIN_SEVERITY` stay run-scoped. An iteration
+with zero CONFIRMED in-scope findings never reaches step (g) — step (f) exits to `DONE` first — so
+performs no evaluation. **The evaluation is performed by the party holding the frozen finding set it
+scores** — here, the party that ran step (e) — regardless of who performs the fix under (g2).
 
-**The evaluation is performed by the party holding the frozen finding set it scores** — within this
-loop, the party that ran step (e) — regardless of which party subsequently performs the fix under
-(g2).
-
-**Fallback.** When the evaluation is unavailable, errors, or returns a value that is not a parseable
-`{model}.{effort}`, use the literal `opus.high` and **note the defaulting** — the identical fallback
-and wording `ptp-run-at-model` already applies to a missing or unparseable `effort.md`. A failed
-evaluation **never** throws, **never** STOPs the loop, and **never** causes the fix pass to be
-skipped; `opus.high` is the target the fix pass inherits today, so the fallback degrades to exactly
-the pre-existing behavior.
+**Fallback.** When the evaluation is unavailable, errors, or returns an unparseable
+`{model}.{effort}`, use the literal `opus.high` and **note the defaulting** — the same fallback
+wording `ptp-run-at-model` applies to a missing or unparseable `effort.md`. A failed evaluation
+**never** throws, **never** STOPs the loop, and **never** skips the fix pass; `opus.high` is the
+target the fix pass inherits today, so the fallback degrades to exactly the pre-existing behavior.
 
 The evaluation rubric — its signals, thresholds, anchor table, and decision order — lives in
 `commands/effort.md` § *Fix mode (`mode:fix`)* (introduced by `0049_01_fix-effort-evaluation`) and is
@@ -623,8 +627,10 @@ dispatch**):
 
 - `kind=code` → edit source files directly. **Never** invoke `/ptp:apply`. **Never** commit.
 - `kind=artifact` → make minimal targeted edits to the affected artifact(s). **Never** regenerate artifacts via `/ptp:plan`. Corrections only (fix a wrong section, add a missing scenario, fill a thin block) — not re-fabrication.
-- `kind=brainstorm` → make minimal targeted edits to `brainstorm.md`. **Never** regenerate the brainstorm via `/ptp:brainstorm`. Corrections only (add a missing option, expand a thin tradeoff, document a missing assumption) — not re-fabrication. A missing `brainstorm.md` Critical finding has nothing to edit and stays unfixed (the iteration cap is the backstop).
-- `kind=prd` → make minimal targeted edits to the PRD file `openspec/changes/<id>/prd.md`. **Never** regenerate the PRD via `/ptp:prd`. Corrections only (fill a missing schema section, sharpen a vague acceptance criterion, add a measurable goal) — not re-fabrication. A missing-PRD Critical finding has nothing to edit and stays unfixed (the iteration cap is the backstop).
+- `kind=brainstorm` → make minimal targeted edits to `brainstorm.md`. **Never** regenerate the brainstorm via `/ptp:brainstorm`. Corrections only (add a missing option, expand a thin tradeoff, document a missing assumption) — not re-fabrication.
+- `kind=prd` → make minimal targeted edits to the PRD file `openspec/changes/<id>/prd.md`. **Never** regenerate the PRD via `/ptp:prd`. Corrections only (fill a missing schema section, sharpen a vague acceptance criterion, add a measurable goal) — not re-fabrication.
+
+A missing `brainstorm.md` / PRD Critical finding has nothing to edit and stays unfixed (the iteration cap is the backstop).
 
 **Prefer removal, and pay for each addition by deleting** — `references/bounded-review.md`.
 
@@ -642,7 +648,7 @@ Run a cheap, fast verification appropriate to `kind`:
 - `kind=brainstorm` → **N/A** — run **NO** `openspec validate` (a brainstorm precedes any proposal/spec, so there is nothing to validate). Record `verify = N/A (brainstorm precedes any spec)` in `per_iteration_summary`.
 - `kind=prd` → **N/A** — run **NO** `openspec validate` (a PRD precedes any proposal/spec, so there is nothing to validate). Record `verify = N/A (PRD precedes any spec)` in `per_iteration_summary`.
 
-A failing verification is **reported in `per_iteration_summary`** but does NOT abort the loop — the next review iteration will pick up regressions. The iteration cap is the backstop.
+A failing verification is **reported in `per_iteration_summary`** but does NOT abort the loop — the next iteration picks up regressions; the iteration cap is the backstop.
 
 Append a summary entry to `per_iteration_summary`: iteration number, findings-confirmed count, findings-rejected count, carry-over count, **below-threshold count** (the size of this iteration's `below_threshold` bucket from (c2) — `0` on every run at the default `low`), fixes applied, verification result, and — for an iteration that reached step (g) — the **evaluated `fixTarget`** (lowercase `{model}.{effort}`), whether it was **defaulted** to `opus.high` because the evaluation failed, the resolved **`fixDispatch`** mode, and whether the target was **fully honored**. An iteration that never reached step (g) records **no** fix target rather than a fabricated or carried-over one.
 
@@ -667,10 +673,10 @@ Fix target partially honored: evaluated sonnet.medium, running on opus (effort d
 
 The target is recorded as **fully honored**, with no divergence line, in exactly two cases:
 `fixDispatch = inline` with `fixTarget`'s model equal to the running model, and
-`fixDispatch = dispatched` in the `roles.main = claude` direction. Under `fixDispatch = dispatched` at
-`roles.main = codex` the target is **advisory** — the shell-out takes `codex.model` /
-`codex.reasoningEffort` — so it is **not** recorded as fully honored, and the divergence line names
-the evaluated model alongside the configured `codex.model`, or `unknown` when that key is unset.
+`fixDispatch = dispatched` at `roles.main = claude`. Under `fixDispatch = dispatched` at
+`roles.main = codex` the target is **advisory** (the shell-out takes `codex.model` /
+`codex.reasoningEffort`) — not fully honored, and the divergence line names the evaluated model
+alongside the configured `codex.model`, or `unknown` when that key is unset.
 
 ### (i) Loop
 

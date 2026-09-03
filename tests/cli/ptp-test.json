@@ -1,0 +1,16 @@
+{
+  "script": "scripts/ptp-test.js",
+  "cases": [
+    {
+      "id": "help-flag-exits-zero-without-running-siblings",
+      "tree": {
+        "work": "dir"
+      },
+      "cwd": "work",
+      "argv": ["--help"],
+      "expect": {
+        "exitCode": 0
+      }
+    }
+  ]
+}

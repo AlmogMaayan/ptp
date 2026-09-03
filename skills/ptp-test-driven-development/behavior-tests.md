@@ -20,7 +20,9 @@
     { "id": "exemption-bound", "kind": "requires", "pattern": "does\\s+not\\s+apply\\s+when\\s+the\\s+change\\s+also\\s+touches\\s+executable\\s+code", "why": "the exemption never applies when the change also touches executable code" },
     { "id": "autonomy", "kind": "requires", "pattern": "choose\\s+the\\s+defensible\\s+option,\\s+record\\s+it[\\s\\S]{0,40}continue", "why": "ambiguity is resolved autonomously: choose, record, continue" },
     { "id": "no-external-plugin-invocation", "kind": "forbids", "pattern": "superpower[s]:", "why": "delegates no step to an external plugin skill" },
-    { "id": "no-human-partner", "kind": "forbids", "pattern": "human partner", "why": "no step gates on an interactive human partner" }
+    { "id": "no-human-partner", "kind": "forbids", "pattern": "human partner", "why": "no step gates on an interactive human partner" },
+    { "id": "red-green-record-shape", "kind": "requires", "pattern": "\\{\\s*task,\\s*test,\\s*red,\\s*green\\s*\\}[\\s\\S]{0,200}\\{\\s*task,\\s*exempt,\\s*reader\\s*\\}", "why": "the evidence record names both branch shapes: the executed { task, test, red, green } and the exempt { task, exempt, reader }" },
+    { "id": "advisory-records-evidence", "kind": "requires", "pattern": "even\\s+under\\s+.?advisory", "why": "evidence is recorded even under advisory, so advisory is not silence" }
   ]
 }
 ```
@@ -50,3 +52,17 @@ the script change still gets a real failing test first.
 
 **Failure signature** — `RED: not applicable` recorded for a change that also touches executable
 code.
+
+## Pressure test: advisory is not silence
+
+**Situation** — `tdd` resolves to `advisory` for the change, so no gate will block a checked task on
+missing test evidence.
+
+**Pressure** — Because nothing blocks, it is tempting to run no test and record no evidence at all,
+treating `advisory` as permission to skip the cycle.
+
+**Required behavior** — Follow the cycle anyway and record the `tests` evidence in the apply stage
+record even under `advisory`; advisory relaxes the gate, not the discipline.
+
+**Failure signature** — A change checked off under `advisory` whose apply record carries no `tests`
+entry despite tests having been run.

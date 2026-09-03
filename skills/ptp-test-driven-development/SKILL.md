@@ -61,6 +61,17 @@ is to be a test.
 The exemption does not apply when the change also touches executable code, nor when an available
 check can be made to fail on the behavior being added.
 
+## Evidence
+
+Record the test evidence behind each task in the apply stage record's `tests` array — one entry per
+task, in one of two branch shapes: an executed `{ task, test, red, green }` (the `red` string naming
+the failing run, the `green` string the passing run) or an exempt `{ task, exempt, reader }` for a
+prose-only task under the exemption above. Record the entry even under `advisory`, where the gate is
+relaxed but the cycle is not: advisory is not silence. Under `mandatory` a task touching executable
+code with neither a `red` nor a valid exempt entry is not checked off and the run blocks.
+
+<!-- budget-exception: the Evidence section adds new normative record-shape content, not duplication, pushing this file just over the 500-word soft budget -->
+
 ## Autonomy
 
 When a step is genuinely ambiguous, choose the defensible option, record it, and continue; escalate

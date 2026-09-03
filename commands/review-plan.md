@@ -74,6 +74,13 @@ one subagent handles the whole per-change pass.)
    unavailable, errors, or cannot be run, record a **non-blocking note** and continue — it never
    STOPs the review, never changes a verdict, and never changes a terminal state.
 
+   **Testability mode (`tdd`).** Resolve `tdd` from layered ptp config **once**, at the start of this
+   pass, and hold it fixed — layered exactly as `review.minSeverity` above (`ptp-workspace`,
+   forgiving read, default `advisory`; a missing file, missing key, unparseable JSON, or unrecognized
+   value falls back to `advisory` rather than erroring, and never STOPs the review). It re-classifies
+   the missing-testability-shape observation in condition 5 between High-inside-5 and Medium-outside;
+   it changes nothing else.
+
    **Blocking conditions — exhaustive.** A finding may block only when at least one of these eight
    holds. Nothing outside this list may block:
 
@@ -136,6 +143,20 @@ one subagent handles the whole per-change pass.)
       pass of the fixing loops (`/ptp:review-plan-loop`, `/ptp:codex-review-plan-loop`,
       `/ptp:review-plan-full`) — **not** `/ptp:review-plan` itself, which stays read-only and edits
       nothing (see *Hard rules*).
+
+      **Missing-testability-shape check.** This is a second detection half of this same blocking
+      condition — not a separate rubric item — so the block-list above stays exhaustive. The
+      `tasks-authoring` capability (`openspec/specs/tasks-authoring/spec.md`) requires every checkbox
+      to declare its testability through **exactly one of two shapes**, chosen by whether it changes
+      executable behavior: a behavior-changing checkbox ends its `verify:` clause **naming the
+      specific test file and test case** it adds or extends; a prose-only checkbox instead carries the
+      literal marker `[prose-exempt: <reader it binds>]` naming its reader. A checkbox that only gates
+      is exempt from both. Flag a **behavior-changing** checkbox that names no test case **and** carries
+      no `[prose-exempt: …]` marker: **High**, blocking as an instance of this condition, when the
+      resolved `tdd` value is `mandatory`; **Medium**, a reported non-blocking observation outside the
+      block list, when it is `advisory`. Quote the exact offending checkbox and state its fix (name the
+      test file and case, or add the `[prose-exempt: <reader>]` marker). This re-classifies one
+      observation between High-inside-5 and Medium-outside; it does not add a ninth block condition.
    6. **A non-obvious implementation decision or invariant is missing** — apply could not proceed
       without asking a human to re-decide it.
    7. **Two artifacts disagree.**
@@ -163,8 +184,8 @@ one subagent handles the whole per-change pass.)
 4. **Classify each finding** (vocabulary shared with `/ptp:review`, retargeted to artifacts). The four
    labels are unchanged by the rubric rewrite; the blocking conditions map onto them as:
    - **Critical** — `proposal.md` missing; blocking condition 1 (`validate --strict` fails); a spec delta contradicting the proposal's stated scope (the contradictory half of condition 2).
-   - **High** — blocking conditions 2 (missing mapping), 3, 4, 5, 6, 7, and 8 — including a `tasks.md` checkbox with a human executor, flagged by the banned-manual-task check inside condition 5, which stays **High**.
-   - **Medium** — an observation outside the block-list a reader should still see: a vague or uncheckable success criterion, an absent or malformed `effort.md` first line, a compactness-lint report matching no blocking condition.
+   - **High** — blocking conditions 2 (missing mapping), 3, 4, 5, 6, 7, and 8 — including a `tasks.md` checkbox with a human executor, flagged by the banned-manual-task check inside condition 5, which stays **High**; and, under resolved `tdd: mandatory`, a behavior-changing checkbox carrying neither testability shape, flagged by the missing-testability-shape check inside condition 5.
+   - **Medium** — an observation outside the block-list a reader should still see: a vague or uncheckable success criterion, an absent or malformed `effort.md` first line, a compactness-lint report matching no blocking condition, and — under resolved `tdd: advisory` — a behavior-changing checkbox carrying neither testability shape.
    - **Low** — nits: wording, formatting, ordering; the remaining compactness-lint reports.
 
    Medium and Low findings never by themselves produce a `WARN` or a `FAIL`.

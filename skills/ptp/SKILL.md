@@ -19,6 +19,7 @@ skill, and reports. A command that owns itself carries its own contract.
 | `commands/analyze.md` | `skills/ptp-analyze/SKILL.md` |
 | `commands/apply.md` | `commands/apply.md` |
 | `commands/archive-and-deploy.md` | `skills/ptp-archive-and-deploy/SKILL.md` |
+| `commands/archive-and-merge-to-master.md` | `skills/ptp-archive-and-merge-to-master/SKILL.md` |
 | `commands/archive-force.md` | `skills/ptp-archive-force/SKILL.md` |
 | `commands/archive.md` | `commands/archive.md` |
 | `commands/backlog-add.md` | `skills/ptp-backlog/SKILL.md` |

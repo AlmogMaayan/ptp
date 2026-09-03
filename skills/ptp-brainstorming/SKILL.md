@@ -1,6 +1,6 @@
 ---
 name: ptp-brainstorming
-description: Use for the brainstorming step of a ptp planning flow, when a change request must become one recorded decision. Not general creative work.
+description: Use for a ptp planning flow's brainstorming step, turning a change request into one recorded decision, not general creative work.
 ---
 
 # ptp-brainstorming — decide, then write one capsule

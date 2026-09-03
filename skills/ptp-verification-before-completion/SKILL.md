@@ -1,6 +1,6 @@
 ---
 name: ptp-verification-before-completion
-description: Use before claiming work complete, fixed, or passing.
+description: Use before you claim that work is complete, fixed, or passing.
 ---
 
 # Verification before completion
