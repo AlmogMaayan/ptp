@@ -218,6 +218,7 @@ Anywhere a change argument is taken:
 | `/ptp:deploy-pr-approved` | Finishes a `/ptp:deploy` that stopped for a required approval, after someone else approves the PR. |
 | `/ptp:merge-to-master` | Runs the same ship pipeline as `/ptp:deploy` minus the deploy workflow step. Refuses on a **clean** `master`/`main`; **recovers a dirty one** onto a fresh feature branch (stash → cut → pop, gated on the result) before committing. Never self-approves. |
 | `/ptp:archive-and-deploy <selector>` | Archives each resolved change through the existing gates in story order, then deploys once on the current branch if every archive succeeded. Accepts `epic:all`. Refuses on `master`/`main`; never self-approves. |
+| `/ptp:archive-and-merge-to-master <selector>` | Same as `/ptp:archive-and-deploy`, but the convergence-gated final step is a merge-only run (`ptp-deploy` mode `merge-only`, no deploy workflow) instead of a full deploy. Accepts `epic:all`. Refuses on `master`/`main`; never self-approves. |
 | `/ptp:deploy-master` | Triggers the deploy workflow against the current `master`. No commit/push/PR/merge. Requires a clean tree on `master`/`main`. |
 | `/ptp:master` | `git switch master && git pull --ff-only`, only when the working tree is clean. |
 
@@ -330,6 +331,7 @@ Codex second opinion (needs codex on PATH)
 Ship
   → /ptp:deploy | /ptp:deploy-pr-approved | /ptp:merge-to-master
   → /ptp:archive-and-deploy <sel>     # archive in story order → deploy once if all passed
+  → /ptp:archive-and-merge-to-master <sel>  # archive in story order → merge-only once if all passed
   → /ptp:deploy-master | /ptp:master
 
 Epic backlog
@@ -354,6 +356,7 @@ Experimental     /opsx:explore | /opsx:propose | /opsx:apply | /opsx:archive
 
 ## Changelog
 
+| **0.6.2** | New `/ptp:archive-and-merge-to-master <selector>` command + `ptp-archive-and-merge-to-master` skill (epic 0063): the same archive-then-ship chaining as `/ptp:archive-and-deploy` — Phase A archives each resolved change through the unweakened `/ptp:archive` gates in story order, gated by the same all-or-nothing archive-convergence gate — but Phase B runs `ptp-deploy` in `merge-only` mode (start phase `commit`, the same mode `/ptp:merge-to-master` drives) instead of a full deploy, so the deploy workflow never runs. `/ptp:archive-and-deploy` and every other command are unchanged (0063_01). |
 | **0.6.1** | New `review.autoRecutOnBudgetExceeded` config key (boolean, default `false`, epic 0062). Off, nothing changes: a slice's `ARTIFACT BUDGET EXCEEDED` / `PHASE 2 ARTIFACT BUDGET EXCEEDED` still STOPs the whole `/ptp:full` (or `/ptp:full-plan`) run as before. On, `/ptp:full`'s plan-convergence gate re-cuts the offending slice itself — `/ptp:plan-multiple <id>` in re-cut mode, splicing the children into the slice set at the parent's position, plan-reviewing each, and re-applying the gate — instead of stopping, identically on the serial and parallel gate paths. Two recursion caps bound it (a per-lineage depth cap of 2, and a total growth cap of `max(originalCount*3, originalCount+2)` with a pre-check before invoking and a post-check after), a single-change fallback or a child's own `NEEDS SPLIT` falls back to stopping that lineage, and every auto re-cut is named in the terminal report — parent, children, moved artifacts. Scoped to the plan-review gate only; a slice's own `/ptp:plan` `NEEDS SPLIT` and `ptp-full-apply`'s apply-convergence gate are both unaffected (0062_01, 0062_02). |
 | Version | Changes |
 |---------|---------|
