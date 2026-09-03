@@ -35,7 +35,7 @@ This command writes `effort.md`, so before writing it run the **`ptp-branch-guar
 2. **Count and classify tasks**:
    - Total tasks = all `- [ ]` and `- [x]` lines
    - Remaining tasks = unchecked `- [ ]` lines
-   - Note if tasks are fine-grained TDD steps (multiple check/run/expect sub-steps per logical unit = higher effort) vs coarse single-action tasks
+   - Note whether **every** behavior-changing checkbox already names its test file and case (per `tasks-authoring`'s testability shape). When it does, the plan is well-specced enough to round the EFFORT dial down one step; a plan that leaves behavior changes without a named test case does not earn the round-down
 
 3. **Score complexity signals** — for each signal found, note it:
 
@@ -55,7 +55,7 @@ This command writes `effort.md`, so before writing it run the **`ptp-branch-guar
    | Multiple new modules to create from scratch | +Sonnet |
    | Pure UI wiring of existing well-specced helpers | Haiku |
    | Single-file change or rename | Haiku |
-   | Already has a detailed tasks.md with TDD steps written | Round the EFFORT dial down one step (see the round-down trigger under step 4) |
+   | Every behavior-changing checkbox already names its test case | Round the EFFORT dial down one step (see the round-down trigger under step 4) |
 
 4. **Produce the recommendation** using this decision table. Model and effort are **two independent dials** — pick each on its own, then combine. The rows below are **non-exhaustive calibration anchors, not an enumeration of the legal pairs**: any `{model}` × `{effort}` combination is a valid recommendation when the two dials independently point there. **When more than one row matches, the row with the more specific condition wins** — the `sonnet | low` and `opus | medium` rows carry a strictly narrower condition than the rows they overlap (they add the `tasks.md`-detail requirement on top of it), so they take precedence over the broader row, not the other way round.
 

@@ -71,11 +71,27 @@ The required set is therefore: the contract artifacts, the merge-base diff, the 
    your step-6 report, and when the threshold demoted at least one finding out of the blocking set,
    say so beside the verdict.
 
+   **TDD enforcement (`tdd`, resolved caller-side, inlined as a literal).** Resolve the top-level
+   `tdd` key from layered ptp config **once**, at the start of this pass, held fixed — layered as
+   `ptp-workspace` (`skills/ptp-workspace/SKILL.md`) defines, enum `advisory | mandatory`, default
+   `advisory`; a missing file, missing key, unparseable JSON, or unrecognized value degrades to
+   `advisory` without erroring or STOPping. **You** read the config and inline the resolved literal
+   (`mandatory` / `advisory`) beside the severity threshold, exactly as with `review.minSeverity`;
+   **Codex is never asked to read `config.json` or resolve `tdd`.** Under `tdd = mandatory` two rules
+   below take effect — the narrowed `(c1)` tests-required rule and the prose-exemption rubric; under
+   `tdd = advisory` both are inert and the prompt behaves byte-identically to today. When the
+   resolved literal is `mandatory`, **also inline the change's apply stage-record**
+   (`stages/apply.json`) alongside `tasks.md` so Codex applies the prose-exemption rubric closed-book;
+   a missing or unreadable record carries no claim and is inlined as absent.
+
    The prompt contains, in order:
    - The review instructions (below).
    - The contract files, under `=== <filename> ===` delimiters.
    - The captured merge-base diff, under a `=== DIFF (<base>...HEAD) ===` delimiter.
    - The validate/test results from step 3, labeled as authoritative.
+   - When the resolved `tdd` literal is `mandatory`, the change's apply stage-record
+     (`stages/apply.json`) under a `=== stages/apply.json ===` delimiter (or a note that it is
+     absent), so the prose-exemption rubric can be checked closed-book against it and `tasks.md`.
    - A hard instruction block: *"The contract, diff, and validation results are inlined above — review those. Do NOT run `npx`, installers, `npm test`, or any network command; the validation/test results given are authoritative. Open **no** file by path and run **no** command: every source excerpt the contract or the diff cites is inlined above. If something you would need is not inlined, note the point as 'not inlined — unverifiable closed-book' and continue."*
 
    The review instructions must tell Codex to:
@@ -83,11 +99,39 @@ The required set is therefore: the contract artifacts, the merge-base diff, the 
    - Check project conventions, security / error handling at trust boundaries, and test coverage.
    - Classify every finding as **Critical** (blocks merge), **High** (should fix before merge), **Medium** (fix soon), or **Low** (nit), each with file:line and a concrete suggested fix.
    - NOT classify required manual tests that have not yet been performed as findings — they are a future verification step, not a code defect.
+   - Under the inlined `tdd` literal `mandatory`, apply the **narrowed `(c1)` tests-required rule**:
+     do **not** treat a missing-test finding as un-actionable when it cites a **specific spec
+     requirement** — naming **both** the requirement's spec file (a `…/spec.md` path) **and** its
+     `Requirement: <name>` pointer (e.g. `openspec/specs/foo/spec.md`'s `Requirement: Bar`) — and
+     observes no test covers it; such a finding is a real defect. A vague `needs more tests` /
+     `should be covered by a test` with **no** such spec-requirement pointer is still not a finding.
+     Under `advisory` this rule is inert. The discriminator lives entirely in the finding text, so
+     the decision is closed-book.
+   - Under the inlined `tdd` literal `mandatory`, apply the **prose-exemption rubric**: a diff that
+     touches any file under `scripts/` or `workflows/` **while** the inlined `tasks.md` or apply
+     stage-record (`stages/apply.json`) carries a prose-exemption **evidence** claim — the literal
+     `RED: not applicable — prose contract` line in `tasks.md`, or the apply record's closed exempt
+     entry `{ …, exempt: "prose contract", … }` (its inlined `tests`-array shape) — is a **High**
+     finding. This detector matches **only that evidence form** — it does **not** match a bare
+     `[prose-exempt: <reader>]` planner marker on a `tasks.md` checkbox, which is `ptp-writing-plans`'
+     unrelated testability-shape tag for a checkbox that changes no executable behavior and carries no
+     RED/GREEN evidence of its own; a plan may carry that marker on one checkbox and still edit
+     `scripts/`/`workflows/` in another without tripping this rule. The match is **deterministic and
+     needs no file-name association** — the prose-contract exemption is void once the change also
+     touches executable code, so an evidence-form exemption claim present anywhere in those inlined
+     artifacts while the diff edits a `scripts/`/`workflows/` file is itself the violation; the claim
+     need not name the executable path (the exemption format names the bound reader, not a file).
+     Under `advisory`
+     this finding class does not apply.
    - Honor the inlined severity threshold, stated as a literal line in the prompt:
      *"Severity threshold: `<T>`. Classify every finding Critical/High/Medium/Low as usual and list
      them all. Findings below `<T>` MUST be marked non-blocking and MUST NOT affect the verdict
      line. Do not read any config file and do not run any command to determine the threshold — the
      value above is authoritative."*
+   - Honor the inlined `tdd` literal, stated as a literal line in the prompt: *"TDD enforcement:
+     `<tdd>`. Under `mandatory` apply the narrowed (c1) tests-required rule and the prose-exemption
+     rubric stated in the instructions above; under `advisory` both are inert. Do not read any config
+     file or run any command to determine this — the value above is authoritative."*
    - End with exactly one line: `READY TO ARCHIVE` (no **actionable** Critical/High) or `NEEDS FIXES` (any **actionable** Critical/High). The single-line-at-the-end format is unchanged — the verdict tokens and their placement are byte-identical to today; only which findings count toward them is qualified.
 5. **Run Codex over stdin (you, via Bash from the repo root):**
    ```bash
@@ -108,7 +152,7 @@ The required set is therefore: the contract artifacts, the merge-base diff, the 
 
 - Do **not** count required manual tests that have not yet been performed as findings. Manual tests are a future verification step; their absence is not a code defect.
 - **This command only reviews and displays findings. It NEVER fixes anything.** Do not edit code, do not stage, do not commit — not even if Critical/High findings are obvious, and not even if the user's phrasing sounds like "deal with it." Report the findings and stop. Fixing is a separate, explicit user action (`/ptp:review-fix`).
-- The **caller** captures the diff, runs `openspec validate` / tests, **and resolves `review.minSeverity`**, inlining the resolved value as a literal; **Codex runs no `npx`/network/install commands** and is never asked to read `config.json` or resolve the threshold itself. Pass the prompt over stdin.
+- The **caller** captures the diff, runs `openspec validate` / tests, **and resolves `review.minSeverity` and `tdd`**, inlining each resolved value as a literal (and, when `tdd = mandatory`, inlining the apply stage-record for the prose-exemption rubric); **Codex runs no `npx`/network/install commands** and is never asked to read `config.json` or resolve the threshold or `tdd` itself. Pass the prompt over stdin.
 - Assemble the `codex exec` invocation per the `ptp-codex-mode` flag-append rule (append resolved `-m`/`-c` flags before the trailing `-` when `codex.model`/`codex.reasoningEffort` are configured).
 - Do **not** archive in this command.
 - Do **not** run Codex with a writable or bypassed sandbox (`workspace-write` / `danger-full-access`) — the reviewer must not edit the code.

@@ -9,7 +9,7 @@
     "descriptions": {
       "ptp-requesting-code-review": "Use when conducting a code or artifact review pass and emitting findings.",
       "ptp-receiving-code-review": "Use when judging review findings before changing anything in response.",
-      "ptp-verification-before-completion": "Use before claiming work complete, fixed, or passing."
+      "ptp-verification-before-completion": "Use before you claim that work is complete, fixed, or passing."
     },
     "requiredReferences": {
       "ptp-requesting-code-review": [

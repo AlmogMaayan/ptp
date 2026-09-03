@@ -409,10 +409,10 @@ defect. How a rejection is spelled on the wire is internal to the executable hal
 It states no parameter's kind, domain, default, or validity. Each of those stays with the skill that
 already owns that parameter — `codex.*` with `ptp-codex-mode`, `roles.*` with `ptp-agent-roles`,
 `review.*` with `ptp-review-loop`, `parallel.*` with `ptp-parallel-fanout`, `deploy.*` with
-`ptp-deploy`, `telemetry.*` with `ptp-telemetry`, `backlog.*` with `ptp-github-projects-gh` — so this
-contract adds no second authority over any configuration key. A key whose value is interpreted
-relative to some root keeps that rule with its owner as well; this contract decides only which layer
-supplied it.
+`ptp-deploy`, `telemetry.*` with `ptp-telemetry`, `backlog.*` with `ptp-github-projects-gh`, `tdd` with `ptp-test-driven-development`
+— so this contract adds no second authority over any configuration key. A key whose value is
+interpreted relative to some root keeps that rule with its owner as well; this contract decides only
+which layer supplied it.
 
 ### The executable half
 

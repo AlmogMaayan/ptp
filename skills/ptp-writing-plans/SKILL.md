@@ -42,8 +42,20 @@ checkboxes above it. The last checkbox verifies the automatable success criteria
   substitute-else-relocate ladder are owned by the `tasks-authoring` capability
   (`openspec/specs/tasks-authoring/spec.md`): follow it, never restate it.
 
+Every checkbox additionally declares its testability through **exactly one of two shapes**, chosen by
+whether it **changes executable behavior**:
+
+- a checkbox that **changes executable behavior** ends its `verify:` clause by **naming the specific
+  test file and test case** it adds or extends — a concrete path plus the case's name or id — and
+  never discharges it with a bare "run the tests" or "the suite passes" that names no case;
+- a checkbox that **changes no executable behavior** — a prose-only edit to a `SKILL.md`, a
+  `commands/*.md`, or a spec delta — instead carries the literal marker
+  `[prose-exempt: <reader it binds>]` naming who or what consumes that prose. `[prose-exempt: plan
+  authors of ptp-writing-plans]`.
+
 A checkbox that only gates — the isolation check, the final verification box — names the files it
-**verifies** instead, and is the one shape exempt from naming a file it changes.
+**verifies** instead, and is the one shape exempt from naming a file it changes and from both
+testability shapes.
 
 ## Never
 

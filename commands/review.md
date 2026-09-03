@@ -32,6 +32,9 @@ per-change pass, reporting per change.)
    - `design.md` — decisions
    - `tasks.md` — what was supposed to be done
    - `specs/**/spec.md` — the behavior contract
+   - `stages/apply.json` — the apply stage-record, read (alongside `tasks.md`) for a prose-exemption
+     claim when the `tdd = mandatory` check in step 5 applies; a missing or unreadable record is not
+     an error (no claim present)
 2. **Identify the diff** for this change. Prefer:
    - `git diff` against the merge base (if in a git repo and a feature branch is in use), OR
    - The files that the tasks explicitly touched.
@@ -51,6 +54,29 @@ per-change pass, reporting per change.)
    Classification is **threshold-independent**: every finding is classified by this unchanged rubric
    and listed regardless of the configured severity threshold. The threshold applies only at step 6,
    and only to what **blocks**.
+
+   **TDD enforcement (`tdd`).** Resolve the top-level `tdd` key from layered ptp config **once**, at
+   the start of this pass, held fixed — layered as `ptp-workspace` (`skills/ptp-workspace/SKILL.md`)
+   defines, enum `advisory | mandatory`, default `advisory`; a missing file, missing key,
+   unparseable JSON, or unrecognized value degrades to `advisory` without erroring or STOPping.
+   Under `tdd = mandatory` one additional **High** finding class applies: a reviewed diff that
+   touches any file under `scripts/` or `workflows/` **while** the change's `tasks.md` or apply
+   stage-record (`stages/apply.json`) carries a prose-exemption **evidence** claim — the literal
+   `RED: not applicable — prose contract` line in `tasks.md`, or the apply record's closed exempt
+   entry `{ …, exempt: "prose contract", … }` (its `tests`-array shape, per `agents/ptp-apply.md`) —
+   is **High**. This detector matches **only that evidence form** — it does **not** match a bare
+   `[prose-exempt: <reader>]` planner marker on a `tasks.md` checkbox, which is `ptp-writing-plans`'
+   unrelated testability-shape tag for a checkbox that changes no executable behavior and carries no
+   RED/GREEN evidence of its own; a plan may carry that marker on one checkbox and still edit
+   `scripts/`/`workflows/` in another without tripping this rule. The match is **deterministic and
+   needs no file-name association**: `skills/ptp-test-driven-development/SKILL.md` voids the
+   prose-contract exemption "when the change also touches executable code," so an evidence-form
+   exemption claim present anywhere in those artifacts while the same diff edits a
+   `scripts/`/`workflows/` file is itself the violation — the claim need not name the executable path
+   (the exemption format names the bound reader, not a
+   file). This reads the apply stage-record inside step 1's existing gather, adding no new pass.
+   Under `tdd = advisory` this finding class does not apply, and the `High` classification of a
+   missing test for a stated behavior above is unchanged in either mode.
 6. **Decide outcome**:
 
    **Severity threshold.** Resolve `review.minSeverity` from layered ptp config **once**, at the

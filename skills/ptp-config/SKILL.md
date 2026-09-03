@@ -217,11 +217,22 @@ parameters = [
     ],
     memberKind: "stringList",
     default:  undefined                           // unset = the built-in default table
+  },
+  {
+    key:      "tdd",
+    label:    "TDD enforcement",
+    jsonPath: ["tdd"],
+    kind:     "enum",
+    values: [
+      { value: "advisory",  desc: "TDD is recommended but not enforced (default)" },
+      { value: "mandatory", desc: "TDD is required" }
+    ],
+    default: "advisory"
   }
 ]
 ```
 
-**Parameter menu:** The registry currently holds twenty-two entries. Step 2 builds an `AskUserQuestion`
+**Parameter menu:** The registry currently holds twenty-three entries. Step 2 builds an `AskUserQuestion`
 menu from each entry's `label` value and presents it to the user. The flow is data-driven: adding
 a new entry to the registry automatically adds it to the menu with no further edits to this flow.
 
@@ -297,6 +308,7 @@ Build an `AskUserQuestion` menu from the registry entries' `label` values:
 20. **Backlog project owner** (`backlog.projectOwner`)
 21. **Backlog project number** (`backlog.projectNumber`)
 22. **Backlog status option names** (`backlog.statusOptions`)
+23. **TDD enforcement** (`tdd`)
 
 Use the selected entry's `jsonPath`, `kind`, `values` (for enum entries), and `default` for the
 remaining steps. This is data-driven off the registry — adding a parameter requires only a new
@@ -379,6 +391,9 @@ turns one invocation into several writes. The idempotency/no-op report, the `wri
        `backlog` exists but is not an object, STOP; **and** if `backlog.statusOptions` exists but is
        not an object (e.g. `{"backlog":{"statusOptions":"Ready"}}` or
        `{"backlog":{"statusOptions":null}}`), STOP.
+     - `tdd` is a **top-level** key (its `jsonPath` is a single segment, `["tdd"]`) — it has no
+       parent object, so it adds **no** parent-shape STOP row of its own. The existing root-object
+       check above already covers it: only a non-object root stops the command for `tdd`.
    - Absent parents (`codex`, `review`, `roles`, `telemetry`, `parallel`, `artifact`, or `backlog`
      not present in the root — and, for `backlog.statusOptions`, an absent `statusOptions` under a present `backlog`)
      are fine — they will be created as empty objects on write. This is not clobbering.
@@ -520,6 +535,21 @@ value written to the file is exactly the selected string (verbatim, lowercase). 
 Note when offering it: `on` is a **permission**, not a guarantee — a stage that cannot establish all
 four `ptp-parallel-fanout` safety conditions still runs serially, and no ptp command consumes this
 key until the fan-out consumer slices land.
+
+#### kind = `enum` (e.g. `tdd`)
+
+Use `AskUserQuestion` to offer the parameter's `values`. For `tdd`, the two valid values are:
+
+1. **`advisory`** — TDD is recommended but not enforced (default)
+2. **`mandatory`** — TDD is required
+
+These are the only options. **Never write a value that is not in the entry's `values` list** —
+never write an out-of-enum value for `tdd`. The value written to the file is exactly the selected
+string (verbatim, lowercase JSON string), written directly at the root (`tdd` has no parent object).
+
+State plainly at the point of selection: **no consumer reads this key yet** — this change is
+resolve-only, and the epic's enforcement slices are its first readers. Setting `advisory` or
+`mandatory` today changes no command's behavior.
 
 #### kind = `string` (e.g. `telemetry.root`)
 
@@ -751,7 +781,9 @@ With the resolved path, the base JSON object (from step 3), and the chosen value
      `{}`; for any `artifact.*` key: create `artifact` as `{}`; for
      `backlog.projectOwner` or `backlog.projectNumber`: create
      `backlog` as `{}`; for `backlog.statusOptions`: create `backlog` as `{}` and then
-     `statusOptions` as `{}` when absent, in the same manner as the existing parents.
+     `statusOptions` as `{}` when absent, in the same manner as the existing parents. For `tdd`
+     — a **top-level** key with no parent — there is no parent to create; the value is set on the
+     root object directly.
    - Set the targeted key to the chosen value.
    - Leave **every other key** (e.g. `deploy`, any unknown keys) and every other nested value
      **untouched**.
@@ -830,6 +862,7 @@ Examples:
 | Unresolvable workspace root | Omit the workspace entry, note the reason; do not STOP — the remaining targets stay selectable. |
 | Malformed workspace file (parse failure, non-object root, or a non-object parent for the selected key) | STOP, report, do **not** overwrite — same rule as any other target. |
 | Chosen value equals current stored value | Report no-op; do not write. |
+| `tdd` selection outside `advisory|mandatory` | Not offered — the enum menu only presents the two valid values. |
 
 ---
 
@@ -895,6 +928,8 @@ Examples:
   range 1 to 10 may be written. Any non-integer, non-numeric, string-typed, zero, negative, or
   above-10 input is rejected and re-prompted — never written, so the editor can never produce a
   configuration that disables the cap or invites a rate-limit incident.
+- **Never write an out-of-enum value for `tdd`.** Only `advisory` or `mandatory` may be written.
+  The value comes from the step 4 enum menu — never from free-form user input.
 - **Never write an invalid integer for an `artifact.*` budget.** Only a positive integer (`>= 1`)
   may be written for `artifact.maxProposalWords`, `artifact.maxDesignWords`, `artifact.maxTasksWords`,
   `artifact.maxTaskCount`, `artifact.maxTaskWords`, or `artifact.maxSpecDeltaWords`; anything else is
