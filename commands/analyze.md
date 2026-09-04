@@ -1,11 +1,11 @@
 ---
 description: Read-only investigation of a bug or question, writing an evidence-backed analysis doc into the change folder
-argument-hint: "<bug / observation / problem / question to investigate> [--workspace <path>]"
+argument-hint: "<bug / observation / problem / question to investigate> [model:<model>.<effort>] [--workspace <path>]"
 ---
 
 ## Arguments
 
-Take `$ARGUMENTS` as the free-text subject to investigate — a bug, an observation, a problem, or a question. It carries no change selector.
+Take `$ARGUMENTS` as the free-text subject to investigate — a bug, an observation, a problem, or a question. It carries no change selector. It MAY also carry an optional `model:<model>.<effort>` override token; see `skills/ptp-analyze/SKILL.md` for how it is parsed and honored.
 
 ## Owner
 
