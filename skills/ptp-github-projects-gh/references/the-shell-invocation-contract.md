@@ -197,7 +197,8 @@ path's, not any other's.
 - **Mutation only on the write path, and only from the closed enumerated set.** The write path
   (`skills/ptp-backlog-write/SKILL.md`) may issue a mutation through the passthrough, and **only** one of
   the admitted mutations enumerated in the companion table under [The gh surface](#the-gh-surface) and
-  specified in [The content-body mutation route](#the-content-body-mutation-route). Issuing any other
+  specified in `skills/ptp-github-projects-gh/references/content-body-mutation-route.md` §*The
+  content-body mutation route*. Issuing any other
   mutation through the passthrough is a contract violation, anywhere. Concretely, **no mutation that
   moves an item's position is admitted anywhere** — it is outside the closed set, and stating it here is
   an **application** of that set rather than a new prohibition. ptp reads the board's arrangement and
