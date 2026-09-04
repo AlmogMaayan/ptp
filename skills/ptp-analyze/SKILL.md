@@ -1,16 +1,17 @@
 ---
 name: ptp-analyze
-description: Own read-only diagnosis, writing a durable analysis doc into a change folder and proposing nothing
+description: Own read-only diagnosis, writing a durable analysis doc into a change folder and proposing nothing; opus-high, overridable via model token
 ---
 
 # ptp-analyze — read-only investigation, durable analysis doc
 
 ## Purpose
 
-**Model dispatch target.** `/ptp:analyze` runs this skill's work at `opus.high` via `ptp-run-at-model`,
-one foreground main run. See **## Run at model** below for the full dispatch protocol — the outer-session
-branch guard, the `ptp-run-at-model` invocation, and the result relay; this paragraph names the target
-only and restates none of that contract.
+**Model dispatch target.** `/ptp:analyze` runs this skill's work at `opus.high` by **default**, or at a
+valid caller-supplied `model:<model>.<effort>` override for that single invocation, via
+`ptp-run-at-model`, one foreground main run. See **## Run at model** below for the full dispatch
+protocol — the outer-session `model:` parse, the branch guard, the `ptp-run-at-model` invocation, and
+the result relay; this paragraph names the default target only and restates none of that contract.
 
 This skill conducts a **read-only investigation** of a bug, observed behavior, problem, or question and writes a structured, evidence-backed analysis document into the appropriate `openspec/changes/<change-id>/` folder. It is a **limited producer** (in the `ptp-change-selector` §5 Role A sense): it never produces a change *proposal* — it never writes proposal/design/tasks/spec-delta files and never applies a fix — but it may allocate a minimal change folder (via `ptp-change-selector` §4) only to house the analysis doc when no relevant active change exists. When a fix is warranted it recommends the appropriate next ptp step and stops.
 
@@ -28,19 +29,34 @@ analysis-doc write through `ptp-run-at-model`, in one foreground main run — ne
 model and effort the session happens to be set to. This section is the imperative dispatch step
 `commands/analyze.md` invokes by way of this skill; `commands/analyze.md` itself restates none of it.
 
-**Outer session — branch guard is the only outer-session precondition.** Run the `ptp-branch-guard`
-preamble first, before anything else, deriving the branch name from a ≤5-kebab-word summary of the
-subject per `ptp-branch-guard` *Branch naming* case 3. This is the command's only outer-session precondition — it allocates no change id in the outer session and asks the user nothing.
+**Outer session — parse the `model:` override (before the branch guard).** Scan the subject text as
+supplied for an optional `model:<model>.<effort>` override token per the "Optional caller-side `model:`
+override token" section of **`ptp-run-at-model`** — do not restate that grammar/validation here.
+
+- **Absent** → resolved target = `opus.high` (unchanged path); proceed to the branch guard with the
+  subject text as given.
+- **Exactly one valid candidate** → strip it from the subject text before the branch guard runs;
+  resolved target = the resolved `<model>.<effort>` literal.
+- **Invalid** (a `model:`-prefixed candidate with a bad model, bad effort, or wrong shape, or more than
+  one candidate) → **STOP immediately, in the outer session**, before the branch guard and before any
+  subagent spawn. Report the offending candidate(s) and the two valid enums
+  (`sonnet|opus|haiku|fable`, `low|medium|high|xhigh`).
+
+**Outer session — branch guard is the next outer-session precondition.** Run the `ptp-branch-guard`
+preamble next, deriving the branch name from a ≤5-kebab-word summary of the (now token-stripped)
+subject per `ptp-branch-guard` *Branch naming* case 3. This is the command's only other outer-session
+precondition — it allocates no change id in the outer session and asks the user nothing.
 
 **Outer session — invoke `ptp-run-at-model`.** Once the guard has returned (or no-opped), invoke
-`ptp-run-at-model` once at target `opus.high`, with the work being this skill's classification, routing,
-read-only investigation, change-folder resolution, and analysis-doc write — i.e. everything below this
-section, run inside the spawned main run rather than in the outer session.
+`ptp-run-at-model` once at the **resolved target** (`opus.high` by default, or the valid `model:`
+override), with the work being this skill's classification, routing, read-only investigation,
+change-folder resolution, and analysis-doc write — i.e. everything below this section, run inside the
+spawned main run rather than in the outer session.
 
-**The main run's prompt must carry:** the raw subject text (unmodified, so classification, routing,
-change-folder resolution/allocation, and the doc write all run inside the main run against the original
-subject); and a note that its own `ptp-branch-guard` check is a **no-op** — HEAD is already on the
-feature branch — so it must **not** launch `ptp-branch-prep`.
+**The main run's prompt must carry:** the token-stripped subject text (so classification, routing,
+change-folder resolution/allocation, and the doc write all run inside the main run against the
+token-free subject); and a note that its own `ptp-branch-guard` check is a **no-op** — HEAD is already
+on the feature branch — so it must **not** launch `ptp-branch-prep`.
 
 **Result relay.** The outer session relays the main run's terminal result per `ptp-run-at-model`'s
 *Result relay*, keeping `completed`, `refused`, and `needs-human-action` distinct. An investigation that
