@@ -50,7 +50,7 @@ restate them.
 Phase 1 is the **main agent's** review loop (always runs). At the default `roles.main=claude` the main agent is Claude and runs the PTP phase, so pass `reviewer = ptp`; when `roles.main=codex` the main agent is Codex, so pass `reviewer = codex`. Invoke the `ptp-review-loop` skill with:
 
 - `kind = code`
-- `reviewer = <the main phase>` (`ptp` by default; `codex` when `roles.main=codex`)
+- `reviewer = <the dispatch of the agent playing main>` (`ptp` by default; `codex` when `roles.main=codex` — the `reviewer` input names the review dispatch running the pass, per `ptp-review-loop` **## Inputs**)
 - `change-id = <the resolved change id>` (the single id being processed this pass — not the raw `$ARGUMENTS` selector)
 - `fixDispatch = inline`
 - `runningTarget = <this command's resolved main-run target per ptp-agent-roles>`
@@ -67,7 +67,7 @@ The skill drives the full loop: per-iteration code review by the main agent, man
 If and only if Phase 1 terminates with `DONE` **and** the gate permits the reviewer phase, invoke the `ptp-review-loop` skill with:
 
 - `kind = code`
-- `reviewer = <the reviewer phase>` (`codex` by default; `ptp` when `roles.main=codex`)
+- `reviewer = <the dispatch of the agent playing reviewer>` (`codex` by default; `ptp` when `roles.main=codex`)
 - `change-id = <the resolved change id>` (the single id being processed this pass — not the raw `$ARGUMENTS` selector)
 - `fixDispatch = inline`
 - `runningTarget = <this command's resolved main-run target per ptp-agent-roles>`

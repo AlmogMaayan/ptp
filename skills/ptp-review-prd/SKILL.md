@@ -27,6 +27,31 @@ existing specs/changes for context) and reports.
 
 ---
 
+## Role resolution
+
+Resolve `{ main, reviewer }` from `roles.main` via the **`ptp-agent-roles`** skill. At the default
+`main = claude` the review pass below is run **in-session by Claude**, byte-identical to before this
+change. At `main = codex`, the review pass is instead a **read-only** `codex exec -s read-only`
+dispatch over this skill's own rubric — the `(kind = prd, reviewer = codex)` dispatch
+`ptp-review-loop` already defines — assembled per the **`ptp-codex-mode`** skill's canonical
+flag-append rule (append resolved `-m <model>` / `-c model_reasoning_effort=<effort>` before the
+trailing `-` when `codex.model` / `codex.reasoningEffort` are configured), taking its model and
+effort from `codex.model` / `codex.reasoningEffort`. This is the **read-only reviewer invocation**,
+never `ptp-run-at-model`'s write-capable `-s workspace-write` main-implementer invocation — this
+review edits nothing in either direction, runs no `openspec validate` in either direction, and
+triggers no other ptp command. At `main = codex`, run the `codex-review-plan.md` closed-book
+protocol inline, retargeted to the PRD file `openspec/changes/<id>/prd.md` and with **NO**
+`openspec validate` (a PRD precedes any proposal/spec): read the PRD file and any cited context
+yourself, build one self-contained prompt carrying the rubric below plus the full PRD text and
+cited excerpts, and pipe it to `codex exec -s read-only` over stdin. A *main* phase carries no
+`codex.mode` gate (that gates a *reviewer*), so this skill owns its own precondition: when the
+resolved dispatch is `codex`, verify `codex --version` is on PATH before running the pass; if
+`codex` is absent, **STOP** and tell the user to install `codex` or set `roles.main = claude` in
+`/ptp:config`, rather than silently falling back to a Claude pass. This skill's description stays a
+"main-agent" pass in both directions.
+
+---
+
 ## Locating the PRD
 
 PRDs are **epic-scoped** (one per epic), anchored to the epic's lowest-numbered story change folder.

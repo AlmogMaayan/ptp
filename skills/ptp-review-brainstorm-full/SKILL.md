@@ -43,7 +43,7 @@ main agent is Claude and runs the PTP phase, so pass `reviewer = ptp`; when `rol
 agent is Codex, so pass `reviewer = codex`. Invoke the **`ptp-review-loop`** skill with:
 
 - `kind = brainstorm`
-- `reviewer = <the main phase>` (`ptp` by default; `codex` when `roles.main=codex`)
+- `reviewer = <the dispatch of the agent playing main>` (`ptp` by default; `codex` when `roles.main=codex` — the `reviewer` input names the review dispatch running the pass, per `ptp-review-loop` **## Inputs**)
 - `change-id` = the resolved change id
 
 The loop drives the full iteration: review→confirm→fix-`brainstorm.md`→verify(N/A) until it terminates
@@ -105,7 +105,7 @@ Codex**; a Claude reviewer is never gated and always runs.
 **`ptp-review-loop`** skill with:
 
 - `kind = brainstorm`
-- `reviewer = <the reviewer phase>` (`codex` by default; `ptp` when `roles.main=codex`)
+- `reviewer = <the dispatch of the agent playing reviewer>` (`codex` by default; `ptp` when `roles.main=codex`)
 - `change-id` = the resolved change id
 
 Phase 2 starts with **fresh loop state**: Phase 1's `rejected_findings` do **not** carry over — the

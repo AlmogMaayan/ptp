@@ -60,7 +60,7 @@ agent is Claude and runs the PTP phase, so pass `reviewer = ptp`; when `roles.ma
 agent is Codex, so pass `reviewer = codex`. Invoke the **`ptp-review-loop`** skill with:
 
 - `kind = prd`
-- `reviewer = <the main phase>` (`ptp` by default; `codex` when `roles.main=codex`)
+- `reviewer = <the dispatch of the agent playing main>` (`ptp` by default; `codex` when `roles.main=codex` — the `reviewer` input names the review dispatch running the pass, per `ptp-review-loop` **## Inputs**)
 - the resolved **epic** and the **PRD file path** `openspec/changes/<id>/prd.md` (the change-folder
   PRD path, in place of a change folder's `brainstorm.md` or artifact)
 - `deferMarker = true`
@@ -125,7 +125,7 @@ Codex**; a Claude reviewer is never gated and always runs.
 **`ptp-review-loop`** skill with:
 
 - `kind = prd`
-- `reviewer = <the reviewer phase>` (`codex` by default; `ptp` when `roles.main=codex`)
+- `reviewer = <the dispatch of the agent playing reviewer>` (`codex` by default; `ptp` when `roles.main=codex`)
 - the resolved **epic** and the **PRD file path** `openspec/changes/<id>/prd.md`
 - `deferMarker = true`
 

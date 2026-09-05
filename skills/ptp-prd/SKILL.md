@@ -141,6 +141,12 @@ free-text condition (a/b/c) from that raw argument before allocating.
 Reference the `ptp-run-at-model` skill for the spawn-and-relay mechanics rather than restating them
 here.
 
+**Codex work-prompt delivery.** Under `main=codex`, this skill's own protocol plus `ptp-change-selector`
+and their transitive closure must reach the Codex main run, per `ptp-run-at-model`'s *The `main=codex`
+direction* and `ptp-skill-contract` § *Agent neutrality*, by one of that section's two delivery modes.
+The external `prd:generate` skill this authoring may reference is **not** PTP-owned and is out of this
+contract.
+
 ---
 
 ## Phase 0 — backend resolution

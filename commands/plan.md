@@ -52,6 +52,12 @@ outer guard), so it must **NOT** attempt to launch the `ptp-branch-prep` Workflo
 nothing of its own — it only invokes Skills (`ptp-brainstorming`, `ptp-writing-plans`,
 `ptp:effort`) inline in the subagent's own context — so it wraps cleanly with no second nesting level.
 
+**Codex work-prompt delivery.** Under `main=codex`, the PTP-owned files this run invokes —
+`ptp-brainstorming`, `ptp-writing-plans`, and the `/ptp:effort` rubric (`commands/effort.md`) that
+step 5 applies — plus their transitive closure must reach the Codex main run, per
+`ptp-run-at-model`'s *The `main=codex` direction* and `ptp-skill-contract` § *Agent neutrality*, by
+one of that section's two delivery modes.
+
 2. **Run the PTP planning skills in this order** — both MUST be invoked via the Skill tool:
    - **(a) `ptp-brainstorming`** — required first if the design doc was missing or shallow. Produces the rationale, alternatives, and design depth that feeds `proposal.md`. Skip only when `brainstorm.md` already carries a decision capsule with substance — a stated decision, its material alternatives (or the recorded reason only one direction is viable), and its assumptions.
 

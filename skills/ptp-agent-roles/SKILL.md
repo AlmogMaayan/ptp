@@ -17,10 +17,6 @@ This skill is a **pure resolver**: config-in, role-pair-out. It performs no git,
 probe, and edits nothing. It is the role-naming analog of `ptp-codex-mode` (reviewer gate) and
 `ptp-change-selector` (id grammar).
 
-**This slice (0027_01) only defines the contract.** No orchestrator, reviewer, implementer, or
-apply/effort file references or consumes this skill yet — that wiring happens in 0027_02
-(reviewer-gate direction), 0027_03 (review orchestrators), and 0027_04 (main-implementer path).
-
 ## Resolving `roles.main` (mirrors `ptp-codex-mode`'s `codex.mode` resolution)
 
 Resolve `roles.main` through the layered configuration contract owned by **`ptp-workspace`**
@@ -118,15 +114,13 @@ slash command, so Codex can never "drive" the initial command. `roles.main=codex
 **not** mean the user launched a different CLI; it means the heavy planning/implementation work
 is delegated to `codex exec` while Claude reviews in-session (the mirror of today's
 Claude-main/Codex-reviewer default). Later slices (0027_02/03/04) consume this distinction when
-they generalize the reviewer gate and the implementer path; this slice only names it.
+they generalize the reviewer gate and the implementer path.
 
 ## Default-preservation invariant
 
 When `roles.main` resolves to the default `claude`, every existing ptp flow remains
 **byte-identical** to its behavior before this change: Claude is the main planning/implementation
-agent working in-session and Codex is the gated reviewer. This slice modifies no orchestrator,
-reviewer, implementer, `ptp-run-at-model`, `ptp-codex-mode`, or apply/effort file — it is
-deliberately inert at the default value.
+agent working in-session and Codex is the gated reviewer.
 
 ## Summary of the contract
 
@@ -144,5 +138,4 @@ deliberately inert at the default value.
 - The Claude Code session is always the outer harness; `roles.main=codex` designates which agent
   runs the heavy work, not which CLI the user launched — genuine CLI-driver detection is
   impossible here, which is why `PTP_MAIN_AGENT` is opt-in/best-effort rather than detection.
-- Default (`claude`, no config, no env var) preserves all existing behavior; this skill defines
-  the contract only — no consumer wiring in this slice.
+- Default (`claude`, no config, no env var) preserves all existing behavior.

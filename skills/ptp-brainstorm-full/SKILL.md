@@ -84,6 +84,10 @@ call — no nesting concern.
 Relay the Phase A result: the absolute path of the written `brainstorm.md` (or the failure description
 if the subagent did not write it).
 
+**Codex work-prompt delivery (Phase A).** Under `main=codex`, the PTP-owned `ptp-brainstorming` skill
+plus its closure must reach this Codex main run, per `ptp-run-at-model`'s *The `main=codex` direction*
+and `ptp-skill-contract` § *Agent neutrality*, by one of that section's two delivery modes.
+
 ---
 
 ## Brainstorm-gate
@@ -117,6 +121,10 @@ Phase 2 Codex, byte-identical to before.
 
 Relay the Phase B terminal state exactly as `ptp-review-brainstorm-full` emits it — never downgrade
 or misreport it.
+
+**Codex work-prompt delivery (Phase B).** Under `main=codex`, the PTP-owned `ptp-review-brainstorm-full`
+skill plus its closure must reach this Codex main run, per `ptp-run-at-model`'s *The `main=codex`
+direction* and `ptp-skill-contract` § *Agent neutrality*, by one of that section's two delivery modes.
 
 ---
 

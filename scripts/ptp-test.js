@@ -78,6 +78,18 @@ function buildSteps(changeId) {
       args: [scriptPath('scripts/sync-openspec-skills.js'), '--check'],
       grade: (run) => run.status === 0,
     },
+    {
+      name: 'roles-resolver-self-test',
+      command: 'node scripts/ptp-resolve-roles.js --self-test',
+      args: [scriptPath('scripts/ptp-resolve-roles.js'), '--self-test'],
+      grade: (run) => run.status === 0,
+    },
+    {
+      name: 'apply-role-tests',
+      command: 'node scripts/ptp-apply-role-tests.js',
+      args: [scriptPath('scripts/ptp-apply-role-tests.js')],
+      grade: (run) => run.status === 0,
+    },
   ];
 
   if (changeId) {
@@ -126,7 +138,7 @@ function printUsage() {
       '  node scripts/ptp-test.js --help',
       '  node scripts/ptp-test.js --list',
       '',
-      'Runs, in order: skill-behavior-tests, prompt-budgets, openspec-skill-sync, compact-lint.',
+      'Runs, in order: skill-behavior-tests, prompt-budgets, openspec-skill-sync, roles-resolver-self-test, apply-role-tests, compact-lint.',
       'The compact-lint step is skipped when no change id is supplied. Exits non-zero on any failure.',
       '',
     ].join('\n') + '\n'
@@ -134,7 +146,14 @@ function printUsage() {
 }
 
 function printList() {
-  const names = ['skill-behavior-tests', 'prompt-budgets', 'openspec-skill-sync', 'compact-lint'];
+  const names = [
+    'skill-behavior-tests',
+    'prompt-budgets',
+    'openspec-skill-sync',
+    'roles-resolver-self-test',
+    'apply-role-tests',
+    'compact-lint',
+  ];
   for (const n of names) process.stdout.write(n + '\n');
 }
 

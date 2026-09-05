@@ -30,6 +30,11 @@ For **each resolved change** in order (one change fully applied before starting 
 
 The **main run's own `ptp-branch-guard` check is a no-op**: HEAD is already on the feature branch when the main work runs, so the subagent (or the shelled-out Codex) **must not** attempt to launch `ptp-branch-prep`.
 
+**Codex work-prompt delivery.** Under `main=codex`, the PTP-owned `ptp-test-driven-development` and
+`ptp-verification-before-completion` skills plus their closure must reach this write-capable Codex
+main run, per `ptp-run-at-model`'s *The `main=codex` direction* and `ptp-skill-contract` §
+*Agent neutrality*, by one of that section's two delivery modes.
+
 **Relay** the subagent's terminal result per `ptp-run-at-model`: a refusal or `needs-human-action` state is surfaced verbatim and does **not** silently proceed to the next change.
 
 ## Subagent responsibilities (the apply per-task implementation protocol)

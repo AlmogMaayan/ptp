@@ -37,8 +37,7 @@ Your **diff scope** is the merge-base diff of the change's branch: `git merge-ba
 `git diff <base>...HEAD`. Review the code in that diff against the contract artifacts above.
 
 Never edit a planning artifact (`proposal.md`, `design.md`, `tasks.md`, spec deltas) — code only.
-Never fix an unconfirmed finding, never fix a below-threshold finding, never commit, never archive,
-and never run apply.
+Never fix an unconfirmed or below-threshold finding, never commit, archive, or run apply.
 
 ## Task
 
@@ -46,13 +45,13 @@ Run two review loops in sequence: **Phase 1**, the main agent's loop, which alwa
 **Phase 2**, the reviewer agent's loop, which starts only when Phase 1 converged and, when the
 reviewer is Codex, only when the `codex.mode` decision permits Codex. A Claude reviewer is never
 gated. Phase 2 starts with fresh loop state: Phase 1's rejections and its below-threshold bucket do
-not carry over.
+not carry over. Set `reviewer` to the agent's dispatch for that role (`main`/Phase 1, `reviewer`/
+Phase 2) per `skills/ptp-review-loop/SKILL.md` **## Inputs**, never a phase label.
 
 Each iteration of each phase runs review → filter → carry-over → confirm → fix → verify →
 terminate exactly as `skills/ptp-review-loop/SKILL.md` defines in its **## Per-iteration steps** and
 **## Terminal states** sections, at the resolved cap and the resolved severity floor. That skill is
-the normative source for the two-part filter, the severity partition and its below-threshold bucket,
-the carry-over rejection list, and the convergence and cap outcomes. Read it; do not restate it.
+the normative source for those steps and the convergence and cap outcomes. Read it; do not restate it.
 
 - **A Codex review pass** reads the contract yourself, captures the diff yourself, runs
   `npx -y openspec validate <change-id> --strict` and the relevant tests yourself, inlines all of it
@@ -64,11 +63,12 @@ the carry-over rejection list, and the convergence and cap outcomes. Read it; do
 - **A Claude review pass** reviews in session against the contract, invoking
   `ptp-requesting-code-review` and `ptp-receiving-code-review` when you hold the
   `Skill` tool.
-- **Fix targets** are evaluated per `skills/ptp-review-loop/SKILL.md`'s **## Fix dispatch** section,
-  which owns the freeze point, the `/ptp:effort … mode:fix` invocation, the adopt-the-effort-half
-  rule, the no-fix-work-to-size case, and the degradation posture. How a fix target's **model** half
-  is honored at a spawn boundary is defined in `skills/ptp-run-at-model/SKILL.md`. Follow both by
-  reference.
+- **Fix targets and routing** follow `skills/ptp-review-loop/SKILL.md`'s **## Fix dispatch** section
+  (freeze point, `/ptp:effort … mode:fix`, adopt-the-effort-half rule, degradation posture); a fix
+  target's **model** half is honored at a spawn boundary per `skills/ptp-run-at-model/SKILL.md`.
+  Routing is **role-aware**: under `roles.main = codex` this agent edits **nothing** and **both**
+  phases' confirmed fixes go to the Codex main via the write-capable `codex exec` shell-out (`fixTarget`
+  advisory there); under `main = claude` it fixes in-session.
 
 At **every** terminal outcome, and before returning your JSON, perform **exactly one**
 `openspec/changes/<change-id>/stages/code.json` write, using the schema, the fingerprint and the
@@ -85,8 +85,8 @@ after your last fix edit; if it cannot be computed, omit the field entirely and 
 Set `reviewTally` by aggregating your **own two inlined phase loops** exactly as
 `skills/ptp-review-loop/SKILL.md`'s **### Combined review tally** rule states — cited, not restated.
 Only its two consequences for you are stated here: it is **not** resolved last-phase-wins the way
-`iterations` / `minSeverity` above are, and, whenever the field is present at all (in the marker or in the return), its key set equals
-`reviewers`.
+`iterations` / `minSeverity` above are, and, whenever present (in the marker or return), its key set
+equals `reviewers`.
 You reach the combined state **by construction** rather than by `deferMarker`. **Render no table**:
 your final message is JSON with no prose, so that rule's `unknown` rendering never applies to you.
 Carry the same aggregate into both this `stages/code.json` write and your returned JSON. If a tally

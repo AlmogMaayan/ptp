@@ -63,6 +63,10 @@ the subagent must **NOT** attempt to launch the `ptp-branch-prep` Workflow. Its 
 nothing — it invokes `ptp-brainstorming` as an inline Skill call — so there is no nesting
 concern.
 
+**Codex work-prompt delivery.** Under `main=codex`, the PTP-owned `ptp-brainstorming` skill plus its
+closure must reach the Codex main run, per `ptp-run-at-model`'s *The `main=codex` direction* and
+`ptp-skill-contract` § *Agent neutrality*, by one of that section's two delivery modes.
+
 2. **Load context** — read the relevant project files. If `openspec/project.md` exists, read it. **If
    `ptp-run-at-model`'s optional part (f) supplied an inlined `openspec list` / `openspec list --specs`
    snapshot, use that snapshot in place of running the commands below** — this step still runs

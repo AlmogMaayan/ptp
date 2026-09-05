@@ -58,6 +58,11 @@ change-folder resolution/allocation, and the doc write all run inside the main r
 token-free subject); and a note that its own `ptp-branch-guard` check is a **no-op** — HEAD is already
 on the feature branch — so it must **not** launch `ptp-branch-prep`.
 
+**Codex work-prompt delivery.** Under `main=codex`, the PTP-owned files this main run invokes —
+`ptp-systematic-debugging` (bug route), this skill's own protocol, and `ptp-change-selector` — plus
+their transitive closure must reach the Codex main run, per `ptp-run-at-model`'s *The `main=codex`
+direction* and `ptp-skill-contract` § *Agent neutrality*, by one of that section's two delivery modes.
+
 **Result relay.** The outer session relays the main run's terminal result per `ptp-run-at-model`'s
 *Result relay*, keeping `completed`, `refused`, and `needs-human-action` distinct. An investigation that
 ends inconclusively — the doc's *Recommended next step* reading "Needs more info: <what>" — still relays
