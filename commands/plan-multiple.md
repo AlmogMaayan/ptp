@@ -132,6 +132,11 @@ outer session) runs the members. Notes the beat-2 prompt MUST carry:
   explicitly permits the `completed` payload to be **a structured text block rather than prose**, and
   the human-facing account of the split is beat 3's step-6 report, which the outer session emits from
   this block.
+- **Codex work-prompt delivery.** Under `main=codex`, beat 2 delivers the PTP-owned `ptp-brainstorming`
+  skill, and each beat-3 member in turn runs `/ptp:plan`'s own steps 2–6 — carrying `plan.md`'s own
+  Codex work-prompt delivery note and closure. Per `ptp-run-at-model`'s *The `main=codex` direction*
+  and `ptp-skill-contract` § *Agent neutrality*, these PTP-owned files plus their transitive closure
+  must reach the Codex main run by one of that section's two delivery modes.
 - If beat 2 instead returns **`refused`** or **`needs-human-action`**, that terminal state is relayed
   **as itself** — the outer session reports the reason, plus (for `needs-human-action`) the exact
   follow-up command, and stops. It is **not** re-labelled an unparseable-return refusal, and beat 3

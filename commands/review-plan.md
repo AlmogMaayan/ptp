@@ -21,20 +21,45 @@ Change id (optional): $ARGUMENTS
 
 Resolve `$ARGUMENTS` as a change selector per the `ptp-change-selector` skill; if it resolves to more than one change, run the steps below for each, in story order, reporting per change. Preserve the existing empty-argument default: omitting `$ARGUMENTS` reviews all active changes.
 
+## Role resolution
+
+Resolve `{ main, reviewer }` from `roles.main` via the **`ptp-agent-roles`** skill. At the default
+`main = claude` the review pass below is run **in-session by Claude**, **byte-identical** to before
+this change. At `main = codex`, the review pass is instead a **read-only** `codex exec -s read-only`
+dispatch — the `(kind = artifact, reviewer = codex)` review-pass dispatch `ptp-review-loop` already
+defines, over this file's own rubric — assembled per the **`ptp-codex-mode`** skill's canonical
+flag-append rule (append resolved `-m <model>` / `-c model_reasoning_effort=<effort>` before the
+trailing `-` when `codex.model` / `codex.reasoningEffort` are configured), taking its model and
+effort from `codex.model` / `codex.reasoningEffort`. This is the **read-only reviewer invocation**,
+never `ptp-run-at-model`'s write-capable `-s workspace-write` main-implementer invocation — this
+audit edits nothing in either direction. A *main* phase carries no `codex.mode` gate (that gates a
+*reviewer*), so this command owns its own precondition: when the resolved dispatch is `codex`,
+verify `codex --version` is on PATH before running the pass; if `codex` is absent, **STOP** and tell
+the user to install `codex` or set `roles.main = claude` in `/ptp:config`, rather than silently
+falling back to a Claude pass. This command's description stays a "main-agent" pass in both
+directions — it is never renamed to "the Claude pass".
+
 ## Steps
 
 This command is **read-only** — it runs **no** branch guard (it never writes). Its artifact-audit
 work runs **at a deterministic model** via the **`ptp-run-at-model`** skill at `opus.high`. The outer
 session runs only the abort-guaranteeing preconditions first — selector disambiguation that must STOP
-and ask the user, and (per resolved change) change-folder existence — while the empty-argument
-review-all-active default is preserved (see *Inputs* and step 1). It then invokes
-**`ptp-run-at-model`** with target `opus.high` to run the review work below **over the
-already-resolved scope** (the audit work of steps 2–6; step 1's scope resolution and its STOP-and-ask
-disambiguation are the outer precondition above, so the subagent does not re-decide scope); that
-spawns one foreground `opus` subagent (high effort directive) which runs the inline rubric, per-change
-verdict, and summary table, **editing nothing**, and the subagent's outcome is relayed back per
-`ptp-run-at-model`'s *Result relay*. (For a multi-change or empty-argument review-all selector, the
-one subagent handles the whole per-change pass.)
+and ask the user, (per resolved change) change-folder existence, and the role resolution above
+(including the `codex` on-PATH STOP) — while the empty-argument review-all-active default is
+preserved (see *Inputs* and step 1). It then invokes **`ptp-run-at-model`** with target `opus.high`
+to run the review work below **over the already-resolved scope** (the audit work of steps 2–6; step
+1's scope resolution and its STOP-and-ask disambiguation are the outer precondition above, so the
+subagent does not re-decide scope); that spawns one foreground `opus` subagent (high effort
+directive) which runs the inline rubric, per-change verdict, and summary table, using the
+**resolved main agent's dispatch** from *Role resolution* above — **editing nothing** — and the
+subagent's outcome is relayed back per `ptp-run-at-model`'s *Result relay*. (For a multi-change or
+empty-argument review-all selector, the one subagent handles the whole per-change pass.)
+
+**Dispatch of the rubric below.** At `main = claude`, run the rubric in-session exactly as written
+below. At `main = codex`, run the `codex-review-plan.md` closed-book protocol inline instead over
+this same rubric: gather the artifacts, run `openspec validate` and the compactness lint yourself,
+collect cited source excerpts yourself, build one closed-book prompt carrying the rubric below, and
+pipe it to `codex exec -s read-only` over stdin per *Role resolution* above.
 
 1. **Resolve scope:**
    - If `$ARGUMENTS` names a change, review just that change.

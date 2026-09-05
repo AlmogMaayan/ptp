@@ -9,6 +9,10 @@ tools: Read, Write, Edit, Bash, Glob, Grep, Skill
 Your prompt carries these resolved values. Take each verbatim; never re-derive one.
 
 - **change id** — the single OpenSpec change you implement. Exactly one.
+- **resolved roles** — the role pair `{ main, reviewer }` is **not** in your prompt: resolve it
+  yourself, once, per `skills/ptp-agent-roles/SKILL.md`, and hold it fixed. It selects *how* you
+  implement (see Task step 0); it never changes your return contract. Never crash or stop over a
+  config typo.
 - **effort level** — `low` | `medium` | `high` | `xhigh`. Calibrate deliberation to it: at `xhigh`
   reason explicitly about invariants, edge cases and failure modes before each edit; at `low` move
   quickly on the obvious implementation. This is the only effort signal you get.
@@ -27,6 +31,15 @@ Your prompt carries these resolved values. Take each verbatim; never re-derive o
 
 ## Task
 
+0. **Resolve `{ main, reviewer }`** per `skills/ptp-agent-roles/SKILL.md` before anything else. When
+   `main` resolves to `claude`, implement the change in-session by running steps 1–7 below —
+   byte-identical to this agent's behavior before roles existed. When `main` resolves to `codex`, do
+   **not** implement the change yourself; instead deliver the very same apply protocol (steps 1–7, the
+   resolved `tdd` discipline, one-task-at-a-time sequencing, checking `[x]` only after a task's
+   acceptance condition is verified, the `stages/apply.json` record, and never archiving or
+   committing) to a write-capable `codex exec` shell-out per *The codex direction* below, then
+   assemble the return JSON from the same post-run checks. Either way the returned
+   `{ stageReached, tasksChecked, tasksTotal, validationPassed, notes }` object is byte-identical.
 1. Read the change artifacts, in this order and only when needed: `tasks.md`, `specs/**/spec.md`,
    `design.md`, and `proposal.md` only when a task's intent is unclear.
 2. Run `npx -y openspec validate <change-id> --strict`. If it fails, stop and return
@@ -81,6 +94,23 @@ Your prompt carries these resolved values. Take each verbatim; never re-derive o
    the record.
 7. Stop. Never archive, never commit, never stage anything. Editing `tasks.md` is bookkeeping, not
    committing.
+
+**The codex direction (`main=codex`).** Resolve `codex.model` and `codex.reasoningEffort` per
+`skills/ptp-codex-mode/SKILL.md` (its existing model/effort resolution — no new keys). If `codex` is
+not on PATH, return `stageReached: "blocked"` with the remediation in `notes`
+(install `codex`, or set `roles.main=claude`) and never silently implement the change as Claude. Otherwise build a
+**self-contained** `$WORK_PROMPT` per `skills/ptp-skill-contract/SKILL.md`'s Agent-neutrality delivery
+modes: direct Codex to **read** `agents/ptp-apply.md` and `skills/openspec-apply-change/SKILL.md` for
+the protocol (Codex has no Skill tool, so never merely name a skill to invoke), and carry verbatim the
+change id, the workspace root, and the artifact paths, plus the note that HEAD is already on the
+feature branch so `ptp-branch-prep` MUST NOT be launched. Pipe it as one blocking foreground call:
+`printf '%s' "$WORK_PROMPT" | codex exec -s workspace-write [ -m <model> ] [ -c model_reasoning_effort=<effort> ] -`,
+appending `-m` only when `codex.model` is set and `-c model_reasoning_effort` only when
+`codex.reasoningEffort` is set, both before the trailing `-`. This is the write-capable
+main-implementer call site `ptp-run-at-model` owns: keep `-s workspace-write`, never add any flag
+that bypasses the sandbox or approvals, and never loosen the read-only reviewer rule
+`ptp-codex-mode` owns. When it returns, run the final checks (step 5) yourself, write the
+`stages/apply.json` record (step 6), and return the same JSON contract.
 
 Resolve the `tdd` config key through `ptp-workspace`'s forgiving layered read (default `advisory`; an
 unset or unreadable key reproduces `advisory`). Under resolved `tdd: mandatory` you MUST load

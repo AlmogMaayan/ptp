@@ -72,6 +72,10 @@ the subagent MUST NOT attempt to launch the `ptp-branch-prep` workflow; the `ptp
 Relay the Phase A result: the absolute path of the written PRD at `openspec/changes/<id>/prd.md` (or
 the failure description if the subagent did not write it).
 
+**Codex work-prompt delivery (Phase A).** Under `main=codex`, the PTP-owned `ptp-prd` skill's own
+closure must reach this Codex main run, per `ptp-run-at-model`'s *The `main=codex` direction* and
+`ptp-skill-contract` § *Agent neutrality*, by one of that section's two delivery modes.
+
 ---
 
 ## prd-gate
@@ -106,6 +110,10 @@ Claude → Phase 2 Codex, byte-identical to before.
 
 Relay the Phase B terminal state exactly as `ptp-review-prd-full` emits it — never downgrade or
 misreport it, and never collapse the mode-skip green state.
+
+**Codex work-prompt delivery (Phase B).** Under `main=codex`, the PTP-owned `ptp-review-prd-full`
+skill plus its closure must reach this Codex main run, per `ptp-run-at-model`'s *The `main=codex`
+direction* and `ptp-skill-contract` § *Agent neutrality*, by one of that section's two delivery modes.
 
 ---
 

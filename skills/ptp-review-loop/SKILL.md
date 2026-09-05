@@ -53,7 +53,7 @@ trigger rather than with this file:
 | Input | Values | Source |
 |-------|--------|--------|
 | `kind` | `code` \| `artifact` \| `brainstorm` \| `prd` | Supplied by the calling command |
-| `reviewer` | `ptp` \| `codex` | Supplied by the calling command. `ptp` names the main phase in either `roles.main` direction; it is a phase, not an agent. |
+| `reviewer` | `ptp` \| `codex` | Supplied by the caller: names the review dispatch (`ptp`=in-session, `codex`=`codex exec`), not phase, derived from `{main,reviewer}` per `ptp-agent-roles`. |
 | `fixDispatch` | `dispatched` \| `inline` | Supplied by the calling command. **Defaults to `inline`** when the caller supplies no value. Only a caller running this loop in the **outer session** with its Agent-nesting level unspent may pass `dispatched`. Its full contract — the two modes, the fail-safe default, and what each mode may and may not do — is under **## Fix dispatch** below. |
 | `runningTarget` | a `{model}.{effort}` literal | Supplied by the calling command: the target the caller's own main run is executing at, passed so the fix pass can detect and report a model divergence under `fixDispatch = inline`. Absent or unparseable → record the running model as **unknown** and emit the divergence line naming the evaluated model and `unknown`; never throw, never stop, never report the target as fully honored. It influences reporting only — never which findings are fixed, how they are fixed, the step (f) exit check, or any terminal state. |
 | `change-id` | string | A single resolved change id passed through from the calling command (for `kind ∈ {code, artifact, brainstorm}`). The caller resolves any selector (e.g. `epic:XXXX`) via `ptp-change-selector` and iterates this skill once per resolved change — this skill receives and processes exactly one change per invocation. |
@@ -188,78 +188,75 @@ stating what it checked. Detail: `references/bounded-review.md`.
 
 ## Fix dispatch
 
-`fixDispatch` decides **how** step (g2) carries out the fix at the `fixTarget` step (g1) evaluated. It
-is this loop's resolution of `ptp-run-at-model`'s **Nesting caveat**: **evaluation happens where the
-frozen finding set lives; dispatch happens only where an Agent-nesting level is unspent** — and those
-two need not be the same party.
+`fixDispatch` decides **how** step (g2) carries out the fix at the `fixTarget` step (g1) evaluated —
+this loop's resolution of `ptp-run-at-model`'s **Nesting caveat**: evaluation happens where the frozen
+finding set lives, dispatch only where an Agent-nesting level is unspent, and the two need not be the
+same party.
 
 | `fixDispatch` | Who may pass it | Step (g2) behavior | Fidelity |
 |---|---|---|---|
-| `dispatched` | Only a caller that runs this loop — or an equivalent freeze-then-fix pass — **in the outer session**, with its one Agent-nesting level unspent | Invoke `ptp-run-at-model` **once per fix pass** at `fixTarget`, over the frozen CONFIRMED in-scope set, and relay its terminal result into the iteration record | **Full** at `roles.main = claude` — model and effort both honored. **Advisory** at `roles.main = codex` (see below) |
-| `inline` (**default**) | Any caller | Fix in the running context, restating `fixTarget`'s effort directive verbatim at the head of the fix pass. **Do not spawn.** | **Partial** — the effort half is honored, the model half cannot be |
+| `dispatched` | Only a caller running this loop (or an equivalent freeze-then-fix pass) **in the outer session** with its Agent-nesting level unspent | Invoke `ptp-run-at-model` **once per fix pass** at `fixTarget`, over the frozen CONFIRMED in-scope set, and relay its terminal result into the iteration record | **Full** at `roles.main = claude`. **Advisory** at `roles.main = codex` (see below) |
+| `inline` (**default**) | Any caller | **Role-aware** (`roles.main`, see below): fix in the running Claude session at `claude`; at `codex` the Claude reviewer edits nothing and the Codex main fixes via the write-capable `codex exec` shell-out. **Never spawn an Agent/Workflow.** | **Partial** at `claude`; **Advisory** at `codex` |
 
-**`dispatched`.** Step (g2) invokes `ptp-run-at-model` **once per fix pass** at `fixTarget`, over the
-frozen CONFIRMED in-scope finding set, and relays that run's terminal result (`completed` / `refused`
-/ `needs-human-action`) into the iteration record — a refusal is **never** downgraded to success.
-Both halves of the target are honored in the `roles.main = claude` direction only. Under
-`roles.main = codex` the dispatched run is a `codex exec` shell-out whose model and reasoning effort
-come **solely** from `codex.model` / `codex.reasoningEffort`, so `fixTarget` is **advisory** there —
-evaluated and reported as usual, optionally carried as a natural-language prompt hint, and recorded as
-**not fully honored** by the reporting rules in step (h). This is never a licence to introduce a
-`codex exec` invocation for the purpose of re-targeting a fix pass in any other direction.
+**`dispatched`.** The relayed terminal result (`completed` / `refused` / `needs-human-action`) is
+recorded verbatim — a refusal is **never** downgraded to success. Both halves of the target are honored
+at `roles.main = claude` only; under `roles.main = codex` the run's model and reasoning effort come
+**solely** from `codex.model` / `codex.reasoningEffort`, so `fixTarget` is **advisory** — recorded
+**not fully honored** by step (h), optionally a prompt hint. This never licenses a `codex exec`
+invocation to re-target a fix pass in any other direction.
 
-**`inline`.** Step (g2) **never** invokes `ptp-run-at-model`, **never** spawns an Agent, and **never**
-launches a Workflow — a second nesting level throws. It fixes in the running context and **restates
-`fixTarget`'s effort directive verbatim** — the exact string `ptp-run-at-model`'s *Effort as a prompt
-directive* table maps that effort token to — at the head of the fix pass, so the effort half of the
-target is honored by the same prompt-directive mechanism the `claude` direction uses. Cross-reference
-that table; the directive strings are **not** copied here. The **model** half cannot be honored — a
-running agent cannot change its model — and that is surfaced per the divergence rule in step (h)
-rather than silently absorbed.
+**`inline`.** Step (g2) **never** invokes `ptp-run-at-model`, spawns a Claude Agent, or launches a
+Workflow — a second Agent-nesting level throws. How it fixes is **role-aware** (`roles.main` per
+`ptp-agent-roles`), non-throwing in **both** directions:
 
-**Why the default is `inline`:** it is the mode that **cannot throw**. A caller that forgets to
-declare its budget gets the fail-safe direction rather than a runtime failure at the very moment the
-loop has confirmed findings to fix.
+- At `roles.main = claude` (the default) it fixes **in the running Claude session**, restating
+  `fixTarget`'s effort directive verbatim (the string `ptp-run-at-model`'s *Effort as a prompt
+  directive* table maps that token to — not copied here) at the fix-pass head, so the effort half is
+  honored; the **model** half cannot be, surfaced by the step (h) divergence rule. This direction is
+  **byte-identical** to the behavior before this change.
+- At `roles.main = codex` the Claude reviewer holding the loop context edits **nothing** — neither code
+  nor artifacts — and the fix is performed by the **Codex main** via the write-capable `codex exec`
+  (`-s workspace-write`) shell-out `ptp-run-at-model` owns for `main = codex` — a Bash shell-out, no
+  Agent-nesting level, so it never throws; model/effort from `codex.model` / `codex.reasoningEffort`
+  (`ptp-codex-mode`), no new config key, read-only reviewer rule untouched. There `fixTarget` is
+  **advisory**, recorded **not fully honored** by step (h).
+
+**Why the default is `inline`:** it **cannot throw** — a caller that omits its budget gets the
+fail-safe direction rather than a runtime failure when the loop has findings to fix.
 
 **Who passes what today.** All nine loop-driving callers (`/ptp:review-loop`, `/ptp:review-full`,
 `/ptp:review-plan-loop`, `/ptp:review-plan-full`, `/ptp:review-brainstorm-full`,
 `/ptp:review-prd-full`, `/ptp:codex-review-loop`, `/ptp:codex-review-plan-loop`,
-`/ptp:codex-review-prd-loop`) pass `inline`, because each already runs its whole orchestration inside
-one `ptp-run-at-model` main run. A `codex-*-loop` caller's Codex reviewer does not change this: its
-`codex exec` shell-out belongs to the **review** pass and costs no Agent-nesting level, while its fix
-pass is ordinary inline editing by the wrapping agent.
+`/ptp:codex-review-prd-loop`) pass `inline`, each already running its whole orchestration inside one
+`ptp-run-at-model` main run. A `codex-*-loop` caller's Codex **review** shell-out does not change this —
+it costs no Agent-nesting level.
 
-**How a caller derives `runningTarget`** — direction-dependent, and **never** hardcoded. At
-`roles.main = claude` the caller's main run is a subagent spawned at the target it supplied, so
-`runningTarget` **is** that target (the literal `opus.high` for all nine today, or the resolved value
-should a command ever gain a `model:<model>.<effort>` override). At `roles.main = codex` the main run
-is a `codex exec` shell-out taking `codex.model` / `codex.reasoningEffort`, so the caller-supplied
-`opus.high` has no runtime effect there: `runningTarget` is derived from those two config keys, and is
-`unknown` when `codex.model` is unset. Passing `opus.high` in that direction is a **fabrication** — it
-would let this loop claim a fully-honored target, or suppress a divergence line, on the strength of a
-model that is not running. A caller that *can* determine its running target passes it; the
-absent/unparseable `unknown` fallback exists for callers that genuinely cannot, never as a substitute
-for wiring the value through.
+**How a caller derives `runningTarget`** — direction-dependent, **never** hardcoded. At
+`roles.main = claude` the main run is a subagent spawned at the supplied target, so `runningTarget`
+**is** that target. At `roles.main = codex` the main run is a `codex exec` shell-out taking
+`codex.model` / `codex.reasoningEffort`, so `runningTarget` derives from those keys and is `unknown`
+when `codex.model` is unset — passing `opus.high` there is a **fabrication** that would claim a
+fully-honored target for a model that is not running. A caller that *can* determine its running target
+passes it; the `unknown` fallback is for those that genuinely cannot.
 
-**`/ptp:review-fix` adopts the `dispatched` semantics directly**, without passing a loop input — it
-drives no `ptp-review-loop` invocation, so it has nothing to pass `fixDispatch` to. Its outer session
-already freezes the finding set and dispatches one standalone confirm-and-fix run over it; what
-changes is only that run's target. It is also the one stated **evaluation** exception: it confirms
-findings *inside* the very run whose target is being chosen, so its outer session evaluates over the
-frozen **pre-confirmation** set. That is not a licence to move confirmation outward, and not a licence
-to fix an unconfirmed finding — the target may simply be scored over a set larger than the one
-ultimately fixed, an over-estimate in the safe direction bounded by the same `opus.high` fallback.
+**`/ptp:review-fix` adopts the `dispatched` semantics directly**, passing no loop input — it drives no
+`ptp-review-loop` invocation. Its outer session freezes the finding set and dispatches one standalone
+confirm-and-fix run; only that run's target changes. It is also the one **evaluation** exception: it
+confirms findings *inside* the run whose target is chosen, so it evaluates over the frozen
+**pre-confirmation** set — not a licence to move confirmation outward or to fix an unconfirmed finding;
+the target may simply be scored over a larger set than is fixed, an over-estimate bounded by the same
+`opus.high` fallback.
 
-**Prohibitions survive dispatch.** A dispatched fix run is bound by every prohibition an inline fix
-pass is bound by, and the dispatched run's prompt carries them **explicitly**, because a fresh main
-run does not inherit this skill's hard rules by osmosis: never invoke `/ptp:apply`, never regenerate
-artifacts via `/ptp:plan` / `/ptp:brainstorm` / `/ptp:prd`, never archive, never commit. Re-targeting
-changes *which party performs the edit*, never *what an edit is permitted to be*.
+**Prohibitions survive dispatch.** A dispatched fix run — and a `roles.main = codex` inline fix by the
+Codex main — is bound by every prohibition an in-session inline fix pass is, and the fixing run's
+prompt carries them **explicitly**: never invoke `/ptp:apply`, never regenerate artifacts via
+`/ptp:plan` / `/ptp:brainstorm` / `/ptp:prd`, never archive, never commit. Re-targeting or re-routing
+changes *which party edits*, never *what an edit may be*.
 
-**Verification stays with the loop.** Step (h) runs in this loop's own context after step (g) returns,
-in **both** modes. A dispatched run performs edits and reports; it does **not** decide convergence,
-does not evaluate the step (f) exit check, does not reach a terminal state, and does not write the
-review-convergence marker.
+**Verification stays with the loop.** Step (h) runs in the loop's own context after step (g) returns,
+in **both** modes and directions. A dispatched run, or a Codex-main inline fix, performs edits and
+reports; it does **not** decide convergence, evaluate the step (f) exit check, reach a terminal state,
+or write the marker.
 
 ## In-conversation state
 
@@ -474,8 +471,8 @@ Increment `iteration`. If `iteration > MAX_ITERATIONS`, **abort** — go to the 
 
 ### (b) Review pass
 
-Dispatch to the correct reviewer based on `(kind, reviewer)`. Every `codex exec` invocation below is
-assembled per the `ptp-codex-mode` canonical flag-append rule (append resolved `-m <model>` /
+Dispatch on `(kind, reviewer)`: `reviewer` names the review dispatch per **## Inputs**, not the
+phase. Each `codex exec` call is built per `ptp-codex-mode`'s flag-append rule (append resolved `-m <model>` /
 `-c model_reasoning_effort=<effort>` before the trailing `-` when `codex.model` /
 `codex.reasoningEffort` are set; both unset ⇒ the literal `codex exec -s read-only -` shown here):
 
@@ -623,7 +620,9 @@ The evaluation rubric — its signals, thresholds, anchor table, and decision or
 #### (g2) Carry out the fix at `fixTarget`
 
 Fix every CONFIRMED finding at `fixTarget`, under the resolved `fixDispatch` mode (see **## Fix
-dispatch**):
+dispatch**) — **role-aware** under `inline`: at `roles.main = codex` the **Codex main** performs these
+edits via the write-capable `codex exec` shell-out (the Claude context edits nothing); at `claude` the
+running session does. The per-kind rules below bind whichever party fixes:
 
 - `kind=code` → edit source files directly. **Never** invoke `/ptp:apply`. **Never** commit.
 - `kind=artifact` → make minimal targeted edits to the affected artifact(s). **Never** regenerate artifacts via `/ptp:plan`. Corrections only (fix a wrong section, add a missing scenario, fill a thin block) — not re-fabrication.
@@ -662,21 +661,24 @@ replacing it — accumulate this iteration's cycle and its `found`, `droppedManu
 `belowThreshold`, `rejected`, and `accepted` counters into `reviewTally` for this run's `reviewer`
 (see **## Review cycle tally**).
 
-**Divergence rule (mandatory, never silent).** Under `fixDispatch = inline`, when `fixTarget`'s
-**model** differs from `runningTarget`'s model — or when `runningTarget` was absent or unparseable, in
-which case the running model is recorded as `unknown` — emit a line naming **both** the evaluated
-model and the running model, in that iteration's summary entry **and** in both terminal reports:
+**Divergence rule (mandatory, never silent).** Under `fixDispatch = inline` at `roles.main = claude`,
+when `fixTarget`'s **model** differs from `runningTarget`'s model — or when `runningTarget` was absent
+or unparseable, in which case the running model is recorded as `unknown` — emit a line naming **both**
+the evaluated model and the running model, in that iteration's summary entry **and** in both terminal
+reports:
 
 ```
 Fix target partially honored: evaluated sonnet.medium, running on opus (effort directive applied; model cannot be changed in-run).
 ```
 
+Under `fixDispatch = inline` at `roles.main = codex` — and equally under `dispatched` — `fixTarget` is
+**advisory**: the Codex-main shell-out takes `codex.model` / `codex.reasoningEffort`, so it is recorded
+**not fully honored** and the divergence line names the evaluated model beside the configured
+`codex.model` (or `unknown` when unset).
+
 The target is recorded as **fully honored**, with no divergence line, in exactly two cases:
-`fixDispatch = inline` with `fixTarget`'s model equal to the running model, and
-`fixDispatch = dispatched` at `roles.main = claude`. Under `fixDispatch = dispatched` at
-`roles.main = codex` the target is **advisory** (the shell-out takes `codex.model` /
-`codex.reasoningEffort`) — not fully honored, and the divergence line names the evaluated model
-alongside the configured `codex.model`, or `unknown` when that key is unset.
+`fixDispatch = inline` at `roles.main = claude` with `fixTarget`'s model equal to the running model, and
+`fixDispatch = dispatched` at `roles.main = claude`.
 
 ### (i) Loop
 
@@ -810,7 +812,7 @@ the retained `fixed_candidates` count and `capped` to the in-scope `CONFIRMED` f
 - **Never fix an unconfirmed finding.** If step (e) marks a finding `REJECTED`, leave the code/artifact alone.
 - **Never auto-fix a below-threshold finding, and never silently drop one.** A finding ranked under `MIN_SEVERITY` by step (c2) is reported — in the per-iteration below-threshold count and, for the last completed review pass, individually in both terminal reports — but is never confirmed, never edited, and never counted toward convergence. Reporting it is mandatory: omitting it is a violation of this rule, not an optimization.
 - **Never silently absorb a partially-honored fix target.** Under `fixDispatch = inline` the model half of `fixTarget` cannot be honored; the divergence is reported in the iteration summary and in both terminal reports. Emitting it is mandatory — omitting it is a violation of this rule, not an optimization.
-- **Never spawn from inside the loop under `fixDispatch = inline`** — a second Agent-nesting level throws.
+- **Never spawn a Claude Agent or Workflow from inside the loop under `fixDispatch = inline`** — a second Agent-nesting level throws; the write-capable `codex exec` Bash **shell-out** that fixes under `roles.main = codex` is permitted (no nesting level, so it never throws). Under `roles.main = codex` the loop's Claude reviewer edits neither code nor artifacts — only the resolved main agent writes.
 - **Never persist loop control state to disk.** `iteration`, `rejected_findings`, and `per_iteration_summary` live only in conversation context. This rule does NOT forbid the durable terminal review-convergence marker below — that marker is a deliberate exception and is the loop's only on-disk side effect beyond the artifact edits it already makes.
 - **Write the per-kind review-convergence marker on terminal states for every kind** (`brainstorm`→`stages/brainstorm.json`, `artifact`→`stages/plan.json`, `prd`→`openspec/changes/<id>/stages/prd.json`, `code`→`stages/code.json`), per the **## Review-convergence marker** section, with a `kind = code` marker additionally carrying `gateState` and — when computable — the `fingerprint` from `skills/ptp-review-loop/references/code-marker-fingerprint.md`. **Never** write a marker when invoked with `deferMarker = true` (the `-full` orchestrator performs the single combined write). The marker is written via the atomic write-temp-then-rename protocol; a marker-write failure is reported but does not change the terminal state.
 - **Never skip a review on anything but an eligible marker.** The six conjunctive conditions in `skills/ptp-review-loop/references/code-marker-skip-eligibility.md` are the only basis for skipping an otherwise-mandatory code review, evaluating them never mutates a marker, and any ineligible outcome runs the review exactly as it would without a marker. Condition 6 in particular is resolved against `ptp-codex-mode`'s decision contract **at check time**, never against a mode carried by the marker.

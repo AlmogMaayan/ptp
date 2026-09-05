@@ -14,18 +14,38 @@ Change id: $ARGUMENTS
 
 Resolve `$ARGUMENTS` as a change selector per the `ptp-change-selector` skill; if it resolves to more than one change, run the steps below for each, in story order, reporting per change.
 
+## Role resolution
+
+Resolve `{ main, reviewer }` from `roles.main` via the **`ptp-agent-roles`** skill. At the default
+`main = claude` the review pass below is the **in-session PTP/Claude pass**, **byte-identical** to
+before this change. At `main = codex`, the review pass is instead a **read-only**
+`codex exec -s read-only` dispatch — the `(kind = code, reviewer = codex)` review-pass dispatch
+`ptp-review-loop` already defines — assembled per the **`ptp-codex-mode`** skill's canonical
+flag-append rule (append resolved `-m <model>` / `-c model_reasoning_effort=<effort>` before the
+trailing `-` when `codex.model` / `codex.reasoningEffort` are configured), taking its model and
+effort from `codex.model` / `codex.reasoningEffort`. This is the **read-only reviewer invocation**,
+never `ptp-run-at-model`'s write-capable `-s workspace-write` main-implementer invocation — a review
+edits nothing in either direction. A *main* phase carries no `codex.mode` gate (that gates a
+*reviewer*), so this command owns its own precondition: when the resolved dispatch is `codex`,
+verify `codex --version` is on PATH before running the pass; if `codex` is absent, **STOP** and tell
+the user to install `codex` or set `roles.main = claude` in `/ptp:config`, rather than silently
+falling back to a Claude pass. This command's description stays a "main-agent" pass in both
+directions — it is never renamed to "the Claude pass".
+
 ## Steps
 
 This command is **read-only** — it runs **no** branch guard (it never writes). Its review work runs
 **at a deterministic model** via the **`ptp-run-at-model`** skill at `opus.high`. The outer session
 runs only the abort-guaranteeing preconditions first — per resolved change, the change-folder
-existence check (`openspec/changes/<change-id>/`; if absent, STOP and redirect to `/ptp:plan`) and
-selector disambiguation that must STOP and ask the user — so a guaranteed abort never spawns a
-subagent. It then invokes **`ptp-run-at-model`** with target `opus.high` and the work below (steps
-1–6); that spawns one foreground `opus` subagent (high effort directive) which performs the read-only
-review and classification, **fixing nothing**, and the subagent's outcome is relayed back per
-`ptp-run-at-model`'s *Result relay*. (For a multi-change selector, the one subagent handles the whole
-per-change pass, reporting per change.)
+existence check (`openspec/changes/<change-id>/`; if absent, STOP and redirect to `/ptp:plan`), the
+role resolution above (including the `codex` on-PATH STOP), and selector disambiguation that must STOP
+and ask the user — so a guaranteed abort never spawns a subagent. It then invokes
+**`ptp-run-at-model`** with target `opus.high` and the work below (steps 1–6); that spawns one
+foreground `opus` subagent (high effort directive) which performs the read-only review and
+classification, using the **resolved main agent's dispatch** from *Role resolution* above —
+**fixing nothing** — and the subagent's outcome is relayed back per `ptp-run-at-model`'s *Result
+relay*. (For a multi-change selector, the one subagent handles the whole per-change pass, reporting
+per change.)
 
 1. **Load the contract** from `openspec/changes/<change-id>/`:
    - `proposal.md` — intent
@@ -38,7 +58,12 @@ per-change pass, reporting per change.)
 2. **Identify the diff** for this change. Prefer:
    - `git diff` against the merge base (if in a git repo and a feature branch is in use), OR
    - The files that the tasks explicitly touched.
-3. **Invoke the `ptp-requesting-code-review` skill** via the Skill tool.
+3. **Run the resolved main agent's review pass** — at `main = claude`, invoke the
+   `ptp-requesting-code-review` skill via the Skill tool (byte-identical to before this change); at
+   `main = codex`, run the `codex-review.md` protocol inline instead: read the contract yourself,
+   capture the merge-base diff yourself, run `npx -y openspec validate <change-id> --strict` and any
+   relevant tests yourself, build one closed-book prompt with all of it inlined, and pipe it to
+   `codex exec -s read-only` over stdin per *Role resolution* above.
 4. **Review against**:
    - The proposal — does the implementation match the stated intent?
    - The spec deltas — does the behavior match the contract? Are edge cases covered?

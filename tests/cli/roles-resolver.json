@@ -1,0 +1,22 @@
+{
+  "script": "scripts/ptp-resolve-roles.js",
+  "cases": [
+    {
+      "id": "project-config-codex-wins",
+      "tree": {
+        "repo/.git": "dir",
+        "repo/openspec": "dir",
+        "repo/.claude/ptp/config.json": "{ \"roles\": { \"main\": \"codex\" } }\n"
+      },
+      "cwd": "repo",
+      "argv": [],
+      "expect": {
+        "exitCode": 0,
+        "stdout": {
+          "main": "codex",
+          "reviewer": "claude"
+        }
+      }
+    }
+  ]
+}
