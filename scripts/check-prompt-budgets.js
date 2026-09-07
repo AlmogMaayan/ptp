@@ -24,7 +24,7 @@ const ROOT = path.resolve(__dirname, '..');
 
 const DESC_MIN = 10;
 const DESC_MAX = 25;
-const SKILL_DESC_TOTAL = 800;
+const SKILL_DESC_TOTAL = 830; // raised from 800 for ptp-prompt-draft (epic 0068)
 const COMMAND_DESC_TOTAL = 900;
 const ORDINARY_BODY_MAX = 300;
 const ROUTER_BODY_MAX = 600;

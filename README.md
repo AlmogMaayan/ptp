@@ -173,6 +173,14 @@ Anywhere a change argument is taken:
 | `/ptp:codex-review-prd-loop <epic-selector>` | Codex PRD review + inline fixes, looped to convergence. |
 | `/ptp:review-prd-full [epic-selector]` | Dual-reviewer inline-fix PRD loop; edits the PRD, writes one marker per epic. |
 
+### Prompt
+
+| Command | Does |
+|---------|------|
+| `/ptp:prompt "<free text>"` | Restates the assistant's understanding of a request conversationally; writes no file. |
+| `/ptp:prompt-fix "<correction>"` | Corrects the understanding held from a prior `/ptp:prompt` turn in this conversation, then restates it. |
+| `/ptp:prompt-write [change-id \| selector]` | Persists the conversation's accumulated `/ptp:prompt` understanding to `prompt.md` — into the resolved existing change, or a freshly allocated one. |
+
 ### Brainstorm
 
 | Command | Does |
@@ -319,6 +327,8 @@ Whole thing at once
   → /ptp:full-apply [sel | id …]      # execution half only
 
 Step by step
+  → /ptp:prompt "<request>" | /ptp:prompt-fix "<correction>"  # conversational, writes no file
+  → /ptp:prompt-write [change-id | selector]                  # persist the conversation to prompt.md
   → /ptp:prd [<sel>] | /ptp:prd-full <sel> | /ptp:review-prd[-full] [<sel>]
   → /ptp:analyze "<subject>"          # read-only investigation → analysis doc
   → /ptp:brainstorm "<request>" | /ptp:brainstorm-only "<topic>" | /ptp:brainstorm-full "<request>"
@@ -361,6 +371,7 @@ Experimental     /opsx:explore | /opsx:propose | /opsx:apply | /opsx:archive
 
 ## Changelog
 
+| **0.9.0** | New conversational prompt-drafting flow (epic 0068): `/ptp:prompt` restates the assistant's understanding of a free-text request directly in the main session, writing no file; `/ptp:prompt-fix` corrects that understanding across further turns in the same conversation; both are owned by a new `ptp-prompt-draft` skill and neither runs the branch guard nor `ptp-run-at-model` (0068_01). `/ptp:prompt-write` persists the accumulated understanding to `prompt.md` — into an existing change resolved via `ptp-change-selector`, or a freshly allocated epic otherwise — as a hybrid producer/consumer, per a new `ptp-prompt-write` skill; it never auto-invokes a downstream producer (0068_02). `/ptp:full` now materializes an existing `prompt.md` into `brainstorm.md` before decomposing, but only when the target folder holds neither `brainstorm.md` nor `proposal.md` yet — richer planning artifacts always take precedence and are left untouched; `/ptp:plan`, `/ptp:brainstorm`, `/ptp:plan-multiple`, and `/ptp:analyze` are unchanged (0068_03). |
 | **0.8.0** | Make `roles.main=codex` work end to end (epic 0067); a minor bump because the epic is additive and backward-compatible — at the default `roles.main=claude` every existing flow stays byte-identical per every prior slice's own proposal. (1) The workflow apply agent `agents/ptp-apply.md` resolves the `{main,reviewer}` role pair via `ptp-agent-roles` and branches: at `main=codex` it delivers the same apply protocol to a write-capable `codex exec -s workspace-write` shell-out (model/effort from `codex.model`/`codex.reasoningEffort`) instead of implementing in-session, so `/ptp:full`, `/ptp:full-apply`, and `/ptp:backlog-run` honor `roles.main=codex` on the apply stage, and a new `scripts/ptp-resolve-roles.js` is the resolver's executable embodiment (0067_01). (2) The `ptp-review-loop` `reviewer` input is redefined to name the review dispatch that runs the pass (`ptp` = in-session PTP/Claude dispatch, `codex` = read-only `codex exec` dispatch), not the main-vs-reviewer phase, resolving the contradiction with what the `-full` orchestrators already pass under `roles.main=codex` (0067_02). (3) The review-loop `inline` fix dispatch becomes role-aware: under `roles.main=codex` the fix edits are performed by the Codex main via a write-capable `codex exec` shell-out while the Claude reviewer edits nothing (0067_03). (4) Each `ptp-run-at-model` caller that wraps Skill-tool or slash-command work now documents its own Codex work-prompt delivery — the PTP-owned files delivered to the `main=codex` main run, the `ptp-skill-contract` delivery mode, and the transitive closure (0067_04). (5) The single-pass review commands (`/ptp:review`, `/ptp:review-plan`, `/ptp:review-brainstorm`, `/ptp:review-prd`, `/ptp:review-loop`, `/ptp:review-plan-loop`) resolve `{main,reviewer}` and run the resolved main agent's read-only pass instead of hardcoding a Claude pass or `reviewer=ptp` (0067_05). |
 | **0.7.2** | Trigger-scoped two operation-scoped sections out of always-loaded `SKILL.md` bodies to trim per-invocation prompt latency (epic 0066): `skills/ptp-github-projects-gh/SKILL.md`'s "The content-body mutation route" section moved verbatim into `skills/ptp-github-projects-gh/references/content-body-mutation-route.md`, loaded only when writing a title/body onto a non-draft board item, with its three anchor citations re-pointed; and `skills/ptp-backlog/SKILL.md`'s historical "What `0036_01` did not ship" scope note moved verbatim into `skills/ptp-backlog/references/slice-0036_01-scope-note.md`, loaded only when auditing that slice. Both moves are byte-identical relocations behind the existing `prompt-compaction` trigger-scoping pattern; no behavior changes (0066_01). |
 | **0.7.1** | `/ptp:analyze` now accepts the optional `model:<model>.<effort>` override token (epic 0065), the same per-invocation opt-out-of-default mechanism already supported by `/ptp:brainstorm`, `/ptp:prd`, `/ptp:brainstorm-full`, and `/ptp:prd-full`: an absent token keeps the `opus.high` default, a valid token overrides the target for that invocation only, and an invalid or duplicate token STOPs before the branch guard or any spawn — parsed in `skills/ptp-analyze/SKILL.md`'s outer session, ahead of the branch guard, per the grammar owned by `skills/ptp-run-at-model/SKILL.md` (0065_01). |
