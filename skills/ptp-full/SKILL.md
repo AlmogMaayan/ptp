@@ -54,6 +54,24 @@ step 3); it changes nothing else.
 
 Run the `/ptp:full-plan` flow exactly as that command specifies:
 
+0. **`prompt.md` check (non-goal: scoped to `/ptp:full` only — `/ptp:plan`, `/ptp:brainstorm`,
+   `/ptp:plan-multiple`, and `/ptp:analyze` are unchanged; widening this is a follow-up, not part of
+   this command).** If `big-change-id-or-request` names an existing `openspec/changes/<id>/` folder
+   that contains `prompt.md` but holds **neither** `brainstorm.md` nor `proposal.md`, materialize
+   `prompt.md`'s content verbatim into `openspec/changes/<id>/brainstorm.md`, prefixed with the
+   one-line provenance comment `<!-- materialized from prompt.md by /ptp:full -->`. Then invoke
+   `plan-multiple` in step 1 with the **same id** as always — never the extracted text, which would
+   make `plan-multiple` allocate a fresh epic per `ptp-change-selector` §4 and duplicate the folder.
+   `plan-multiple`'s existing beat-1 gather step already reads `brainstorm.md` when present, so it
+   needs no change of its own. This write is **idempotent**: a second run sees `brainstorm.md` already
+   present and skips it (per the precedence rule below), so repeating `/ptp:full <id>` never
+   re-materializes or duplicates content.
+
+   **Precedence: an existing `brainstorm.md` or `proposal.md` always wins outright, and `prompt.md` is
+   left unread** — it is a superset of what `prompt.md` captured, so reading `prompt.md` over it would
+   regress to an earlier, less-refined request. This precedence is what makes the check safe to run
+   unconditionally on every invocation: a folder with no `prompt.md` sees no change from today, and a
+   folder that has already been planned or brainstormed is never touched by this step.
 1. **Decompose.** Invoke the `ptp:plan-multiple` skill with `$ARGUMENTS` **plus the resolved `parallel` posture** as an explicit input (the token was already parsed and stripped by `commands/full.md`; never re-parse it here). Take the slice set — every slice's full `XXXX_NN_<desc>` change id, its one-line scope, **and** its declared dependencies (step 3's parallel-path recheck walks those dependency edges) — from `plan-multiple`'s **step-6 report**, the deterministic ascending-change-id report it emits after joining its members, exactly as `commands/full-plan.md` step 1 specifies. Do **not** re-derive the set from `npx -y openspec list`, and do **not** parse the internal `PLAN-MULTIPLE-SLICES` / `PLAN-MULTIPLE-FALLBACK` beat sentinels — they are `plan-multiple`'s own beat-2 → beat-3 handoff, not its return to a caller. **Single-change fallback:** if the work is one coherent unit, `plan-multiple` falls back to one `/ptp:plan` and reports exactly one id — that is fine, the slice set is one id. If `plan-multiple` reports a refusal, or reports any slice as failed, unsuccessful, or cross-reference-unverified, **STOP** before step 2 and do not enter the apply phase.
 
    **`NEEDS SPLIT` is a decomposition instruction, never a failure and never a silent stop.** If `plan-multiple`'s report names any slice that returned `NEEDS SPLIT` (a slice that is still more than one unit of work), **STOP** before step 2 and do not enter the apply phase — but report it as the **success state it is**, separately from the failures above: name each such slice, reproduce its proposed **child ids** and their one-line scopes verbatim, and recommend `/ptp:plan-multiple <that-slice-id>` — `plan-multiple`'s **re-cut** mode, which replaces that slice with its children in place per `ptp-change-selector` §4b. Never re-run the slice unchanged, and never plan-review a slice that was never planned. **Do not delete or move the un-planned slice's folder here**: the re-cut owns the parent's replacement, and it needs the brainstorm — and any `prd.md` anchored there — still in place.
