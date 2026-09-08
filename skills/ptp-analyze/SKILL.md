@@ -13,7 +13,7 @@ valid caller-supplied `model:<model>.<effort>` override for that single invocati
 protocol — the outer-session `model:` parse, the branch guard, the `ptp-run-at-model` invocation, and
 the result relay; this paragraph names the default target only and restates none of that contract.
 
-This skill conducts a **read-only investigation** of a bug, observed behavior, problem, or question and writes a structured, evidence-backed analysis document into the appropriate `openspec/changes/<change-id>/` folder. It is a **limited producer** (in the `ptp-change-selector` §5 Role A sense): it never produces a change *proposal* — it never writes proposal/design/tasks/spec-delta files and never applies a fix — but it may allocate a minimal change folder (via `ptp-change-selector` §4) only to house the analysis doc when no relevant active change exists. When a fix is warranted it recommends the appropriate next ptp step and stops.
+This skill conducts a **read-only investigation** of a bug, observed behavior, problem, or question and writes a structured, evidence-backed analysis document into the appropriate `openspec/changes/<change-id>/` folder. It is a **limited producer** (in the `ptp-change-selector` §5 Role A sense): it never produces a change *proposal* — it never writes proposal/design/tasks/spec-delta files and never applies a fix — and it always allocates a fresh minimal change folder (via `ptp-change-selector` §4) to house the analysis doc, never reusing an existing active change's folder. When a fix is warranted it recommends the appropriate next ptp step and stops.
 
 Contrast with `/ptp:brainstorm-only` (design exploration of a prospective change) — this skill diagnoses an *existing* phenomenon, not an *envisioned* feature. If diagnosis reveals that a change is warranted, the next step is `/ptp:plan` (or `/ptp:brainstorm` if you want to think through options first).
 
@@ -100,16 +100,13 @@ Never edit, create, or delete any source file during this phase.
 
 Write **exactly one file** when investigation is complete:
 
-**Resolve or allocate the change folder (run this BEFORE computing the target path):**
-1. List folder names under `openspec/changes/` excluding `archive`.
-2. Judge whether any active change's scope overlaps the subject. If so, use that change's folder as the target — no new epic is allocated.
-3. If no active change is relevant (or relevance is ambiguous), allocate a fresh epic via `ptp-change-selector` §4 and create a minimal `XXXX_01_<subject-slug>/` folder under `openspec/changes/`. **Safe default: when relevance is ambiguous, always allocate a fresh single-story change — never silently file the doc under an unrelated change.**
+**Allocate the change folder (run this BEFORE computing the target path):**
+Always allocate a fresh epic via `ptp-change-selector` §4 and create a minimal `XXXX_01_<subject-slug>/` folder under `openspec/changes/` — never reuse or route onto an existing active change's folder, regardless of scope overlap.
 
 **Target path:** `openspec/changes/<change-id>/analysis.md`
-- `<change-id>` is the resolved or newly allocated change folder name (from the step above).
+- `<change-id>` is the freshly allocated change folder name (from the step above).
 - The filename is always `analysis.md` — do not date- or subject-stamp it. (The date and subject still appear inside the doc, in the header and `## Subject` section.)
-- **Filename collision:** if `analysis.md` already exists in the target change folder, append a numeric suffix before `.md` — e.g. `analysis-2.md`, `analysis-3.md`. Never overwrite a prior analysis.
-- Create the change folder when allocating a fresh one; only the analysis doc is written into it.
+- Create the change folder; only the analysis doc is written into it.
 
 **Schema — every section is required:**
 
@@ -166,7 +163,7 @@ After writing the file, surface its absolute path to the user.
   model-dispatch policy.
 - **Read-only on source.** Never create, edit, or delete any source file during investigation.
 - **Only the analysis doc under `openspec/changes/`.** The only artifact this skill may write under a change folder is the analysis doc. Never create a proposal, design doc, tasks file, or spec delta under `openspec/changes/`.
-- **Epic allocation only via `ptp-change-selector` §4, and only when needed.** Allocate a fresh change folder only through `ptp-change-selector` §4, and only when no relevant active change exists. Never allocate an epic for any other purpose.
+- **Always allocate a fresh epic via `ptp-change-selector` §4.** Every invocation allocates a new change folder for the analysis doc — never route onto or reuse an existing active change, regardless of scope overlap. Never allocate an epic for any other purpose.
 - **No `openspec validate`.** A doc-only change folder is not a validatable change — it contains no proposal, design, or tasks. Do not run `openspec validate` after writing the analysis doc.
 - **No fix.** When a fix is warranted, name it and recommend the next ptp step. Do not apply it.
 - **Write exactly one file.** The analysis doc. No other file is created or modified by this skill.
