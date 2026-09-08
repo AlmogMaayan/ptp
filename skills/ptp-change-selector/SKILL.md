@@ -179,7 +179,7 @@ that belongs to `ptp-branch-guard` and is not settled here.
 - `/ptp:brainstorm-decompose` — calls this once (fresh decomposition only — it has no re-cut mode), then assigns `epic_str_01`, `epic_str_02`, … to slices in dependency order, exactly as `/ptp:plan-multiple` does.
 - `/ptp:plan` — calls this once and assigns `epic_str_01_<desc>` for a standalone change. **Exception:** when `/ptp:plan` is invoked with a fully-formed `XXXX_NN_` id (the `/ptp:plan-multiple` → `/ptp:plan` delegation path), it preserves that id verbatim and does NOT allocate a new epic.
 - `/ptp:brainstorm` — calls this once and assigns `epic_str_01_<desc>` so the later `/ptp:plan` keeps the same id.
-- `/ptp:analyze` — allocates `epic_str_01_<subject-slug>` only to house an analysis doc (no proposal, design, tasks, or spec delta), and only when no relevant active change exists to receive the analysis doc.
+- `/ptp:analyze` — always allocates `epic_str_01_<subject-slug>` to house an analysis doc (no proposal, design, tasks, or spec delta); never routes onto an existing active change, regardless of scope overlap.
 - `/ptp:prd` — allocates `epic_str_01_<desc>` **only** when the argument is **free text** (non-empty, carrying no `epic:`/`story:` token, and matching no existing active change folder); it then creates the change folder and authors the PRD into it. For every selector form (`epic:XXXX`, `epic:XXXX story:NN`, `story:NN`, `epic:all`, a folder-matching bare id, or omitted) it projects/consumes via the `ptp-prd` epic projection and allocates nothing.
 
 ### 4b. Sub-story allocation (`NEEDS SPLIT` re-cuts only)
@@ -222,9 +222,9 @@ All ptp commands that take a change argument fall into one of two roles. Referen
 
 Commands: `/ptp:plan-multiple`, `/ptp:brainstorm-decompose`, `/ptp:plan`, `/ptp:brainstorm`, `/ptp:analyze`, `/ptp:prd`
 
-These **allocate** a fresh epic and **name** the change folder. The pure producers (`/ptp:plan-multiple`, `/ptp:brainstorm-decompose`, `/ptp:plan`, `/ptp:brainstorm`) do not consume selectors — they produce ids. The **hybrid producers** (`/ptp:analyze`, `/ptp:prd`) also resolve their argument onto existing changes — they allocate a fresh epic only in specific cases and otherwise route onto an existing change (`/ptp:analyze` routes its free-text subject to a relevant active change by scope overlap; `/ptp:prd` projects a selector onto existing epics). Each references this skill for the allocation algorithm and the id format contract.
+These **allocate** a fresh epic and **name** the change folder. The pure producers (`/ptp:plan-multiple`, `/ptp:brainstorm-decompose`, `/ptp:plan`, `/ptp:brainstorm`, `/ptp:analyze`) do not consume selectors — they produce ids. The **hybrid producer** (`/ptp:prd`) also resolves its argument onto existing changes — it allocates a fresh epic only in specific cases and otherwise routes onto an existing change (`/ptp:prd` projects a selector onto existing epics). Each references this skill for the allocation algorithm and the id format contract.
 
-**Limited producer — `/ptp:analyze`**: allocates `XXXX_01_<subject-slug>` only to house an analysis doc; it never produces proposal/design/tasks/spec-delta. It allocates only when no relevant active change exists to receive the analysis doc.
+**Limited producer — `/ptp:analyze`**: always allocates a fresh `XXXX_01_<subject-slug>` only to house an analysis doc; it never produces proposal/design/tasks/spec-delta and never routes onto an existing active change, regardless of scope overlap.
 
 **Limited/hybrid producer — `/ptp:prd`**: a producer **only** for the free-text case (a non-empty argument that carries no `epic:`/`story:` token and matches no existing active change folder), where it allocates `XXXX_01_<desc>` via §4, creates the folder, and authors the PRD into it. For every selector form (`epic:XXXX`, `epic:XXXX story:NN`, `story:NN`, `epic:all`, a folder-matching bare id, or omitted) it consumes/projects and allocates nothing. It is **not** a generic set-capable Role-B consumer — its consumer behavior is the additive `ptp-prd` epic projection (one PRD per projected epic), not the §3 set-iterate contract.
 
