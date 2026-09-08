@@ -61,6 +61,28 @@ is to be a test.
 The exemption does not apply when the change also touches executable code, nor when an available
 check can be made to fail on the behavior being added.
 
+## Render-affecting change
+
+A task is render-affecting when its correctness depends on browser cascade, layout, computed
+style, or real DOM rendering — CSS specificity & cascade, grid/flex templates,
+custom-property-driven values, or component output only observable after layout. For such a task,
+the RED test must run in a real browser engine (Playwright component test, vitest browser mode, or
+headless Chromium) and assert the computed result (e.g. `getComputedStyle(el).gridTemplateColumns`
+/ a resolved track count). A jsdom/happy-dom pass is not evidence for these tasks: jsdom implements
+no cascade and no layout engine, so it cannot fail for the reason a real browser would. The
+`## Prose-contract exemption` above is unchanged — this clause narrows only executable
+render-affecting tasks.
+
+### Local-only browser lane
+
+Browser-engine tests for a render-affecting task run in a separate lane (its own vitest "browser"
+project, Playwright config, or `test:browser` script) excluded from the default test/build/lint
+command. Execution is guarded by an explicit local marker (e.g. `PTP_BROWSER_TESTS=1`) AND skipped
+when `process.env.CI` is truthy, so an accidental CI invocation skips rather than fails. The lane
+is never added to any CI workflow, required check, or default test script. Residual risk: a
+local-only lane is only as reliable as the `tdd: mandatory` apply gate enforcing it, since CI
+cannot catch a skipped browser test.
+
 ## Evidence
 
 Record the test evidence behind each task in the apply stage record's `tests` array — one entry per
@@ -68,7 +90,9 @@ task, in one of two branch shapes: an executed `{ task, test, red, green }` (the
 the failing run, the `green` string the passing run) or an exempt `{ task, exempt, reader }` for a
 prose-only task under the exemption above. Record the entry even under `advisory`, where the gate is
 relaxed but the cycle is not: advisory is not silence. Under `mandatory` a task touching executable
-code with neither a `red` nor a valid exempt entry is not checked off and the run blocks.
+code with neither a `red` nor a valid exempt entry is not checked off and the run blocks. For a
+render-affecting task, the `red`/`green` strings in its `{task, test, red, green}` entry must name
+the browser-engine test command; a jsdom-only entry does not satisfy RED under `tdd: mandatory`.
 
 <!-- budget-exception: the Evidence section adds new normative record-shape content, not duplication, pushing this file just over the 500-word soft budget -->
 

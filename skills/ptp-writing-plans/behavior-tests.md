@@ -2,7 +2,8 @@
 {
   "skill": "ptp-writing-plans",
   "assertions": [
-    { "id": "prose-exempt-marker", "kind": "requires", "pattern": "\\[prose-exempt:\\s*[^\\]]+\\]", "why": "a prose-only checkbox carries the literal [prose-exempt: <reader it binds>] marker naming the reader that prose binds" }
+    { "id": "prose-exempt-marker", "kind": "requires", "pattern": "\\[prose-exempt:\\s*[^\\]]+\\]", "why": "a prose-only checkbox carries the literal [prose-exempt: <reader it binds>] marker naming the reader that prose binds" },
+    { "id": "render-affecting-browser-engine-naming", "kind": "requires", "pattern": "render-affecting[\\s\\S]{0,400}browser-engine\\*{0,2}\\s+test\\s+file\\s+and\\s+case", "why": "a render-affecting checkbox's verify: clause must name a browser-engine test file and case, not a jsdom/happy-dom test" }
   ]
 }
 ```

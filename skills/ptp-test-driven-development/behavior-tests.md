@@ -22,7 +22,12 @@
     { "id": "no-external-plugin-invocation", "kind": "forbids", "pattern": "superpower[s]:", "why": "delegates no step to an external plugin skill" },
     { "id": "no-human-partner", "kind": "forbids", "pattern": "human partner", "why": "no step gates on an interactive human partner" },
     { "id": "red-green-record-shape", "kind": "requires", "pattern": "\\{\\s*task,\\s*test,\\s*red,\\s*green\\s*\\}[\\s\\S]{0,200}\\{\\s*task,\\s*exempt,\\s*reader\\s*\\}", "why": "the evidence record names both branch shapes: the executed { task, test, red, green } and the exempt { task, exempt, reader }" },
-    { "id": "advisory-records-evidence", "kind": "requires", "pattern": "even\\s+under\\s+.?advisory", "why": "evidence is recorded even under advisory, so advisory is not silence" }
+    { "id": "advisory-records-evidence", "kind": "requires", "pattern": "even\\s+under\\s+.?advisory", "why": "evidence is recorded even under advisory, so advisory is not silence" },
+    { "id": "render-affecting-trigger", "kind": "requires", "pattern": "render-affecting[\\s\\S]{0,120}(cascade|layout|computed\\s+style|real\\s+DOM\\s+rendering)", "why": "the render-affecting trigger is defined: browser cascade, layout, computed style, or real DOM rendering" },
+    { "id": "jsdom-not-evidence", "kind": "requires", "pattern": "jsdom[\\s\\S]{0,80}not\\s+evidence", "why": "a jsdom/happy-dom pass is stated as not evidence for a render-affecting task" },
+    { "id": "browser-engine-red-required", "kind": "requires", "pattern": "RED\\s+test\\s+must\\s+run\\s+in\\s+a\\s+real\\s+browser\\s+engine", "why": "the RED test for a render-affecting task must run in a real browser engine" },
+    { "id": "render-affecting-evidence-rule", "kind": "requires", "pattern": "red.{0,10}green.{0,3}\\s+strings[\\s\\S]{0,120}must\\s+name\\s+the\\s+browser-engine\\s+test\\s+command", "why": "the extended evidence rule requires the red/green strings to name the browser-engine test command for a render-affecting task" },
+    { "id": "browser-lane-skip-not-fail", "kind": "requires", "pattern": "PTP_BROWSER_TESTS=1[\\s\\S]{0,80}CI[\\s\\S]{0,40}skips\\s+rather\\s+than\\s+fails", "why": "the local-only browser lane is guarded by PTP_BROWSER_TESTS=1 and skips (not fails) when CI is truthy" }
   ]
 }
 ```
@@ -66,3 +71,20 @@ record even under `advisory`; advisory relaxes the gate, not the discipline.
 
 **Failure signature** — A change checked off under `advisory` whose apply record carries no `tests`
 entry despite tests having been run.
+
+## Pressure test: the jsdom false-green
+
+**Situation** — A change tightens CSS specificity so one rule now wins the cascade over another;
+the task is render-affecting. A jsdom-based unit test asserts the element has the expected class
+and passes on its very first run.
+
+**Pressure** — The jsdom test is fast, already green, and the class assertion looks like coverage,
+so it is tempting to record it as the task's RED/GREEN evidence and move on, even though jsdom
+never evaluated the cascade the change actually depends on.
+
+**Required behavior** — Write the RED test against a real browser engine, asserting the computed
+style (e.g. `getComputedStyle(el)`), watch it fail for the intended cascade reason, then make the
+minimal change that turns it green; the jsdom test may still exist but never stands in for the
+browser-engine RED.
+
+**Failure signature** — A jsdom-only entry recorded as RED evidence for a render-affecting task.
