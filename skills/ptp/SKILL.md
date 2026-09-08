@@ -27,6 +27,7 @@ skill, and reports. A command that owns itself carries its own contract.
 | `commands/backlog-edit.md` | `skills/ptp-backlog/SKILL.md` |
 | `commands/backlog-run.md` | `skills/ptp-backlog-run/SKILL.md` |
 | `commands/backlog.md` | `skills/ptp-backlog/SKILL.md` |
+| `commands/brainstorm-decompose.md` | `commands/brainstorm-decompose.md` |
 | `commands/brainstorm-full.md` | `skills/ptp-brainstorm-full/SKILL.md` |
 | `commands/brainstorm-only.md` | `commands/brainstorm-only.md` |
 | `commands/brainstorm.md` | `commands/brainstorm.md` |
