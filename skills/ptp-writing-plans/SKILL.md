@@ -57,6 +57,17 @@ A checkbox that only gates — the isolation check, the final verification box �
 **verifies** instead, and is the one shape exempt from naming a file it changes and from both
 testability shapes.
 
+When a checkbox is **render-affecting** — per the trigger `ptp-test-driven-development` defines
+(its correctness depends on browser cascade, layout, computed style, or real DOM rendering) — this
+narrows, not replaces, the executable-behavior shape above: its `verify:` clause must name a
+**browser-engine** test file and case, and a jsdom/happy-dom test file does not satisfy this shape
+for a render-affecting checkbox. Automated browser tests are a permitted executor; the manual-task
+ban and its "no manual tasks / no 'check in the browser'" rule owned by `tasks-authoring` are
+unaffected — an automated browser test the implementing agent runs and reads itself is not a banned
+manual step. The checkbox's outcome text must reflect the named browser test's RED→GREEN pair (the
+failing-then-passing browser assertion), consistent with the "names the specific test file and test
+case" rule above.
+
 ## Never
 
 - Paste implementation code. Name the file and the outcome. A literal belongs in a checkbox only

@@ -44,7 +44,7 @@
     "expectedRuleIds": {
       "ptp-requesting-code-review": ["RCR-1", "RCR-2", "RCR-3", "RCR-4", "RCR-5", "RCR-6", "RCR-7", "RCR-8"],
       "ptp-receiving-code-review": ["RCV-1", "RCV-2", "RCV-3", "RCV-4", "RCV-5", "RCV-6", "RCV-7", "RCV-8", "RCV-9", "RCV-10"],
-      "ptp-verification-before-completion": ["VBC-1", "VBC-2", "VBC-3", "VBC-4", "VBC-5", "VBC-6", "VBC-7", "VBC-8"]
+      "ptp-verification-before-completion": ["VBC-1", "VBC-2", "VBC-3", "VBC-4", "VBC-5", "VBC-6", "VBC-7", "VBC-8", "VBC-9"]
     },
     "findingRecord": {
       "skill": "ptp-requesting-code-review",
@@ -367,6 +367,17 @@
       "expectedOutcome": "The stale evidence is re-run before any completion claim.",
       "mustContain": ["re-run"],
       "mustNotContain": ["earlier run already confirmed"]
+    },
+    {
+      "id": "vbc-9-browser-green-required",
+      "skill": "ptp-verification-before-completion",
+      "ruleId": "VBC-9",
+      "ruleAnchor": "browser assertion's green output",
+      "category": "premature-completion-claim",
+      "scenario": "A render-affecting task is claimed complete with only the unit-test suite's green output shown, and the browser lane was never run.",
+      "expectedOutcome": "The completion claim is withheld until the browser assertion's own green output is shown; this is a local gate, never a CI one.",
+      "mustContain": ["browser"],
+      "mustNotContain": ["unit tests are close enough"]
     }
   ]
 }

@@ -25,3 +25,7 @@ the claim — never on assumption, hedging, or a delegated report.
   before any completion claim, the per-kind verification step itself staying owned by
   `review-loop`.
 - VBC-8 Evidence produced before the most recent edit is stale; re-run it.
+- VBC-9 For render-affecting work (per the trigger `ptp-test-driven-development` defines), a
+  completion claim's evidence includes the browser assertion's green output (the command and its
+  passing result) — a local completion gate; CI does not run the browser lane and does not gate on
+  it.
