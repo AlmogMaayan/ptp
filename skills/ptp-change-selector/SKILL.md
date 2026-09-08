@@ -154,7 +154,7 @@ reads differently from a genuinely missing change.
 
 ## 4. Epic allocation (producers only)
 
-Producers (`/ptp:plan-multiple`, `/ptp:plan`, `/ptp:brainstorm`, `/ptp:analyze`, and `/ptp:prd` for the free-text case) allocate a fresh epic when creating a new change. The algorithm:
+Producers (`/ptp:plan-multiple`, `/ptp:brainstorm-decompose`, `/ptp:plan`, `/ptp:brainstorm`, `/ptp:analyze`, and `/ptp:prd` for the free-text case) allocate a fresh epic when creating a new change. The algorithm:
 
 ```
 1. candidates = folder names under <resolved workspace root>/openspec/changes/
@@ -176,6 +176,7 @@ that belongs to `ptp-branch-guard` and is not settled here.
 
 **Per-producer usage:**
 - `/ptp:plan-multiple` — calls this once, then assigns `epic_str_01`, `epic_str_02`, … to slices in dependency order. When it is instead re-cutting a change that returned `NEEDS SPLIT`, it allocates **no** epic and uses §4b's sub-story allocation.
+- `/ptp:brainstorm-decompose` — calls this once (fresh decomposition only — it has no re-cut mode), then assigns `epic_str_01`, `epic_str_02`, … to slices in dependency order, exactly as `/ptp:plan-multiple` does.
 - `/ptp:plan` — calls this once and assigns `epic_str_01_<desc>` for a standalone change. **Exception:** when `/ptp:plan` is invoked with a fully-formed `XXXX_NN_` id (the `/ptp:plan-multiple` → `/ptp:plan` delegation path), it preserves that id verbatim and does NOT allocate a new epic.
 - `/ptp:brainstorm` — calls this once and assigns `epic_str_01_<desc>` so the later `/ptp:plan` keeps the same id.
 - `/ptp:analyze` — allocates `epic_str_01_<subject-slug>` only to house an analysis doc (no proposal, design, tasks, or spec delta), and only when no relevant active change exists to receive the analysis doc.
@@ -219,9 +220,9 @@ All ptp commands that take a change argument fall into one of two roles. Referen
 
 ### Role A — Producers (allocate + name)
 
-Commands: `/ptp:plan-multiple`, `/ptp:plan`, `/ptp:brainstorm`, `/ptp:analyze`, `/ptp:prd`
+Commands: `/ptp:plan-multiple`, `/ptp:brainstorm-decompose`, `/ptp:plan`, `/ptp:brainstorm`, `/ptp:analyze`, `/ptp:prd`
 
-These **allocate** a fresh epic and **name** the change folder. The pure producers (`/ptp:plan-multiple`, `/ptp:plan`, `/ptp:brainstorm`) do not consume selectors — they produce ids. The **hybrid producers** (`/ptp:analyze`, `/ptp:prd`) also resolve their argument onto existing changes — they allocate a fresh epic only in specific cases and otherwise route onto an existing change (`/ptp:analyze` routes its free-text subject to a relevant active change by scope overlap; `/ptp:prd` projects a selector onto existing epics). Each references this skill for the allocation algorithm and the id format contract.
+These **allocate** a fresh epic and **name** the change folder. The pure producers (`/ptp:plan-multiple`, `/ptp:brainstorm-decompose`, `/ptp:plan`, `/ptp:brainstorm`) do not consume selectors — they produce ids. The **hybrid producers** (`/ptp:analyze`, `/ptp:prd`) also resolve their argument onto existing changes — they allocate a fresh epic only in specific cases and otherwise route onto an existing change (`/ptp:analyze` routes its free-text subject to a relevant active change by scope overlap; `/ptp:prd` projects a selector onto existing epics). Each references this skill for the allocation algorithm and the id format contract.
 
 **Limited producer — `/ptp:analyze`**: allocates `XXXX_01_<subject-slug>` only to house an analysis doc; it never produces proposal/design/tasks/spec-delta. It allocates only when no relevant active change exists to receive the analysis doc.
 

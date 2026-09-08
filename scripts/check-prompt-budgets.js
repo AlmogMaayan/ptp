@@ -88,6 +88,7 @@ const EXEMPTIBLE_RULES = new Set(['description-max', 'ordinary-command-body']);
 const EXEMPTIONS = [
   { file: 'commands/apply.md', rule: 'ordinary-command-body', reason: 'owner command: owns the sequential apply protocol, no owning skill' },
   { file: 'commands/archive.md', rule: 'ordinary-command-body', reason: 'owner command: owns the archive gates, no owning skill' },
+  { file: 'commands/brainstorm-decompose.md', rule: 'ordinary-command-body', reason: 'owner command: owns the brainstorm-decompose protocol, no owning skill' },
   { file: 'commands/brainstorm-only.md', rule: 'ordinary-command-body', reason: 'owner command: owns the change-agnostic brainstorm protocol, no owning skill' },
   { file: 'commands/brainstorm.md', rule: 'ordinary-command-body', reason: 'owner command: owns the per-change brainstorm protocol, no owning skill' },
   { file: 'commands/codex-review-plan.md', rule: 'ordinary-command-body', reason: 'owner command: owns the closed-book artifact-review payload protocol' },
