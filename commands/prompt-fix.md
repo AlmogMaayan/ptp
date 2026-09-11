@@ -1,11 +1,12 @@
 ---
 description: Correct or extend the understanding held from a prior /ptp:prompt turn in this conversation, then restate it
-argument-hint: "<correction or clarification>"
+argument-hint: "<correction or clarification> [model:<model>.<effort>]"
 ---
 
 ## Arguments
 
-Take the entire argument as free-text. No selector, no token parsing.
+Take the entire argument as free-text. It MAY also carry an optional `model:<model>.<effort>`
+override token; see `skills/ptp-prompt-draft/SKILL.md` for how it is parsed and honored.
 
 ## Owner
 

@@ -19,6 +19,11 @@ for its own free-text case: it allocates a fresh epic only when no existing chan
 otherwise writes into an existing one. Do not restate `ptp-change-selector`'s grammar or allocation
 algorithm here; cite it.
 
+This command writes `prompt.md` through the **`ptp-run-at-model`** skill in one foreground main run at
+a resolved target (`opus.high` by default, or a valid caller-side `model:` override) — see *Run at
+model* below for the outer-session ordering (the `model:` parse-and-strip, the STOPs, the resolution
+or allocation, and the branch guard all run outer, **before** the main run starts).
+
 ## No accumulated understanding — STOP
 
 If this conversation holds no accumulated understanding from a prior `/ptp:prompt` / `/ptp:prompt-fix`
@@ -66,6 +71,40 @@ downstream parses fields out of:
 
 Captured via /ptp:prompt-write from a /ptp:prompt / /ptp:prompt-fix conversation on <date>.
 ```
+
+## Run at model
+
+`/ptp:prompt-write` is write-capable, so the abort-guaranteeing preconditions, the resolution/
+allocation, and the branch guard all run in the **outer session, before the main work starts** — per
+`ptp-run-at-model`'s "Outer abort-preconditions first" and "Branch guard in the outer session" steps
+(referenced here, not restated). In order:
+
+1. **Parse-and-strip** an optional `model:<model>.<effort>` override token from the argument text per
+   `ptp-run-at-model`'s "Optional caller-side `model:` override token" section, **before** anything
+   else below — an invalid or duplicate token STOPs here, before any folder is allocated or branch is
+   cut.
+2. **STOP preconditions**: the "no accumulated understanding" STOP above, and the ambiguous-selector
+   STOP (*Argument resolution* above) — both abort-guaranteeing, so both run outer, before any spawn.
+3. **Resolve or allocate**: run the `ptp-change-selector` resolution to one existing change, or the
+   fresh single-story epic allocation (*Argument resolution* above), yielding the target change id.
+4. **Branch guard**: run the `ptp-branch-guard` preamble with that resolved or allocated id as the
+   branch leaf.
+5. **Run the main work**: only now does the **one foreground `ptp-run-at-model` main run** (the Claude
+   subagent by default, or the `codex exec` shell-out when `main=codex`) execute, at the resolved
+   target (`opus.high` by default, or the valid `model:` override) — writing `prompt.md` into the
+   resolved or allocated change folder per *`prompt.md` shape* above. The main run does **not**
+   inherit the outer session's conversation, so its prompt MUST carry: the accumulated understanding
+   held from this conversation's prior `/ptp:prompt` / `/ptp:prompt-fix` turns (the content to
+   persist), the resolved or newly allocated change id/folder path to write into, and the
+   token-stripped argument text. Because the outer session already ran the branch guard, the main
+   run's own branch-guard check is a no-op.
+6. **Relay**: the outer session surfaces the main run's terminal result per `ptp-run-at-model`'s
+   *Result relay* — the resolved or allocated change id, the resulting state, any failure, and the
+   next command to run.
+
+The no-empty-file STOP, the ambiguous-target STOP, the fresh-epic allocation, the branch-guard
+obligation, the write-only-`prompt.md` rule, and the never-auto-invoke rule are unchanged in substance
+— only the executing context (the main run) and the resolved target move.
 
 ## What this command does NOT do
 
