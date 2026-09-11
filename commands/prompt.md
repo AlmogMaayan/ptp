@@ -1,11 +1,12 @@
 ---
 description: Restate the assistant's understanding of a free-text request, conversationally, writing no file
-argument-hint: "<free-text request>"
+argument-hint: "<free-text request> [model:<model>.<effort>]"
 ---
 
 ## Arguments
 
-Take the entire argument as free-text. No selector, no token parsing.
+Take the entire argument as free-text. It MAY also carry an optional `model:<model>.<effort>`
+override token; see `skills/ptp-prompt-draft/SKILL.md` for how it is parsed and honored.
 
 ## Owner
 
