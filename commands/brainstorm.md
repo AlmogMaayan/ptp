@@ -51,7 +51,7 @@ performs steps 2–8 and reports.
 **Run steps 2–8 via `ptp-run-at-model` at the resolved target.** Only after the branch guard and step
 1's change-id allocation have settled in the outer session, invoke the **`ptp-run-at-model`** skill with
 the resolved target (`opus.high` by default, or the valid `model:` override) and the work being
-**steps 2–8 below** — load context, invoke `ptp-brainstorming` in autonomous mode,
+**steps 2–8 below** — load context, invoke `ptp-brainstorming` (or `superpowers:brainstorming` when the skill-set directive names `tdd-plugin=superpowers`) in autonomous mode,
 compare material alternatives, decide, persist the decision capsule to
 `openspec/changes/<change-id>/brainstorm.md`, then STOP and report. It
 spawns one foreground subagent at the resolved model (with the matching effort directive) that performs
@@ -60,7 +60,7 @@ reporting a refusal or STOP as success). Reference the `ptp-run-at-model` skill 
 mechanics rather than restating them. One note the subagent prompt MUST carry: the subagent's own
 `ptp-branch-guard` check is a **no-op** (HEAD is already on the feature branch from the outer guard), so
 the subagent must **NOT** attempt to launch the `ptp-branch-prep` Workflow. Its brainstorm work spawns
-nothing — it invokes `ptp-brainstorming` as an inline Skill call — so there is no nesting
+nothing — it invokes `ptp-brainstorming` (or `superpowers:brainstorming` when the skill-set directive names `tdd-plugin=superpowers`) as an inline Skill call — so there is no nesting
 concern.
 
 **Codex work-prompt delivery.** Under `main=codex`, the PTP-owned `ptp-brainstorming` skill plus its
@@ -81,7 +81,7 @@ closure must reach the Codex main run, per `ptp-run-at-model`'s *The `main=codex
    - `npx -y openspec list` (lists active changes)
    - `npx -y openspec list --specs` (lists existing capabilities/specs)
    - If `openspec` is installed globally, drop the `npx -y` prefix.
-3. **Invoke the `ptp-brainstorming` skill** via the Skill tool, in autonomous mode.
+3. **Invoke the `ptp-brainstorming` skill** via the Skill tool, in autonomous mode. When the skill-set directive names `tdd-plugin=superpowers`, invoke `superpowers:brainstorming` instead.
 4. **Make reasonable assumptions instead of pausing to ask** (autonomous mode). Do **not** use AskUserQuestion and do **not** stop to ask the user clarifying questions — this brainstorm runs autonomously in a non-interactive subagent. Where a real choice exists that you would otherwise have asked about, pick the most reasonable option, proceed, and **document the assumption inline in the brainstorm** so the reader can see what was assumed and revisit it. This mirrors `/ptp:plan`'s autonomous, no-clarifying-questions contract.
 5. **Compare only material alternatives.** When a material design choice exists, weigh the real
    candidates — what each changes, risk / blast radius, effort, reversibility, interaction with
@@ -96,6 +96,7 @@ closure must reach the Codex main run, per `ptp-run-at-model`'s *The `main=codex
    capsule in place and never append a correction, an earlier draft, or review-iteration narrative.
    Write the capsule to `openspec/changes/<change-id>/brainstorm.md`. Surface
    the absolute path back to the user.
+   **`superpowers-output-override`** (path-override): when the `tdd-plugin=superpowers` arm ran and Superpowers produced the brainstorm, override Superpowers' default output path and write instead to `<workspace root>/openspec/changes/<change-id>/brainstorm.md` (workspace root carried verbatim via `ptp-run-at-model` part (g); never re-derive it; never write to `docs/superpowers/specs/...` or `docs/plans/`); do not `git commit`/`git add` and do not stop at a human approval gate — this runs autonomously and ptp reviews afterward.
 8. **STOP.** Do not write `proposal.md`, `design.md`, `tasks.md`, or spec deltas — those belong to `/ptp:plan`. The next step is `/ptp:plan <change-id>`, which transcribes `brainstorm.md` into the OpenSpec artifacts.
 
 ## Hard rules

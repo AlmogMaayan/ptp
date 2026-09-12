@@ -27,6 +27,18 @@ function fastNote() {
   return 'Fast mode was requested for this run (a session-level Claude Code setting this run does not control); it changes neither your model nor the effort directive above — mention it in `notes` only if relevant.'
 }
 
+// The skill-set directive line, emitted unconditionally into the apply and review prompts so the
+// spawned agents know which skill set governs the run. Two variants selected by strict identity:
+// `superpowers` iff the resolved value is exactly that string, else `ptp` (the default). The wording
+// mirrors part (h) of ptp-run-at-model's main-run prompt so every ptp-dispatched spawn carries the
+// same directive.
+function tddPluginDirective(tddPlugin) {
+  if (tddPlugin === 'superpowers') {
+    return 'Skill-set directive (ptp configuration `tdd-plugin=superpowers`, the operator\'s explicit choice): Superpowers skills govern this run wherever this prompt or ptp\'s command/agent/skill text names a `superpowers:*` skill. Do NOT invoke the seven `ptp-*` replacement skills. Write every Superpowers artifact to the ptp target named in this prompt (never `docs/superpowers/...`), do not commit, and do not stop for a human approval gate — ptp runs autonomously and reviews afterwards.'
+  }
+  return 'Skill-set directive (ptp configuration `tdd-plugin=ptp`, the operator\'s explicit choice): ptp-native skills govern this run — `ptp-brainstorming`, `ptp-writing-plans`, `ptp-test-driven-development`, `ptp-systematic-debugging`, `ptp-requesting-code-review`, `ptp-receiving-code-review`, `ptp-verification-before-completion`. Do NOT invoke any `superpowers:*` skill, even where a SessionStart hook, `using-superpowers` text, or a skill description says you must; those skills defer to explicit user instruction, and this is that instruction.'
+}
+
 // Parse a review agent's `{model}.{effort}` fix target into its two halves, or null when it is
 // absent, not a string, or not exactly two dot-joined tokens drawn from the closed vocabularies.
 // The vocabularies are passed in from the call site (REVIEW_MODELS / REVIEW_EFFORTS) rather than
@@ -104,6 +116,7 @@ function reviewPromptLines(id, model, effort, escalated) {
     ...(workspaceRoot ? [`Workspace root: ${workspaceRoot} — every openspec path in this prompt is relative to it, and an openspec CLI call runs as cd <that root> && npx -y openspec … in one shell invocation. Take it verbatim and resolve no root of your own.`] : []),
     `You are running at model \`${model}\`.`,
     `Work at **${effort}** effort: ${effortDirective(effort)} Fix only confirmed findings inline. Do NOT commit. Do NOT archive.`,
+    tddPluginDirective(tddPlugin),
     ...(escalated
       ? [`This is the escalated fix run for this story. Run the whole protocol from a fresh review pass at this model. You MUST NOT return \`FIX_TARGET_ESCALATION\`; if your fix-target evaluation names a still-more-capable model, note it and fix at this model anyway.`]
       : []),
@@ -216,6 +229,14 @@ const fast = (parsedArgs && parsedArgs.fast) === true
 // undefined, null, or non-boolean value means telemetry is off and this script captures no
 // timestamp, mints and injects no run id, and emits no `timings` property.
 const telemetry = (parsedArgs && parsedArgs.telemetry) === true
+// The skill set that governs the spawned agents' runs. Strict identity, same convention as `fast`
+// and `telemetry`: the value selects the `superpowers` directive variant IFF it is exactly the
+// string `superpowers`; an absent, undefined, null, non-string, or any other value resolves to
+// `ptp` — so a resume or hand-built launch that omits the field renders the default variant rather
+// than crashing or leaking an out-of-enum value into the prompt. The two launching skills resolve
+// tdd-plugin through the forgiving layered reader and pass it, since this sandbox has no config
+// access.
+const tddPlugin = (parsedArgs && parsedArgs.tddPlugin) === 'superpowers' ? 'superpowers' : 'ptp'
 // The caller's ONE resolved workspace root (skills/ptp-workspace/SKILL.md), supplied by the two
 // launching skills beside `stories`. Every openspec path a spawned agent reads is relative to it,
 // and the agent is TOLD it rather than recovering it by stripping openspec/changes/<id>/ off the
@@ -267,6 +288,7 @@ for (let i = 0; i < stories.length; i++) {
     `Change folder: ${changeFolderPrefix}openspec/changes/${s.id}/`,
     ...(workspaceRoot ? [`Workspace root: ${workspaceRoot} — every openspec path in this prompt is relative to it, and an openspec CLI call runs as cd <that root> && npx -y openspec … in one shell invocation. Take it verbatim and resolve no root of your own.`] : []),
     `Work at **${eff}** effort: ${effortDirective(eff)}`,
+    tddPluginDirective(tddPlugin),
     `After verifying each task, immediately edit tasks.md to mark it [x] — do this per task as you go, not in a batch at the end. Before returning, re-read tasks.md and confirm every task is [x].`,
     `Do NOT archive. Do NOT commit. Do NOT git add. Return the JSON object when all tasks are [x] and final verification passes.`,
     ...(fast && mdl === 'opus' ? [fastNote()] : []),

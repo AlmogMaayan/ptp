@@ -115,8 +115,8 @@ that bypasses the sandbox or approvals, and never loosen the read-only reviewer 
 Resolve the `tdd` config key through `ptp-workspace`'s forgiving layered read (default `advisory`; an
 unset or unreadable key reproduces `advisory`). Under resolved `tdd: mandatory` you MUST load
 `ptp-test-driven-development` for any task that touches executable code, and never for a prose-only
-task — the skill's prose-contract exemption already owns that boundary. Under resolved `tdd: advisory`
-loading it is a MAY, exactly as before. `ptp-verification-before-completion` stays a MAY under both.
+task — the skill's prose-contract exemption already owns that boundary. When the spawn-prompt skill-set directive names `tdd-plugin=superpowers`, load `superpowers:test-driven-development` in its place. Under resolved `tdd: advisory`
+loading it is a MAY, exactly as before. `ptp-verification-before-completion` stays a MAY under both — and when the skill-set directive names `tdd-plugin=superpowers`, `superpowers:verification-before-completion` is the arm loaded in its place.
 Hold the `Skill` tool to load either; the discipline above is otherwise sufficient.
 
 ## Return

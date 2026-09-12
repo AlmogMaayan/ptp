@@ -476,7 +476,7 @@ phase. Each `codex exec` call is built per `ptp-codex-mode`'s flag-append rule (
 `-c model_reasoning_effort=<effort>` before the trailing `-` when `codex.model` /
 `codex.reasoningEffort` are set; both unset ⇒ the literal `codex exec -s read-only -` shown here):
 
-- `ptp` / `code` — invoke the `ptp-requesting-code-review` skill. Load the contract (`proposal.md`, `design.md`, `tasks.md`, `specs/**/spec.md`) and the merge-base diff (`git merge-base HEAD master` → `git diff <base>...HEAD`) and pass them as context.
+- `ptp` / `code` — invoke the `ptp-requesting-code-review` skill (or `superpowers:requesting-code-review` under `tdd-plugin=superpowers`). Load the contract (`proposal.md`, `design.md`, `tasks.md`, `specs/**/spec.md`) and the merge-base diff (`git merge-base HEAD master` → `git diff <base>...HEAD`) and pass them as context.
 - `codex` / `code` — run the `codex-review.md` protocol inline: read the contract yourself (you, via Read), capture the merge-base diff (you, via Bash), run `npx -y openspec validate <change-id> --strict` and any relevant tests yourself (you, via Bash), build a single closed-book prompt with all of this inlined, and pipe it to `codex exec -s read-only` over stdin.
   - **First-iteration payload (kind `code`).** Inline exactly the required set: the contract artifacts (`proposal.md`, `design.md` when present, `tasks.md`, `specs/**/spec.md`), the merge-base diff, the `openspec validate --strict` result, the test results, and the cited source excerpts.
 - `ptp` / `artifact` — run the artifact rubric authored in `commands/review-plan.md` inline, referencing it rather than re-authoring it: the exhaustive eight-condition block-list (validation fails; scope/capability mapping missing or contradictory; a normative requirement with no scenario; a requirement with no implementing task; a task that is not agent-executable or automatically verifiable — which carries the banned-manual-task check; a missing non-obvious decision or invariant; two artifacts disagreeing; one artifact carrying current and obsolete truth) plus the closed must-not-require list. Run it in that file's order: `npx -y openspec validate <change-id> --strict` first, then the deterministic compactness lint (unavailable lint = non-blocking note), then exactly one model review pass emitting all of the iteration's findings at once.
@@ -565,7 +565,7 @@ For each remaining **in-scope** finding, compute its **stable key** (see section
 
 ### (e) Confirm remaining findings
 
-Invoke `ptp-receiving-code-review` and apply its rigor: for every candidate finding, read the actual code or artifact at the cited location and judge whether it is a real defect.
+Invoke `ptp-receiving-code-review` (or `superpowers:receiving-code-review` under `tdd-plugin=superpowers`) and apply its rigor: for every finding, read the code or artifact at the cited location and judge whether it is a real defect.
 
 - `CONFIRMED` → this finding will be fixed in step (g).
 - `REJECTED` → append its stable key to `rejected_findings`. It does NOT count against convergence.
@@ -714,7 +714,7 @@ Report:
    ```
 
    The `(unconfirmed)` marker is mandatory: these findings never passed
-   `ptp-receiving-code-review`, so presenting them as verified defects would misrepresent
+   `ptp-receiving-code-review` (or `superpowers:receiving-code-review` under `tdd-plugin=superpowers`), so presenting them as verified defects would misrepresent
    them. When the bucket is empty — which is every run at the default `low` — render the literal
    word `None`, so a reader can distinguish "nothing below threshold" from an author omission. This
    section is rendered **before** the next-command recommendation, so a `DONE` with a non-empty

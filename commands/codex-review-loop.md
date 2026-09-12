@@ -11,6 +11,8 @@ Take `$ARGUMENTS` as a change selector. Resolve the change selector through the 
 
 Invoke the `ptp-review-loop` skill (`skills/ptp-review-loop/SKILL.md`).
 
+Its per-iteration confirmation drives `ptp-receiving-code-review` (or `superpowers:receiving-code-review` when the skill-set directive names `tdd-plugin=superpowers`).
+
 ## Report
 
 Report the change id where the command resolved one, the resulting state, any failures, and the next command to run.

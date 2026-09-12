@@ -11,6 +11,10 @@ Parse and strip the per-invocation `model:<model>.<effort>` token, then take the
 
 Invoke the `ptp-brainstorm-full` skill (`skills/ptp-brainstorm-full/SKILL.md`).
 
+Its wrapped exploration drives `ptp-brainstorming` (or `superpowers:brainstorming` when the skill-set directive names `tdd-plugin=superpowers`).
+
+**`superpowers-output-override`** (path-override): when the `tdd-plugin=superpowers` arm ran and Superpowers produced the brainstorm, override Superpowers' default output path and write the brainstorm instead to `<workspace root>/openspec/changes/<change-id>/brainstorm.md` (workspace root carried verbatim via `ptp-run-at-model` part (g); never re-derive it; never write to `docs/superpowers/specs/...` or `docs/plans/`); do not `git commit`/`git add` and do not stop at a human approval gate — this runs autonomously and ptp reviews afterward.
+
 ## Report
 
 Report the change id where the command resolved one, the resulting state, any failures, and the next command to run.
