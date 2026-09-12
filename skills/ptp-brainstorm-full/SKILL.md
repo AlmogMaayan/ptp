@@ -61,7 +61,7 @@ change context — the id's `<desc>` and any existing `openspec/changes/<id>/` a
 
 1. Load context — read `openspec/project.md` if present, run `npx -y openspec list` and
    `npx -y openspec list --specs` to see existing specs and in-flight changes.
-2. Invoke the `ptp-brainstorming` skill in autonomous mode on the passed-through `request`
+2. Invoke the `ptp-brainstorming` skill (or `superpowers:brainstorming` when the skill-set directive names `tdd-plugin=superpowers`) in autonomous mode on the passed-through `request`
    (no clarifying questions — make reasonable assumptions and document them inline).
 3. Compare only material alternatives (what each changes, risk/blast radius, effort,
    reversibility, interaction with existing specs); when only one direction is viable, record that
@@ -72,13 +72,14 @@ change context — the id's `<desc>` and any existing `openspec/changes/<id>/` a
    `openspec/changes/<change-id>/brainstorm.md` (create the directory if absent). Nothing else:
    no full design document, no implementation plan, no deliberation history. Write current truth
    only: replace a superseded capsule in place rather than appending to it.
+   **`superpowers-output-override`** (path-override): when the `tdd-plugin=superpowers` arm ran and Superpowers produced the brainstorm, override Superpowers' default output path and write the capsule instead to `<workspace root>/openspec/changes/<change-id>/brainstorm.md` (workspace root carried verbatim via `ptp-run-at-model` part (g); never re-derive it; never write to `docs/superpowers/specs/...` or `docs/plans/`); do not `git commit`/`git add` and do not stop at a human approval gate — this runs autonomously and ptp reviews afterward.
 
 **Step 8's STOP and `/ptp:plan` recommendation are suppressed** — the brainstorm subagent writes
 `brainstorm.md` and returns its terminal result to the outer session; the outer session continues to
 the brainstorm-gate. The subagent prompt MUST carry: the original `request` text (so the brainstorm
 targets the real request, not the id slug); the branch guard is a **no-op** (HEAD is already
 on the feature branch from the outer guard); the subagent MUST NOT attempt to launch the
-`ptp-branch-prep` workflow; the brainstorm work invokes `ptp-brainstorming` as an inline Skill
+`ptp-branch-prep` workflow; the brainstorm work invokes `ptp-brainstorming` (or `superpowers:brainstorming` when the skill-set directive names `tdd-plugin=superpowers`) as an inline Skill
 call — no nesting concern.
 
 Relay the Phase A result: the absolute path of the written `brainstorm.md` (or the failure description

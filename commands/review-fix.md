@@ -61,7 +61,7 @@ Reviews in this workflow are **displayed in the conversation, not persisted to a
    `/ptp:brainstorm`, never archive, never commit — because a fresh main run does not inherit them
    by osmosis.
 
-3. **Confirm every finding independently.** Invoke the `ptp-receiving-code-review` skill via the Skill tool and apply its rigor: for **each** finding, read the actual code or artifact at the cited location and judge whether it describes a **real defect** — not a false positive, not already-correct code, not a misunderstanding of intent or conventions.
+3. **Confirm every finding independently.** Invoke the `ptp-receiving-code-review` skill (or `superpowers:receiving-code-review` when the skill-set directive names `tdd-plugin=superpowers`) via the Skill tool and apply its rigor: for **each** finding, read the actual code or artifact at the cited location and judge whether it describes a **real defect** — not a false positive, not already-correct code, not a misunderstanding of intent or conventions.
    - Mark each finding `CONFIRMED` or `REJECTED`, each with a one-line reason.
    - Do this for **all** findings regardless of severity. Confirmation is **especially** important for findings from the external Codex reviewer — never fix a Codex finding you cannot independently verify.
 

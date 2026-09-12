@@ -25,7 +25,7 @@ creative work and must not depend on whatever model the session happens to be on
 
 **Run steps 1–7 via `ptp-run-at-model` at `opus.high`.** Only after the branch guard has run in the outer
 session, invoke the **`ptp-run-at-model`** skill with target `opus.high` and the work being **steps 1–7
-below** — load context, invoke `ptp-brainstorming` in autonomous mode,
+below** — load context, invoke `ptp-brainstorming` (or `superpowers:brainstorming` when the skill-set directive names `tdd-plugin=superpowers`) in autonomous mode,
 compare material alternatives, decide, persist the decision capsule to
 `openspec/brainstorms/YYYY-MM-DD-<topic>-brainstorm.md`, then STOP and report. It
 spawns one foreground `opus` subagent (high effort directive) that performs those steps and returns its
@@ -34,7 +34,7 @@ success). Reference the `ptp-run-at-model` skill for the spawn-and-relay mechani
 them. One note the subagent prompt MUST carry: the subagent's own `ptp-branch-guard` check is a **no-op**
 (HEAD is already on the feature branch from the outer guard), so the subagent must **NOT** attempt to
 launch the `ptp-branch-prep` Workflow. Its brainstorm work spawns nothing — it invokes
-`ptp-brainstorming` as an inline Skill call — so there is no nesting concern.
+`ptp-brainstorming` (or `superpowers:brainstorming` when the skill-set directive names `tdd-plugin=superpowers`) as an inline Skill call — so there is no nesting concern.
 
 **Codex work-prompt delivery.** Under `main=codex`, the PTP-owned `ptp-brainstorming` skill plus its
 closure must reach the Codex main run, per `ptp-run-at-model`'s *The `main=codex` direction* and
@@ -44,7 +44,7 @@ closure must reach the Codex main run, per `ptp-run-at-model`'s *The `main=codex
    - `npx -y openspec list` (lists active changes)
    - `npx -y openspec list --specs` (lists existing capabilities/specs)
    - If `openspec` is installed globally, drop the `npx -y` prefix.
-2. **Invoke the `ptp-brainstorming` skill** via the Skill tool, in autonomous mode.
+2. **Invoke the `ptp-brainstorming` skill** via the Skill tool, in autonomous mode. When the skill-set directive names `tdd-plugin=superpowers`, invoke `superpowers:brainstorming` instead.
 3. **Make reasonable assumptions instead of pausing to ask** (autonomous mode). Do **not** use AskUserQuestion and do **not** stop to ask the user clarifying questions — this brainstorm runs autonomously in a non-interactive subagent. Where a real choice exists that you would otherwise have asked about, pick the most reasonable option, proceed, and **document the assumption inline in the brainstorm** so the reader can see what was assumed and revisit it. This mirrors `/ptp:plan`'s autonomous, no-clarifying-questions contract.
 4. **Compare only material alternatives.** When a material design choice exists, weigh the real
    candidates — what each changes, risk / blast radius, effort, reversibility, interaction with
@@ -59,6 +59,7 @@ closure must reach the Codex main run, per `ptp-run-at-model`'s *The `main=codex
    already exists, replace the superseded capsule in place and never append a correction, an earlier
    draft, or review-iteration narrative. Write the capsule to
    `openspec/brainstorms/YYYY-MM-DD-<topic>-brainstorm.md` and surface the absolute path back to the user.
+   **`superpowers-output-override`** (path-override): when the `tdd-plugin=superpowers` arm ran and Superpowers produced the brainstorm, override Superpowers' default output path and write the capsule instead to `<workspace root>/openspec/brainstorms/YYYY-MM-DD-<topic>-brainstorm.md` (workspace root carried verbatim via `ptp-run-at-model` part (g); never re-derive it; never write to `docs/superpowers/specs/...` or `docs/plans/`); do not `git commit`/`git add` and do not stop at a human approval gate — this runs autonomously and ptp reviews afterward.
 7. **STOP.** Do not write any files under `openspec/changes/`. This command is intentionally epic-less — it writes only to `openspec/brainstorms/`, with no change folder yet. The epic is allocated when `/ptp:plan` turns this brainstorm into a change. When the exploration crystallizes into a concrete change, run `/ptp:plan <change-id>` — it will find this brainstorm in `openspec/brainstorms/`, copy it into `openspec/changes/<change-id>/brainstorm.md`, and proceed.
 
 ## Hard rules

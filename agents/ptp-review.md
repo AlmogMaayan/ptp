@@ -51,7 +51,7 @@ Phase 2) per `skills/ptp-review-loop/SKILL.md` **## Inputs**, never a phase labe
 Each iteration of each phase runs review → filter → carry-over → confirm → fix → verify →
 terminate exactly as `skills/ptp-review-loop/SKILL.md` defines in its **## Per-iteration steps** and
 **## Terminal states** sections, at the resolved cap and the resolved severity floor. That skill is
-the normative source for those steps and the convergence and cap outcomes. Read it; do not restate it.
+the normative source; read it, do not restate it.
 
 - **A Codex review pass** reads the contract yourself, captures the diff yourself, runs
   `npx -y openspec validate <change-id> --strict` and the relevant tests yourself, inlines all of it
@@ -61,8 +61,9 @@ the normative source for those steps and the convergence and cap outcomes. Read 
   `npx`, network or install commands, and is never asked to filter by severity: the prompt requests
   findings at every severity and you apply the partition to what it returns.
 - **A Claude review pass** reviews in session against the contract, invoking
-  `ptp-requesting-code-review` and `ptp-receiving-code-review` when you hold the
-  `Skill` tool.
+  `ptp-requesting-code-review` and `ptp-receiving-code-review` when you hold the `Skill` tool.
+  - When the skill-set directive names `tdd-plugin=superpowers`, invoke `superpowers:requesting-code-review` in place of `ptp-requesting-code-review`.
+  - When the skill-set directive names `tdd-plugin=superpowers`, invoke `superpowers:receiving-code-review` in place of `ptp-receiving-code-review`.
 - **Fix targets and routing** follow `skills/ptp-review-loop/SKILL.md`'s **## Fix dispatch** section
   (freeze point, `/ptp:effort … mode:fix`, adopt-the-effort-half rule, degradation posture); a fix
   target's **model** half is honored at a spawn boundary per `skills/ptp-run-at-model/SKILL.md`.

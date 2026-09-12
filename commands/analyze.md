@@ -11,6 +11,10 @@ Take `$ARGUMENTS` as the free-text subject to investigate — a bug, an observat
 
 Invoke the `ptp-analyze` skill (`skills/ptp-analyze/SKILL.md`).
 
+Its bug-route investigation drives `ptp-systematic-debugging` (or `superpowers:systematic-debugging` when the skill-set directive names `tdd-plugin=superpowers`).
+
+**`superpowers-output-override`** (autonomy-only): when the `tdd-plugin=superpowers` arm ran and Superpowers drove the debugging investigation, the analysis stays in the `ptp-analyze`-governed change-folder doc (never `docs/superpowers`); do not `git commit`/`git add` and do not stop at a human approval gate — this runs autonomously and ptp reviews afterward.
+
 ## Report
 
 Report the change id where the command resolved one, the resulting state, any failures, and the next command to run.

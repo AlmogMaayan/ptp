@@ -115,7 +115,7 @@ outer session) runs the members. Notes the beat-2 prompt MUST carry:
 - Its own `ptp-branch-guard` check is a **no-op** (HEAD is already on the feature branch from the outer
   guard), so it must **NOT** attempt to launch the `ptp-branch-prep` Workflow.
 - It must **start no further main run** — no Agent, no Workflow, no nested `codex exec`. It runs steps
-  2–4 inline in its own context (invoking `ptp-brainstorming` inline is a Skill invocation, not
+  2–4 inline in its own context (invoking `ptp-brainstorming`, or `superpowers:brainstorming` when the skill-set directive names `tdd-plugin=superpowers`, inline is a Skill invocation, not
   a spawn) and then returns. The per-slice `/ptp:plan` runs are **beat 3's** members, started by the
   outer session under the member contract below — they are not beat 2's work.
 - On the **fallback** path (step 3 decides the work is one coherent unit) it returns
@@ -142,7 +142,7 @@ outer session) runs the members. Notes the beat-2 prompt MUST carry:
   follow-up command, and stops. It is **not** re-labelled an unparseable-return refusal, and beat 3
   does not run. The parsing rules below apply only to a `completed` return.
 
-2. **Decompose (autonomous brainstorm).** Invoke **`ptp-brainstorming`** via the Skill tool in **autonomous mode** (no clarifying questions — document assumptions instead, exactly as `/ptp:plan` does), focused on a single question: *what is the smallest set of coherent, independently-shippable changes that together cover this request?* Produce an ordered list where each slice has:
+2. **Decompose (autonomous brainstorm).** Invoke **`ptp-brainstorming`** (or **`superpowers:brainstorming`** when the skill-set directive names `tdd-plugin=superpowers`) via the Skill tool in **autonomous mode** (no clarifying questions — document assumptions instead, exactly as `/ptp:plan` does), focused on a single question: *what is the smallest set of coherent, independently-shippable changes that together cover this request?* Produce an ordered list where each slice has:
    - a sub-change id. In **fresh decomposition** mode: `XXXX_NN_<kebab-description>` — a single epic allocated via `ptp-change-selector` (§4, epic allocation), then two-digit zero-padded story, then kebab description (e.g. `0001_01_landing-page-list-bulk-export`, `0001_02_landing-page-bulk-import`, `0001_03_landing-page-server-side-import`). In **re-cut** mode: a child of the parent per §4b — `0001_03_01_bulk-load-seam-read`, `0001_03_02_bulk-load-seam-write`. Either way the trailing story segment is the recommended apply order, and all slices share the same epic.
    - a one-paragraph scope (what's in, what's out).
    - explicit dependencies — a slice may depend **only on lower-story slices** (no cycles, no forward references). State them as `depends on XXXX_NN_…`.
@@ -157,6 +157,8 @@ outer session) runs the members. Notes the beat-2 prompt MUST carry:
    A good decomposition: every slice is one unit of work, slices are ordered by verified dependency, and their union covers the original request with no overlap and no gap.
 
    Do **not** persist this decomposition as its own file. It is working reasoning; it gets recorded durably inside each slice's `proposal.md` in step 5 (cross-reference only — no umbrella doc).
+
+   **`superpowers-output-override`** (path-override): when the `tdd-plugin=superpowers` arm ran above and Superpowers produced a brainstorm, override Superpowers' default output path — any per-slice brainstorm it persists goes to `<workspace root>/openspec/changes/<change-id>/brainstorm.md` (workspace root carried verbatim via `ptp-run-at-model` part (g); never re-derive it; never write to `docs/superpowers/specs/...` or `docs/plans/`); do not `git commit`/`git add` and do not stop at a human approval gate — this runs autonomously and ptp reviews afterward.
 
 3. **Decide: split or fall back.**
    - If the work genuinely factors into **≥ 2** independently-shippable slices → continue to step 4, then return the `PLAN-MULTIPLE-SLICES` list.

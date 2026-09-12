@@ -81,8 +81,9 @@ Record your classification at the top of the investigation trail.
 
 ## Route
 
-- **Bug / failure** → invoke `ptp-systematic-debugging` via the Skill tool for the investigation phase. Feed it the subject and the context you have loaded. Then return here to write the analysis doc.
-- **Explain / understand** or **Open problem** → conduct a structured, hypothesis-driven read-only investigation yourself (see **Investigate** below). You are not required to invoke `ptp-systematic-debugging`, but you may if the open problem turns out to be bug-shaped once you start looking.
+- **Bug / failure** → invoke `ptp-systematic-debugging` (or `superpowers:systematic-debugging` when the skill-set directive names `tdd-plugin=superpowers`) via the Skill tool for the investigation phase. Feed it the subject and the context you have loaded. Then return here to write the analysis doc.
+  **`superpowers-output-override`** (autonomy-only): when the `tdd-plugin=superpowers` arm ran and Superpowers drove the debugging investigation, the analysis stays in the `ptp-analyze`-governed change-folder doc (never `docs/superpowers`); do not `git commit`/`git add` and do not stop at a human approval gate — this runs autonomously and ptp reviews afterward.
+- **Explain / understand** or **Open problem** → conduct a structured, hypothesis-driven read-only investigation yourself (see **Investigate** below). You are not required to invoke `ptp-systematic-debugging` (or `superpowers:systematic-debugging` when the skill-set directive names `tdd-plugin=superpowers`), but you may if the open problem turns out to be bug-shaped once you start looking.
 
 ## Investigate (read-only)
 

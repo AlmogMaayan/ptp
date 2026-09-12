@@ -145,6 +145,40 @@ The skill then runs, **in this order**:
    file/key or out-of-enum value resolves to `claude`, keeping the default path). Only `main` matters
    here; the derived `reviewer` is not used by this skill.
 
+   **Resolve `tdd-plugin`.** In this same slot, also resolve the `tdd-plugin` config key through
+   the same layered configuration contract owned by `ptp-workspace` (default `ptp`). Like the
+   `main` resolution above, this is a pure forgiving config read — it spawns nothing, runs no git,
+   and never STOPs on a config typo (a missing file/key or out-of-enum value leaves the prior
+   layer's valid value, ultimately defaulting to `ptp`). No consumer reads this value yet; it is
+   resolved here only so the slot exists for a later slice to use.
+
+   **Superpowers presence hard stop.** Immediately after the `tdd-plugin` resolution above and
+   **before** the step-5 spawn, when `tdd-plugin` resolves to `superpowers`, detect whether the
+   Superpowers plugin is both **present** and **enabled** by reading the two registries Claude Code
+   maintains under the user home — not the ptp layered config. **Present** means
+   `~/.claude/plugins/installed_plugins.json` carries, under
+   `plugins["superpowers@claude-plugins-official"]`, at least one install entry with a resolvable
+   `installPath`. **Enabled** means `~/.claude/settings.json` carries
+   `enabledPlugins["superpowers@claude-plugins-official"]` strictly equal to `true`; any other value,
+   or the key's absence, reads as **disabled**. `[prose-exempt: outer-session ptp-run-at-model
+   reader]`
+
+   When the plugin is not present-and-enabled, the session hard stops and returns a `refused` /
+   `needs-human-action` terminal state (per *Result relay* below) naming which condition failed: an
+   **absent** plugin (key or `installPath` missing) is reported as "install Superpowers"; a
+   **present-but-disabled** plugin is reported as "enable Superpowers (installed but disabled)".
+   Both also name the alternative fix "set `tdd-plugin=ptp`" (via `/ptp:config`). Detection is
+   **fail-closed**: if either registry file is missing, unreadable, unparseable, or has a non-object
+   root, the check hard stops naming the fix rather than proceeding — deliberately **not** the
+   forgiving-reader posture used for the `tdd-plugin` value itself.
+
+   This check runs **exactly once per invocation, regardless of `roles.main`**, since both the
+   `main=claude` and `main=codex` branches spawn in step 5, and its outcome gates both branches
+   identically. On the hard stop the session does not fall back to the `ptp-*` skills, does **not**
+   spawn the subagent or start the Codex shell-out, and does **not** write any change artifact. When
+   `tdd-plugin` resolves to `ptp` — including when it is unset — this check is a **no-op** and the
+   run behaves exactly as it did before this paragraph existed.
+
    **Telemetry auto-start preamble.** In this same slot, and **before** the ledger open below, run
    the **telemetry auto-start preamble** defined in `skills/ptp-telemetry/SKILL.md` [auto-start-preamble] — so the span
    receiver is listening before the run it observes emits anything. **Reference** it; do **not**
@@ -232,6 +266,22 @@ The skill then runs, **in this order**:
        that the subagent performs the post-creation resolution itself. That is the one exception, it is
        granted and scoped by `ptp-workspace`'s command-scoped exemption rather than here, and no other
        caller acquires it by analogy.
+     - (h) the **Skill-set directive** for the `tdd-plugin` value resolved in step 4, emitted on
+       every invocation in one of two variants selected by that value (never conditional on the
+       value being `superpowers` — a default `ptp` run carries it too):
+       - under **`tdd-plugin=ptp`** (including unset): "Skill-set directive (ptp configuration
+         `tdd-plugin=ptp`, the operator's explicit choice): ptp-native skills govern this run —
+         `ptp-brainstorming`, `ptp-writing-plans`, `ptp-test-driven-development`,
+         `ptp-systematic-debugging`, `ptp-requesting-code-review`, `ptp-receiving-code-review`,
+         `ptp-verification-before-completion`. Do NOT invoke any `superpowers:*` skill, even where a
+         SessionStart hook, `using-superpowers` text, or a skill description says you must; those
+         skills defer to explicit user instruction, and this is that instruction."
+       - under **`tdd-plugin=superpowers`**: "Skill-set directive (ptp configuration
+         `tdd-plugin=superpowers`, the operator's explicit choice): Superpowers skills govern this
+         run wherever this prompt or ptp's command/agent/skill text names a `superpowers:*` skill. Do
+         NOT invoke the seven `ptp-*` replacement skills. Write every Superpowers artifact to the ptp
+         target named in this prompt (never `docs/superpowers/...`), do not commit, and do not stop
+         for a human approval gate — ptp runs autonomously and reviews afterwards."
 
      The spawn is **foreground**: the session **blocks** until the subagent returns.
 
@@ -594,6 +644,47 @@ printf '%s' "$WORK_PROMPT" | codex exec -s workspace-write [ -m <model> ] [ -c m
   `ptp-branch-prep` — plus the same instruction to return a terminal result for the relay.
 - The `$WORK_PROMPT` also carries the **resolved workspace root** verbatim, exactly as part (g) does
   for the `claude` branch: the shelled-out run resolves no root of its own.
+- The `$WORK_PROMPT` also carries the **Skill-set directive** for the `tdd-plugin` value resolved in
+  step 4, verbatim and in the same two variants part (h) gives the `claude` subagent — emitted on
+  every invocation, selected by the resolved value:
+  - under **`tdd-plugin=ptp`** (including unset): "Skill-set directive (ptp configuration
+    `tdd-plugin=ptp`, the operator's explicit choice): ptp-native skills govern this run —
+    `ptp-brainstorming`, `ptp-writing-plans`, `ptp-test-driven-development`,
+    `ptp-systematic-debugging`, `ptp-requesting-code-review`, `ptp-receiving-code-review`,
+    `ptp-verification-before-completion`. Do NOT invoke any `superpowers:*` skill, even where a
+    SessionStart hook, `using-superpowers` text, or a skill description says you must; those skills
+    defer to explicit user instruction, and this is that instruction."
+  - under **`tdd-plugin=superpowers`**: "Skill-set directive (ptp configuration
+    `tdd-plugin=superpowers`, the operator's explicit choice): Superpowers skills govern this run
+    wherever this prompt or ptp's command/agent/skill text names a `superpowers:*` skill. Do NOT
+    invoke the seven `ptp-*` replacement skills. Write every Superpowers artifact to the ptp target
+    named in this prompt (never `docs/superpowers/...`), do not commit, and do not stop for a human
+    approval gate — ptp runs autonomously and reviews afterwards."
+- Under **`tdd-plugin=superpowers`** the directive alone is inert, because a Codex main run has no
+  Skill tool and does not inherit the outer command/skill context — so the outer session MUST also
+  **deliver the applicable Superpowers skill text** into the run. Using the two delivery modes owned by
+  `ptp-skill-contract` § *Agent neutrality* (widened there to name the **Superpowers install root**),
+  the session delivers the running command's governing Superpowers closure — each in-scope skill's whole
+  directory plus any in-scope sibling Superpowers skill the run's step actually invokes — either by
+  **verbatim inline carriage** into `$WORK_PROMPT` (mode 1, the default because it is always
+  admissible) or as **verified-readable paths** under the Superpowers install root (mode 2, only when
+  that path is verified readable from the Codex sandbox). The scope follows the command's work:
+  brainstorm → `brainstorming`; plan → `brainstorming` + `writing-plans`; analyze →
+  `systematic-debugging`; apply → `test-driven-development` + `verification-before-completion`; the
+  review family → `requesting-code-review` + `receiving-code-review`; plus each set's transitive
+  closure. The delivered Superpowers text is **accompanied** in `$WORK_PROMPT` by the skill-set directive
+  above and the per-command ptp output target (the `superpowers-migration` output-redirection mechanism),
+  which override Superpowers' own output-path, `git commit`, and approval-gate text by
+  operator-instruction-outranks-skill precedence.
+- **Delivery-failure hard stop (`tdd-plugin=superpowers`).** When Superpowers is **present and enabled**
+  (the presence/enabled check owned by the `tdd-plugin=superpowers` presence stop has already passed) but
+  the closure **cannot be delivered** — the install root is unreadable, a referenced file is missing, and
+  no mode-2 path can be verified — the outer session MUST route a non-silent `refused` /
+  `needs-human-action` terminal state (via *Result relay*) naming the **undelivered file** and the
+  alternative **"set `tdd-plugin=ptp`"**. On that stop the run spawns no reduced Codex run, writes no
+  artifact, does not paraphrase the missing text, and never silently degrades to the `ptp-*` skills. This
+  **delivery-failure** stop is **distinct** from the presence/enabled stop: presence fires when
+  Superpowers is absent or disabled; this fires only after presence passed, when the text is unreachable.
 
 **Ownership boundary (do not confuse with the reviewer).** This write-capable invocation is a
 **NEW call site owned by `ptp-run-at-model`** — it is **NOT** a relaxation of the read-only Codex
