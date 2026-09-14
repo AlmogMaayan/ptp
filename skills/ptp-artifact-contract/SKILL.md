@@ -127,7 +127,24 @@ Every planning artifact describes only the latest intended state.
 - **Defect rule:** an artifact containing both an obsolete statement and its correction is defective
   *even when the latest statement is correct*.
 
-## 4. Contract version and legacy interpretation
+## 4. Prose readability
+
+Every markdown file a ptp writer creates or edits under `openspec/changes/<id>/` —
+`brainstorm.md`, `proposal.md`, `design.md`, `tasks.md`, the spec deltas, `prd.md`, and
+`analysis.md` — follows two prose rules.
+
+1. **Short sentences.** State one point per sentence.  Break a long compound or run-on sentence
+   into separate short sentences rather than joining clauses with commas, semicolons, or dashes.
+2. **Two spaces between sentences.** Inside a prose paragraph, put two spaces after a sentence's
+   terminal punctuation before the next sentence begins, so sentence boundaries are visible in the
+   raw markdown.
+
+This is **authoring style, not a linter-enforced budget**: it changes no artifact's meaning,
+ownership, or word budget.  No derived surface — the schema fork or the compactness linter — is
+required to enforce or restate it.  The rule applies to prose paragraphs; it does not bind fenced
+code blocks or table cells.
+
+## 5. Contract version and legacy interpretation
 
 The contract version is the pair **(schema name, schema `version` integer)** — here `ptp-compact` /
 `1`. There is no separate version file.
