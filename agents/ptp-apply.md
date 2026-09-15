@@ -28,6 +28,11 @@ Your prompt carries these resolved values. Take each verbatim; never re-derive o
   your `telemetry.mode` gate. Any telemetry error is swallowed and never alters your terminal state.
 - **fast-mode note** — optional and informational. It does not change your effort calibration. You
   MAY mention the requested posture in `notes`.
+- **Codex dispatch target** — optional. When present, your prompt names a Codex model and/or
+  reasoning effort resolved by your parent for this run. Under `main=codex` prefer it over resolving
+  flat `codex.*` yourself (see *The codex direction*); under `main=claude` it has no bearing. Only the
+  dimension(s) named are set; leave any unnamed dimension to Codex's own default. Absent one, resolve
+  per `ptp-codex-mode` exactly as today. Never crash or stop over its presence or absence.
 
 ## Task
 
@@ -95,8 +100,13 @@ Your prompt carries these resolved values. Take each verbatim; never re-derive o
 7. Stop. Never archive, never commit, never stage anything. Editing `tasks.md` is bookkeeping, not
    committing.
 
-**The codex direction (`main=codex`).** Resolve `codex.model` and `codex.reasoningEffort` per
-`skills/ptp-codex-mode/SKILL.md` (its existing model/effort resolution — no new keys). If `codex` is
+**The codex direction (`main=codex`).** When your prompt supplies a **Codex dispatch target**
+(model and/or reasoning effort), prefer it: use the supplied model/effort for the write-capable
+`codex exec` shell-out below in place of resolving flat `codex.*`, and honor only the dimension(s)
+named (a supplied effort with no model leaves Codex's own default model in place). Absent a supplied
+target, resolve `codex.model` and `codex.reasoningEffort` per
+`skills/ptp-codex-mode/SKILL.md` (its existing model/effort resolution — no new keys) exactly as
+today. If `codex` is
 not on PATH, return `stageReached: "blocked"` with the remediation in `notes`
 (install `codex`, or set `roles.main=claude`) and never silently implement the change as Claude. Otherwise build a
 **self-contained** `$WORK_PROMPT` per `skills/ptp-skill-contract/SKILL.md`'s Agent-neutrality delivery

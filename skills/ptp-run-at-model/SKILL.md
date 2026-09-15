@@ -287,12 +287,11 @@ The skill then runs, **in this order**:
 
    - **`main == codex` (new — write-capable Codex shell-out).** Instead of spawning a Claude
      Agent-tool subagent, run the command's real work by **shelling out (via Bash) to a write-capable
-     `codex exec`**. See *The `main=codex` direction* below for the full invocation, the reused
-     `codex.model`/`codex.reasoningEffort` resolution, the missing-CLI handling, and the four
-     constraints. The resolved-model / effort-directive machinery of the `claude` branch does **not**
-     apply here — model and effort come from `codex.model` / `codex.reasoningEffort` (resolved by
-     `ptp-codex-mode`). The shell-out is **foreground**: the session **blocks** until `codex exec`
-     returns, then relays its result exactly as the `claude` branch does.
+     `codex exec`**. See *The `main=codex` direction* below for the full invocation, the tier-based
+     model/effort sourcing, the missing-CLI handling, and the four constraints. The resolved-model /
+     effort-directive machinery of the `claude` branch does **not** apply here — model and effort are
+     resolved per *The `main=codex` direction* below. The shell-out is **foreground**: the session
+     **blocks** until `codex exec` returns, then relays its result exactly as the `claude` branch does.
 
 6. **Relay.** When the main work returns (whether from the Claude subagent or the `codex exec`
    shell-out), the session surfaces its final result to the user **verbatim in meaning** — a success
@@ -412,9 +411,28 @@ token must abort before that branch-name derivation and branch cut, not after.
 ### Interaction with `main=codex`
 
 The override only ever selects among the 4 Claude Agent-tool models — it has no effect when
-`ptp-agent-roles` resolves `main=codex` for this invocation. In that case Codex's model/effort continue
-to come from `codex.model`/`codex.reasoningEffort` per `ptp-codex-mode`, unaffected by this token
-(documented, not silently ignored).
+`ptp-agent-roles` resolves `main=codex` for this invocation. In that case Codex's model/effort are
+resolved per *The `main=codex` direction* (tier-based, with `codex.model`/`codex.reasoningEffort` as
+the flat fallback), unaffected by this token (documented, not silently ignored).
+
+**Symmetrically, `codex-model:` (below) has no effect when `main=claude`.** Only the token matching
+the resolved `main` for this invocation takes effect: `model:` under `main=claude`, `codex-model:`
+under `main=codex`. The other token, if present in the argument text, is still parsed-and-stripped by
+its own section so it never leaks into downstream argument grammar, but it contributes nothing to
+target resolution for that invocation.
+
+## Optional caller-side `codex-model:` override token
+
+Any command that references this skill MAY additionally support an **opt-in, per-invocation**
+`codex-model:<model>--<effort>` token — the `main=codex` sibling of the `model:` token above, same
+detect-then-validate shape, double-dash delimiter, split on the last `--`. Scoped to the same
+commands `model:` targets (`/ptp:brainstorm`, `/ptp:prd`, `/ptp:brainstorm-full`, `/ptp:prd-full`,
+`/ptp:analyze`, `/ptp:prompt`, `/ptp:prompt-fix`, `/ptp:prompt-write`); as of this writing those
+command files have not yet been updated with the parse step, so the token has no effect for any
+invocation until that follow-up lands. Full grammar, the two-stage detect-then-validate rule, all
+resolution outcomes, and strip-before-use ordering are the single source of truth in
+`skills/ptp-run-at-model/references/codex-model-token.md` — load it before implementing or
+reviewing anything that touches this token; do not restate its contract here.
 
 ## Optional caller-side `fast:` switch
 
@@ -528,9 +546,9 @@ non-opus target may also have `fastMode` set; a `main=codex` invocation may also
 they are evaluated in this fixed **precedence order**, first match wins:
 
 1. **No-op — `main=codex`.** `ptp-agent-roles` resolves `main=codex`: one-line note that the `codex
-   exec` main run has no fast mode and its model/effort keep coming from `codex.model` /
-   `codex.reasoningEffort`. Documented, not silently ignored (mirroring the `model:` section's own
-   `main=codex` note).
+   exec` main run has no fast mode and its model/effort are resolved per *The `main=codex` direction*
+   (tier-based, with the flat `codex.model` / `codex.reasoningEffort` as fallback). Documented, not
+   silently ignored (mirroring the `model:` section's own `main=codex` note).
 2. **No-op — non-opus target.** The resolved target model is not `opus` (a `sonnet.medium` command, or
    a `model:sonnet.high` override): one-line note that fast mode exists only on Opus (Opus 5 / Opus
    4.8). Not an error.
@@ -586,8 +604,9 @@ documented rather than implied.
 
 ## Effort as a prompt directive
 
-This section describes the **`main=claude`** direction; the `main=codex` direction maps effort to
-`codex.reasoningEffort` instead (see *The `main=codex` direction*). Effort is **not** an Agent-tool
+This section describes the **`main=claude`** direction; the `main=codex` direction resolves effort
+per *The `main=codex` direction* below (tier-based, with the flat `codex.reasoningEffort` as forgiving
+fallback). Effort is **not** an Agent-tool
 parameter; the Agent tool has no effort knob. The skill injects the effort as a directive in the
 subagent prompt, mapping the effort token exactly as `workflows/ptp-full-apply.js`
 `effortDirective(effort)` does:
@@ -630,12 +649,48 @@ printf '%s' "$WORK_PROMPT" | codex exec -s workspace-write [ -m <model> ] [ -c m
 - `-s workspace-write` (equivalently `--sandbox workspace-write`) — the main implementer must write
   files, so it needs a write-capable sandbox. Confirm the exact flag spelling against the installed
   `codex` CLI; the mandate is a write-capable posture, not a specific spelling.
-- `-m <model>` — appended **iff** `codex.model` resolves to a set value.
-- `-c model_reasoning_effort=<effort>` — appended **iff** `codex.reasoningEffort` resolves to a set
-  value.
-- **`model` from `codex.model`, `effort` from `codex.reasoningEffort`, both resolved by
-  `ptp-codex-mode`** (its existing model/effort resolution — reused, **no new config keys**). An
+- `-m <model>` — appended **iff** the resolved model (tier-based, see below) is a set value.
+- `-c model_reasoning_effort=<effort>` — appended **iff** the resolved reasoning effort (tier-based,
+  see below) is a set value.
+- **Tier-based sourcing.** For a **tier command** — one whose caller supplies a fixed Claude target
+  literal — the invocation classifies the running command into the same **mechanical tier** and
+  **judgment tier** the Claude target table uses, unchanged: a caller target of `sonnet.medium` (the
+  mechanical family) selects the mechanical tier, and a caller target of `opus.high` (the judgment
+  family) selects the judgment tier. `model` and `effort` are then read from that tier's Codex config
+  keys — `codex.mechanical.model` / `codex.mechanical.reasoningEffort` for the mechanical tier,
+  `codex.judgment.model` / `codex.judgment.reasoningEffort` for the judgment tier — owned and resolved
+  by `ptp-codex-mode` (`0076_01_codex-command-tier-config`). This replaces the previous flat sourcing,
+  in which every Codex main run took its model from `codex.model` and its effort from
+  `codex.reasoningEffort` regardless of the command. The previous prohibition on new config keys is
+  **overturned**: the per-tier keys are sanctioned as the primary source for tier commands. An
   optional soft effort **prompt hint** MAY additionally be woven into `$WORK_PROMPT`.
+- **Forgiving fallback (not a second STOP), per field.** The tier's model and reasoning effort each
+  fall back **independently**, mirroring the independent resolution `ptp-codex-mode` already gives all
+  four tier keys: the resolved model is the selected tier's model key when it is set, else the flat
+  `codex.model`; the resolved effort is the selected tier's reasoning-effort key when it is set, else
+  the flat `codex.reasoningEffort` — a set tier model is never discarded because the tier's effort key
+  happens to be unresolved, or vice versa. When the caller target is neither the mechanical nor the
+  judgment literal, both fields take the flat fallback. Either fallback (resolved by `ptp-codex-mode`)
+  never STOPs over a tier-config typo — this fallback layering is what keeps the branch forgiving even
+  before per-tier keys are configured. The per-tier keys' own layered forgiving resolution is owned by
+  `ptp-codex-mode`; this invocation only selects the tier and applies the per-field flat fallback — no
+  forgiving-reader logic is duplicated here. The `effort.md`-driven apply arm ("read line 1 of
+  `effort.md`") is out of scope for **this tier sourcing** — its `main=codex` model and effort come from
+  **line 2** of `effort.md` instead, per *The `effort.md`-driven apply arm* bullet below.
+- **The `effort.md`-driven apply arm (`main=codex`).** For `/ptp:apply` — whose caller target is "read
+  line 1 of `effort.md`" rather than a fixed tier literal — the `main=codex` run sources model and
+  effort from **line 2** of `effort.md`, the `{codex-model}--{codex-effort}` line `/ptp:effort` writes
+  (its *Codex apply line* subsection owns the grammar and the `codex.effortRubricModels.{low,mid,high}`
+  model map). Consumer precedence: **(1)** read `openspec/changes/<id>/effort.md` **line 2 first**; if it
+  parses as `{codex-model}--{codex-effort}` (split on the **last** `--`, suffix ∈
+  `{minimal,low,medium,high}`), **use it** — a **non-empty** model component ⇒ `-m <model>`, a **blank**
+  one ⇒ omit `-m` (Codex's CLI default applies); the effort ⇒ `-c model_reasoning_effort=<effort>`; and,
+  when line 1 reads `xhigh` against line 2's capped `high`, an optional soft `xhigh` prompt hint MAY be
+  woven into `$WORK_PROMPT`. Line 2 **wins**, exactly as the `main=claude` apply run prefers line 1.
+  **(2)** If line 2 is **absent or unparseable**, fall back to the `0076_02` command-tier default this
+  branch already resolves for the apply arm (the flat `codex.model` / `codex.reasoningEffort`, since the
+  apply caller target is neither the mechanical nor the judgment literal). This fallback never STOPs over
+  a malformed line 2.
 - The `$WORK_PROMPT` also carries the same branch-guard note the `claude` branch gives its subagent —
   which case depends on the command exactly as in the `claude` branch: **for a branch-guarded
   command** the outer guard already ran, so the shelled-out Codex must **not** attempt to launch
@@ -689,9 +744,9 @@ printf '%s' "$WORK_PROMPT" | codex exec -s workspace-write [ -m <model> ] [ -c m
 **Ownership boundary (do not confuse with the reviewer).** This write-capable invocation is a
 **NEW call site owned by `ptp-run-at-model`** — it is **NOT** a relaxation of the read-only Codex
 **reviewer** rule that `ptp-codex-mode` owns (`codex exec -s read-only …`, which that skill forbids
-loosening). `ptp-codex-mode` keeps owning the read-only reviewer mechanics **and** the
-`codex.model`/`codex.reasoningEffort` resolution reused here; `ptp-run-at-model` owns only this
-write-capable main invocation. **Never** use `--full-auto`,
+loosening). `ptp-codex-mode` keeps owning the read-only reviewer mechanics **and** the model/effort resolution
+reused here — both the flat `codex.model`/`codex.reasoningEffort` and the per-tier keys are resolved
+by `ptp-codex-mode`; `ptp-run-at-model` owns only this write-capable main invocation. **Never** use `--full-auto`,
 `--dangerously-bypass-approvals-and-sandbox`, or any flag that bypasses the sandbox/approvals.
 
 **Missing `codex` CLI.** If `main=codex` but the `codex` CLI is not available to run the main work
@@ -722,7 +777,7 @@ terminal states (completed / refused / needs-human-action) apply in this directi
    writes happen outside the Agent tree. This is the key difference from the `claude` branch.
 4. **Effort is a soft hint — both directions.** Effort never hard-guarantees the model's
    deliberation. For `claude` it is the **prompt directive** (see *Effort as a prompt directive*);
-   for `codex` it is `codex.reasoningEffort` applied as an explicit Codex **runtime setting**
+   for `codex` it is the resolved reasoning effort applied as an explicit Codex **runtime setting**
    (`-c model_reasoning_effort=<effort>`) plus an **optional soft prompt hint**. Both influence, but
    neither guarantees, how hard the model deliberates.
 
@@ -784,12 +839,14 @@ git, and archive-force delegates to the inline `ptp-archive-force` skill.
   needs-human-action state (including a missing `codex` CLI when `main=codex`) must never be reported
   as success.
 - **Never hardcode a per-command model/effort target** — the caller always supplies the target.
-- **Effort is a prompt directive (`main=claude`), never an Agent parameter**; when `main=codex` it is
-  `codex.reasoningEffort` plus an optional soft prompt hint.
+- **Effort is a prompt directive (`main=claude`), never an Agent parameter**; when `main=codex` it is the resolved reasoning effort plus an optional soft prompt hint.
 - **The Codex main invocation is write-capable but distinct from the reviewer** — it never loosens
   `ptp-codex-mode`'s read-only reviewer rule and never uses
-  `--dangerously-bypass-approvals-and-sandbox`. No new config keys; model/effort come from
-  `codex.model`/`codex.reasoningEffort`.
+  `--dangerously-bypass-approvals-and-sandbox`. Per-tier config keys
+  (`codex.mechanical.model`/`codex.mechanical.reasoningEffort`,
+  `codex.judgment.model`/`codex.judgment.reasoningEffort`) are the **primary** source of model/effort
+  for a tier command, with the flat `codex.model`/`codex.reasoningEffort` as the forgiving fallback —
+  see *The `main=codex` direction*.
 - **One foreground main run per `ptp-run-at-model` invocation** — not a fan-out, not a background
   Workflow. A single invocation runs exactly one blocking main run (one Claude subagent, or one
   `codex exec` shell-out) and waits for it. This rule is **unconditional** and is not relaxed by

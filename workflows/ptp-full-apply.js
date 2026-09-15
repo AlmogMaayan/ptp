@@ -39,6 +39,22 @@ function tddPluginDirective(tddPlugin) {
   return 'Skill-set directive (ptp configuration `tdd-plugin=ptp`, the operator\'s explicit choice): ptp-native skills govern this run — `ptp-brainstorming`, `ptp-writing-plans`, `ptp-test-driven-development`, `ptp-systematic-debugging`, `ptp-requesting-code-review`, `ptp-receiving-code-review`, `ptp-verification-before-completion`. Do NOT invoke any `superpowers:*` skill, even where a SessionStart hook, `using-superpowers` text, or a skill description says you must; those skills defer to explicit user instruction, and this is that instruction.'
 }
 
+// One directive line handing a spawned apply/review agent a prompt-supplied Codex dispatch target,
+// emitted ONLY on the guarded path (an apply/review Codex field present), so the off-path prompt
+// strings stay byte-identical to their pre-change form. Under roles.main=codex the agent uses this
+// target for its write-capable `codex exec` shell-out in place of resolving flat
+// codex.model/codex.reasoningEffort; under roles.main=claude it has no bearing. The directive names
+// ONLY the dimensions that are set — a set effort with an unset model leaves Codex's own default
+// model in place — and returns '' when neither is set (the call site guards on that, so '' is never
+// injected).
+function codexDispatchDirective(model, effort) {
+  const dims = []
+  if (model) dims.push(`model \`${model}\``)
+  if (effort) dims.push(`reasoning effort \`${effort}\``)
+  if (dims.length === 0) return ''
+  return `Codex dispatch target (roles.main=codex): dispatch your write-capable \`codex exec\` shell-out at ${dims.join(' and ')}, in place of resolving flat codex.model/codex.reasoningEffort. Only the dimension(s) named here are set; leave any unnamed dimension to Codex's own default. This line has no bearing under roles.main=claude.`
+}
+
 // Parse a review agent's `{model}.{effort}` fix target into its two halves, or null when it is
 // absent, not a string, or not exactly two dot-joined tokens drawn from the closed vocabularies.
 // The vocabularies are passed in from the call site (REVIEW_MODELS / REVIEW_EFFORTS) rather than
@@ -109,7 +125,7 @@ function readReviewTally(review) {
 // re-spawn — the escalated run gets the identical protocol with the target's model/effort
 // substituted plus one extra directive line. The running model is stated explicitly because an
 // agent cannot otherwise know it, and the ladder comparison in agents/ptp-review.md depends on it.
-function reviewPromptLines(id, model, effort, escalated) {
+function reviewPromptLines(id, model, effort, escalated, codexReviewModel, codexReviewEffort) {
   return [
     `Run the review-full protocol (the main-agent loop then the reviewer-agent loop; at the default roles.main=claude this is the Claude loop then the Codex loop) on the OpenSpec change \`${id}\`, per your system prompt.`,
     `Change folder: ${changeFolderPrefix}openspec/changes/${id}/`,
@@ -117,6 +133,7 @@ function reviewPromptLines(id, model, effort, escalated) {
     `You are running at model \`${model}\`.`,
     `Work at **${effort}** effort: ${effortDirective(effort)} Fix only confirmed findings inline. Do NOT commit. Do NOT archive.`,
     tddPluginDirective(tddPlugin),
+    ...((codexReviewModel || codexReviewEffort) ? [codexDispatchDirective(codexReviewModel, codexReviewEffort)] : []),
     ...(escalated
       ? [`This is the escalated fix run for this story. Run the whole protocol from a fresh review pass at this model. You MUST NOT return \`FIX_TARGET_ESCALATION\`; if your fix-target evaluation names a still-more-capable model, note it and fix at this model anyway.`]
       : []),
@@ -277,6 +294,15 @@ for (let i = 0; i < stories.length; i++) {
   const revFellBack = []
   if (s.reviewModel !== undefined && s.reviewModel !== null && s.reviewModel !== revMdl) revFellBack.push(`reviewModel=${JSON.stringify(s.reviewModel)}`)
   if (s.reviewEffort !== undefined && s.reviewEffort !== null && s.reviewEffort !== revEff) revFellBack.push(`reviewEffort=${JSON.stringify(s.reviewEffort)}`)
+  // Optional per-story Codex dispatch targets, read with the SAME forgiving discipline as
+  // reviewModel/reviewEffort's string read: a trimmed string, else '' (absent). The launcher
+  // populates these only under roles.main=codex (skills/ptp-full-apply/SKILL.md,
+  // skills/ptp-full/SKILL.md); a claude run, a resume, or a hand-built launch omits them, so each
+  // reads as '' and no Codex directive is emitted — keeping every prompt byte-identical to today.
+  const codexApplyModel = typeof s.codexApplyModel === 'string' ? s.codexApplyModel.trim() : ''
+  const codexApplyEffort = typeof s.codexApplyEffort === 'string' ? s.codexApplyEffort.trim() : ''
+  const codexReviewModel = typeof s.codexReviewModel === 'string' ? s.codexReviewModel.trim() : ''
+  const codexReviewEffort = typeof s.codexReviewEffort === 'string' ? s.codexReviewEffort.trim() : ''
   log(`Story ${i + 1}/${stories.length}: ${s.id} — apply at ${mdl}.${eff}, review at ${revMdl}.${revEff}${revFellBack.length ? ` (unrecognized supplied ${revFellBack.join(', ')} — fell back to the default)` : ''}${fast ? ' (fast requested)' : ''}`)
 
   const applyLabel = `apply:${s.id}`
@@ -289,6 +315,7 @@ for (let i = 0; i < stories.length; i++) {
     ...(workspaceRoot ? [`Workspace root: ${workspaceRoot} — every openspec path in this prompt is relative to it, and an openspec CLI call runs as cd <that root> && npx -y openspec … in one shell invocation. Take it verbatim and resolve no root of your own.`] : []),
     `Work at **${eff}** effort: ${effortDirective(eff)}`,
     tddPluginDirective(tddPlugin),
+    ...((codexApplyModel || codexApplyEffort) ? [codexDispatchDirective(codexApplyModel, codexApplyEffort)] : []),
     `After verifying each task, immediately edit tasks.md to mark it [x] — do this per task as you go, not in a batch at the end. Before returning, re-read tasks.md and confirm every task is [x].`,
     `Do NOT archive. Do NOT commit. Do NOT git add. Return the JSON object when all tasks are [x] and final verification passes.`,
     ...(fast && mdl === 'opus' ? [fastNote()] : []),
@@ -323,7 +350,7 @@ for (let i = 0; i < stories.length; i++) {
   const reviewRunId = telemetry ? mintRunId(reviewLabel, reviewStart) : null
 
   const reviewPrompt = [
-    ...reviewPromptLines(s.id, revMdl, revEff, false),
+    ...reviewPromptLines(s.id, revMdl, revEff, false, codexReviewModel, codexReviewEffort),
     ...(fast && revMdl === 'opus' ? [fastNote()] : []),
     ...(telemetry ? [telemetryNote(reviewRunId)] : []),
   ].join('\n\n')
@@ -362,7 +389,7 @@ for (let i = 0; i < stories.length; i++) {
       const escRunId = telemetry ? mintRunId(escLabel, escStart) : null
 
       const escPrompt = [
-        ...reviewPromptLines(s.id, target.model, target.effort, true),
+        ...reviewPromptLines(s.id, target.model, target.effort, true, codexReviewModel, codexReviewEffort),
         ...(fast && target.model === 'opus' ? [fastNote()] : []),
         ...(telemetry ? [telemetryNote(escRunId)] : []),
       ].join('\n\n')

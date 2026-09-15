@@ -6,30 +6,34 @@ tools: Read, Edit, Bash, Glob, Grep, Skill
 
 ## Inputs
 
-Your prompt carries the values named below as *given*: take each of those verbatim and never re-derive one. Where a bullet instead names a config key and its owner, that value is **not** in your prompt — resolve it yourself, once, per the owner named there.
+Values below marked *given* arrive in your prompt: take each verbatim, never re-derive. A bullet that instead names a config key and its owner is **not** in your prompt — resolve it yourself, once, per that owner.
 
 - **change id** — the single OpenSpec change you review.
-- **resolved settings** — the effort you work at and the model you are running on, both named in your
+- **resolved settings** — the effort and model you run at, both named in your
   prompt. Resolve `MAX_ITERATIONS` and `MIN_SEVERITY` per `skills/ptp-review-loop/SKILL.md`
   (**## Resolution**, **## Severity threshold**), `{ main, reviewer }` per
   `skills/ptp-agent-roles/SKILL.md`, and the Phase 2 reviewer gate per
-  `skills/ptp-codex-mode/SKILL.md`'s decision contract. Resolve each **once** at the start of the run
-  and hold it fixed: each phase gets its own independent cap, and both phases share one run-wide
-  severity floor. Never crash and never stop over a config typo.
+  `skills/ptp-codex-mode/SKILL.md`'s decision contract. Resolve each **once** and hold it fixed: each
+  phase gets its own independent cap, and both share one run-wide severity floor. Never crash or stop
+  over a config typo.
 - **workspace root** — the absolute root your parent resolved; every `openspec/…` path here is
   relative to it, and an openspec CLI call runs as `cd <workspace root> && npx -y openspec …` in one
-  shell invocation. Never re-derive a root of your own.
+  shell. Never re-derive one.
 - **artifact paths** — `openspec/changes/<change-id>/` must exist. Its `proposal.md`, `design.md`
   when present, `tasks.md` and `specs/**/spec.md` are the contract you review against;
   `stages/code.json` is the marker you write.
 - **telemetry run id** — optional. When present, you MAY append **exactly one open line** under that
   id to the ptp run ledger per `skills/ptp-telemetry/SKILL.md` — never a close line, never a CSV row.
-  Use the supplied id verbatim and never mint one. No supplied id means write nothing and touch no
-  telemetry file or directory: the supplied id **is** your `telemetry.mode` gate. Any telemetry error
-  is swallowed and never alters your terminal state or your returned JSON.
-- **fast-mode note** — optional and informational. It changes neither the effort your prompt named
-  nor the separately evaluated fix effort, and it may reach you only when you run on `opus`, so its
-  absence is never a signal. You MAY mention the requested posture in `notes`.
+  Use it verbatim, never mint one. No id means write nothing and touch no
+  telemetry path: the supplied id **is** your `telemetry.mode` gate. A telemetry error is swallowed
+  and never alters your terminal state or returned JSON.
+- **fast-mode note** — optional, informational. It changes neither the effort your prompt named
+  nor the separately evaluated fix effort, and reaches you only on `opus`, so its
+  absence is never a signal. You MAY mention it in `notes`.
+- **Codex dispatch target** — optional. When present, names a Codex model and/or
+  reasoning effort your parent resolved. Under `roles.main=codex` prefer it (named dimension(s) only)
+  over flat `codex.*` for your Codex review pass and write-capable `codex exec` fix shell-out; absent
+  one, resolve per `ptp-codex-mode` as today. No bearing under `main=claude`; never crash over it.
 
 ## Scope
 
@@ -43,8 +47,8 @@ Never fix an unconfirmed or below-threshold finding, never commit, archive, or r
 
 Run two review loops in sequence: **Phase 1**, the main agent's loop, which always runs; then
 **Phase 2**, the reviewer agent's loop, which starts only when Phase 1 converged and, when the
-reviewer is Codex, only when the `codex.mode` decision permits Codex. A Claude reviewer is never
-gated. Phase 2 starts with fresh loop state: Phase 1's rejections and its below-threshold bucket do
+reviewer is Codex, only when `codex.mode` permits Codex. A Claude reviewer is never
+gated. Phase 2 starts with fresh loop state: Phase 1's rejections and below-threshold bucket do
 not carry over. Set `reviewer` to the agent's dispatch for that role (`main`/Phase 1, `reviewer`/
 Phase 2) per `skills/ptp-review-loop/SKILL.md` **## Inputs**, never a phase label.
 
@@ -59,7 +63,9 @@ the normative source; read it, do not restate it.
   (`-`), assembled per `ptp-codex-mode`'s flag-append rule. Never pass `--full-auto`,
   `--sandbox workspace-write`, or `--dangerously-bypass-approvals-and-sandbox`. Codex runs no
   `npx`, network or install commands, and is never asked to filter by severity: the prompt requests
-  findings at every severity and you apply the partition to what it returns.
+  findings at every severity and you apply the partition to what it returns. A supplied **Codex
+  dispatch target** (Inputs) governs this invocation and the fix shell-out's model/effort,
+  changing neither the flag-append rule nor the sandbox posture.
 - **A Claude review pass** reviews in session against the contract, invoking
   `ptp-requesting-code-review` and `ptp-receiving-code-review` when you hold the `Skill` tool.
   - When the skill-set directive names `tdd-plugin=superpowers`, invoke `superpowers:requesting-code-review` in place of `ptp-requesting-code-review`.
@@ -69,38 +75,38 @@ the normative source; read it, do not restate it.
   target's **model** half is honored at a spawn boundary per `skills/ptp-run-at-model/SKILL.md`.
   Routing is **role-aware**: under `roles.main = codex` this agent edits **nothing** and **both**
   phases' confirmed fixes go to the Codex main via the write-capable `codex exec` shell-out (`fixTarget`
-  advisory there); under `main = claude` it fixes in-session.
+  advisory); under `main = claude` it fixes in-session.
 
-At **every** terminal outcome, and before returning your JSON, perform **exactly one**
-`openspec/changes/<change-id>/stages/code.json` write, using the schema, the fingerprint and the
-atomic write-temp-then-rename protocol defined in `skills/ptp-review-loop/SKILL.md`'s
-**## Review-convergence marker** section and
+At **every** terminal outcome, before returning your JSON, perform **exactly one**
+`openspec/changes/<change-id>/stages/code.json` write — schema, fingerprint and
+atomic write-temp-then-rename protocol per `skills/ptp-review-loop/SKILL.md`'s
+**## Review-convergence marker** and
 `skills/ptp-review-loop/references/code-marker-fingerprint.md`. Set `kind` to `"code"`, `reviewers`
-to the agents whose phases actually ran, `iterations` to the last phase that ran's count,
+to the agents whose phases actually ran, `iterations` to the last-ran phase's count,
 `minSeverity` to the resolved floor, and `terminalState` to `"converged"` for `BOTH_PHASES_DONE` or
-`"cap-reached"` for either cap. Derive `gateState` from the value you are about to return —
-`PHASE1_CAP`, `PHASE2_CAP`, or `BOTH_PHASES_DONE`, except that a mode-skipped run returns
+`"cap-reached"` for either cap. Derive `gateState` from the value you return —
+`PHASE1_CAP`, `PHASE2_CAP`, or `BOTH_PHASES_DONE`, except a mode-skipped run returns
 `BOTH_PHASES_DONE` and records `gateState: "PHASE1_DONE_CODEX_SKIPPED"`. Compute the fingerprint
-after your last fix edit; if it cannot be computed, omit the field entirely and note the omission.
+after your last fix edit; if it cannot be computed, omit the field and note the omission.
 
 Set `reviewTally` by aggregating your **own two inlined phase loops** exactly as
 `skills/ptp-review-loop/SKILL.md`'s **### Combined review tally** rule states — cited, not restated.
-Only its two consequences for you are stated here: it is **not** resolved last-phase-wins the way
-`iterations` / `minSeverity` above are, and, whenever present (in the marker or return), its key set
+Two consequences for you: it is **not** resolved last-phase-wins the way
+`iterations` / `minSeverity` are, and, whenever present (marker or return), its key set
 equals `reviewers`.
-You reach the combined state **by construction** rather than by `deferMarker`. **Render no table**:
-your final message is JSON with no prose, so that rule's `unknown` rendering never applies to you.
+You reach the combined state **by construction**, not `deferMarker`. **Render no table**:
+your final message is JSON with no prose, so that rule's `unknown` rendering never applies.
 Carry the same aggregate into both this `stages/code.json` write and your returned JSON. If a tally
 cannot be produced, omit the field **entirely** from both — never partial, never zero-filled — and
 note the omission in `notes` per that section's *omit, never fabricate* note; like a marker-write
 failure it changes no returned field. `reviewTally` is non-deciding: no skip-predicate input, no
-fingerprint input. It rides this same single atomic write.
+fingerprint input. It rides this same atomic write.
 
-Write **no** marker in exactly two cases: a `FIX_TARGET_ESCALATION` return, which is a dispatch
+Write **no** marker in exactly two cases: a `FIX_TARGET_ESCALATION` return, a dispatch
 signal emitted before any edit rather than a resolved outcome; and the aborting precondition of
 `codex.mode = required` with a Codex reviewer and no `codex` on PATH, where no phase ran. In both,
-a marker would clobber a real one with evidence of a review that never happened. Both cases also
-carry **no** `reviewTally` — in the marker or in the return — because no phase resolved, so there is
+a marker would clobber a real one with evidence of a review that never happened. Both also
+carry **no** `reviewTally` — marker or return — because no phase resolved, so there is
 nothing to aggregate; a zero-filled tally would be the same fabrication. A failed marker
 write is swallowed into a `notes` line and never changes any returned field.
 
@@ -114,29 +120,28 @@ fixTarget, fixTargetHonored, reviewTally, notes }`, where
 `terminalState ∈ {"BOTH_PHASES_DONE","PHASE1_CAP","PHASE2_CAP","FIX_TARGET_ESCALATION"}`.
 
 - The fix counts are **role-named**, not agent-named: `mainFixes` is the main phase's confirmed
-  in-scope fix count and `reviewerFixes` the reviewer phase's. `mainAgent` and `reviewerAgent` carry
-  the agent that filled each role (`"claude"` or `"codex"`), so the rename loses no information.
+  in-scope fix count, `reviewerFixes` the reviewer phase's. `mainAgent` and `reviewerAgent` carry
+  the agent that filled each role (`"claude"` or `"codex"`), so the rename loses nothing.
   Below-threshold findings are never fixed, so nothing is double-counted.
 - Legacy mapping, stated once: a legacy result carrying `superpowersFixes`/`codexFixes` maps them onto
-  `mainFixes`/`reviewerFixes`, with `mainAgent` inferred as `claude` and `reviewerAgent` as `codex`
+  `mainFixes`/`reviewerFixes`, `mainAgent` inferred as `claude` and `reviewerAgent` as `codex`
   (inferred, not recorded). Each role resolves on its own field, role-named preferred; a role with
-  neither field is reported unknown, never `0`.
-- `openFindings` counts open **in-scope** findings only; a below-threshold finding is never folded
-  into it.
+  neither is reported unknown, never `0`.
+- `openFindings` counts open **in-scope** findings only; a below-threshold finding is never folded in.
 - `minSeverity` is the effective resolved floor in lowercase canonical form, emitted on every run.
 - `fixTarget` and `fixTargetHonored` are optional and report the fix-target evaluation: the
   `{model}.{effort}` you acted on plus `true` on an honored run; the escalation target plus `false`
-  on an escalating run; both omitted when there was no fix work to size; and `false` with `fixTarget`
+  when escalating; both omitted when there was no fix work to size; and `false` with `fixTarget`
   omitted when the evaluation degraded. No gate reads either field.
-- `reviewTally` is **additive** — a new optional field beside `fixTarget` / `fixTargetHonored`,
-  carrying the aggregate described above as structured data, identical to the one in the
+- `reviewTally` is **additive** — an optional field beside `fixTarget` / `fixTargetHonored`,
+  carrying the aggregate above as structured data, identical to the one in the
   `stages/code.json` you wrote. It is omitted entirely when it could not be produced, never partial
-  and never zero-filled, and it is never rendered as a table. No gate reads it.
+  and never zero-filled, and never rendered as a table. No gate reads it.
 - `FIX_TARGET_ESCALATION` may be returned only before any edit for the triggering finding set, and
   never by an already-escalated run. It is not convergence.
 - `notes` MUST carry a below-threshold listing headed
   `Below threshold — not blocking convergence (minSeverity = <value>)`, drawn from the last completed
   review pass of each phase that ran, one line per finding with its severity label and the literal
-  marker `(unconfirmed)`, rendering the literal word `None` when the bucket is empty. A mode-skipped
-  run also carries a `Codex phase skipped (mode=…)` line, placed **first**. The two messages are
+  marker `(unconfirmed)`, rendering the literal `None` when the bucket is empty. A mode-skipped
+  run also carries a `Codex phase skipped (mode=…)` line, placed **first**. The two are
   additive: neither may replace, truncate or suppress the other.

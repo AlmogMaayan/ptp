@@ -5,10 +5,15 @@ argument-hint: "<change-selector> — id, epic:XXXX, story:NN, or epic:XXXX stor
 
 Analyze the change artifacts and recommend the model and effort level to use when running `/ptp:apply`.
 
-`effort.md` records a complexity recommendation only and never a runtime setting — under
-`roles.main=codex` the runtime model comes from `codex.model` and the reasoning effort **solely** from
-`codex.reasoningEffort`, both resolved by `ptp-agent-roles`, `ptp-codex-mode` and `ptp-run-at-model`, and
-nothing about any of that is persisted in `effort.md`.
+`effort.md` persists **two lines**: **line 1** is the Claude `{model}.{effort}` complexity
+recommendation every existing consumer already reads, and **line 2** is a Codex
+`{codex-model}--{codex-effort}` recommendation that `/ptp:apply` consumes at runtime when the resolved
+main agent is Codex. Both lines are **always written on every apply run, regardless of `roles.main`**,
+so the file stays role-agnostic — byte-identical under either role — and apply-mode `/ptp:effort` still
+never resolves `roles.main`. This **overturns**, for apply mode only, the prior rule that `effort.md`
+held a complexity recommendation and nothing a runtime consumed: line 2 is now a persisted input the
+`main=codex` apply run reads (see the *Codex apply line* subsection below), and the line-1 / line-2
+mechanics are resolved by `ptp-agent-roles`, `ptp-codex-mode`, and `ptp-run-at-model`.
 
 ## Inputs
 
@@ -83,8 +88,47 @@ This command writes `effort.md`, so before writing it run the **`ptp-branch-guar
    or backticks. Persist no justification. The on-screen report is the single line
    `effort: <model>.<effort>`.
 
-6. **Write** that one line, plus a trailing newline, to `openspec/changes/<change-id>/effort.md` (create or
-   overwrite). The file contains nothing else — no blank line, no justification, no headers, no prose.
+6. **Write** that line, plus a trailing newline, as **line 1** of
+   `openspec/changes/<change-id>/effort.md` (create or overwrite), immediately followed by the **line 2**
+   Codex apply line defined in the next subsection, plus its own trailing newline. The file contains
+   nothing else — no blank line, no justification, no headers, no prose, no third line.
+
+### Codex apply line (line 2)
+
+When the resolved main agent is Codex, `/ptp:apply` runs its work through a write-capable `codex exec`
+shell-out whose model and reasoning effort come from **line 2** of `effort.md`. `/ptp:effort` writes
+that line on **every** apply invocation, right after line 1, **regardless of `roles.main`** — both lines
+are always written, so the file stays role-agnostic and this step **never resolves `roles.main`**. See
+`design.md` for the full rationale.
+
+- **Grammar.** Line 2 is `{codex-model}--{codex-effort}` — the concrete Codex model string and the Codex
+  effort word joined by a **`--` delimiter**, followed by a trailing newline. A consumer splits on the
+  **last** `--` and reads the suffix as the effort; a dot or single dash is rejected as a delimiter
+  because real Codex model names contain both (`gpt-5.1-codex`, `gpt-5-codex`, `o3-mini`), while no known
+  Codex model name contains `--`.
+
+- **Model map.** Resolve the concrete Codex model string from the **same model tier** line 1 recommends,
+  through the config triple `codex.effortRubricModels.{low,mid,high}`, read **fresh each run** via the
+  `ptp-workspace` layered config with the forgiving posture `ptp-codex-mode` uses for `codex.model` (a
+  missing, empty, or mistyped value leaves the slot unset and never stops the command):
+
+  | line-1 model | config key | line-2 model component |
+  |--------------|-------------------------------|------------------------|
+  | `haiku` | `codex.effortRubricModels.low` | that key's resolved value |
+  | `sonnet` | `codex.effortRubricModels.mid` | that key's resolved value |
+  | `opus` | `codex.effortRubricModels.high` | that key's resolved value |
+
+  Store the **resolved concrete string** in line 2 — never a tier label a consumer would look up later.
+  An **unset** slot leaves the model component **blank**, so line 2 is `--{codex-effort}` and the
+  consumer omits `-m` (Codex's own CLI default model applies). Never borrow the `0076_01` command-tier
+  default for a blank slot — that would collapse this rubric into the tier mechanism it is defined to be
+  separate from.
+
+- **Effort cap.** Codex effort is `{minimal, low, medium, high}` — there is no `xhigh`. Map the line-1
+  effort down: `low→low`, `medium→medium`, `high→high`, `xhigh→high` (capped). `minimal` is never emitted
+  (Claude's floor is `low`). Line 1 still records `xhigh`, so no signal is lost — the `main=codex` apply
+  arm MAY read line 1 and, when it is `xhigh` against line 2's capped `high`, weave an optional soft
+  escalation prompt hint (this rides the existing soft-hint mechanism and adds no runtime dial).
 
 ## Hard rules
 
@@ -212,7 +256,8 @@ Fix mode emits a **two-part block** to its caller. The **first line** is exactly
 lowercase, dot-joined, **no** prefix, suffix, label, or backticks. The **second line** is empty. The
 **remaining lines** are a 1–4 sentence justification naming the signals that decided each dial. Fix mode
 writes no file, so this block is ephemeral and its justification is the caller's only record of the score;
-it is deliberately **not** the one-line shape apply mode persists to `effort.md`.
+it is deliberately **not** the shape apply mode persists to `effort.md` (line 1 `{model}.{effort}` plus
+the line-2 Codex recommendation, and no justification).
 
 ```
 opus.medium
@@ -236,6 +281,7 @@ Fix mode **writes no file**. It never writes, overwrites, creates, or truncates 
 - The runtime **model** comes from **`codex.model`**; the runtime **reasoning effort** comes **solely** from **`codex.reasoningEffort`**, both resolved by `ptp-codex-mode`.
 - A fix recommendation is **never** derived into, defaulted into, or substituted for the `-c model_reasoning_effort` runtime value — the fix effort dial includes `xhigh`, which is **not** on the Codex reasoning-effort scale (`minimal` / `low` / `medium` / `high`).
 - The fix recommendation **MAY** inform an **optional natural-language prompt hint** to the Codex run, and nothing more.
+- **Distinct from apply mode.** This fix hint is **ephemeral** — fix mode writes no file — and is **not** the persisted apply-mode **line-2** mechanism (`effort.md`'s `{codex-model}--{codex-effort}` line the `main=codex` `/ptp:apply` run consumes at runtime, per the *Codex apply line* subsection); the two never interact, and fix-mode behavior is unchanged.
 - The `{model}.{effort}` line is still emitted in the unchanged **Claude** vocabulary so the block stays parseable; **no second machine format** is invented for the Codex direction.
 
 ### Why fix scoring diverges from apply scoring
