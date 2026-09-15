@@ -87,6 +87,30 @@ valid value.
 **`codex.model` and `codex.reasoningEffort` resolve independently.** One MAY be set while the other
 is unset; each is read and validated on its own — setting one never implies or requires the other.
 
+## Resolving the tier keys `codex.mechanical.model`, `codex.mechanical.reasoningEffort`, `codex.judgment.model`, `codex.judgment.reasoningEffort`
+
+Same layers, merged as `ptp-workspace` defines. These four keys let a caller pick a cheaper model
+for mechanical Codex work and a stronger model for judgment-heavy Codex work, independently of the
+flat `codex.model` / `codex.reasoningEffort` pair above. Resolve each exactly like the flat pair —
+same forgiving-reader posture, restated here verbatim:
+
+```
+codex.mechanical.model            = unset  # valid ⇔ a non-empty string, else unset
+codex.mechanical.reasoningEffort  = unset  # valid ⇔ ∈ {minimal, low, medium, high}, else unset
+codex.judgment.model              = unset  # valid ⇔ a non-empty string, else unset
+codex.judgment.reasoningEffort    = unset  # valid ⇔ ∈ {minimal, low, medium, high}, else unset
+# any missing file / missing key / parse error / wrong type / out-of-set value → leave the prior value
+# (ultimately unset if nothing valid is found) — never throw, never STOP
+```
+
+Model = non-empty string else unset; reasoningEffort ∈ `minimal|low|medium|high` else unset;
+missing/typo leaves the prior value; never throw, never STOP. **All four keys resolve
+independently**, exactly like `codex.model` and `codex.reasoningEffort`: any one MAY be set while
+the others are unset, and setting one never implies or requires another.
+
+This skill defines how to read them; `ptp-run-at-model`'s `main=codex` tier-based sourcing
+(`0076_02_run-at-model-codex-tier-consume`) is their first and, as of this writing, only consumer.
+
 ## Canonical Codex invocation flag-append rule
 
 Every ptp call site that runs a **read-only** `codex exec` — the Codex reviewer and the

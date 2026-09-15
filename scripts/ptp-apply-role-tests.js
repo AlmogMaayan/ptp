@@ -122,6 +122,25 @@ const ASSERTIONS = [
     pattern: "APPLY_SCHEMA",
     why: "the orchestrator keeps defining APPLY_SCHEMA",
   },
+  // --- workflows/ptp-full-apply.js: Codex dispatch directive (0076_05) -------------------------
+  {
+    file: "workflows/ptp-full-apply.js",
+    kind: "requires",
+    pattern: "function codexDispatchDirective",
+    why: "the workflow defines a codexDispatchDirective helper naming only the set Codex dimensions",
+  },
+  {
+    file: "workflows/ptp-full-apply.js",
+    kind: "requires",
+    pattern: "codexDispatchDirective\\(codexApplyModel",
+    why: "the apply prompt injects the Codex directive from the story's apply Codex fields",
+  },
+  {
+    file: "workflows/ptp-full-apply.js",
+    kind: "requires",
+    pattern: "codexDispatchDirective\\(codexReviewModel",
+    why: "reviewPromptLines injects the Codex directive from the story's review Codex fields",
+  },
   {
     file: "workflows/ptp-full-apply.js",
     kind: "forbids",
