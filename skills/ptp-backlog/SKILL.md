@@ -7,6 +7,8 @@ description: Own the epic backlog board contract, its entry model, read protocol
 are not `skills/ptp-<name>/`, so ownership is declared here on the owner's side:
 
 Owns command: /ptp:backlog-add
+Owns command: /ptp:backlog-add-multiple
+Owns command: /ptp:backlog-draft-to-ready
 Owns command: /ptp:backlog-edit
 
 # ptp-backlog — the epic backlog board and everything that defines it

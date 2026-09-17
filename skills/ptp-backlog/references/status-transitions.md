@@ -2,15 +2,16 @@
 ## Status transitions and their guards
 
 **This skill owns the status transition table.** `status` is a field of the schema above, so its legal
-transitions are a property of the same schema and belong in the same place. Three commands perform rows
+transitions are a property of the same schema and belong in the same place. Four commands perform rows
 of this table — `/ptp:backlog-edit` (`0036_03`) performs the **six** user rows
 (`in-progress` → `blocked` \| `ready` as a recovery disposition, `blocked` → `ready`, any →
 `cancelled`, `cancelled` → `ready`, `backlog` → `ready`, `ready` → `backlog`), `/ptp:backlog-run`
 (`0036_04`) performs the three **runner** rows — `ready` → `in-progress`, `in-progress` → `in-review`,
-and `in-progress` → `blocked` — and writes `done` **nowhere**, and `/ptp:backlog-continue` (`0038_01`)
-performs the **two resume** rows, `blocked` → `done` and `in-review` → `done` — and all three
-**reference** the table rather than restating any part of it. (`0036_01` deliberately defined no
-transition table; this section is where it lands.)
+and `in-progress` → `blocked` — and writes `done` **nowhere**, `/ptp:backlog-continue` (`0038_01`)
+performs the **two resume** rows, `blocked` → `done` and `in-review` → `done`, and
+`/ptp:backlog-draft-to-ready` (`0077_02`) joins `/ptp:backlog-edit` as a **second performer** of
+`backlog` → `ready` — and all four **reference** the table rather than restating any part of it.
+(`0036_01` deliberately defined no transition table; this section is where it lands.)
 
 **The `#` column is sequential, and no row is renumbered or reordered by hand.** `0046_03` replaced the
 single row that ran from `in-progress` straight to `done` with two rows, so every row after it moved
@@ -33,7 +34,7 @@ The complete table. Every row names its **performer**; there are no other rows:
 | 7 | any → `cancelled` | the user abandons the epic; from `blocked` or a stale `in-progress` it carries guard 1's acknowledgement (**guard 2**) | `/ptp:backlog-edit` |
 | 8 | `cancelled` → `ready` | explicit user revival | `/ptp:backlog-edit` |
 | 9 | `blocked` → `done` | **only** as the direct, same-invocation result of `/ptp:backlog-continue`'s own bare-flow review-gate → archive sequence settling **every** prefix recorded in `changeEpics` — the gate satisfied by its own `/ptp:review-full` or by a marker it re-proved in this invocation (**guard 3**) | `/ptp:backlog-continue` |
-| 10 | `backlog` → `ready` | the user promotes an accepted epic into the run queue | `/ptp:backlog-edit` |
+| 10 | `backlog` → `ready` | the user promotes an accepted epic into the run queue | `/ptp:backlog-edit`, `/ptp:backlog-draft-to-ready` |
 | 11 | `ready` → `backlog` | the user defers a queued epic without abandoning it | `/ptp:backlog-edit` |
 
 > `in-review` is the honest resting state of a **converged but not yet archived** epic.
