@@ -131,7 +131,7 @@ Every planning artifact describes only the latest intended state.
 
 Every markdown file a ptp writer creates or edits under `openspec/changes/<id>/` —
 `brainstorm.md`, `proposal.md`, `design.md`, `tasks.md`, the spec deltas, `prd.md`, and
-`analysis.md` — follows two prose rules.
+`analysis.md` — follows four prose rules.
 
 1. **Short sentences.** State one point per sentence.  Break a long compound or run-on sentence
    into separate short sentences rather than joining clauses with commas, semicolons, or dashes.
@@ -139,10 +139,21 @@ Every markdown file a ptp writer creates or edits under `openspec/changes/<id>/`
    terminal punctuation before the next sentence begins, so sentence boundaries are visible in the
    raw markdown.
 
+3. **Blank line between every prose line.** Put one blank line between every two lines of prose, so
+   each sentence or short group of sentences stands as its own visually separated block in the raw
+   markdown.
+4. **Plain junior-developer English.** Write prose a junior developer can follow on a first read: plain
+   words, short sentences, no jargon the reader has to look up, and no dense academic phrasing.
+
+A blank or empty line never counts toward a word budget, a line budget, or a size budget: a linter
+that counts words, lines, or size skips blank and empty lines when it counts.
+
 This is **authoring style, not a linter-enforced budget**: it changes no artifact's meaning,
 ownership, or word budget.  No derived surface — the schema fork or the compactness linter — is
 required to enforce or restate it.  The rule applies to prose paragraphs; it does not bind fenced
-code blocks or table cells.
+code blocks or table cells, and it does not bind a list item (including a `tasks.md` checkbox line
+and its continuation lines) or a table cell — a list item or checkbox keeps its normal one-line (or
+wrapped-continuation) shape, with no blank line forced between it and the next item.
 
 ## 5. Contract version and legacy interpretation
 
