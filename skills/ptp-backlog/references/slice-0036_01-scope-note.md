@@ -17,7 +17,7 @@ exists.
 - **No entry edit, no status transition, no crash recovery, and no disposition gate** —
   the transition table, the `runBaseline` reconciliation, and the `claim` / `disown` / `rerun anyway`
   availability rules are **`0036_03`**. (Entry **add** landed in `0036_02`.)
-- **No runner, no `rounds:` token, no `/ptp:full` invocation, and no ready-set recomputation loop** —
+- **No runner, no `count:` token, no `/ptp:full` invocation, and no ready-set recomputation loop** —
   **`0036_04`**, which references this skill's ready-set definition rather than restating it.
 - **No config key and no per-invocation token.** This change adds no `backlog.*` parameter, so the
   `config` contract's every-enumeration-agrees obligation is untouched.

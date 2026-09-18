@@ -13,7 +13,8 @@ is the contract for **executing** that backlog: taking ready epics one at a time
 running each through `/ptp:full`, writing the outcome back into the backlog store, and halting
 the whole run the moment an epic does not converge.
 
-It owns only what is genuinely the runner's: the **`rounds:{count}` token**, the
+It owns only what is genuinely the runner's: the **`count:{count}` token**, the
+**`ticket:<value>` selector token**, the
 **recompute-after-every-epic loop**, the **per-epic inline `ptp-full` invocation**, the **halt gate**,
 the **status write-back**, the **terminal-state classification**, and the **terminal report**. It
 owns **neither** the ready-set definition nor its deterministic order — those are `ptp-backlog`'s and
@@ -35,7 +36,7 @@ trigger rather than with this file:
 
 Four points, and they are the whole contract:
 
-1. **Outer session only, zero nesting levels.** `/ptp:backlog-run` performs the `rounds:` parse, the
+1. **Outer session only, zero nesting levels.** `/ptp:backlog-run` performs the `count:` parse, the
    `codex.mode` resolution, the branch guard, every read and write of the backlog store, the
    ready-set loop, and the terminal report **itself**, in the real session. It **never wraps itself**
    in a `ptp-run-at-model` main run, in either the `claude` or the `codex` direction, and it **never
@@ -74,9 +75,9 @@ wrapper subagent (level 1) → ptp-full inline, level 1
 The failing shape is the second one: the Workflow launch at level 2 throws, and it throws on the
 **first** epic, so a wrapped runner does not degrade — it fails outright.
 
-## The `rounds:{count}` token
+## The `count:{count}` token
 
-**Ownership.** This skill owns the `rounds:{count}` token, following the ownership precedent by which
+**Ownership.** This skill owns the `count:{count}` token, following the ownership precedent by which
 `ptp-parallel-fanout` owns `parallel:` and `ptp-run-at-model` owns `model:` and `fast:` — *the skill
 that owns the concept owns its token*.
 
@@ -85,7 +86,7 @@ that owns the concept owns its token*.
 **at-most-one-candidate** rule with all-candidates reporting on refusal, the
 **recognized-but-invalid-refuses** behavior, and the **outer-session strip-before-use ordering** are
 defined **by reference** to `skills/ptp-run-at-model/SKILL.md` § *Optional caller-side `fast:`
-switch* — **read `rounds:` for `fast:` throughout that section**. Not one of those mechanics is
+switch* — **read `count:` for `fast:` throughout that section**. Not one of those mechanics is
 stated here; for each of them the reader goes to that skill. Restating them would be the
 multi-enumeration drift ptp's config contract already forbids.
 
@@ -93,19 +94,19 @@ multi-enumeration drift ptp's config contract already forbids.
 
 | # | Delta |
 |---|---|
-| 1 | The body is a **positive integer ≥ 1**, not a boolean: valid **iff** the body matches `^[0-9]+$` **and** its integer value is at least 1. Leading zeros are accepted — `rounds:05` means **5**. |
+| 1 | The body is a **positive integer ≥ 1**, not a boolean: valid **iff** the body matches `^[0-9]+$` **and** its integer value is at least 1. Leading zeros are accepted — `count:05` means **5**. |
 | 2 | **Absent resolves to the default 5.** Absent has a positive meaning here, unlike `fast:`, where absent and `off` coincide. |
-| 3 | The token **persists nothing**: no ptp config file is read for it or written by it, and there is **no `backlog.rounds` configuration parameter in v1**. |
+| 3 | The token **persists nothing**: no ptp config file is read for it or written by it, and there is **no `backlog.count` configuration parameter in v1**. |
 | 4 | **One round is one backlog epic** run through `/ptp:full`, counting epics **started**, not epics that succeeded — so a halt consumes its round and the invocation. |
 
-This skill registers **no configuration parameter**. `rounds:` is token-only.
+This skill registers **no configuration parameter**. `count:` is token-only.
 
-The related property that the runner recognizes **no other token** is **not** a `rounds:` delta; it
+The related property that the runner recognizes **no other token** is **not** a `count:` delta; it
 belongs to *Residual-argument refusal* below, which is where it is stated.
 
 ### Worked recognition table
 
-These rows are **worked examples of `ptp-run-at-model`'s rules applied to `rounds:`, not a second
+These rows are **worked examples of `ptp-run-at-model`'s rules applied to `count:`, not a second
 statement of those rules.**
 
 **The precedence rule is scoped.** If a row disagrees with `ptp-run-at-model` on a mechanic **that
@@ -113,35 +114,99 @@ skill owns** — candidacy, the lowercase-prefix rule, at-most-one-candidate, st
 recognized-but-invalid-refuses — then **that skill wins and the row is the bug**. But the
 **body-validity verdict** in every row is delta 1 above and is **owned here**: `ptp-run-at-model`
 supplies the *consequence* of an invalid body, not the *predicate* for one, and has no opinion about
-integers. So the `rounds:0` verdict is this skill's, and no reader is sent elsewhere for it.
+integers. So the `count:0` verdict is this skill's, and no reader is sent elsewhere for it.
 
 | Input | Candidate? | Outcome |
 |---|---|---|
 | *(absent)* | — | default **5** |
-| `rounds:1` | yes | 1 |
-| `rounds:5` | yes | 5 |
-| `rounds:05` | yes | **5** — leading zeros accepted; `^[0-9]+$` with value ≥ 1 |
-| `rounds:100` | yes | 100 — **no upper bound in v1** |
-| `rounds:0` | yes | recognized-but-invalid → **REFUSE** |
-| `rounds:-1` | yes | recognized-but-invalid → **REFUSE** (`-` fails `^[0-9]+$`) |
-| `rounds:5.5` | yes | recognized-but-invalid → **REFUSE** |
-| `rounds:abc` | yes | recognized-but-invalid → **REFUSE** |
-| `rounds:` | yes | recognized-but-invalid → **REFUSE** |
-| `rounds:3 rounds:4` | two | **REFUSE**, reporting **both** — never "last one wins" |
-| `Rounds:3` | **no** | not a candidate → falls through as **absent** → default 5, **and then the residue refuses** per *Residual-argument refusal* — the fall-through settles candidate detection, not whether the run proceeds |
-| `backgrounds:3` | **no** | `rounds:` inside a larger word is not a candidate → absent → 5, and the residue refuses |
+| `count:1` | yes | 1 |
+| `count:5` | yes | 5 |
+| `count:05` | yes | **5** — leading zeros accepted; `^[0-9]+$` with value ≥ 1 |
+| `count:100` | yes | 100 — **no upper bound in v1** |
+| `count:0` | yes | recognized-but-invalid → **REFUSE** |
+| `count:-1` | yes | recognized-but-invalid → **REFUSE** (`-` fails `^[0-9]+$`) |
+| `count:5.5` | yes | recognized-but-invalid → **REFUSE** |
+| `count:abc` | yes | recognized-but-invalid → **REFUSE** |
+| `count:` | yes | recognized-but-invalid → **REFUSE** |
+| `count:3 count:4` | two | **REFUSE**, reporting **both** — never "last one wins" |
+| `Count:3` | **no** | not a candidate → falls through as **absent** → default 5, **and then the residue refuses** per *Residual-argument refusal* — the fall-through settles candidate detection, not whether the run proceeds |
+| `account:3` | **no** | `count:` inside a larger word is not a candidate → absent → 5, and the residue refuses |
 
 No invalid row falls through to the default.
 
+## The `ticket:<value>` selector token
+
+**Ownership.** This skill owns the `ticket:<value>` selector token, following the same ownership
+precedent as `count:` — `ptp-parallel-fanout` owns `parallel:`, `ptp-run-at-model` owns `model:` and
+`fast:`, and the skill that owns the concept owns its token. The token is **not** added to the
+`ptp-change-selector` grammar: backlog entry identifiers are deliberately outside that grammar
+(`ptp-backlog`'s *Identity*), so the selector is defined here instead.
+
+**Recognition is defined by reference, not restated.** The token's two-stage
+**detect-then-validate** recognition, the **lowercase-prefix-only** candidate rule, the
+**at-most-one-candidate** rule, and the **outer-session strip-before-use ordering** are defined **by
+reference** to `skills/ptp-run-at-model/SKILL.md` § *Optional caller-side `fast:` switch* — **read
+`ticket:` for `fast:` throughout that section** — exactly as `count:` reuses it. None of that
+machinery is restated here.
+
+**The one grammar delta from `count:` — a quoted body.** A `count:` body is a bare integer, which the
+whitespace-delimited candidate rule can always hold. A `ticket:` value may be a `title` containing
+whitespace, which that rule cannot. So `ticket:` documents exactly **one** delta: its body is either a
+single bare non-whitespace word (a node id, or a single-word title) **or** a **double-quoted string**
+(`ticket:"Add dark mode"`), whose surrounding double quotes are stripped to yield `<value>`. The
+double-quoted body is consumed as a **single unit before token candidacy runs**, so a `count:`- or
+`ticket:`-looking prefix appearing **inside** the quotes (`ticket:"Document count:3 usage"`) is
+literal `<value>` data: it is not a second candidate token and never trips the at-most-one-candidate
+rule or the `count:` mutual-exclusion check.
+
+**Resolution — id first, then title, against the recomputed ready set.** `<value>` resolves against
+the **recomputed ready set** at the top of the (single) iteration, not against the whole board, with
+deterministic precedence: it is matched as an exact board node `id` of a ready entry first, and only
+if none matches is it matched as an exact `title` of a ready entry. The "GitHub id" a user supplies is
+the board item node `id` — the same opaque node id `/ptp:backlog-edit` takes and `/ptp:backlog`
+displays — never a human issue or pull-request number. Node ids are opaque, so an id-first match needs
+no escape hatch.
+
+**The ready-only gate, and two refusals.** The selector never bypasses readiness — the runner's first
+act on a taken epic **is a write**, so it must only take a `ready` entry:
+
+- A value matching **no** ready entry (absent, or present but not `ready` — `backlog`, `in-progress`,
+  `done`, and so on) **refuses**, names the value as not in the ready set, and runs nothing.
+- A value matching **more than one** ready entry by `title` (duplicate titles are legal on the board)
+  **refuses as ambiguous**, naming the colliding entries' board node ids so the user can re-select by
+  id, and runs nothing.
+
+**Effective cap of 1 — no sixth loop-terminal state.** When a `ticket:` selector is supplied and
+resolves, the runner runs **exactly that one epic and then stops**. Selector mode fixes the
+**effective round cap at 1** with the selector as its source, so the existing five loop-terminal
+states classify a selector run **unchanged** and **no** additional loop-terminal state is introduced:
+a converged selected epic exits **rounds exhausted** (effective cap 1), a non-converged one is
+**`halted`**, a failed write group is a **store-write halt**, and a failed take lands in the
+**`take-failed`** bucket.
+
+### Selector mode — announcement, terminal report, and invariants
+
+When a `ticket:` selector is in effect, the pre-run blast-radius announcement's **projected epic
+list** is the **one selected epic**, and item 1's **cap source is the selector** (effective cap 1).
+The announcement's six-item shape is otherwise unchanged.
+
+A selected run trivially satisfies the **one-epic-at-a-time** and **no-fan-out** invariants: one
+selected epic is one epic. The terminal report states that **a selector was in effect**.
+
 ## Residual-argument refusal
 
-`/ptp:backlog-run` takes **no selector and no free text**: no change id, no `epic:`/`story:` selector,
-no backlog entry identifier. Backlog entry identifiers are deliberately outside the
-`ptp-change-selector` grammar, and
-*which* epics run is the ready set's job, not the caller's.
+`/ptp:backlog-run` accepts the `count:` token and the optional `ticket:<value>` selector (see *The
+`ticket:<value>` selector token* above), and **nothing else**: no change id, no `epic:`/`story:`
+selector, and no `model:`, `fast:`, or `parallel:` token. Which epics run is otherwise the ready
+set's job, not the caller's — the `ticket:` selector is the one caller-supplied narrowing, and it can
+only ever pick a single already-`ready` entry.
 
-After `rounds:` is stripped, **any remaining non-whitespace text is a refusal** that names the
-residue. The residue is **never silently ignored**. The refusal states why no other token is
+After `count:` is stripped, the residual argument text is **matched against the `ticket:` grammar
+during the same residual-argument pass**, and only text matching **neither** `count:` **nor**
+`ticket:` is a refusal that names the residue. A quoted `ticket:` body is recognized as a **single
+unit before either token's candidacy runs**, so a `count:`- or `ticket:`-looking substring sitting
+inside it is not a candidate and does not trip the `count:` mutual-exclusion check. The residue is
+**never silently ignored**. When residual text refuses, the refusal states why no other token is
 accepted, and it keeps the two reasons **apart**:
 
 - **`model:` — structurally impossible.** The token means "run this work at a named target", which
@@ -162,9 +227,15 @@ Fan-out across backlog epics is forbidden separately and unconditionally (see *N
 
 **`fast:on` is the case that matters most.** Every other write command in the `full` family accepts
 it, so a user will reasonably type it. Silently ignoring it would leave them believing fast mode was
-requested for this run. So `/ptp:backlog-run rounds:3 fast:on` **refuses**, names `fast:on` as
+requested for this run. So `/ptp:backlog-run count:3 fast:on` **refuses**, names `fast:on` as
 unaccepted residual text, and says v1 offers the runner no `fast:` token — **without** claiming such a
 token would force a wrapper.
+
+**`ticket:` and `count:` are mutually exclusive.** Supplying both **refuses**, naming both tokens: a
+round cap is meaningless for a single selected epic, and silently ignoring `count:` would leave the
+user believing a cap was requested — the same wrong-mental-model cost the `fast:on` judgment already
+rejects. This mutual-exclusion refusal is distinct from the residual refusal above: both tokens are
+recognized, but their combination is declined.
 
 **Judgment call recorded:** the alternative — ignore the residue — was rejected. Refusing costs one
 retyped command; ignoring costs a wrong mental model of what just ran.
@@ -188,7 +259,7 @@ All five run in the outer session, in **exactly this order**:
    **Why the gate exists anyway, and why it is step 1:** an environment failure must abort **before**
    the branch guard and **before WRITE 0**, so it can never mark a real backlog entry `blocked`.
    Without it, the first epic's own `ptp-full` STOP would land *after* that entry was already taken.
-2. **Parse and strip `rounds:`**, then apply the *Residual-argument refusal*. An invalid token or a
+2. **Parse and strip `count:`**, then apply the *Residual-argument refusal*. An invalid token or a
    residue **refuses here**.
 3. **The transport preconditions, as an ordered pair — never as one conjoined check**, because
    "resolve X **and** evaluate Y" cannot express that a failing X precludes Y, and because the
@@ -302,7 +373,7 @@ same silence.
 
 **Why:** `/ptp:backlog` and `/ptp:backlog-run` must never disagree about which epics are ready — one
 rule, one owner. Two owners of one enumeration is exactly the drift this repository forbids, and it
-is the same by-reference discipline the `rounds:` grammar applies toward `ptp-run-at-model`.
+is the same by-reference discipline the `count:` grammar applies toward `ptp-run-at-model`.
 
 ## Recomputation — before every iteration
 
@@ -322,7 +393,7 @@ mid-loop.
 Load-bearing, not an optimization, for two reasons — **mid-run defect detection** and the
 **no-in-memory-model rule** — neither of which is about promotion:
 
-> On a backlog holding three `ready` entries A, B, C, a `rounds:3` run
+> On a backlog holding three `ready` entries A, B, C, a `count:3` run
 > processes all three. The re-read before each iteration is what lets a **hand edit** or a **store
 > defect** arriving between epics be seen at all: without it the run would execute a picture of the
 > backlog taken before the first epic started.
@@ -389,7 +460,7 @@ same classification without the loop ever iterating. The ladder, in full:
 
 0. If a store **write group** returned a verdict other than `complete` → **`store-write halt`**.
 1. Otherwise, if an epic's `/ptp:full` did not converge, the loop exits **immediately** at WRITE 2 and
-   the state is **`halted`** — the cap and the ready set are **not consulted**. A `rounds:1` run whose
+   the state is **`halted`** — the cap and the ready set are **not consulted**. A `count:1` run whose
    single epic failed is `halted`, **not** rounds exhausted; a halt that happens to leave no `ready`
    entries is `halted`, **not** under-supply.
 2. Otherwise, if the round cap was consumed → **rounds exhausted**.
@@ -477,7 +548,7 @@ Emitted **after the ready set is computed and before the first epic runs**. Its 
 **resolved workspace root** this invocation is bound to — in the preamble, never as a numbered item, the
 list below neither gaining an item nor being renumbered. The list states all six of:
 
-1. the **effective round cap and its source** — the default, or the `rounds:` token;
+1. the **effective round cap and its source** — the default, or the `count:` token;
 2. the **feature branch** every epic will land on;
 3. the **projected epic list** — the currently-ready epics in order, up to the cap — explicitly
    labelled a **projection**, because it is computed **once, before the loop**, while the ready set is

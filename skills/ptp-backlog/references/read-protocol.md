@@ -293,7 +293,7 @@ read protocol — and this protocol's own step 1 **is** the preflight, so "befor
 
 **The ordering claim is exact:** the gate is the first action that reaches the **store**, the
 **transport**, or the **worktree**. A command's own local argument, mode and posture checks keep their
-existing position **ahead** of it — `/ptp:backlog-run` resolves `codex.mode` and parses `rounds:` first,
+existing position **ahead** of it — `/ptp:backlog-run` resolves `codex.mode` and parses `count:` first,
 `/ptp:backlog-continue` classifies its invocation first, and the two `model:`-taking writers parse and
 validate their arguments first — so a malformed override token is still reported as a malformed token
 rather than masked by a configuration refusal. Do not read the claim as "first action" or "first

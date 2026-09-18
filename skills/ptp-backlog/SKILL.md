@@ -334,6 +334,11 @@ selector grammar, `ptp-change-selector` is **not modified** by this contract and
 backlog, and backlog entry identifiers **reserve no ptp change-epic numbers**. This obligation is carried
 forward here deliberately rather than dropped with the identifier that used to state it.
 
+**How `/ptp:backlog` renders identity:** every rendered entry shows its `title` and this same board node
+`id` — labeled as the entry's GitHub board node id, the value `/ptp:backlog-edit` takes as a selector —
+in both the entries table and the ready-set rows, and it is never presented as a human GitHub issue or
+pull-request number.
+
 ## Ready set
 
 An entry is **ready** when its `status` is **`ready`**. The ready set is the `ready` entries in the
@@ -400,7 +405,7 @@ legitimately differ (see *Purity, narrowed honestly* under *Validation*).
 `ptp-backlog-run` skill, for one reason: the read-only view needs the identical rule and ships in
 **this** change, three changes earlier — and two owners of one rule is exactly the enumeration drift
 this repository forbids. `ptp-backlog-run` (`0036_04`) owns only what is genuinely its own — the
-`rounds:` token, the recompute-after-each-epic loop, the per-epic `/ptp:full` invocation, the halt
+`count:` token, the recompute-after-each-epic loop, the per-epic `/ptp:full` invocation, the halt
 gate, the status write-back, and the terminal report — and **references this definition** for what
 "ready" means and in what order. The runner is the referencing consumer; the definition does not move.
 

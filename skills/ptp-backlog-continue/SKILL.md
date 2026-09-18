@@ -75,7 +75,7 @@ selection's answer, read from the store — never the caller's.
 - **Non-empty free text** → the **issue-text flow**. The text is a report of problems the manual
   verification surfaced, and it is carried **verbatim** into the fix pass as its brief.
 
-**No token is parsed.** `model:`, `fast:`, `parallel:`, and `rounds:` are **not** recognized here;
+**No token is parsed.** `model:`, `fast:`, `parallel:`, and `count:` are **not** recognized here;
 this command resolves its own targets and never accepts an override, and text containing such a
 substring is ordinary issue text (a real issue report may legitimately quote one). The single
 exception exists to avoid a silent misreading: an argument consisting **solely** of one or more

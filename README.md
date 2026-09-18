@@ -133,7 +133,8 @@ Tokens placed anywhere in a command's argument text. Nothing is persisted.
 | Switch | Accepted by | Effect |
 |--------|-------------|--------|
 | `fast:on` / `fast:off` | any `ptp-run-at-model`-backed command, plus `/ptp:full`, `/ptp:full-apply`, `/ptp:full-plan` | Requests Claude Code fast mode for this invocation's Opus agents. Default off. Non-Opus targets and `main=codex` are no-ops. |
-| `rounds:{count}` | `/ptp:backlog-run` | How many backlog epics this invocation runs. Positive integer, default `5`. |
+| `count:{count}` | `/ptp:backlog-run` | How many backlog epics this invocation runs. Positive integer, default `5`. |
+| `ticket:<value>` | `/ptp:backlog-run` | Selects a single `Ready` entry to run by its board node id or its exact `title` (double-quote a title containing whitespace, e.g. `ticket:"Add dark mode"`), then stops. Mutually exclusive with `count:{count}`. Owned by the `ptp-backlog-run` skill. |
 | `model:<model>.<effort>` | `/ptp:brainstorm`, `/ptp:prd`, `/ptp:brainstorm-full`, `/ptp:prd-full`, `/ptp:analyze`, `/ptp:prompt`, `/ptp:prompt-fix`, `/ptp:prompt-write` | Overrides the target model/effort for this invocation. |
 | `codex-model:<model>--<effort>` | `/ptp:brainstorm`, `/ptp:prd`, `/ptp:brainstorm-full`, `/ptp:prd-full`, `/ptp:analyze`, `/ptp:prompt`, `/ptp:prompt-fix`, `/ptp:prompt-write` (same commands as `model:`; parse step not yet wired into those command files — see `skills/ptp-run-at-model/SKILL.md`) | Overrides the Codex model/reasoning-effort for this invocation, but only when `main=codex` resolves; a no-op under `main=claude`. Effort ∈ `{minimal, low, medium, high}`. |
 | `parallel:on` / `parallel:off` | `/ptp:plan-multiple`, `/ptp:full-plan`, `/ptp:full` | Overrides `parallel.mode` for this invocation. |
@@ -272,12 +273,12 @@ Every card on the board is a backlog entry. Cards inside `Ready` run **top-first
 
 | Command | Does |
 |---------|------|
-| `/ptp:backlog` | Read-only. Board header, entries table with statuses, the ready set in run order (or why it is withheld), stale flags, validation problems. Creates nothing. |
+| `/ptp:backlog` | Read-only. Board header, entries table with title, statuses, and each entry's GitHub board node id, the ready set in run order with the same title and node id (or why it is withheld), stale flags, validation problems. Never a human issue/PR number. Creates nothing. |
 | `/ptp:backlog-add "<epic description>"` | Adds one entry, parked in `Backlog`. Not run until you move it to `Ready`. Touches no other entry. |
 | `/ptp:backlog-add-multiple "<free-text request>"` | Takes one free-text request, segments it into several deliverable epics, and creates one entry per epic, each parked in `Backlog`. Autonomous. |
 | `/ptp:backlog-draft-to-ready` | Promotes every `Backlog` (parked) entry to `Ready` in one invocation. Touches no entry in any other status. Autonomous. |
 | `/ptp:backlog-edit <node-id> "<what to change>"` | Edits one entry's title/description/notes and status along the transition table. Also the recovery path for an entry stuck `in-progress` (dispositions: claim → `blocked`, disown / rerun anyway → `ready`, plus per-prefix promote/dismiss). |
-| `/ptp:backlog-run [rounds:{count}]` | Runs the `Ready` entries through `/ptp:full`, top-first, 5 per invocation by default. Marks each `in-progress`, records the change ids it produced, leaves converged epics `in-review`, and halts the whole run on the first non-convergence, marking that epic `blocked`. Never commits, pushes, merges, archives, or deploys. |
+| `/ptp:backlog-run [count:{count}] [ticket:<value>]` | Runs the `Ready` entries through `/ptp:full`, top-first, 5 per invocation by default. Marks each `in-progress`, records the change ids it produced, leaves converged epics `in-review`, and halts the whole run on the first non-convergence, marking that epic `blocked`. The optional `ticket:<value>` selector (owned by the `ptp-backlog-run` skill) instead runs a single `Ready` entry chosen by board node id or exact title, then stops; it is mutually exclusive with `count:{count}`. Never commits, pushes, merges, archives, or deploys. |
 | `/ptp:backlog-continue ["<what went wrong>"]` | Bare: finishes the `blocked` or `in-review` epic — signs off remaining tasks, re-runs validate/build/tests, archives, and only then writes `done`. Never re-runs `/ptp:review-full`: `/ptp:full` already drove code review to convergence for the change before it could reach `blocked`/`in-review`. Per `ptp-backlog`, `blocked` is missing the human verification and `in-review` is missing the archive. With free text: one scoped fix pass against the same change, with no status change, no review, and no archive. |
 
 Status writes land on the shared board immediately, outside git; on an issue- or PR-backed card, title/body writes edit that issue's or PR's own title and body.
@@ -362,12 +363,12 @@ Ship
   → /ptp:deploy-master | /ptp:master
 
 Epic backlog
-  → /ptp:backlog                              # entries, statuses, ready set, problems
+  → /ptp:backlog                              # entries (title, GitHub board node id), statuses, ready set, problems
   → /ptp:backlog-add "<epic request>"         # one new entry, parked in Backlog
   → /ptp:backlog-add-multiple "<request>"     # several new entries, parked in Backlog
   → /ptp:backlog-draft-to-ready               # promotes every Backlog entry to Ready
   → /ptp:backlog-edit <node-id> "<change>"    # fields, transitions, recovery
-  → /ptp:backlog-run [rounds:{count}]         # the Ready epics through /ptp:full
+  → /ptp:backlog-run [count:{count}] [ticket:<value>]  # Ready epics (or one selected) through /ptp:full
   → /ptp:backlog-continue ["<what broke>"]    # finish, or one scoped fix pass
 
 Telemetry (telemetry.mode = on)
@@ -379,12 +380,13 @@ Where am I / plugin
   → /ptp:version | /ptp:update
 
 Selectors        epic:all | epic:0021 | epic:0021 story:01 | story:01 | <bare-id> | (omit = all)
-Switches         fast:on|off · rounds:{n} · model:<model>.<effort> · parallel:on|off
+Switches         fast:on|off · count:{n} · ticket:<value> · model:<model>.<effort> · parallel:on|off
 Experimental     /opsx:explore | /opsx:propose | /opsx:apply | /opsx:archive
 ```
 
 ## Changelog
 
+| **0.16.0** | Renames the `/ptp:backlog-run` per-invocation token from the former `rounds` prefix to `count:{count}`, updating `skills/ptp-backlog-run/SKILL.md`, `commands/backlog-run.md`, this README, and the cross-reference files that name the token (`skills/ptp-backlog/SKILL.md`, `skills/ptp-backlog-continue/SKILL.md`, and `commands/effort.md`). Vocabulary-only — the underlying behavior, the round cap, and the `rounds exhausted` terminal state are unchanged (0078_01). Also adds an optional `ticket:<value>` selector to `/ptp:backlog-run`, owned by the `ptp-backlog-run` skill: it runs a single `Ready` entry chosen by board node id or exact title (double-quoted when it contains whitespace), resolves id-first-then-title against the recomputed ready set, refuses a non-ready or ambiguous value, is mutually exclusive with `count:{count}`, and runs as a degenerate single-iteration loop with the effective cap fixed at 1 so no new loop-terminal state is added (0078_02). Also updates `/ptp:backlog`'s rendered view so every entry (entries table and ready set) shows its ticket `title` and its GitHub board node id — labeled as such and never presented as a human issue/PR number — in `commands/backlog.md`, `skills/ptp-backlog/SKILL.md`, and this README (0078_03). |
 | **0.15.1** | Extends `## 4. Prose readability` in the contract owner `skills/ptp-artifact-contract/SKILL.md` with two more rules for every change-folder markdown file: a blank line between every prose line, and plain junior-developer English. States that a blank or empty line never counts toward a word, line, or size budget. The blank-line rule binds prose paragraphs only — not list items (including `tasks.md` checkboxes and their continuation lines), fenced code, or table cells (0077_03). |
 | **0.15.0** | Adds `/ptp:backlog-add-multiple`, a new `ptp-backlog`-owned command that takes one free-text request describing several epics, segments it autonomously into N deliverable-epic descriptions, and creates one backlog entry per description — each its own operation of the existing ordered write sequence (create, then `status: backlog` as the single commit), reusing `/ptp:backlog-add`'s persistence path with no new transport surface. Fail-stops across operations on the first that does not settle, naming what already landed (0077_01). Also adds `/ptp:backlog-draft-to-ready`, a new `ptp-backlog`-owned command that reads the board, enumerates every `Backlog` (parked) entry, and promotes each to `Ready` in its own operation, becoming a second performer of the `backlog` → `ready` row alongside `/ptp:backlog-edit`; a board with no `Backlog` entry is a reported no-op (0077_02). |
 | **0.14.4** | `ptp-run-at-model`'s `main==codex` direction now sources model/effort by **command tier** instead of the flat `codex.model`/`codex.reasoningEffort` pair: a caller's `sonnet.medium` target reads `codex.mechanical.*`, an `opus.high` target reads `codex.judgment.*` (both from `0076_01`), with a forgiving fallback to the flat pair when a tier key is missing/malformed or the target is not one of those two literals — the `effort.md` apply arm is untouched. The "No new config keys" hard rule is overturned to sanction the tier keys as primary with the flat pair as fallback, and the parallel "effort is a prompt directive" phrasing is de-hardcoded to match (0076_02). |
