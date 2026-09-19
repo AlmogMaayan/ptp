@@ -6,9 +6,11 @@ transitions are a property of the same schema and belong in the same place. Four
 of this table — `/ptp:backlog-edit` (`0036_03`) performs the **six** user rows
 (`in-progress` → `blocked` \| `ready` as a recovery disposition, `blocked` → `ready`, any →
 `cancelled`, `cancelled` → `ready`, `backlog` → `ready`, `ready` → `backlog`), `/ptp:backlog-run`
-(`0036_04`) performs the three **runner** rows — `ready` → `in-progress`, `in-progress` → `in-review`,
-and `in-progress` → `blocked` — and writes `done` **nowhere**, `/ptp:backlog-continue` (`0038_01`)
-performs the **two resume** rows, `blocked` → `done` and `in-review` → `done`, and
+(`0036_04`) performs the **four** **runner** rows — `ready` → `in-progress`, `in-progress` →
+`in-review`, `in-progress` → `planned`, and `in-progress` → `blocked` — and writes `done` **nowhere**,
+`/ptp:backlog-continue` (`0038_01`)
+performs the **two resume** rows, `blocked` → `done` and `in-review` → `done`, plus the **two `planned`
+settling** rows, `planned` → `in-review` and `planned` → `blocked`, and
 `/ptp:backlog-draft-to-ready` (`0077_02`) joins `/ptp:backlog-edit` as a **second performer** of
 `backlog` → `ready` — and all four **reference** the table rather than restating any part of it.
 (`0036_01` deliberately defined no transition table; this section is where it lands.)
@@ -36,6 +38,16 @@ The complete table. Every row names its **performer**; there are no other rows:
 | 9 | `blocked` → `done` | **only** as the direct, same-invocation result of `/ptp:backlog-continue`'s own bare-flow review-gate → archive sequence settling **every** prefix recorded in `changeEpics` — the gate satisfied by its own `/ptp:review-full` or by a marker it re-proved in this invocation (**guard 3**) | `/ptp:backlog-continue` |
 | 10 | `backlog` → `ready` | the user promotes an accepted epic into the run queue | `/ptp:backlog-edit`, `/ptp:backlog-draft-to-ready` |
 | 11 | `ready` → `backlog` | the user defers a queued epic without abandoning it | `/ptp:backlog-edit` |
+| 12 | `in-progress` → `planned` | `/ptp:backlog-run` under `phase:plan` reached `/ptp:full-plan`'s plan-and-dual-review convergence, written **in place of** `in-progress` → `in-review` for that invocation | `/ptp:backlog-run` |
+| 13 | `planned` → `in-review` | every prefix in `changeEpics` reached apply-convergence under this `/ptp:backlog-continue phase:apply` invocation's `/ptp:full-apply` | `/ptp:backlog-continue` |
+| 14 | `planned` → `blocked` | that `phase:apply` sequence did not converge and halted, leaving applied-but-unreviewed code | `/ptp:backlog-continue` |
+
+**Rows 12–14 are appended, not inserted, so no earlier row is renumbered or reordered.** The three
+cover the `planned` stage — `in-progress` → `planned` written by a `phase:plan` run **in place of**
+`in-progress` → `in-review`, and `planned` settled to `in-review` or `blocked` by a `phase:apply` run.
+**`planned` → `cancelled` needs no row of its own: it is the existing unconditional any → `cancelled`
+row (row 7), ungated from a `planned` source** — that row's gated sources are exhaustively `blocked` and
+a **stale** `in-progress`, and a `planned` entry is neither, its `runBaseline` null.
 
 > `in-review` is the honest resting state of a **converged but not yet archived** epic.
 > `/ptp:backlog-run` performs no archive and no deploy, so the epic's change folders are still under
@@ -66,7 +78,8 @@ shape, so the split adds no exposure.
 ### Refusals
 
 - **Every runner-only row requested through `/ptp:backlog-edit` is refused**, and the refusal **names
-  the row and its performer**: `ready` → `in-progress`, `in-progress` → `in-review`, and
+  the row and its performer**: `ready` → `in-progress`, `in-progress` → `in-review`,
+  `in-progress` → `planned`, and
   `in-progress` → `blocked` other than as the recovery row's disposition.
 - **Every transition absent from this table is refused** — first and foremost **`backlog` →
   `in-progress`**: the runner takes only `ready` entries, and that separation is the whole purpose of the
@@ -78,8 +91,17 @@ shape, so the split adds no exposure.
 - **Every transition out of `in-review` other than `in-review` → `done` and `any` → `cancelled` is
   refused** as absent from the table — `in-review` → `blocked`, `in-review` → `ready`, `in-review` →
   `backlog`, and `in-review` → `in-progress` in particular, each with the reason and the two remedies
-  *`in-review`'s outgoing edges* below states. The only transition **into** `in-review` is
-  `in-progress` → `in-review`, the runner-only row above.
+  *`in-review`'s outgoing edges* below states. The transitions **into** `in-review` are **two** —
+  `in-progress` → `in-review`, the runner-only row above, and `planned` → `in-review`, the
+  `phase:apply` settling row performed by `/ptp:backlog-continue`.
+- **Every transition out of `planned` other than `planned` → `cancelled` is refused through
+  `/ptp:backlog-edit`.** `planned` → `in-review` and `planned` → `blocked` are the `phase:apply`
+  settling rows, refused naming **`/ptp:backlog-continue`** as their only performer (`/ptp:backlog-edit`
+  has no `/ptp:full-apply` machinery); and `planned` → `done`, `planned` → `ready`, `planned` →
+  `backlog`, and `planned` → `in-progress` are refused as absent from the table, each with the reason
+  the *`planned`'s outgoing edges* subsection below states. The only transition **into** `planned` is
+  `in-progress` → `planned`, the runner-only row above. `planned` → `cancelled` is the sole `planned`
+  transition `/ptp:backlog-edit` performs, via the unconditional any → `cancelled` row.
 - **`blocked` → `done` and `in-review` → `done` are refused except via their guarded path.** Neither is
   absent from the table, but both are reachable **only** by their performer
   **`/ptp:backlog-continue`** under **guard 3** below; requested through any other command —
@@ -96,7 +118,7 @@ shipped work — and discards no link (`changeEpics` survives).
 
 ### Repairing a `status` that is unset or out of enum — a repair, not a transition
 
-Every row of the table above is defined over the **seven enum values**, so an entry whose stored `status`
+Every row of the table above is defined over the **eight enum values**, so an entry whose stored `status`
 is **out of enum** has **no *from* row at all** — and so does an item with **no `Status` selected at
 all**, which is the same defect reached by a shorter path. The rule is therefore worded over a `status`
 that is **unset or out of enum**, both cases governed identically. Both states are a `malformed-entry` on
@@ -118,14 +140,20 @@ destinations, the `runBaseline` routing, the disposition-outcome-is-binding rule
 exception, the same-write `runBaseline` clear, and the still-named-in-the-report rule:
 
 - The repair may set **`backlog`**, **`ready`**, **`blocked`**, or **`cancelled`** only.
-  **`in-progress`** is the take row's runner-owned outcome, **`in-review`** is the convergence row's
+  **`in-progress`** is the take row's runner-owned outcome, **`planned`** is the `phase:plan`
+  convergence row's runner-owned outcome, **`in-review`** is the convergence row's
   runner-owned outcome, and **`done`** is never written by this command at
-  any time; requesting any of the three is **refused naming this rule**, so a corrupted `status` is
+  any time; requesting any of the four is **refused naming this rule**, so a corrupted `status` is
   never a back door into a status the table denies.
 
   **`in-review` is excluded for the same reason `in-progress` is**: `in-progress` → `in-review` is a
   runner-only row, so a repair landing there would manufacture a claim that a `/ptp:full` converged —
   the claim the whole guard-3 proof exists to require — out of a corrupted field.
+
+  **`planned` is excluded for the same reason.** `in-progress` → `planned` is a runner-only row, so a
+  repair landing on `planned` would forge a `/ptp:full-plan` plan-and-dual-review convergence out of a
+  corrupted field — the planning twin of the manufactured-`/ptp:full` claim `in-review` is barred to
+  prevent.
 - **With a null `runBaseline`** there is nothing to reconcile and nothing for the recovery gate to key
   on: the repair is the whole edit.
 - **With a non-null `runBaseline` the repair is a settlement, and the full recovery machinery of the
@@ -314,3 +342,34 @@ lockout:
 - **The epic should be re-run from scratch** → `in-review` → `cancelled` (edge 2 above), then the
   existing unconditional `cancelled` → `ready` revival. Two explicit user acts, both rows that already
   exist, with the cancellation itself serving as the acknowledgement.
+
+### `planned`'s outgoing edges — exactly three
+
+`planned` has **exactly three** outgoing edges:
+
+1. **`planned` → `in-review`** — the `phase:apply` settling row above (row 13), performed by
+   `/ptp:backlog-continue` when every prefix reaches apply-convergence.
+2. **`planned` → `blocked`** — the `phase:apply` settling row above (row 14), performed by
+   `/ptp:backlog-continue` when that apply sequence halts.
+3. **`planned` → `cancelled`** — the existing unconditional **any → `cancelled`** row, and it is
+   **ungated**. That row's gated sources are named exhaustively as `blocked` and a **stale**
+   `in-progress`; a `planned` entry is neither, and its `runBaseline` is null, so there is nothing to
+   reconcile and no acknowledgement to collect. `changeEpics` survives the cancellation, as it does from
+   every source.
+
+`planned` has **exactly one** incoming edge — **`in-progress` → `planned`** (row 12), the runner-only
+row written by a `phase:plan` run in place of `in-progress` → `in-review`.
+
+**Unlike `in-review`, `planned` keeps a `planned` → `blocked` edge.** The reason:
+
+> `planned`'s exit is `/ptp:full-apply`, which **can halt mid-apply and leave applied-but-unreviewed
+> code** — the exact residue `blocked` already records — so a `planned` → `blocked` edge gives `blocked`
+> **no second meaning**. `in-review` forbids the analogous edge because its `/ptp:full` has **already
+> converged**: nothing remains that can halt, so `in-review` → `blocked` could only manufacture a halt
+> that never happened. `planned` is before the apply and `in-review` after the convergence, and that is
+> the whole of the difference.
+
+**Every other outgoing edge is absent and refused too** — `planned` → `done`, `planned` → `ready`,
+`planned` → `backlog`, and `planned` → `in-progress`. `planned` reaches `done` only **indirectly**,
+never by a direct edge: a `planned` → `blocked` entry reaches `done` through the guarded `blocked` →
+`done` row, exactly as the *recovery never yields `done`* rule requires.

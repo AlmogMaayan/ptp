@@ -149,17 +149,27 @@ read never obtained, and blaming the entry would report a **card** as defective 
 **access** is what is defective. The repair is to grant the token access to the content's repository or
 to remove the card from the board.
 
-**`status`** is exactly one of `backlog`, `ready`, `in-progress`, `in-review`, `done`, `blocked`,
-`cancelled`, in that canonical order. The first five are the **pipeline** values; the last two —
-`blocked` and `cancelled` — are **auxiliary** values that are not pipeline stages.
+**`status`** is exactly one of `backlog`, `ready`, `in-progress`, `planned`, `in-review`, `done`,
+`blocked`, `cancelled`, in that canonical order. The first six are the **pipeline** values; the last
+two — `blocked` and `cancelled` — are **auxiliary** values that are not pipeline stages.
 
 **`backlog`** means *accepted but not yet ready to run*; **`ready`** means *ready to run*. The two are
 the split of the single value `pending` that preceded them, with `ready` inheriting every behavior
 `pending` carried and `backlog` expressing a state the previous version could not. **`pending` is no
 longer a value of the enum.**
 
-**`in-review`** means *converged but not yet archived*. It is written by exactly one row —
-`in-progress` → `in-review`, `/ptp:backlog-run`'s convergence write — and left by exactly two:
+**`planned`** means *plan-converged but not yet applied* — plan and dual review converged, no code
+applied. It is the planning twin of `in-review` (`planned` is missing the apply, where `in-review` is
+missing the archive). It is written by exactly one row — `in-progress` → `planned`,
+`/ptp:backlog-run`'s `phase:plan` convergence write — and left by three: `planned` → `in-review` and
+`planned` → `blocked` under `phase:apply` (`/ptp:backlog-continue`) and the unconditional any →
+`cancelled` row. Its `phase:` performers land in `0079_02_backlog-run-phase-token` and
+`0079_03_backlog-continue-phase-apply`; that ordering is history, not a live no-performer claim. See
+*Status transitions and their guards* below, which owns all its rows.
+
+**`in-review`** means *converged but not yet archived*. It is written by exactly two rows —
+`in-progress` → `in-review`, `/ptp:backlog-run`'s convergence write, and `planned` → `in-review`,
+`/ptp:backlog-continue`'s `phase:apply` convergence write — and left by exactly two:
 `in-review` → `done` under guard 3 (`/ptp:backlog-continue`) and the unconditional any → `cancelled`
 row. `0046_01` added the value to the schema, the default option table, and the configuration surface
 with no performer on any row; `0046_03` supplied its two transitions without re-opening any of them.

@@ -193,19 +193,89 @@ The announcement's six-item shape is otherwise unchanged.
 A selected run trivially satisfies the **one-epic-at-a-time** and **no-fan-out** invariants: one
 selected epic is one epic. The terminal report states that **a selector was in effect**.
 
+## The `phase:{phase}` token
+
+**Ownership.** This skill owns the `phase:{phase}` token, following the same ownership precedent as
+`count:` and `ticket:` — `ptp-parallel-fanout` owns `parallel:`, `ptp-run-at-model` owns `model:` and
+`fast:`, and the skill that owns the concept owns its token. `phase:` names **which flow each taken
+epic runs**, which is genuinely the runner's concern.
+
+**Recognition is defined by reference, not restated.** The token's two-stage
+**detect-then-validate** recognition, the **lowercase-prefix-only** candidate rule, the
+**at-most-one-candidate** rule with all-candidates reporting on refusal, the
+**recognized-but-invalid-refuses** behavior, and the **outer-session strip-before-use ordering** are
+defined **by reference** to `skills/ptp-run-at-model/SKILL.md` § *Optional caller-side `fast:`
+switch* — **read `phase:` for `fast:` throughout that section** — exactly as `count:` and `ticket:`
+reuse it. None of that machinery is restated here.
+
+**The body is an enum — exactly `plan` or `full`.** A recognized candidate is valid **iff** its body
+is exactly `plan` or `full`. A candidate whose body is anything else — `phase:apply`, `phase:PLAN`
+(the enum body is case-sensitive), an empty `phase:` — is **recognized-but-invalid and REFUSES
+exactly as `count:0` does**, and **never falls through as absent**. A non-lowercase *prefix* is the
+different, `ptp-run-at-model`-owned case: `Phase:plan` is not a candidate at all, so it falls through
+as **absent** and then the residue refuses per *Residual-argument refusal* — exactly as `Count:3`
+does, the fall-through settling candidate detection, not whether the run proceeds.
+
+**Absent resolves to `full`.** An absent `phase:` token resolves to `phase:full`, and `phase:full` is
+an explicit synonym for it: both select today's default `/ptp:full` flow, so the default path is
+**byte-identical** to its pre-token behavior. `phase:plan` instead runs each taken epic through the
+`/ptp:full-plan` flow (see *Per-epic execution — phase-aware*).
+
+**The token persists nothing.** No ptp config file is read for it or written by it, and there is **no
+`backlog.phase` configuration parameter**. `phase:` is token-only.
+
+**Freely combinable with `count:` and `ticket:`.** `phase:` is orthogonal to both — it names *which
+flow* runs, not *how many* epics run or *which* one — so `count:3 phase:plan` and
+`ticket:<id> phase:plan` are both coherent and neither combination refuses. `phase:` is mutually
+exclusive with **neither** token; only `count:`×`ticket:` stay mutually exclusive. `phase:` is
+**freely combinable** with both and joins the residual-argument allowlist as a third such token (see
+*Residual-argument refusal*).
+
+## Per-epic execution — phase-aware
+
+**Which flow each taken epic runs depends on the resolved `phase`, and nothing else about the loop
+changes.** The recompute-before-every-iteration loop, the one-epic-at-a-time rule, the halt gate, and
+the one permitted nesting level are all **unchanged** by the phase; only *which flow is invoked
+inline* and *which gate the convergence decision reads* move with it (see `design.md`). The
+convergence gate is **re-pointed per phase, not duplicated** — the decision stays mechanical and
+all-or-nothing; only which gate it reads changes.
+
+- **`phase:full` (the default, and absent)** — each taken epic is run by invoking the **`ptp-full`
+  skill inline**, exactly as before this token existed. Converged = every slice landed in
+  `ptp-full-apply`'s `processed` bucket; on convergence WRITE 2's converged branch commits
+  `in-progress` → `in-review`. This path is **byte-identical** to the pre-token runner.
+- **`phase:plan`** — each taken epic is run by invoking the **`/ptp:full-plan` flow (Phase A only,
+  owned by `ptp-full`) inline** in place of `/ptp:full`. Converged = every slice reached
+  `/ptp:full-plan`'s plan-and-dual-review convergence gate (`skills/ptp-full/SKILL.md`). On
+  convergence WRITE 2's converged branch commits **`in-progress` → `planned`** — the row
+  `0079_01_backlog-planned-status` added and named `/ptp:backlog-run` the performer of — in place of
+  `in-progress` → `in-review`; no code was applied. A `phase:plan` run launches **no**
+  `ptp-full-apply` Workflow, so it consumes **strictly fewer** spawns than the default: the
+  one-permitted-nesting-level contract is untouched, in fact smaller.
+
+**The non-converged `blocked`/halt branch is byte-identical in both phases.** A non-converged epic —
+anything short of the phase's convergence gate, including a `/ptp:full-plan` slice that returned
+`NEEDS SPLIT`, which is non-convergence and introduces **no** new loop-terminal state and **no** new
+bucket — is marked `blocked` when WRITE 2's group completes, its terminal-state line appended to
+`notes`, `runBaseline` cleared, and the whole run **halts**. Only the gate that classifies
+convergence differs; the halt mechanism, the all-or-nothing slice-to-epic collapse, and every
+`store-write halt` scoping around a WRITE 2 that does not complete are unchanged from `phase:full`.
+
 ## Residual-argument refusal
 
-`/ptp:backlog-run` accepts the `count:` token and the optional `ticket:<value>` selector (see *The
-`ticket:<value>` selector token* above), and **nothing else**: no change id, no `epic:`/`story:`
+`/ptp:backlog-run` accepts the `count:` token, the optional `ticket:<value>` selector (see *The
+`ticket:<value>` selector token* above), and the optional `phase:{phase}` token (see *The
+`phase:{phase}` token* above), and **nothing else**: no change id, no `epic:`/`story:`
 selector, and no `model:`, `fast:`, or `parallel:` token. Which epics run is otherwise the ready
 set's job, not the caller's — the `ticket:` selector is the one caller-supplied narrowing, and it can
 only ever pick a single already-`ready` entry.
 
-After `count:` is stripped, the residual argument text is **matched against the `ticket:` grammar
-during the same residual-argument pass**, and only text matching **neither** `count:` **nor**
-`ticket:` is a refusal that names the residue. A quoted `ticket:` body is recognized as a **single
-unit before either token's candidacy runs**, so a `count:`- or `ticket:`-looking substring sitting
-inside it is not a candidate and does not trip the `count:` mutual-exclusion check. The residue is
+After `count:` is stripped, the residual argument text is **matched against the `ticket:` and
+`phase:` grammars during the same residual-argument pass**, and only text matching **none of**
+`count:`, `ticket:`, **nor** `phase:` is a refusal that names the residue. A quoted `ticket:` body is
+recognized as a **single unit before any token's candidacy runs**, so a `count:`-, `ticket:`-, or
+`phase:`-looking substring sitting inside it is not a candidate and does not trip the `count:`
+mutual-exclusion check. The residue is
 **never silently ignored**. When residual text refuses, the refusal states why no other token is
 accepted, and it keeps the two reasons **apart**:
 
@@ -235,7 +305,9 @@ token would force a wrapper.
 round cap is meaningless for a single selected epic, and silently ignoring `count:` would leave the
 user believing a cap was requested — the same wrong-mental-model cost the `fast:on` judgment already
 rejects. This mutual-exclusion refusal is distinct from the residual refusal above: both tokens are
-recognized, but their combination is declined.
+recognized, but their combination is declined. **`phase:` is mutually exclusive with neither** `count:`
+nor `ticket:` — `count:3 phase:plan` and `ticket:<id> phase:plan` are both coherent, because which
+flow runs is orthogonal to how many or which epics run.
 
 **Judgment call recorded:** the alternative — ignore the residue — was rejected. Refusing costs one
 retyped command; ignoring costs a wrong mental model of what just ran.
@@ -259,8 +331,9 @@ All five run in the outer session, in **exactly this order**:
    **Why the gate exists anyway, and why it is step 1:** an environment failure must abort **before**
    the branch guard and **before WRITE 0**, so it can never mark a real backlog entry `blocked`.
    Without it, the first epic's own `ptp-full` STOP would land *after* that entry was already taken.
-2. **Parse and strip `count:`**, then apply the *Residual-argument refusal*. An invalid token or a
-   residue **refuses here**.
+2. **Parse and strip `count:`, `ticket:`, and `phase:`**, then apply the *Residual-argument refusal*
+   — the residual pass strips all three and refuses only text matching none of them. An invalid token
+   or a residue **refuses here**.
 3. **The transport preconditions, as an ordered pair — never as one conjoined check**, because
    "resolve X **and** evaluate Y" cannot express that a failing X precludes Y, and because the
    configuration resolver is contractually forbidden from stopping anything itself:
@@ -556,8 +629,10 @@ list below neither gaining an item nor being renumbered. The list states all six
    that ends the run early, can change what is actually processed;
 4. the blast radius in plain words: **all of this lands on this one branch, uncommitted and
    unarchived; this command never commits, pushes, merges, archives, or deploys**;
-5. what the user must do afterwards: review the branch, run `/ptp:archive <id>` per fully-processed
-   slice, and ship manually;
+5. what the user must do afterwards, **by the phase in effect**: under `phase:full`, review the branch,
+   run `/ptp:archive <id>` per fully-processed slice, and ship manually; under `phase:plan` **nothing is
+   applied, so there is nothing to archive or ship** — review the planned artifacts and settle each
+   `planned` epic with `/ptp:backlog-continue`;
 6. that **backlog status writes land on a shared board, immediately, outside git, visible to the whole
    team**, and are **not undone by discarding the feature branch**. Item 4 is true of the **code** and
    is now **false of the backlog**, which is why this item exists. Where an entry's content type is an
@@ -600,18 +675,22 @@ pre-write-checked**; and it is emptied as a **field-value clear**.
 **Two vocabularies, one stated mapping.** `ptp-full-apply`'s three buckets describe **slices inside
 one `/ptp:full` run**; the runner needs buckets describing **backlog epics across the invocation**.
 
-**Four** backlog-level buckets.
+**Four** backlog-level buckets, unchanged in name, meaning, and count. The report also **names the
+phase in effect** (`phase:full` or `phase:plan`) — a report sentence, **not** a tenth required field;
+the required-field list below stays **nine** — so a reader never mistakes a `phase:plan` run's
+`planned` results for a `phase:full` run's.
 
 | Backlog-level bucket | Meaning | Entry status |
 |---|---|---|
-| `processed` | the epic's `/ptp:full` converged end to end | `in-review` |
+| `processed` | the epic converged end to end (its `/ptp:full` under `phase:full`, its `/ptp:full-plan` under `phase:plan`) | `in-review` under `phase:full`; **`planned` under `phase:plan`** |
 | `halted` | the epic whose `/ptp:full` did not converge and stopped the run, **or** whose post-`ptp-full` write group failed **whether or not its `/ptp:full` converged** (at most one per invocation) | nominally `blocked` — but the entry's **actual** status is printed wherever a write group failed |
 | `take-failed` | the epic whose **take** write group did not complete | **unchanged by this runner** — normally `ready`; the entry's **actual** status wherever the take halted on a `status` pre-write-check difference; and **unknown, with both possibilities named and neither asserted**, where the take ended `unresolved-commit` |
 | `never-started` | ready epics the invocation never reached (rounds exhausted or a halt) | unchanged `ready` |
 
-**`processed` means the runner finished with the epic, not that the epic is finished.** Its entry is
-`in-review`: converged, **unarchived**, and **uncommitted**. `/ptp:backlog-continue` is what settles it
-to `done`.
+**`processed` means the runner finished with the epic, not that the epic is finished.** Under
+`phase:full` its entry is `in-review`: converged, **unarchived**, and **uncommitted**. Under
+`phase:plan` its entry is `planned`: plan-converged, with **no code applied**. Either way
+`/ptp:backlog-continue` is what settles it toward `done`.
 
 **`take-failed` — at most one per invocation, and mutually exclusive with `halted`**: a take failure
 halts **before** `ptp-full` runs, so no epic can both fail its take and fail to converge in one
@@ -633,7 +712,7 @@ with no epic-level meaning; a backlog epic is either finished, the one that halt
 appears **only** inside an epic's nested per-slice report.
 
 **Entries already `backlog`, `in-review`, `done`, `cancelled`, or `blocked` before the invocation began are outside
-the four buckets** — the invocation neither processed them nor could have reached them. They appear only where
+the four buckets** — and under `phase:plan` entries already `planned` sit outside them too — the invocation neither processed them nor could have reached them. They appear only where
 a terminal-state report names them (a lingering un-reconciled `in-progress` entry under
 under-supply).
 
@@ -663,11 +742,20 @@ label rather than fabricating buckets:**
   re-taken entry still shows its retained ids, per the WRITE 1 merge rule) and **no**
   attribution-unconfirmed flag. Distinct from the absent-report row because **a report that named
   nothing is evidence, not missing evidence**.
-- **`halted` at plan convergence** — that run never entered the apply phase, so `ptp-full-apply`
-  produced no buckets. Labelled **"stopped at plan convergence — the apply phase was never entered"**,
-  and it nests **`/ptp:full`'s own plan-convergence STOP report verbatim**, with its per-slice
-  plan-review terminal states and its resume pointers. It is **not** an absent-report row and **not**
-  an empty-report row: a plan-convergence STOP is a fully informative report of a different shape.
+- **stopped at plan convergence — labelled by phase-and-outcome, not by the shape alone.** A run that
+  stopped after the plan phase, having produced no `ptp-full-apply` buckets, is the same *shape* under
+  both phases but a **different outcome**, so its label keys on **phase + outcome**:
+  - **Under `phase:full`** it is a **halt** (a `/ptp:full` that stopped at plan is a failure): the
+    `halted`/`blocked` row is labelled **"stopped at plan convergence — the apply phase was never
+    entered"** and nests **`/ptp:full`'s own plan-convergence STOP report verbatim**, with its
+    per-slice plan-review terminal states and its resume pointers. It is **not** an absent-report row
+    and **not** an empty-report row: a plan-convergence STOP is a fully informative report of a
+    different shape.
+  - **Under `phase:plan`** stopping at plan convergence is the **intended** outcome: a plan-converged
+    epic is `processed`/`planned` and its nested **`/ptp:full-plan` report** is labelled a
+    **deliberate stop at plan** (not a failure), while an epic whose plan **did not** converge is
+    `halted`/`blocked` labelled **"failed to converge"** and nests that flow's non-convergence report
+    verbatim. The report's named phase-in-effect is what keeps the two apart.
 
 ### Required report fields
 
@@ -683,10 +771,11 @@ Alongside the buckets, the report carries **every one of these**:
 5. **every `attributionWarnings` prefix recorded this run**;
 6. **every entry flagged attribution-unconfirmed**;
 7. a restatement that **nothing was committed and nothing was archived** — and therefore that every
-   epic in `processed` is `in-review` rather than `done`, awaiting `/ptp:backlog-continue`;
+   epic in `processed` is `in-review` (under `phase:full`) or `planned` (under `phase:plan`) rather
+   than `done`, awaiting `/ptp:backlog-continue`;
 8. the **next-step pointers** — `/ptp:backlog` to view; `/ptp:backlog-edit <id>` to disposition a
-   halted entry; **`/ptp:backlog-continue` to settle an `in-review` epic**; re-run `/ptp:backlog-run`
-   once the halt or the remaining work is resolved;
+   halted entry; **`/ptp:backlog-continue` to settle a `processed` epic** (an `in-review` or a
+   `planned` one); re-run `/ptp:backlog-run` once the halt or the remaining work is resolved;
 9. **on every terminal state**, any entry left **`in-progress`** that this invocation did **not** take,
    named as **un-reconciled**, **distinguishing the baseline-set shape from the null-baseline residual**
    (`ptp-backlog-write`'s layer-2 predicate), and pointing at `/ptp:backlog-edit`. This is **one report
