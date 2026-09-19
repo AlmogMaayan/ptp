@@ -46,22 +46,54 @@ spawns are level 1 **only because this command took no level of its own**.
 PERMITTED (what this skill requires):
 outer session (level 0)  →  /ptp:archive's sonnet.medium main run          = level 1  OK
                          →  the issue-text fix-pass main run               = level 1  OK
+                         →  apply-mode's inline /ptp:full-apply Workflow    = level 1  OK
 
 FORBIDDEN (what wrapping this command would produce):
-wrapper subagent (level 1) → archive / fix-pass main run                   = level 2  THROWS
+wrapper subagent (level 1) → archive / fix-pass / full-apply run           = level 2  THROWS
 ```
 
-**Code review is never this command's to run.** By the time a change reaches `blocked` or
+**Code review is never this command's to run *directly*.** By the time a change reaches `blocked` or
 `in-review`, `/ptp:full`'s apply phase has already driven `/ptp:review-full` to convergence for it —
 that is what `ptp-full-apply`'s per-slice apply-convergence gate requires before the slice can leave
-`processed`. This command's bare flow therefore never invokes `/ptp:review-full` and never inspects a
-`stages/code.json` marker: there is no second, model-driven review gate here at all. The `blocked` /
-`in-review` split this command was built to settle is a question of **manual** verification only — see
-*Invocation shape*.
+`processed`. The bare and issue-text flows therefore never invoke `/ptp:review-full` and never inspect
+a `stages/code.json` marker: the `blocked`/`in-review` split they settle is a question of **manual**
+verification only (see *Invocation shape*). **Apply-mode** is the one flow whose `planned` epic has no
+applied code and so must be reviewed — but it, too, invokes `/ptp:review-full` **nowhere directly**: it
+drives `/ptp:full-apply`, which owns per-slice review (*The apply flow*). On no flow does this command
+run a review gate itself.
 
 A second consequence of staying outer: `/ptp:archive`'s **interactive** outer-session steps are
 reachable at all (a subagent is non-interactive), exactly as `ptp-archive-and-deploy` keeps them
 outer for the same reason.
+
+## The `phase:apply` mode selector
+
+`/ptp:backlog-continue` accepts one optional **`phase:apply`** mode selector — a per-invocation token
+that switches the command into **apply mode** (see *The apply flow*). Its grammar, two-stage
+**detect-then-validate** recognition, **lowercase-prefix-only** candidacy, **at-most-one-candidate**
+rule (all candidates reported on refusal), **recognized-but-invalid-refuses** behavior, and
+**outer-session strip-before-use** ordering are defined **by reference** to
+`skills/ptp-run-at-model/SKILL.md` § *Optional caller-side `fast:` switch* — **read `phase:` for
+`fast:` throughout that section** — exactly as `ptp-backlog-run`'s own `phase:{phase}` token reuses
+it. None of that machinery is restated here.
+
+**The body is an enum — exactly `apply`.** A recognized candidate is valid **iff** its body is
+exactly `apply`. A candidate whose body is anything else — `phase:plan`, `phase:full`, `phase:PLAN`
+(the enum body is case-sensitive), an empty `phase:` — is **recognized-but-invalid and REFUSES
+exactly as `count:0` does**, and **never falls through** to a bare or issue-text reading. A
+non-lowercase *prefix* (`Phase:apply`) is the different, `ptp-run-at-model`-owned case: it is not a
+candidate at all, so it falls through as **absent** and the argument is then classified by the
+existing bare/issue-text rule.
+
+**The token is recognized, not token-only-refused.** A valid `phase:apply` is **recognized** and
+switches the mode; it is never mistaken for the token-only refusal that *Invocation shape* applies to
+an argument that is *solely* unaccepted `<word>:<body>` tokens. **The token persists nothing** — no
+ptp config file is read for it or written by it, and there is no `backlog.phase` configuration
+parameter. `phase:apply` is token-only.
+
+**Apply mode is a mode token, not a target selector.** It selects no epic and carries no override;
+which epic apply mode acts on stays store-resolved (*Target selection*), so the command's standing
+"takes no selector" posture is intact — a mode token is not a change/backlog selector.
 
 ## Invocation shape — the bare/issue-text split is the signal
 
@@ -69,18 +101,33 @@ The command takes **one optional free-text argument** and **no selector of any k
 no `epic:` / `story:` selector, no backlog entry identifier. *Which* epic is acted on is target
 selection's answer, read from the store — never the caller's.
 
-- **Bare** — `$ARGUMENTS` absent, empty, or whitespace-only → the **bare flow**. The invocation
-  itself is the user's sign-off on the manual verification that the halted change's remaining tasks
-  describe.
-- **Non-empty free text** → the **issue-text flow**. The text is a report of problems the manual
-  verification surfaced, and it is carried **verbatim** into the fix pass as its brief.
+**Classification is three-way** — bare, issue-text, or **apply-mode** — resolved in a fixed order
+that detects the mode token first:
 
-**No token is parsed.** `model:`, `fast:`, `parallel:`, and `count:` are **not** recognized here;
-this command resolves its own targets and never accepts an override, and text containing such a
-substring is ordinary issue text (a real issue report may legitimately quote one). The single
-exception exists to avoid a silent misreading: an argument consisting **solely** of one or more
-token-shaped words (`<lowercase-word>:<body>`) and whitespace is a **refusal** naming them as
-unaccepted arguments — never treated as an issue brief and never treated as a bare invocation.
+1. **Detect and strip `phase:apply` first**, per *The `phase:apply` mode selector*. A valid
+   `phase:apply` candidate makes the invocation **apply-mode** and is **stripped**; a
+   recognized-but-invalid `phase:` candidate refuses there and then. With no `phase:` candidate the
+   invocation is bare or issue-text exactly as before.
+2. **Classify the residue** — for apply-mode the residue is what remained after the token was
+   **stripped**; with no `phase:` token the residue is the whole argument:
+   - **Bare** — residue absent, empty, or whitespace-only. Outside apply-mode this is the **bare
+     flow**: the invocation itself is the user's sign-off on the manual verification the halted
+     change's remaining tasks describe. In apply-mode it is the pure-resume case — apply every planned
+     slice with **no brief**.
+   - **Non-empty free text** — the residue is prose. Outside apply-mode this is the **issue-text
+     flow**, a report of problems the manual verification surfaced, carried **verbatim** into the fix
+     pass as its brief. In apply-mode it is a **pass-through brief**, carried **verbatim** into every
+     applied slice's apply work (*The apply flow*), scoping, filtering, or reordering no slice.
+   - **Solely token-shaped residue** — one or more `<lowercase-word>:<body>` words and whitespace and
+     nothing else → the **token-only refusal**, in apply-mode as outside it, naming the offending
+     word(s) as unaccepted arguments and running no flow.
+
+**Only `phase:` is parsed; no other token is.** `model:`, `fast:`, `parallel:`, and `count:` are
+**not** recognized here; this command resolves its own targets and never accepts an override, and
+text containing such a substring is ordinary issue text or pass-through brief (a real report may
+legitimately quote one). The single exception is the **token-only refusal** above: an argument (or an
+apply-mode residue) consisting **solely** of token-shaped words and whitespace is a refusal naming
+them — never treated as a brief and never treated as a bare invocation.
 Interpreting `/ptp:backlog-continue model:opus.high` as "fix the problem described as
 `model:opus.high`" would spend a fix pass on nothing; interpreting it as bare would archive an epic
 the user never signed off. This is `ptp-backlog-run`'s residual-argument judgment call reached from
@@ -106,7 +153,8 @@ Two exclusions the read applies before the predicate:
   Name it in the report as excluded, with `/ptp:backlog-edit` as the repair path.
 - No other status is ever touched. This command reads every entry and may write **at most one**.
 
-The candidate set:
+The candidate set, **in the bare and issue-text modes** (apply-mode's `planned` class replaces it —
+see *Apply-mode target selection* below):
 
 ```
 candidates = epics.filter(e => (e.status === "blocked" || e.status === "in-review")
@@ -176,11 +224,40 @@ change-epic prefix** (`ptp-backlog`'s schema), and a multi-slice `/ptp:full` run
 order (which the canonical write makes ascending numeric), and, within a prefix, on **every** matching
 change folder in ascending story order — never only the first.
 
+### Apply-mode target selection — the `planned` class
+
+Under `phase:apply` the candidate class is **different and replaces** the bare/issue-text
+`blocked`/`in-review` set above **for this mode only**:
+
+```
+candidates = epics.filter(e => e.status === "planned" && e.changeEpics.length > 0)
+```
+
+The `malformed-entry` exclusion on an entry's own `status`/`changeEpics` applies **identically**. The
+bare and issue-text flows **never** select a `planned` entry (their set is `blocked`/`in-review`),
+just as apply-mode never selects a `blocked` or `in-review` one — the classes are partitioned by mode.
+
+Selection **mirrors the `in-review` path, not the `blocked` path**: among several `planned`
+candidates, take the **canonical-order head** — the head of `ptp-backlog`'s canonical order, cited
+and never redefined — with **no multiplicity refusal**, because every `planned` entry needs the
+identical treatment (apply all slices) and the only open question is *which one first*, a schedule the
+canonical order already answers. There is **no "which halt did you mean" intent ambiguity** here, so
+the `blocked` multiplicity refusal never reaches apply-mode. The report names the chosen entry, how
+many `planned` candidates remain, and `/ptp:backlog-continue phase:apply` as the way to take the next.
+
+**Zero `planned` candidates refuse**, worded **over the recorded change** — "no epic is waiting to be
+applied: no `planned` entry carries a recorded change." Point at `/ptp:backlog-edit` when the user
+believes one should exist and the store disagrees, and at `/ptp:backlog-run phase:plan` as the path
+that lands an epic on `planned` in the first place.
+
 ## Precondition order
 
 In the outer session, in **exactly this order**:
 
-1. **Classify the invocation** — bare vs issue-text, and the token-only refusal above.
+1. **Classify the invocation** — **three-way**: detect and strip a valid `phase:apply` candidate
+   **first** (apply-mode), then classify the residue as bare, issue-text, or the token-only refusal
+   above (*Invocation shape*). A recognized-but-invalid `phase:` candidate refuses here. The
+   precondition order, its count, and branch-guard placement are unchanged.
 2. **The transport preconditions, as an ordered pair — never as one conjoined check**, because
    "resolve X **and** evaluate Y" cannot express that a failing X precludes Y, and because the
    configuration resolver is contractually forbidden from stopping anything itself. **The gate
@@ -463,13 +540,76 @@ is reported as a **refusal**, mirroring the bare flow's step-3 failure and `ptp-
 "convergence gate halts the run" posture. Either way the entry stays in its existing status
 (`blocked` or `in-review`).
 
+## The apply flow — "apply the plan"
+
+Reached under `phase:apply` against the selected `planned` candidate (*Apply-mode target selection*).
+For each prefix in that candidate's `changeEpics`, in **array order** (the canonical write makes it
+ascending numeric), and for each of that prefix's change folders `openspec/changes/<prefix>_*` in
+**ascending story order** under the **resolved workspace root** bound in precondition 2a:
+
+1. **Locate the change folder** under that one bound root — the same anchoring the bare flow's step 1
+   uses (`ptp-workspace`'s rule, cited not restated), never a second lookup at the repository root. A
+   prefix naming **no** folder there is **skipped and noted** in the report; a **wholly-absent**
+   prefix set is **disclosed, never refused**, naming the bound root — exactly the bare flow's
+   already-archived/absent disclosure.
+2. **Drive `/ptp:full-apply`** for the prefix — **one drive per prefix**, `/ptp:full-apply` owning the
+   per-slice iteration, each slice's **apply**, its **`/ptp:review-full`**, and **`codex.mode`**
+   resolution. A present **brief** (*Invocation shape*) is passed **verbatim** to each drive as
+   supplementary context; it scopes, filters, or reorders no slice.
+
+**This is the one review carve-out.** The bare and issue-text flows never review because `/ptp:full`
+already converged the change before it reached `blocked`/`in-review`; a `planned` epic has **no
+applied code**, so review happens now — **inside `/ptp:full-apply`**, never invoked by this command
+directly. `/ptp:backlog-continue` still invokes `/ptp:review-full` **nowhere directly** and resolves
+`codex.mode` **nowhere**, in apply-mode as on every other flow, so the hard rule stays literally true.
+
+**Nesting stays at one level.** The command runs **unwrapped in the outer session**, so the inline
+`/ptp:full-apply` Workflow is **level 1** — consistent with the existing contract, where
+`/ptp:archive`'s subagent and the fix-pass main run are level 1 only because the command takes no
+level of its own. Apply-mode is therefore **never** wrapped in a `ptp-run-at-model` main run.
+
+### The apply-mode settle — `in-review` or `blocked`
+
+The convergence decision is **mechanical and all-or-nothing**: **converged** iff every slice of every
+prefix in `changeEpics` landed in `ptp-full-apply`'s `processed` bucket; **not converged** on anything
+else — a slice left `applied (review pending)` or `never-started`, or an empty, absent, or mixed
+report. A non-converged drive **halts** the settle.
+
+- **On convergence**, commit **`planned` → `in-review`** (the row `0079_01` added) as **one write
+  group**: the `runBaseline` clear as a payload write (normally `skipped-identical` — a `planned`
+  entry carries a null baseline), `status: in-review` as the single commit dispatched last,
+  `changeEpics` **retained with no row planned for it**, and **no `notes` line**.
+- **On a halt**, commit **`planned` → `blocked`** as one write group, appending a **terminal-state
+  `notes`** line (mirroring the runner's blocked branch), clearing `runBaseline`, and retaining
+  `changeEpics`.
+
+In both branches the **pre-write step** — re-read and re-confirm the target is still `planned` with
+the same `changeEpics` — is discharged by `ptp-backlog-write`'s two re-reads and adds nothing to them
+(`changeEpics` needs no check, no row being planned for it); if the target **drifted** under the
+command, **refuse rather than write**, per the never-a-blind-write rule the bare flow's transition
+already obeys.
+
+A **partial or failed** settle write reuses the **existing partial-resume contract** (*When the
+resume write does not complete*) with **`planned` as the source status**, and the epic is **never
+reported as settled on any non-`complete` write**. **`unresolved-commit`** names both possible
+statuses and asserts neither, per that contract, with `planned` substituted for the source status.
+The candidate predicate — `planned` with a non-empty `changeEpics` — survives every partial failure,
+so a `phase:apply` retry (with or without a brief) is idempotent by construction.
+
+Apply-mode acts on **at most one** backlog entry per invocation and **never** chains into
+`/ptp:backlog-run`. It writes **`done` nowhere**: a later **bare** `/ptp:backlog-continue` takes a
+resulting `in-review` entry to `done` under the unchanged `in-review → done` row.
+
 ## Codex mode
 
-This skill never resolves `codex.mode`, in either flow. The bare flow never invokes `/ptp:review-full`
-(code review is `/ptp:full`'s affair, already converged before this command runs), so there is no
-reviewer gate here to evaluate. The issue-text flow's fix pass runs under `ptp-run-at-model`, which
-resolves the main agent per `ptp-agent-roles` and never touches `codex.mode` either — that contract's
-mode gate applies only to a review, and this command drives none.
+This skill never resolves `codex.mode`, in **any** flow. The bare and issue-text flows never invoke
+`/ptp:review-full` (code review is `/ptp:full`'s affair, already converged before this command runs),
+so there is no reviewer gate here to evaluate. The issue-text flow's fix pass runs under
+`ptp-run-at-model`, which resolves the main agent per `ptp-agent-roles` and never touches `codex.mode`
+either — that contract's mode gate applies only to a review, and the fix pass drives none. **Apply-mode**
+drives `/ptp:full-apply`, which owns per-slice `/ptp:review-full` and resolves `codex.mode` **itself**
+(*The apply flow*); this command still invokes `/ptp:review-full` nowhere directly and resolves
+`codex.mode` nowhere. On no flow does this command evaluate a reviewer gate of its own.
 
 ## Telemetry
 
@@ -488,7 +628,7 @@ was resolved** — which is every shape except the refusals that fire before or 
 a **token-only argument** (refused at classification, before the store is even read), **zero
 candidates** (there is no entry to name — the report says so), and **multiple `blocked` candidates**
 (none is
-selected — the report names them **all** instead, per *Target selection*). Beyond that, four shapes:
+selected — the report names them **all** instead, per *Target selection*). Beyond that, five shapes:
 
 1. **Bare flow, full success** — the target's **source status** (`blocked` or `in-review`), so a
    reader can tell which proof the guard supplied; every prefix and story processed, each archive result
@@ -524,19 +664,33 @@ selected — the report names them **all** instead, per *Target selection*). Bey
    `in-review`)**, and the reminder that a **bare**
    `/ptp:backlog-continue` is the next step once the user has re-verified.
 4. **No candidate / multiple `blocked` candidates / an excluded entry / a token-only argument / an issue-text
-   invocation whose every recorded prefix is already archived** — the refusal exactly as *Target
-   selection*, *Invocation shape*, and *The issue-text flow* step 1 specify, naming every `blocked`
+   invocation whose every recorded prefix is already archived / a `phase:apply` invocation with no
+   `planned` candidate** — the refusal exactly as *Target
+   selection*, *Apply-mode target selection*, *Invocation shape*, and *The issue-text flow* step 1
+   specify, naming every `blocked`
    candidate where there is more than one — **and, in that same refusal, every `in-review` candidate it
    did not select**, per *Target selection*, so they are never silently ignored — and every absent
    prefix where none survives, and performing
-   no action on any entry. **Several `in-review` candidates are not a refusal** — they resolve to the
-   canonical-order head and produce a shape-1 or shape-2 report.
+   no action on any entry. The zero-`planned` refusal points at `/ptp:backlog-edit` and
+   `/ptp:backlog-run phase:plan`. **Several `in-review` or several `planned` candidates are not a
+   refusal** — they resolve to the canonical-order head and produce a shape-1, shape-2, or shape-5
+   report.
+5. **Apply-mode** — the selected `planned` candidate (`id` and `title`), each prefix's
+   `/ptp:full-apply` results and any prefix skipped as absent, the **all-or-nothing convergence
+   outcome**, the **resulting status** (`in-review` on convergence, `blocked` on halt, or the entry's
+   existing status on a refused-drift or partial write), any **brief** passed through, every
+   **unselected `planned` candidate** with `/ptp:backlog-continue phase:apply` as the pointer to the
+   next, and the next command. A non-converged settle names the halted slice and, where the settle
+   write itself did not complete, carries the write verdict and journal exactly as shape 2's
+   partial-resume wording, with `planned` as the source status; an `in-review` result points at a later
+   **bare** `/ptp:backlog-continue` for `done`.
 
 **A refusal is never relayed as success**, and a partial run is never reported as a full one.
 
 ## Hard rules
 
-- **Never act on an entry that is not `blocked` or `in-review` with a non-empty `changeEpics`.**
+- **Never act on an entry outside its mode's candidate class with a non-empty `changeEpics`** — the
+  bare and issue-text flows act only on `blocked` or `in-review`; apply-mode acts only on `planned`.
 - **Never write more than one backlog entry per invocation**, and never more than **one** write.
 - **Never perform `blocked → done` or `in-review → done`** except as the direct, same-invocation result
   of this command's own sign-off → archive sequence settling **every** recorded prefix — resting on the
@@ -547,10 +701,11 @@ selected — the report names them **all** instead, per *Target selection*). Bey
 - **Never silently swallow a re-verification failure** on the bare flow: a stale automated failure is a
   refusal naming the check, not a skip.
 - **Never weaken `/ptp:archive`'s gates**, and never reimplement it — it is driven, not copied.
-- **Never invoke `/ptp:review-full` from this command, on either flow, for any reason.** Code review is
-  `/ptp:full`'s responsibility and is already converged by the time a change reaches `blocked` or
-  `in-review`. This command reads no `stages/code.json` marker and evaluates no review-eligibility
-  predicate.
+- **Never invoke `/ptp:review-full` from this command directly, on any flow, for any reason.** On the
+  bare and issue-text flows code review is `/ptp:full`'s responsibility and is already converged by the
+  time a change reaches `blocked` or `in-review`; apply-mode's `planned` epic is reviewed **inside
+  `/ptp:full-apply`**, which the command drives (never `/ptp:review-full` itself). This command reads no
+  `stages/code.json` marker and evaluates no review-eligibility predicate or `codex.mode` on any flow.
 - **Never chain into `/ptp:backlog-run`**, and never process a second backlog epic.
 - **Never commit, push, merge, or deploy.** The one archive this command performs is `/ptp:archive`'s,
   driven under its own gates.
@@ -577,6 +732,7 @@ selected — the report names them **all** instead, per *Target selection*). Bey
 | the halt that produces a `blocked` entry, the convergence write that produces an `in-review` one, its `changeEpics` write, and the terminal-state vocabulary | `ptp-backlog-run` |
 | branch safety and the `ptp-branch-prep` workflow | `ptp-branch-guard` |
 | spawn-and-relay, effort directives, the nesting caveat | `ptp-run-at-model` |
-| the two-phase review loop, its convergence gate, and the `stages/code.json` marker schema | `/ptp:review-full` / `ptp-review-loop` — driven only by `/ptp:full`, never by this command |
+| apply-mode's per-slice apply loop, its `processed` bucket and apply-convergence gate, and the `/ptp:review-full` and `codex.mode` it owns | `ptp-full-apply` |
+| the two-phase review loop, its convergence gate, and the `stages/code.json` marker schema | `/ptp:review-full` / `ptp-review-loop` — driven only by `/ptp:full` and `/ptp:full-apply`, never directly by this command |
 | the archive gates, the confirmations, and the spec sync | `/ptp:archive` |
 | the fix pass's implementation discipline and hard rules | `agents/ptp-apply.md` |

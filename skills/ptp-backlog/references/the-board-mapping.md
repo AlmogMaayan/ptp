@@ -151,13 +151,14 @@ Matched on the selected option's **name**, case-insensitively and whitespace-tri
 | `backlog` | `backlog`, `Backlog` |
 | `ready` | `ready`, `Ready` |
 | `in-progress` | `in-progress`, `In Progress` |
+| `planned` | `planned`, `Planned` |
 | `in-review` | `in-review`, `In Review` |
 | `done` | `done`, `Done` |
 | `blocked` | `blocked`, `Blocked` |
 | `cancelled` | `cancelled`, `Cancelled`, `Canceled` |
 
-**The recommended board layout** is the first five rows' Title-Case names, in the order declared —
-`Backlog` | `Ready` | `In Progress` | `In Review` | `Done`. That order is **documentation, not a rule**:
+**The recommended board layout** is the first six rows' Title-Case names, in the order declared —
+`Backlog` | `Ready` | `In Progress` | `Planned` | `In Review` | `Done`. That order is **documentation, not a rule**:
 nothing in the read path, the ready set, the transition table, or the write path reads a board option's
 position, index, or color, and the existing prohibition on inferring anything from option order,
 position, or color is untouched.
@@ -189,7 +190,7 @@ the key itself; its validity rules are **not** restated here. This skill owns th
 
 Matching is unchanged: on the selected option's **name**, **case-insensitively** and
 **whitespace-trimmed**, with no fuzzy matching and no near-match. Configuration changes *which names are
-in the table*; it never changes *how a name is matched*, and it never adds an eighth status — the seven
+in the table*; it never changes *how a name is matched*, and it never adds a ninth status — the eight
 entry `status` values are the schema's.
 
 #### Replace, not extend
@@ -244,7 +245,7 @@ Four situations, deliberately landing in four different places:
 | the selected option's name is **outside the resolved table** (`Needs review`) | `malformed-entry` on `status`, **never coerced** to a nearby value |
 | the item has **no `Status` value set** (a real Projects state) | `malformed-entry` on `status` — `status` is required on read and is **never invented** |
 | the board **has no `Status` field**, or its type is not the transport's single-select type literal | `malformed-file`, **fatal** (above) |
-| the board's `Status` field **lacks an option** for one of the seven values | **not a read defect at all** — no item can carry an option that does not exist. It is the **write path's refusal** (`ptp-backlog-write`, *The commit refuses when the resolved row does not identify exactly one board option*), and the view **notes it** (below) |
+| the board's `Status` field **lacks an option** for one of the eight values | **not a read defect at all** — no item can carry an option that does not exist. It is the **write path's refusal** (`ptp-backlog-write`, *The commit refuses when the resolved row does not identify exactly one board option*), and the view **notes it** (below) |
 
 **The advisory.** The field read at READ step 3 already returned the board's `Status` options, so the read is the
 cheapest possible place to tell a user that their configuration and their board disagree: the view emits
