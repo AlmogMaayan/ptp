@@ -53,6 +53,7 @@ skill, and reports. A command that owns itself carries its own contract.
 | `commands/prd-full.md` | `skills/ptp-prd-full/SKILL.md` |
 | `commands/prd.md` | `skills/ptp-prd/SKILL.md` |
 | `commands/prompt-fix.md` | `skills/ptp-prompt-draft/SKILL.md` |
+| `commands/prompt-write-to-backlog.md` | `skills/ptp-prompt-write-to-backlog/SKILL.md` |
 | `commands/prompt-write.md` | `skills/ptp-prompt-write/SKILL.md` |
 | `commands/prompt.md` | `skills/ptp-prompt-draft/SKILL.md` |
 | `commands/review-brainstorm-full.md` | `skills/ptp-review-brainstorm-full/SKILL.md` |
