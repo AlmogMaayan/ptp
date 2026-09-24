@@ -27,14 +27,14 @@ Check both before Phase 1 begins:
 ## What this command does
 
 This entire two-phase orchestration runs **at a deterministic model** via the **`ptp-run-at-model`**
-skill at `opus.high`. The outer session runs only the abort-guaranteeing preconditions first — the
+skill at the `plan-review` family default target (`skills/ptp-run-at-model/references/family-default-target.md`; `opus.high` built in). The outer session runs only the abort-guaranteeing preconditions first — the
 `ptp-branch-guard` preamble (above), the role resolution per `ptp-agent-roles` and the reviewer-gate
 resolution per `ptp-codex-mode` (including the `required` + `codex` missing STOP for a Codex
 reviewer), and the change-folder existence check — so a guaranteed abort
-never spawns a subagent. It then invokes **`ptp-run-at-model`** with target `opus.high`, passing the
+never spawns a subagent. It then invokes **`ptp-run-at-model`** with that resolved target, passing the
 already-resolved role pair and reviewer-gate decision, and the **whole** orchestrator below (Phase 1, the
 Phase-1-gates-Phase-2 gate, Phase 2 per the resolved mode, and the combined summary) runs inside that
-**single** foreground `opus` subagent (high effort directive). Do **not** split the phases across
+**single** foreground subagent at that target. Do **not** split the phases across
 multiple subagents and do **not** add a nesting guard — every inner step is inline skill work or an
 external `codex exec` Bash subprocess, neither of which spawns an Agent or a Workflow. The subagent's
 terminal state (including the mode-skip success state `PHASE 1 DONE — CODEX SKIPPED (mode=…)`) is
@@ -73,7 +73,7 @@ If and only if Phase 1 terminates with `DONE` **and** the gate permits the revie
 - `fixDispatch = inline`
 - `runningTarget = <this command's resolved main-run target per ptp-agent-roles>`
 
-The skill drives the full loop. When the reviewer is Codex, each iteration's review pass runs the `codex-review-plan.md` closed-book protocol inline: you (the caller) read all artifacts, run `npx -y openspec validate <change-id> --strict`, collect cited source excerpts, build a single self-contained prompt with all of this inlined, and pipe it to `codex exec -s read-only` over stdin (assembled per the `ptp-codex-mode` flag-append rule — resolved `-m`/`-c` flags appended before the trailing `-` when `codex.model`/`codex.reasoningEffort` are configured). Findings are confirmed via `ptp-receiving-code-review` (or `superpowers:receiving-code-review` when the skill-set directive names `tdd-plugin=superpowers`) before any artifact is touched.
+The skill drives the full loop. When the reviewer is Codex, each iteration's review pass runs the `codex-review-plan.md` closed-book protocol inline: you (the caller) read all artifacts, run `npx -y openspec validate <change-id> --strict`, collect cited source excerpts, build a single self-contained prompt with all of this inlined, and pipe it to `codex exec -s read-only` over stdin (assembled per the `ptp-codex-mode` flag-append rule — `-m`/`-c` always sent before the trailing `-`, from `ptp-codex-mode`'s Codex lookup chain for family `plan-review`). Findings are confirmed via `ptp-receiving-code-review` (or `superpowers:receiving-code-review` when the skill-set directive names `tdd-plugin=superpowers`) before any artifact is touched.
 
 **Note:** Phase 2 starts with fresh loop state. The `rejected_findings` list from Phase 1 does NOT carry over into Phase 2 — the reviewer agent is an independent reviewer and its findings should be evaluated on their own merits.
 
@@ -125,5 +125,5 @@ The combined write uses the **same atomic write-temp-then-rename protocol** as `
 - Do **not** regenerate artifacts via `/ptp:plan`. All artifact fixes are minimal targeted hand-edits only — correct a thin section, add a missing scenario, fill a spec-delta gap.
 - Per-iteration verification is `npx -y openspec validate <change-id> --strict`. A failing run is reported in the iteration summary but does NOT abort the loop.
 - Iteration cap per phase is configurable via `review.maxIterations` in ptp config; default 5. Each phase has its own independent cap.
-- Run Codex under `codex exec -s read-only` with the prompt piped over **stdin** (`-`), assembled per the `ptp-codex-mode` flag-append rule (resolved `-m`/`-c` flags before the trailing `-` when configured). Never pass `--full-auto`, `--sandbox workspace-write`, or `--dangerously-bypass-approvals-and-sandbox`.
+- Run Codex under `codex exec -s read-only` with the prompt piped over **stdin** (`-`), assembled per the `ptp-codex-mode` flag-append rule (`-m`/`-c` always sent before the trailing `-`, from the Codex lookup chain). Never pass `--full-auto`, `--sandbox workspace-write`, or `--dangerously-bypass-approvals-and-sandbox`.
 - You (the caller) assemble the closed-book prompt each Codex iteration — read all artifacts yourself (via Read), run `openspec validate` yourself (via Bash), collect cited source excerpts yourself (via Read/Grep), and inline everything into one prompt. Codex runs **no** commands — no `npx`, no network, no installs.

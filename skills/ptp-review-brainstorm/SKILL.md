@@ -7,7 +7,7 @@ description: Own one main-agent review pass over a brainstorm and the findings i
 
 ## Purpose
 
-**Model dispatch target.** `/ptp:review-brainstorm` runs this skill's work at `opus.high` via `ptp-run-at-model` (`skills/ptp-run-at-model/SKILL.md`), which owns the spawn-and-relay mechanics and requires its caller to supply the target. This names the target only; it restates none of that contract.
+**Model dispatch target.** `/ptp:review-brainstorm` runs this skill's work at the `brainstorm` family default target (`skills/ptp-run-at-model/references/family-default-target.md`; `opus.high` built in) via `ptp-run-at-model` (`skills/ptp-run-at-model/SKILL.md`), which owns the spawn-and-relay mechanics and requires its caller to supply the target. This names the target only; it restates none of that contract.
 
 This skill owns the **brainstorm-review methodology** and is the **single source of truth** the thin
 `/ptp:review-brainstorm` command delegates to — the same command-backed-by-a-skill split as
@@ -33,9 +33,9 @@ Resolve `{ main, reviewer }` from `roles.main` via the **`ptp-agent-roles`** ski
 change. At `main = codex`, the review pass is instead a **read-only** `codex exec -s read-only`
 dispatch over this skill's own rubric — the `(kind = brainstorm, reviewer = codex)` dispatch
 `ptp-review-loop` already defines — assembled per the **`ptp-codex-mode`** skill's canonical
-flag-append rule (append resolved `-m <model>` / `-c model_reasoning_effort=<effort>` before the
-trailing `-` when `codex.model` / `codex.reasoningEffort` are configured), taking its model and
-effort from `codex.model` / `codex.reasoningEffort`. This is the **read-only reviewer invocation**,
+flag-append rule (always send `-m <model>` / `-c model_reasoning_effort=<effort>` before the
+trailing `-`), taking its model and effort from `ptp-codex-mode`'s Codex lookup chain for
+review kind `brainstorm` (family `brainstorm`; `gpt-6-astra` / `high` when nothing is configured). This is the **read-only reviewer invocation**,
 never `ptp-run-at-model`'s write-capable `-s workspace-write` main-implementer invocation — this
 review edits nothing in either direction, runs no `openspec validate` in either direction, and
 triggers no other ptp command. At `main = codex`, run the `codex-review-plan.md` closed-book

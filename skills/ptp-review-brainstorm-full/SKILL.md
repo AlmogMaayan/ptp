@@ -31,7 +31,7 @@ ptp-review-loop(kind=brainstorm)`. The only structural difference from the artif
 brainstorm `kind` and its one divergence: **no** `openspec validate` (a brainstorm precedes any
 proposal/spec).
 
-The whole two-phase orchestration is wrapped via `ptp-run-at-model` at `opus.high` (driven by the
+The whole two-phase orchestration is wrapped via `ptp-run-at-model` at the `brainstorm` family default target (`skills/ptp-run-at-model/references/family-default-target.md`; `opus.high` built in) (driven by the
 command); this skill is its substance.
 
 ---
@@ -114,8 +114,8 @@ reviewer is Codex, the loop drives the
 closed-book Codex review retargeted to `brainstorm.md` with **no** `openspec validate` (the caller
 reads `brainstorm.md` + any cited context, builds one self-contained prompt carrying the brainstorm
 rubric as the audit instructions, and pipes it to `codex exec -s read-only` over stdin (assembled per
-the `ptp-codex-mode` flag-append rule — resolved `-m`/`-c` flags appended before the trailing `-` when
-configured); Codex runs no commands), and confirmed findings are fixed by editing `brainstorm.md`
+the `ptp-codex-mode` flag-append rule — `-m`/`-c` always sent before the trailing `-`, from the Codex
+lookup chain for family `brainstorm`); Codex runs no commands), and confirmed findings are fixed by editing `brainstorm.md`
 until it terminates `DONE` or `ITERATION CAP REACHED`.
 
 **Deliberate difference — NO `openspec validate`.** `codex-review-plan.md` inlines an authoritative
@@ -239,7 +239,7 @@ this orchestrator only ever drives the brainstorm kind.
 - **Don't re-author the rubric.** The brainstorm-quality rubric stays in `ptp-review-brainstorm`; only
   the disposition of findings (inline fix vs. report) changes here.
 - **Codex only read-only over stdin.** Run Codex only under `codex exec -s read-only` with the prompt
-  piped over **stdin** (`-`), assembled per the `ptp-codex-mode` flag-append rule (resolved `-m`/`-c`
-  flags before the trailing `-` when `codex.model`/`codex.reasoningEffort` are configured). Never
+  piped over **stdin** (`-`), assembled per the `ptp-codex-mode` flag-append rule (`-m`/`-c` always
+  sent before the trailing `-`, from the Codex lookup chain for family `brainstorm`). Never
   `--full-auto`, `--sandbox workspace-write`, or `--dangerously-bypass-approvals-and-sandbox`. Codex
   runs **no** commands.

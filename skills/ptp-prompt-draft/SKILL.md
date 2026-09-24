@@ -39,7 +39,7 @@ file — there is no merge-write step at all.
    section (referenced, not restated) — this is simply the first outer-session step, since the
    command is read-only. An invalid or duplicate token STOPs here, before the main run.
 2. Run the restatement work — reading the token-stripped free-text request — through **one
-   foreground `ptp-run-at-model` main run** at the resolved target (`opus.high` by default, or the
+   foreground `ptp-run-at-model` main run** at the resolved target (the `prompt` family default target per `skills/ptp-run-at-model/references/family-default-target.md` by default, or the
    valid override), per *Run at model* below. The main run produces the structured summary:
    - **What it will do** — the concrete outcome, in the user's own terms where possible.
    - **Key assumptions** — anything filled in that the user did not say explicitly.
@@ -81,7 +81,7 @@ skill, referenced here rather than restated:
    above) — the first outer-session step, since both commands are read-only and have no other
    abort-guaranteeing precondition.
 2. **Branch guard**: a no-op for both commands — neither writes a tracked artifact.
-3. **Resolve the target**: the token-stripped override if one was given and valid, else `opus.high`.
+3. **Resolve the target**: the token-stripped override if one was given and valid, else the `prompt` family default target per `family-default-target.md` (`models.prompt`, else `opus.high`).
 4. **Run the main work**: one foreground `ptp-run-at-model` main run (the Claude subagent by default,
    or the `codex exec` shell-out when `main=codex`), carrying the token-stripped argument text and —
    for `/ptp:prompt-fix` — the accumulated understanding from this conversation's prior turns. The
@@ -102,7 +102,7 @@ into the main run's prompt each time.
 - **No branch guard.** Neither command writes anything git needs to protect against; the wrap's
   branch-guard step is a no-op.
 - **Run through `ptp-run-at-model`.** Both commands run their restatement work in one foreground main
-  run at the resolved target (`opus.high` by default, or a valid `model:` override) — see *Run at
+  run at the resolved target (the `prompt` family default target per `family-default-target.md` by default, or a valid `model:` override) — see *Run at
   model*.
 - **No file writes.** The understanding lives in conversational context only, until `/ptp:prompt-write`
   persists it.

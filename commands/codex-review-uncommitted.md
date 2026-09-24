@@ -98,11 +98,12 @@ config), and relaying the verdict — **fixing nothing**, and the subagent's out
    - End with exactly one line: `SAFE TO COMMIT` (no **actionable** Critical/High) or `FIX BEFORE COMMIT` (any **actionable** Critical/High). The single-line-at-the-end format is unchanged — the verdict tokens and their placement are byte-identical to today; only which findings count toward them is qualified.
 4. **Run Codex over stdin (you, via Bash from the repo root):**
    ```bash
-   printf '%s' "$PROMPT" | codex exec -s read-only -
+   printf '%s' "$PROMPT" | codex exec -s read-only -m <model> -c model_reasoning_effort=<effort> -
    ```
-   Assemble the invocation per the `ptp-codex-mode` flag-append rule: append `-m <model>` and/or
-   `-c model_reasoning_effort=<effort>` before the trailing `-` when `codex.model` /
-   `codex.reasoningEffort` resolve to a set value; both unset yields exactly the invocation shown above.
+   Assemble the invocation per the `ptp-codex-mode` flag-append rule: `<model>` and `<effort>` come
+   from `ptp-codex-mode`'s Codex lookup chain for review kind `code`, whose family is `apply-review` (`codex.apply-review`).
+   Both flags are always sent before the trailing `-`; with nothing configured the invocation is
+   `codex exec -s read-only -m gpt-6-astra -c model_reasoning_effort=high -`.
    - Always pipe via **stdin** (`-`); keep `-s read-only`. Do **not** pass `--full-auto`, `--sandbox workspace-write`, or `--dangerously-bypass-approvals-and-sandbox`.
    - **Run it synchronously**, per `ptp-codex-mode`'s *Every round runs synchronously*.
    - Sandbox noise (`blocked by policy`, `spawn setup refresh`) is harmless here — the diff is inlined, so Codex needs no commands. Proceed to relay the verdict.

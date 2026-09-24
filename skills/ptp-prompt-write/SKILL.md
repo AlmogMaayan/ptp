@@ -20,7 +20,7 @@ otherwise writes into an existing one. Do not restate `ptp-change-selector`'s gr
 algorithm here; cite it.
 
 This command writes `prompt.md` through the **`ptp-run-at-model`** skill in one foreground main run at
-a resolved target (`opus.high` by default, or a valid caller-side `model:` override) — see *Run at
+a resolved target (the `prompt` family default target per `skills/ptp-run-at-model/references/family-default-target.md` by default, or a valid caller-side `model:` override) — see *Run at
 model* below for the outer-session ordering (the `model:` parse-and-strip, the STOPs, the resolution
 or allocation, and the branch guard all run outer, **before** the main run starts).
 
@@ -91,7 +91,7 @@ allocation, and the branch guard all run in the **outer session, before the main
    branch leaf.
 5. **Run the main work**: only now does the **one foreground `ptp-run-at-model` main run** (the Claude
    subagent by default, or the `codex exec` shell-out when `main=codex`) execute, at the resolved
-   target (`opus.high` by default, or the valid `model:` override) — writing `prompt.md` into the
+   target (the `prompt` family default target per `family-default-target.md` by default, or the valid `model:` override) — writing `prompt.md` into the
    resolved or allocated change folder per *`prompt.md` shape* above. The main run does **not**
    inherit the outer session's conversation, so its prompt MUST carry: the accumulated understanding
    held from this conversation's prior `/ptp:prompt` / `/ptp:prompt-fix` turns (the content to

@@ -7,7 +7,7 @@ description: Own read-only diagnosis, writing a durable analysis doc into a chan
 
 ## Purpose
 
-**Model dispatch target.** `/ptp:analyze` runs this skill's work at `opus.high` by **default**, or at a
+**Model dispatch target.** `/ptp:analyze` runs this skill's work at the `analyze` family default target (`skills/ptp-run-at-model/references/family-default-target.md`; `opus.high` built in) by **default**, or at a
 valid caller-supplied `model:<model>.<effort>` override for that single invocation, via
 `ptp-run-at-model`, one foreground main run. See **## Run at model** below for the full dispatch
 protocol — the outer-session `model:` parse, the branch guard, the `ptp-run-at-model` invocation, and
@@ -33,7 +33,7 @@ model and effort the session happens to be set to. This section is the imperativ
 supplied for an optional `model:<model>.<effort>` override token per the "Optional caller-side `model:`
 override token" section of **`ptp-run-at-model`** — do not restate that grammar/validation here.
 
-- **Absent** → resolved target = `opus.high` (unchanged path); proceed to the branch guard with the
+- **Absent** → resolved target = the `analyze` family default target per `family-default-target.md` (`models.analyze`, else `opus.high`); proceed to the branch guard with the
   subject text as given.
 - **Exactly one valid candidate** → strip it from the subject text before the branch guard runs;
   resolved target = the resolved `<model>.<effort>` literal.
@@ -48,7 +48,7 @@ subject per `ptp-branch-guard` *Branch naming* case 3. This is the command's onl
 precondition — it allocates no change id in the outer session and asks the user nothing.
 
 **Outer session — invoke `ptp-run-at-model`.** Once the guard has returned (or no-opped), invoke
-`ptp-run-at-model` once at the **resolved target** (`opus.high` by default, or the valid `model:`
+`ptp-run-at-model` once at the **resolved target** (the `analyze` family default target per `family-default-target.md` by default, or the valid `model:`
 override), with the work being this skill's classification, routing, read-only investigation,
 change-folder resolution, and analysis-doc write — i.e. everything below this section, run inside the
 spawned main run rather than in the outer session.
