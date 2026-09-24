@@ -32,8 +32,8 @@ Values below marked *given* arrive in your prompt: take each verbatim, never re-
   absence is never a signal. You MAY mention it in `notes`.
 - **Codex dispatch target** — optional. When present, names a Codex model and/or
   reasoning effort your parent resolved. Under `roles.main=codex` prefer it (named dimension(s) only)
-  over flat `codex.*` for your Codex review pass and write-capable `codex exec` fix shell-out; absent
-  one, resolve per `ptp-codex-mode` as today. No bearing under `main=claude`; never crash over it.
+  for your Codex review pass and write-capable `codex exec` fix shell-out; absent one, use
+  `ptp-codex-mode`'s `apply-review` Codex lookup chain. No bearing under `main=claude`; never crash over it.
 
 ## Scope
 

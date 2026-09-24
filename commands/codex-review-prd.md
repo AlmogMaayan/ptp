@@ -137,11 +137,12 @@ multi-epic or empty-argument audit-all selector, the one subagent handles the wh
 
 4. **Run Codex closed-book over stdin (you, via Bash from the repo root):**
    ```bash
-   printf '%s' "$PROMPT" | codex exec -s read-only -
+   printf '%s' "$PROMPT" | codex exec -s read-only -m <model> -c model_reasoning_effort=<effort> -
    ```
-   Assemble the invocation per the `ptp-codex-mode` flag-append rule: append `-m <model>` and/or
-   `-c model_reasoning_effort=<effort>` before the trailing `-` when `codex.model` /
-   `codex.reasoningEffort` resolve to a set value; both unset yields exactly the invocation shown above.
+   Assemble the invocation per the `ptp-codex-mode` flag-append rule: `<model>` and `<effort>` come
+   from `ptp-codex-mode`'s Codex lookup chain for review kind `prd`, whose family is none, so the chain starts at `codex.judgment.*`.
+   Both flags are always sent before the trailing `-`; with nothing configured the invocation is
+   `codex exec -s read-only -m gpt-6-astra -c model_reasoning_effort=high -`.
    - Always pipe the prompt via **stdin** (`-`), never as a quoted argv string.
    - Keep `-s read-only`. Do **not** pass `--full-auto`, `--sandbox workspace-write`, or
      `--dangerously-bypass-approvals-and-sandbox` — loosening the sandbox is the wrong fix for a review.

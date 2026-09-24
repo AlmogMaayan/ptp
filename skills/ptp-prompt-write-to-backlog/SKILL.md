@@ -23,7 +23,7 @@ Run in this order:
 
 1. **Parse-and-strip** an optional `model:<model>.<effort>` token per `ptp-run-at-model`'s caller-side override section. An invalid or duplicate token STOPs here.
 2. **Check the STOP** above, before any spawn.
-3. **Start one foreground `ptp-run-at-model` main run** at the resolved target, `opus.high` by default or the valid override. The main run does not inherit this conversation, so its prompt MUST carry the accumulated understanding verbatim (the current restated understanding plus the assumptions list, if any). The main run starts no further main run.
+3. **Start one foreground `ptp-run-at-model` main run** at the resolved target: the `prompt` family default target per `skills/ptp-run-at-model/references/family-default-target.md` by default, or the valid override. The main run does not inherit this conversation, so its prompt MUST carry the accumulated understanding verbatim (the current restated understanding plus the assumptions list, if any). The main run starts no further main run.
 4. **Inside the main run**, persist that understanding as `/ptp:backlog-add` persists one entry, taking the accumulated understanding as the free-text epic description. That is one item creation carrying the composed title and body, followed by `status: backlog` as the single commit, with its own pre-dispatch snapshot, pre-write field check, and write journal. The body carries the full accumulated understanding as the entry's instructions, never a summary of it.
 5. **Relay** the main run's terminal result per `ptp-run-at-model`'s result relay.
 

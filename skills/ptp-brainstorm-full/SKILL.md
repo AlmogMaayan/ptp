@@ -28,9 +28,9 @@ this skill — the skill receives these as inputs and does **not** redo them.
 | `request` | the original change request text (free-text path), or empty for the re-run-with-bare-id path | `$ARGUMENTS` from the command; threaded through to the Phase A brainstorm subagent so it brainstorms the actual request, not the lossy id slug. In the bare-id re-run path there is no request text — Phase A brainstorms from the change context (the id's `<desc>` and any existing `openspec/changes/<id>/` artifacts), exactly as `/ptp:brainstorm <id>` does. |
 | `change-id` | fully-formed `XXXX_NN_<desc>` change id | Allocated/preserved by the outer session (derived from the request text, or preserved verbatim when `$ARGUMENTS` is already a fully-formed id). |
 | `codex.mode` decision | already-resolved mode decision from `ptp-codex-mode` | Resolved once in the outer session; threaded through to Phase B so the review subagent does not re-resolve it. |
-| `target` | A `<model>.<effort>` literal — `opus.high` by default, or the caller's resolved `model:` override | Resolved once by `commands/brainstorm-full.md`'s outer session. |
+| `target` | A `<model>.<effort>` literal — the `brainstorm` family default target (`skills/ptp-run-at-model/references/family-default-target.md`; `opus.high` built in) by default, or the caller's resolved `model:` override | Resolved once by `commands/brainstorm-full.md`'s outer session. |
 
-Both phases run at the resolved `target` (default `opus.high`) via `ptp-run-at-model`. This skill
+Both phases run at the resolved `target` (default: the family default target per `family-default-target.md`) via `ptp-run-at-model`. This skill
 consumes the already-resolved target and does **not** re-parse a `model:` token — the command's outer
 session parsed and stripped it (see the "Optional caller-side `model:` override token" section of
 `ptp-run-at-model` for the token's grammar, validation, and refusal contract, and the corresponding

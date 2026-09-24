@@ -25,7 +25,7 @@ invocation only. Invalid → refuse and STOP in the outer session before the bra
 spawn.
 
 This command parses **no `fast:` token** and gains **no `model:` override token** — members run at
-the fixed `opus.high` target (or the `codex.model`/`codex.reasoningEffort` equivalent under
+the `brainstorm` family default target (beat 3 below; `opus.high` built in) (or the `codex.model`/`codex.reasoningEffort` equivalent under
 `roles.main=codex`).
 
 Epic allocation (beat 1): allocate one fresh epic for all slices per the `ptp-change-selector`
@@ -152,7 +152,7 @@ no part (f) input applies.
    story order**. Failure handling is join-then-gate on both paths.
 
 3. **Run the members.** One member per slice, started by the outer session: under `roles.main=claude`
-   one foreground `opus.high` Agent-tool subagent; under `roles.main=codex` one write-capable
+   one foreground Agent-tool subagent at the `brainstorm` family default target (`skills/ptp-run-at-model/references/family-default-target.md`; `opus.high` built in); under `roles.main=codex` one write-capable
    `codex exec` run at the resolved `codex.model`/`codex.reasoningEffort`. Each member runs
    `/ptp:brainstorm`'s steps **inline** in its own context. The member prompt MUST carry:
    - the slice's fully-formed **id** (so `/ptp:brainstorm` preserves it verbatim), its **scope

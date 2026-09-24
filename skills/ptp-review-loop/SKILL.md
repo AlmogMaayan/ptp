@@ -15,7 +15,7 @@ Owns command: /ptp:review-plan-loop
 
 ## Purpose
 
-**Model dispatch target.** `/ptp:review-loop`, `/ptp:codex-review-loop`, `/ptp:review-plan-loop`, `/ptp:codex-review-plan-loop` and `/ptp:codex-review-prd-loop` run this skill's work at `opus.high` via `ptp-run-at-model` (`skills/ptp-run-at-model/SKILL.md`), which owns the spawn-and-relay mechanics and requires its caller to supply the target. This names the target only; it restates none of that contract.
+**Model dispatch target.** Via `ptp-run-at-model`, which owns spawn-and-relay and requires a caller-supplied target, `/ptp:review-loop` and `/ptp:review-plan-loop` run this skill's work at their family target (`skills/ptp-run-at-model/references/family-default-target.md`); `/ptp:codex-review-loop`, `/ptp:codex-review-plan-loop` and `/ptp:codex-review-prd-loop` at `opus.high`. This names targets only.
 
 This skill encodes the iteration semantics shared by the `/ptp:*-loop` commands **and** the `-full` review orchestrators that drive it (Phase 1/Phase 2 of `/ptp:review-brainstorm-full`, `/ptp:review-prd-full`, etc.). Each caller supplies `kind` + `reviewer`; this skill drives the loop. The `/ptp:*-loop` callers are enumerated below; the `-full` orchestrators additionally drive it, per the note under the table.
 
@@ -472,9 +472,8 @@ Increment `iteration`. If `iteration > MAX_ITERATIONS`, **abort** — go to the 
 ### (b) Review pass
 
 Dispatch on `(kind, reviewer)`: `reviewer` names the review dispatch per **## Inputs**, not the
-phase. Each `codex exec` call is built per `ptp-codex-mode`'s flag-append rule (append resolved `-m <model>` /
-`-c model_reasoning_effort=<effort>` before the trailing `-` when `codex.model` /
-`codex.reasoningEffort` are set; both unset ⇒ the literal `codex exec -s read-only -` shown here):
+phase. Each `codex exec -s read-only` shown here is built per `ptp-codex-mode`'s flag-append rule,
+always carrying `-m`/`-c` from its Codex lookup chain for this `kind`:
 
 - `ptp` / `code` — invoke the `ptp-requesting-code-review` skill (or `superpowers:requesting-code-review` under `tdd-plugin=superpowers`). Load the contract (`proposal.md`, `design.md`, `tasks.md`, `specs/**/spec.md`) and the merge-base diff (`git merge-base HEAD master` → `git diff <base>...HEAD`) and pass them as context.
 - `codex` / `code` — run the `codex-review.md` protocol inline: read the contract yourself (you, via Read), capture the merge-base diff (you, via Bash), run `npx -y openspec validate <change-id> --strict` and any relevant tests yourself (you, via Bash), build a single closed-book prompt with all of this inlined, and pipe it to `codex exec -s read-only` over stdin.
@@ -820,7 +819,7 @@ the retained `fixed_candidates` count and `capped` to the in-scope `CONFIRMED` f
 - **Never dispatch a review pass without the acceptance bar**, and never reject a finding without stating the check behind it.
 - **Never resolve a finding by adding text where removing or tightening it would do**, and never let a round grow an artifact without deleting equivalent text in the same round.
 - **Never run another round past the budget check.** Measuring artifact sizes each round is mandatory for `kind` ∈ {`artifact`, `brainstorm`, `prd`}; a breach ends the loop in `ARTIFACT BUDGET EXCEEDED` with a split recommendation. Omitting the measurement is a violation of this rule, not an optimization.
-- **Codex variants** (`reviewer=codex`) must run `codex exec -s read-only` with the full prompt piped over stdin (`-`), assembled per the `ptp-codex-mode` flag-append rule (append resolved `-m <model>` / `-c model_reasoning_effort=<effort>` before the trailing `-` when configured). Never pass `--full-auto`, `--sandbox workspace-write`, or `--dangerously-bypass-approvals-and-sandbox`.
+- **Codex variants** (`reviewer=codex`) must run `codex exec -s read-only` with the full prompt piped over stdin (`-`), assembled per the `ptp-codex-mode` flag-append rule (`-m`/`-c` always sent from the Codex lookup chain). Never pass `--full-auto`, `--sandbox workspace-write`, or `--dangerously-bypass-approvals-and-sandbox`.
 - **The caller runs `openspec validate` (for `kind=code` / `kind=artifact` only — never for `kind=brainstorm` or `kind=prd`, which each precede any proposal/spec) and all file reads for Codex** — Codex executes no `npx`, no network, no install commands. The closed-book / inlined-diff protocol from `codex-review.md` / `codex-review-plan.md` applies.
 - **The `reviewTally` decides nothing.** No counter it holds is an input to convergence, the severity
   threshold, the iteration cap, any terminal state, the fix target, or the code-marker skip predicate.

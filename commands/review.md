@@ -6,7 +6,7 @@ argument-hint: "<change-selector> — id, epic:XXXX, story:NN, or epic:XXXX stor
 You are running **step 4** of the ptp flow. The change has been implemented. Your job is to **invoke PTP code review** and grade the diff against the OpenSpec artifacts.
 
 This command never fixes, so the fix-target contract in `ptp-review-loop` is a **no-op** here: no
-fix pass is dispatched and this command's `opus.high` review target is unchanged.
+fix pass is dispatched and this command's review target (the `apply-review` family default target per `skills/ptp-run-at-model/references/family-default-target.md`) is unchanged.
 
 ## Inputs
 
@@ -21,9 +21,9 @@ Resolve `{ main, reviewer }` from `roles.main` via the **`ptp-agent-roles`** ski
 before this change. At `main = codex`, the review pass is instead a **read-only**
 `codex exec -s read-only` dispatch — the `(kind = code, reviewer = codex)` review-pass dispatch
 `ptp-review-loop` already defines — assembled per the **`ptp-codex-mode`** skill's canonical
-flag-append rule (append resolved `-m <model>` / `-c model_reasoning_effort=<effort>` before the
-trailing `-` when `codex.model` / `codex.reasoningEffort` are configured), taking its model and
-effort from `codex.model` / `codex.reasoningEffort`. This is the **read-only reviewer invocation**,
+flag-append rule (always send `-m <model>` / `-c model_reasoning_effort=<effort>` before the
+trailing `-`), taking its model and effort from `ptp-codex-mode`'s Codex lookup chain for
+review kind `code` (family `apply-review`; `gpt-6-astra` / `high` when nothing is configured). This is the **read-only reviewer invocation**,
 never `ptp-run-at-model`'s write-capable `-s workspace-write` main-implementer invocation — a review
 edits nothing in either direction. A *main* phase carries no `codex.mode` gate (that gates a
 *reviewer*), so this command owns its own precondition: when the resolved dispatch is `codex`,
@@ -35,13 +35,13 @@ directions — it is never renamed to "the Claude pass".
 ## Steps
 
 This command is **read-only** — it runs **no** branch guard (it never writes). Its review work runs
-**at a deterministic model** via the **`ptp-run-at-model`** skill at `opus.high`. The outer session
+**at a deterministic model** via the **`ptp-run-at-model`** skill at the `apply-review` family default target (`family-default-target.md`; `opus.high` built in). The outer session
 runs only the abort-guaranteeing preconditions first — per resolved change, the change-folder
 existence check (`openspec/changes/<change-id>/`; if absent, STOP and redirect to `/ptp:plan`), the
 role resolution above (including the `codex` on-PATH STOP), and selector disambiguation that must STOP
 and ask the user — so a guaranteed abort never spawns a subagent. It then invokes
-**`ptp-run-at-model`** with target `opus.high` and the work below (steps 1–6); that spawns one
-foreground `opus` subagent (high effort directive) which performs the read-only review and
+**`ptp-run-at-model`** with that resolved target and the work below (steps 1–6); that spawns one
+foreground subagent at that target which performs the read-only review and
 classification, using the **resolved main agent's dispatch** from *Role resolution* above —
 **fixing nothing** — and the subagent's outcome is relayed back per `ptp-run-at-model`'s *Result
 relay*. (For a multi-change selector, the one subagent handles the whole per-change pass, reporting

@@ -47,8 +47,7 @@ const CASES = {
       { kind: "requires", pattern: "byte-identical", why: "the main=claude direction must stay byte-identical" },
       { kind: "requires", pattern: "codex exec -s read-only", why: "the main=codex direction must run a read-only codex exec pass" },
       { kind: "requires", pattern: "ptp-codex-mode", why: "the codex pass must be assembled per ptp-codex-mode's flag-append rule" },
-      { kind: "requires", pattern: "codex\\.model", why: "the codex direction's model must come from codex.model" },
-      { kind: "requires", pattern: "codex\\.reasoningEffort", why: "the codex direction's effort must come from codex.reasoningEffort" },
+      { kind: "requires", pattern: "lookup chain", why: "the codex direction's model and effort must come from ptp-codex-mode's Codex lookup chain" },
       { kind: "requires", pattern: "install .{0,20}codex.{0,40}roles\\.main.{0,3}=.{0,3}claude", why: "codex absent under main=codex must STOP with an install-or-set-roles.main=claude message" },
       { kind: "forbids", pattern: "codex exec -s workspace-write", why: "the review pass must never use the write-capable main-implementer invocation" },
     ],
@@ -60,8 +59,7 @@ const CASES = {
       { kind: "requires", pattern: "byte-identical", why: "the main=claude direction must stay byte-identical" },
       { kind: "requires", pattern: "codex exec -s read-only", why: "the main=codex direction must run a read-only codex exec pass" },
       { kind: "requires", pattern: "ptp-codex-mode", why: "the codex pass must be assembled per ptp-codex-mode's flag-append rule" },
-      { kind: "requires", pattern: "codex\\.model", why: "the codex direction's model must come from codex.model" },
-      { kind: "requires", pattern: "codex\\.reasoningEffort", why: "the codex direction's effort must come from codex.reasoningEffort" },
+      { kind: "requires", pattern: "lookup chain", why: "the codex direction's model and effort must come from ptp-codex-mode's Codex lookup chain" },
       { kind: "requires", pattern: "install .{0,20}codex.{0,40}roles\\.main.{0,3}=.{0,3}claude", why: "codex absent under main=codex must STOP with an install-or-set-roles.main=claude message" },
       { kind: "forbids", pattern: "codex exec -s workspace-write", why: "the review pass must never use the write-capable main-implementer invocation" },
     ],
@@ -106,6 +104,43 @@ const CASES = {
       { kind: "requires", pattern: "codex --version", why: "must verify codex is on PATH before dispatching main=codex" },
       { kind: "requires", pattern: "install .{0,20}codex.{0,40}roles\\.main.{0,3}=.{0,3}claude", why: "codex absent under main=codex must STOP with an install-or-set-roles.main=claude message" },
       { kind: "forbids", pattern: "reviewer `?ptp`?\\.\\s*$", why: "must not hardcode reviewer ptp as a fixed literal" },
+    ],
+  },
+  "codex-family-default": {
+    file: "skills/ptp-codex-mode/SKILL.md",
+    assertions: [
+      { kind: "requires", pattern: "gpt-6-astra--high", why: "the built-in Codex default must be named gpt-6-astra--high" },
+      { kind: "requires", pattern: "codex\\.apply-review", why: "the family entry reader must cover codex.apply-review" },
+      { kind: "requires", pattern: "lookup chain", why: "ptp-codex-mode must own the per-field Codex lookup chain" },
+      { kind: "forbids", pattern: "both keys unset", why: "the bare no-flag invocation contract is removed" },
+    ],
+  },
+  "codex-review-cmd": {
+    file: "commands/codex-review.md",
+    assertions: [
+      { kind: "requires", pattern: "lookup chain", why: "the codex invocation must cite ptp-codex-mode's Codex lookup chain" },
+      { kind: "forbids", pattern: "both unset yields exactly", why: "the bare no-flag invocation contract is removed; -m and -c are always sent" },
+    ],
+  },
+  "codex-review-plan-cmd": {
+    file: "commands/codex-review-plan.md",
+    assertions: [
+      { kind: "requires", pattern: "lookup chain", why: "the codex invocation must cite ptp-codex-mode's Codex lookup chain" },
+      { kind: "forbids", pattern: "both unset yields exactly", why: "the bare no-flag invocation contract is removed; -m and -c are always sent" },
+    ],
+  },
+  "codex-review-prd-cmd": {
+    file: "commands/codex-review-prd.md",
+    assertions: [
+      { kind: "requires", pattern: "lookup chain", why: "the codex invocation must cite ptp-codex-mode's Codex lookup chain" },
+      { kind: "forbids", pattern: "both unset yields exactly", why: "the bare no-flag invocation contract is removed; -m and -c are always sent" },
+    ],
+  },
+  "codex-review-uncommitted-cmd": {
+    file: "commands/codex-review-uncommitted.md",
+    assertions: [
+      { kind: "requires", pattern: "lookup chain", why: "the codex invocation must cite ptp-codex-mode's Codex lookup chain" },
+      { kind: "forbids", pattern: "both unset yields exactly", why: "the bare no-flag invocation contract is removed; -m and -c are always sent" },
     ],
   },
 };

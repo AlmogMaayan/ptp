@@ -135,8 +135,8 @@ reviewer is Codex, the loop drives the
 closed-book Codex review retargeted to the PRD file with **no** `openspec validate` (the caller reads
 the PRD + any cited context, builds one self-contained prompt carrying the PRD rubric as the audit
 instructions, and pipes it to `codex exec -s read-only` over stdin (assembled per the `ptp-codex-mode`
-flag-append rule — resolved `-m`/`-c` flags appended before the trailing `-` when configured); Codex
-runs no commands), and confirmed findings are fixed by editing the PRD until it terminates `DONE` or
+flag-append rule — `-m`/`-c` always sent before the trailing `-`, from the Codex lookup chain, which
+for review kind `prd` starts at `codex.judgment.*`); Codex runs no commands), and confirmed findings are fixed by editing the PRD until it terminates `DONE` or
 `ITERATION CAP REACHED`.
 
 **Deliberate difference — NO `openspec validate`.** `codex-review-plan.md` inlines an authoritative
@@ -269,7 +269,7 @@ For a **multi-epic selector**, iterate Phase 1 → gate → Phase 2 → combined
 - **Does not redo outer-session work.** Do not re-run the branch guard, re-resolve the role pair /
   reviewer gate (`codex.mode`), or re-resolve the epic — use the values the outer session passed in.
 - **Codex only read-only over stdin.** Run Codex only under `codex exec -s read-only` with the prompt
-  piped over **stdin** (`-`), assembled per the `ptp-codex-mode` flag-append rule (resolved `-m`/`-c`
-  flags before the trailing `-` when `codex.model`/`codex.reasoningEffort` are configured). Never
+  piped over **stdin** (`-`), assembled per the `ptp-codex-mode` flag-append rule (`-m`/`-c` always
+  sent before the trailing `-`, from the Codex lookup chain for review kind `prd` (no family)). Never
   `--full-auto`, `--sandbox workspace-write`, or `--dangerously-bypass-approvals-and-sandbox`. Codex
   runs **no** commands.

@@ -115,6 +115,19 @@ const ASSERTIONS = [
     pattern: "--dangerously-bypass-approvals-and-sandbox",
     why: "the write-capable invocation must never bypass the sandbox/approvals",
   },
+  // --- full-apply launchers: Codex review target via the apply-review chain (0082_03) ----------
+  {
+    file: "skills/ptp-full-apply/SKILL.md",
+    kind: "requires",
+    pattern: "codex\\.apply-review",
+    why: "ptp-full-apply resolves the per-story Codex review target via the codex.apply-review lookup chain",
+  },
+  {
+    file: "skills/ptp-full/SKILL.md",
+    kind: "requires",
+    pattern: "codex\\.apply-review",
+    why: "ptp-full Phase B resolves the per-story Codex review target via the codex.apply-review lookup chain",
+  },
   // --- workflows/ptp-full-apply.js: stays role-agnostic ---------------------------------------
   {
     file: "workflows/ptp-full-apply.js",

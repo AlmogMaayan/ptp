@@ -11,7 +11,7 @@ You are starting **step 1** of the ptp flow. Your job is to **brainstorm using t
 
 Request: $ARGUMENTS (a short description, optionally followed by an explicit change-id, and optionally
 an anywhere-in-text `model:<sonnet|opus|haiku|fable>.<low|medium|high|xhigh>` override token — e.g.
-`model:fable.high` — that overrides the `opus.high` default for this invocation only; see "Parse the
+`model:fable.high` — that overrides the `brainstorm` family default target (`skills/ptp-run-at-model/references/family-default-target.md`; `opus.high` built in) for this invocation only; see "Parse the
 `model:` override" below)
 
 ## Branch safety (first step)
@@ -29,7 +29,7 @@ Before creating or updating **any** file, run the **`ptp-branch-guard`** preambl
 optional `model:<model>.<effort>` override token per the "Optional caller-side `model:` override token"
 section of **`ptp-run-at-model`** — do not restate that grammar/validation here.
 
-- **Absent** → target = `opus.high` (unchanged path); proceed to step 1 with `$ARGUMENTS` as given.
+- **Absent** → target = the `brainstorm` family default target per `family-default-target.md`; proceed to step 1 with `$ARGUMENTS` as given.
 - **Exactly one valid candidate** → strip it from `$ARGUMENTS` before step 1's change-id derivation;
   target = the resolved `<model>.<effort>` literal.
 - **Invalid** (a `model:`-prefixed candidate with a bad model, bad effort, or wrong shape, or more than
@@ -39,7 +39,7 @@ section of **`ptp-run-at-model`** — do not restate that grammar/validation her
 
 Step 1 (pick the change id) and the "Branch safety (first step)" preamble above run **in the outer
 session**, over the now token-free `$ARGUMENTS`. The actual brainstorm work — steps 2–8 — **runs at a
-deterministic model** via the **`ptp-run-at-model`** skill at the resolved target (`opus.high` by
+deterministic model** via the **`ptp-run-at-model`** skill at the resolved target (the `brainstorm` family default target by
 default, or the valid `model:` override): brainstorming is high-judgment creative work and must not
 depend on whatever model the session happens to be on. The branch guard (already run above) and step 1's
 change-id allocation (cheap, never a guaranteed abort, and the branch guard reads the allocated id to
@@ -50,7 +50,7 @@ performs steps 2–8 and reports.
 
 **Run steps 2–8 via `ptp-run-at-model` at the resolved target.** Only after the branch guard and step
 1's change-id allocation have settled in the outer session, invoke the **`ptp-run-at-model`** skill with
-the resolved target (`opus.high` by default, or the valid `model:` override) and the work being
+the resolved target (the family default target per `family-default-target.md`, or the valid `model:` override) and the work being
 **steps 2–8 below** — load context, invoke `ptp-brainstorming` (or `superpowers:brainstorming` when the skill-set directive names `tdd-plugin=superpowers`) in autonomous mode,
 compare material alternatives, decide, persist the decision capsule to
 `openspec/changes/<change-id>/brainstorm.md`, then STOP and report. It

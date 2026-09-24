@@ -135,11 +135,12 @@ The required set is therefore: the contract artifacts, the merge-base diff, the 
    - End with exactly one line: `READY TO ARCHIVE` (no **actionable** Critical/High) or `NEEDS FIXES` (any **actionable** Critical/High). The single-line-at-the-end format is unchanged — the verdict tokens and their placement are byte-identical to today; only which findings count toward them is qualified.
 5. **Run Codex over stdin (you, via Bash from the repo root):**
    ```bash
-   printf '%s' "$PROMPT" | codex exec -s read-only -
+   printf '%s' "$PROMPT" | codex exec -s read-only -m <model> -c model_reasoning_effort=<effort> -
    ```
-   Assemble the invocation per the `ptp-codex-mode` flag-append rule: append `-m <model>` and/or
-   `-c model_reasoning_effort=<effort>` before the trailing `-` when `codex.model` /
-   `codex.reasoningEffort` resolve to a set value; both unset yields exactly the invocation shown above.
+   Assemble the invocation per the `ptp-codex-mode` flag-append rule: `<model>` and `<effort>` come
+   from `ptp-codex-mode`'s Codex lookup chain for review kind `code`, whose family is `apply-review` (`codex.apply-review`).
+   Both flags are always sent before the trailing `-`; with nothing configured the invocation is
+   `codex exec -s read-only -m gpt-6-astra -c model_reasoning_effort=high -`.
    - Always pipe via **stdin** (`-`); keep `-s read-only`. Do **not** pass `--full-auto`, `--sandbox workspace-write`, or `--dangerously-bypass-approvals-and-sandbox` — loosening the sandbox is the wrong fix for a review.
    - **Run it synchronously**, per `ptp-codex-mode`'s *Every round runs synchronously*.
    - Sandbox noise (`blocked by policy`, `spawn setup refresh`) is harmless — the diff and results are inlined, so Codex needs no commands. Proceed to relay the verdict.
@@ -153,7 +154,7 @@ The required set is therefore: the contract artifacts, the merge-base diff, the 
 - Do **not** count required manual tests that have not yet been performed as findings. Manual tests are a future verification step; their absence is not a code defect.
 - **This command only reviews and displays findings. It NEVER fixes anything.** Do not edit code, do not stage, do not commit — not even if Critical/High findings are obvious, and not even if the user's phrasing sounds like "deal with it." Report the findings and stop. Fixing is a separate, explicit user action (`/ptp:review-fix`).
 - The **caller** captures the diff, runs `openspec validate` / tests, **and resolves `review.minSeverity` and `tdd`**, inlining each resolved value as a literal (and, when `tdd = mandatory`, inlining the apply stage-record for the prose-exemption rubric); **Codex runs no `npx`/network/install commands** and is never asked to read `config.json` or resolve the threshold or `tdd` itself. Pass the prompt over stdin.
-- Assemble the `codex exec` invocation per the `ptp-codex-mode` flag-append rule (append resolved `-m`/`-c` flags before the trailing `-` when `codex.model`/`codex.reasoningEffort` are configured).
+- Assemble the `codex exec` invocation per the `ptp-codex-mode` flag-append rule (always send `-m`/`-c` from the Codex lookup chain before the trailing `-`).
 - Do **not** archive in this command.
 - Do **not** run Codex with a writable or bypassed sandbox (`workspace-write` / `danger-full-access`) — the reviewer must not edit the code.
 - Do **not** invoke `/ptp:apply` from here under any circumstance.

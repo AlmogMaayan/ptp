@@ -108,32 +108,76 @@ missing/typo leaves the prior value; never throw, never STOP. **All four keys re
 independently**, exactly like `codex.model` and `codex.reasoningEffort`: any one MAY be set while
 the others are unset, and setting one never implies or requires another.
 
-This skill defines how to read them; `ptp-run-at-model`'s `main=codex` tier-based sourcing
-(`0076_02_run-at-model-codex-tier-consume`) is their first and, as of this writing, only consumer.
+This skill defines how to read them. Their consumers are `ptp-run-at-model`'s `main=codex`
+tier-based sourcing (`0076_02_run-at-model-codex-tier-consume`) and the judgment step of the Codex
+lookup chain below.
 
-## Canonical Codex invocation flag-append rule
+## Resolving the family entries `codex.analyze`, `codex.prompt`, `codex.brainstorm`, `codex.plan-review`, `codex.apply-review`
 
-Every ptp call site that runs a **read-only** `codex exec` — the Codex reviewer and the
-`/ptp:codex-*` overrides — MUST assemble its invocation via this single rule rather than restating
-it. (The one exception is the **write-capable main-implementer** invocation owned by
-`ptp-run-at-model` when `roles.main = codex`, a distinct `workspace-write` call site with its own
-invocation — see the *Scope fence* below; it is not a reviewer and does not use this read-only
-rule.)
+Same layers, merged as `ptp-workspace` defines. Each family entry is one string of the form
+`<model>--<effort>` (for example `gpt-6-astra--medium`):
 
 ```
-codex exec -s read-only [ -m <model> ] [ -c model_reasoning_effort=<effort> ] -
+codex.<family> = unset   # <family> ∈ {analyze, prompt, brainstorm, plan-review, apply-review}
+codex.<family> = the resolved value, valid ⇔ a string that passes the split rule of
+                 skills/ptp-run-at-model/references/codex-model-token.md step 2
+# any missing file / missing key / parse error / wrong type / failing split → leave the prior value
+# (ultimately unset if nothing valid is found) — never throw, never refuse, never STOP
 ```
 
-- Append `-m <model>` **iff** `codex.model` resolves to a set value.
-- Append `-c model_reasoning_effort=<effort>` **iff** `codex.reasoningEffort` resolves to a set value.
-- Both flags, when present, go **before** the trailing stdin marker `-`.
+The split rule (split on the **last** `--`, non-empty model, effort in the allowed set) is
+**referenced, not restated** here. A valid entry supplies **both** a model and an effort. Unlike the
+`codex-model:` token, which refuses an invalid value, this reader **never refuses**: an invalid entry
+leaves the prior layer's value, and the entry is unset when no layer is valid. Which commands belong
+to which family is owned by `ptp-config` (its family to command mapping), not restated here.
+
+## The Codex lookup chain
+
+One per-field lookup chain gives every Codex call site its model and effort. Each field falls
+through **on its own**:
+
+```
+model  = family.model  ?? codex.judgment.model           ?? codex.model           ?? "gpt-6-astra"
+effort = family.effort ?? codex.judgment.reasoningEffort ?? codex.reasoningEffort ?? "high"
+```
+
+- `family` is the call site's `codex.<family>` entry (above). A call site with **no family** starts
+  the chain at `codex.judgment.*`.
+- The chain **always yields a value**; with nothing configured it yields the built-in default
+  `gpt-6-astra--high` (model `gpt-6-astra`, effort `high`).
+- A set `codex.judgment.model` with no effort key anywhere yields that model and effort `high`.
+- **Family of a read-only call site** comes from its review kind: `code` → `apply-review`,
+  `artifact` → `plan-review`, `brainstorm` → `brainstorm`, `prd` → **no family** (the chain starts
+  at `codex.judgment.*`).
+- **Precedence above the chain:** a Codex dispatch target passed down by a workflow (the
+  `codexReview*` fields) still wins over the chain. `ptp-full` and `ptp-full-apply` compute that
+  target with the `apply-review` chain, so it is always set.
+- The family step for a `main=codex` run is applied by `ptp-run-at-model`, which owns that sourcing.
+
+## Canonical read-only Codex invocation rule (the flag-append rule)
+
+Every ptp call site that runs a **read-only** `codex exec` — the mode-gated Codex reviewer phases,
+the `main=codex` single-pass reviewers, and the `/ptp:codex-*` overrides — MUST assemble its
+invocation via this single rule rather than restating it. (The one exception is the
+**write-capable main-implementer** invocation owned by `ptp-run-at-model` when `roles.main = codex`,
+a distinct `workspace-write` call site with its own invocation — see the *Scope fence* below; it is
+not a reviewer and does not use this read-only rule.)
+
+```
+codex exec -s read-only -m <model> -c model_reasoning_effort=<effort> -
+```
+
+- `<model>` and `<effort>` come from the **Codex lookup chain** above, for the call site's family.
+- **Always** send both `-m <model>` and `-c model_reasoning_effort=<effort>`, **before** the trailing
+  stdin marker `-`. With nothing configured this is exactly
+  `codex exec -s read-only -m gpt-6-astra -c model_reasoning_effort=high -`.
+- No call site emits a bare `codex exec -s read-only -`, and none drops `-m` to retry after a model
+  error; a rejected model is surfaced as an error.
 - Always keep `-s read-only`. Never add `--full-auto`, `--sandbox workspace-write`, or
   `--dangerously-bypass-approvals-and-sandbox` — this rule never loosens the sandbox.
 - The prompt is still piped via `printf '%s' "$PROMPT" | codex exec … -`.
 - Model ids and effort words are single, space-free tokens (e.g. `gpt-5.6`, `high`) — no extra shell
   quoting is needed beyond what the call site already does for the rest of the command.
-- **Both keys unset** (the default) yields exactly `codex exec -s read-only -` — byte-identical to the
-  invocation before this change.
 
 ### Every round runs synchronously
 
@@ -144,9 +188,12 @@ did run. Give the call a generous timeout; a closed-book review of a bounded art
 minutes. Three separate review runs have been lost to a backgrounded `codex exec` whose caller
 reported progress instead of a terminal state.
 
-**The default model works and needs no `-m` flag.** A spurious "unsupported model" error has been
-observed. When one appears, verify with a one-line smoke test —
-`printf 'reply OK' | codex exec -s read-only -` — before concluding Codex is unavailable. Under
+**Smoke-test an "unsupported model" error with the same invocation.** A spurious "unsupported model"
+error has been observed. When one appears, verify with a one-line smoke test that uses the **same
+assembled invocation** —
+`printf 'reply OK' | codex exec -s read-only -m <model> -c model_reasoning_effort=<effort> -` (with
+nothing configured, `-m gpt-6-astra -c model_reasoning_effort=high`) — before concluding Codex is
+unavailable. Never drop `-m` to retry bare. Under
 `codex.mode = required` the reviewer is mandatory, so abandoning the Codex phase on an unverified
 error silently drops a required review.
 
@@ -162,7 +209,7 @@ when **both** hold:
 2. the repository-scoped ptp telemetry-consent record records consent (per `ptp-telemetry` [codex-consent-record]).
 
 With either condition unmet the appended set is **empty** and the command line is **byte-identical** to
-the pre-change one — which is the property the invariant was really protecting. The exact rendering is
+the one without telemetry — which is the property the invariant was really protecting. The exact rendering is
 pinned once in `ptp-telemetry` [codex-canonical-rendering] and is **not** restated here; the arguments go **before** the
 trailing stdin marker `-`, alongside the model/effort flags. Nothing else about the invocation changes:
 no model, no prompt, no sandbox, no approval policy, no tool surface. The recorded case *against* the
@@ -180,8 +227,9 @@ authority over **whether** either site runs.
 `codex.mode`: both the mode-gated dual-reviewer commands (which first ask this skill's decision
 contract *whether* to run Codex, then — if running — assemble the invocation via this rule) and the
 always-Codex `/ptp:codex-*` explicit-override commands (which skip the mode gate but still assemble
-their invocation via this rule). `codex.mode` decides **whether** Codex runs; `codex.model` /
-`codex.reasoningEffort` decide **how** it runs once invoked — the two are orthogonal and both apply
+their invocation via this rule). `codex.mode` decides **whether** Codex runs; the Codex lookup chain
+(family entry, `codex.judgment.*`, `codex.model` / `codex.reasoningEffort`, `gpt-6-astra--high`) decides
+**how** it runs once invoked — the two are orthogonal and both apply
 together when relevant.
 
 ## Telemetry: bracketing a read-only `codex exec` window
@@ -205,8 +253,9 @@ the record shape, the `run_id` rule, and the append protocol; this section lists
   row is still written by the bracketing session *around* the call, never by altering the call. What
   `0032_06_codex-telemetry` adds is exactly the `-c otel.*` appendix documented with that rule above —
   nothing else — and it is appended only when telemetry is **on** *and* consent is recorded, so the
-  constructed command line stays **byte-identical** to the pre-change one in every other state. Both
-  keys unset with telemetry off still yields exactly `codex exec -s read-only -`.
+  constructed command line stays **byte-identical** to the one without telemetry in every other state.
+  With telemetry off the line is exactly
+  `codex exec -s read-only -m <model> -c model_reasoning_effort=<effort> -`.
 - **A mode-skipped Codex phase opens no ledger run and produces no Codex span rows.** When the decision
   contract below resolves to skip Codex (`off`, or `auto` with `codex` absent), no process runs, so no
   run is opened or closed — there is nothing to bracket — and no span is emitted, so the store gains no
@@ -245,11 +294,11 @@ runs**, regardless of mode. Only the **Codex reviewer phase** is gated, by the r
 | `off` | (not probed) | **Skip** the Codex phase without probing PATH, run main-only, and report `Codex phase skipped (mode=off)`. |
 
 Probe PATH with `codex --version`. In `off` mode, do **not** probe — the skip is unconditional.
-When the Codex reviewer runs, the `codex.model`/`codex.reasoningEffort` resolution and the
-canonical `codex exec -s read-only [ -m <model> ] [ -c model_reasoning_effort=<effort> ] -`
-flag-append rule (both above) apply unchanged, as do the non-silent-skip line and the mode-skip
-terminal state (both below). All of these — table, probe, skip line, terminal state, flag-append
-rule — are identical to their behavior before this change.
+When the Codex reviewer runs, the Codex lookup chain and the canonical
+`codex exec -s read-only -m <model> -c model_reasoning_effort=<effort> -` invocation rule (both
+above) apply unchanged, as do the non-silent-skip line and the mode-skip terminal state (both
+below). The table, probe, skip line and terminal state are identical to their behavior before
+role resolution existed.
 
 ### reviewer = claude (`roles.main = codex`)
 
@@ -282,8 +331,8 @@ owned by `ptp-run-at-model`, per the *Scope fence* below.)
 `workspace-write` call site itself and how it is assembled — is **out of scope** for this skill; that
 wiring is owned by `ptp-run-at-model` (slice 0027_04). This skill's reviewer-gate mechanics
 (`codex.mode`, the PATH probe, the skip line, the terminal state) only ever concern a Codex
-*reviewer*. The `codex.model`/`codex.reasoningEffort` **resolution** owned here is reused by that
-main-implementer invocation (no new config keys), but this skill never assembles or governs the
+*reviewer*. The `codex.model`/`codex.reasoningEffort`, tier and family-entry **resolution** and the
+Codex lookup chain owned here are reused by that main-implementer invocation (no new config keys), but this skill never assembles or governs the
 write-capable invocation.
 
 ## Explicit-override rule
@@ -353,7 +402,12 @@ in `ptp-full-apply`, no pre-run stop in `/ptp:full`), with the skip always named
 - Resolve `codex.mode` from layered config; default `auto`; never crash on a typo.
 - Resolve `codex.model` (non-empty string, default unset) and `codex.reasoningEffort`
   (`minimal|low|medium|high`, default unset) from the same layered config, independently, with the
-  same forgiving reader posture.
+  same forgiving reader posture. Resolve the five `codex.<family>` entries the same forgiving way
+  (valid only when they pass the `codex-model-token.md` step 2 split rule; never refuse).
+- The Codex lookup chain, per field: family entry, then `codex.judgment.*`, then `codex.model` /
+  `codex.reasoningEffort`, then the built-in `gpt-6-astra--high`. A read-only site's family comes from its
+  review kind (`code` → `apply-review`, `artifact` → `plan-review`, `brainstorm` → `brainstorm`,
+  `prd` → none).
 - The reviewer gate is symmetric: the MAIN agent's phase always runs; only the REVIEWER agent's
   phase is gated. Main/reviewer come from `ptp-agent-roles`' `{ main, reviewer }`. At the default
   `roles.main = claude` (reviewer=codex) this reduces to "the main phase always runs; only
@@ -368,13 +422,13 @@ in `ptp-full-apply`, no pre-run stop in `/ptp:full`), with the skip always named
 - The mode-skip terminal state `PHASE 1 DONE — CODEX SKIPPED (mode=…)` is gate-success for both
   convergence gates.
 - Every **read-only** `codex exec` invocation — the mode-gated reviewer or the explicit
-  `/ptp:codex-*` overrides — is assembled via the canonical flag-append rule:
-  `codex exec -s read-only [ -m <model> ] [ -c model_reasoning_effort=<effort> ] -`, flags appended
-  only when the corresponding key is set, always before the trailing `-`, both unset ⇒ today's exact
-  `codex exec -s read-only -`. (The write-capable main-implementer invocation owned by
+  `/ptp:codex-*` overrides — is assembled via the canonical invocation rule:
+  `codex exec -s read-only -m <model> -c model_reasoning_effort=<effort> -`, both flags always sent
+  from the Codex lookup chain, always before the trailing `-`; nothing configured ⇒
+  `-m gpt-6-astra -c model_reasoning_effort=high`. (The write-capable main-implementer invocation owned by
   `ptp-run-at-model` is the one exception — a distinct `workspace-write` call site, not governed by
   this read-only rule.)
 - The **one telemetry relaxation**: `-c` arguments confined to the `otel.*` key space MAY be appended,
   at **both** `codex exec` call sites, and **only** when `telemetry.mode` is `on` **and** the
   repository-scoped telemetry-consent record records consent. In every other state the command line is
-  byte-identical to the pre-change one. The rendering is pinned in `ptp-telemetry` [codex-canonical-rendering].
+  byte-identical to the one without telemetry. The rendering is pinned in `ptp-telemetry` [codex-canonical-rendering].

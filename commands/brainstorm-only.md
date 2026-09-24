@@ -20,15 +20,15 @@ Before creating or updating **any** file, run the **`ptp-branch-guard`** preambl
 The "Branch safety (first step)" preamble above runs **in the outer session** and is this command's
 **only** outer-session precondition — `/ptp:brainstorm-only` is epic-less (it allocates no change id, so
 there is no step-1 id allocation to keep outer). The actual brainstorm work — steps 1–7 — **runs at a
-deterministic model** via the **`ptp-run-at-model`** skill at `opus.high`: brainstorming is high-judgment
+deterministic model** via the **`ptp-run-at-model`** skill at the `brainstorm` family default target (`skills/ptp-run-at-model/references/family-default-target.md`; `opus.high` built in): brainstorming is high-judgment
 creative work and must not depend on whatever model the session happens to be on.
 
-**Run steps 1–7 via `ptp-run-at-model` at `opus.high`.** Only after the branch guard has run in the outer
-session, invoke the **`ptp-run-at-model`** skill with target `opus.high` and the work being **steps 1–7
+**Run steps 1–7 via `ptp-run-at-model` at the family default target.** Only after the branch guard has run in the outer
+session, invoke the **`ptp-run-at-model`** skill with the target resolved per `family-default-target.md` and the work being **steps 1–7
 below** — load context, invoke `ptp-brainstorming` (or `superpowers:brainstorming` when the skill-set directive names `tdd-plugin=superpowers`) in autonomous mode,
 compare material alternatives, decide, persist the decision capsule to
 `openspec/brainstorms/YYYY-MM-DD-<topic>-brainstorm.md`, then STOP and report. It
-spawns one foreground `opus` subagent (high effort directive) that performs those steps and returns its
+spawns one foreground subagent at that target that performs those steps and returns its
 terminal result (relayed per `ptp-run-at-model`'s *Result relay* — never reporting a refusal or STOP as
 success). Reference the `ptp-run-at-model` skill for the spawn-and-relay mechanics rather than restating
 them. One note the subagent prompt MUST carry: the subagent's own `ptp-branch-guard` check is a **no-op**

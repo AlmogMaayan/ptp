@@ -33,15 +33,16 @@ looks a command up in a table; the **caller always supplies the target** (see *T
 | Target | Commands (representative) |
 |--------|---------------------------|
 | `sonnet.medium` | `archive`, `archive-force`, `master`, and the deploy family (`deploy`, `deploy-pr-approved`, `merge-to-master`) via their own skills |
-| `opus.high` | `analyze`, `brainstorm`, `brainstorm-only`, `plan`, `plan-multiple`, the review family (`review`, `review-loop`, `review-full`, `review-plan*`, `review-brainstorm*`, `review-prd*`), and the PRD stage (`prd`, `prd-full`) |
+| `opus.high` | `plan`, `plan-multiple`, `review-prd*`, and the PRD stage (`prd`, `prd-full`) |
+| the family default target (`references/family-default-target.md`; `opus.high` built in) | `analyze`, the prompt and brainstorm families, `review-brainstorm*`, `review`, `review-loop`, `review-full`, `review-plan*` |
 | read line 1 of `effort.md` | `apply` |
 
-**Fix-work carve-out (review family).** The `opus.high` row above governs each review-family command's
+**Fix-work carve-out (review family).** The review rows above govern each review-family command's
 **review** work only. It does **not** govern the **fix** work, which runs at a separately evaluated fix
 target — a `{model}.{effort}` evaluated per fix pass from the frozen CONFIRMED in-scope finding set,
 falling back to `opus.high` with the defaulting noted. Concretely: `/ptp:review-fix`'s single
 standalone confirm-and-fix run takes that evaluated target in place of the literal `opus.high`, while
-every other review-family command still wraps its own run at `opus.high` and re-targets its inline fix
+every other review-family command still wraps its own run at its review target and re-targets its inline fix
 pass **within** that run rather than by a second one. The five read-only reviewers (`/ptp:review`,
 `/ptp:review-plan`, `/ptp:codex-review`, `/ptp:codex-review-plan`, `/ptp:codex-review-uncommitted`) are
 unaffected — they never fix. The evaluation rule, the dispatch-mode contract, the fallback, and the
@@ -130,7 +131,7 @@ The skill then runs, **in this order**:
    | `/ptp:apply` (`effort.md`-derived per-change target) | The target is the change's own recorded recommendation, and implementation is judgment-carrying by definition. | No fixed target to downgrade; judgment-carrying. |
    | `/ptp:review-fix` (evaluated per-fix-pass target — see the **Fix-work carve-out** above) | It names no fixed target: its single confirm-and-fix run takes the fix target evaluated over the frozen finding set, with `opus.high` as the documented fallback. This is the `/ptp:apply` shape — a target derived per work item rather than a blanket downgrade — so the rule is satisfied the same way it is there. The **review** judgment it acts on was produced at `opus.high` by a separate review command, and this command's own review target is unchanged because it runs no review. | No fixed target to downgrade; judgment-carrying. |
    | Both `haiku` sites, named in full: `ptp-branch-prep`, defined in `skills/ptp-branch-guard/SKILL.md` and named by every guarded command that cites it (`brainstorm`, `brainstorm-full`, `plan`, `prd`, `prd-full`, and this skill); and `ptp-workspace-init` (`skills/ptp-workspace-init/SKILL.md`), which names `haiku.low` for `/ptp:workspace-init` | Each already runs at `haiku`, and each meets the mechanical test individually: `ptp-branch-prep` is pure git plumbing (stash/checkout/pull/branch), pinned there by a hard no-escalate rule; `ptp-workspace-init` runs one fixed CLI invocation, an ordered preflight whose gates are enumerated, and a single conditional file write — fully specified, no design judgment, a single verifiable outcome. | Already at the cheapest tier; nothing to change. |
-   | The `full` family's workflow agents (`workflows/ptp-full-apply.js`) | Named outside this skill (the family does not use it): the apply agent takes the per-story recommendation with `opus` as its default, and the code-review agent takes that story's resolved review target — the same recommendation floored at `sonnet`/`high`, with `opus`/`high` as its default — and may be re-spawned once at a more capable model when its own fix-target evaluation names one. Both are judgment-carrying stages, and neither names a fixed target to downgrade. | Judgment-carrying; downgrade forbidden. |
+   | The `full` family's workflow agents (`workflows/ptp-full-apply.js`) | Named outside this skill (the family does not use it): the apply agent takes the per-story recommendation with `opus` as its default, and the code-review agent takes that story's resolved review target — the same recommendation floored at `sonnet`/`high`, or a valid `models.apply-review` entry's pair, with `opus`/`high` as its default — and may be re-spawned once at a more capable model when its own fix-target evaluation names one. Both are judgment-carrying stages, and neither names a fixed target to downgrade. | Judgment-carrying; downgrade forbidden. |
    | `ptp-workflow-cache-heal` | A Bash step invoked directly via the Bash tool, not an agent spawn — it has no `model` parameter to choose at all. | Not a spawn site; no model to name. |
    | `plan-multiple`'s cross-reference verification (step 5f) | Runs in the **outer session**, after the beat-3 join, not inside any spawned agent — it has no `model` parameter to choose. | Not a spawn site; no model to name. |
 
@@ -412,8 +413,7 @@ token must abort before that branch-name derivation and branch cut, not after.
 
 The override only ever selects among the 4 Claude Agent-tool models — it has no effect when
 `ptp-agent-roles` resolves `main=codex` for this invocation. In that case Codex's model/effort are
-resolved per *The `main=codex` direction* (tier-based, with `codex.model`/`codex.reasoningEffort` as
-the flat fallback), unaffected by this token (documented, not silently ignored).
+resolved per *The `main=codex` direction* (family chain, else tier-based), unaffected by this token (documented, not silently ignored).
 
 **Symmetrically, `codex-model:` (below) has no effect when `main=claude`.** Only the token matching
 the resolved `main` for this invocation takes effect: `model:` under `main=claude`, `codex-model:`
@@ -547,7 +547,7 @@ they are evaluated in this fixed **precedence order**, first match wins:
 
 1. **No-op — `main=codex`.** `ptp-agent-roles` resolves `main=codex`: one-line note that the `codex
    exec` main run has no fast mode and its model/effort are resolved per *The `main=codex` direction*
-   (tier-based, with the flat `codex.model` / `codex.reasoningEffort` as fallback). Documented, not
+   (family chain, else tier-based). Documented, not
    silently ignored (mirroring the `model:` section's own `main=codex` note).
 2. **No-op — non-opus target.** The resolved target model is not `opus` (a `sonnet.medium` command, or
    a `model:sonnet.high` override): one-line note that fast mode exists only on Opus (Opus 5 / Opus
@@ -649,20 +649,20 @@ printf '%s' "$WORK_PROMPT" | codex exec -s workspace-write [ -m <model> ] [ -c m
 - `-s workspace-write` (equivalently `--sandbox workspace-write`) — the main implementer must write
   files, so it needs a write-capable sandbox. Confirm the exact flag spelling against the installed
   `codex` CLI; the mandate is a write-capable posture, not a specific spelling.
-- `-m <model>` — appended **iff** the resolved model (tier-based, see below) is a set value.
-- `-c model_reasoning_effort=<effort>` — appended **iff** the resolved reasoning effort (tier-based,
-  see below) is a set value.
-- **Tier-based sourcing.** For a **tier command** — one whose caller supplies a fixed Claude target
+- `-m <model>` / `-c model_reasoning_effort=<effort>` — **always** sent for a family command;
+  otherwise each is appended **iff** its resolved value (tier-based, below) is set.
+- **Family sourcing.** A command in one of the five families (per `ptp-config`'s family mapping) takes
+  model and effort from `ptp-codex-mode`'s **Codex lookup chain** for its family (`codex.<family>`,
+  `codex.judgment.*`, flat `codex.*`, then `gpt-6-astra` / `high`). Family membership wins over the caller
+  target literal and over the tier sourcing below.
+- **Tier-based sourcing.** For a **tier command** — one in no family whose caller supplies a fixed Claude target
   literal — the invocation classifies the running command into the same **mechanical tier** and
   **judgment tier** the Claude target table uses, unchanged: a caller target of `sonnet.medium` (the
   mechanical family) selects the mechanical tier, and a caller target of `opus.high` (the judgment
   family) selects the judgment tier. `model` and `effort` are then read from that tier's Codex config
   keys — `codex.mechanical.model` / `codex.mechanical.reasoningEffort` for the mechanical tier,
   `codex.judgment.model` / `codex.judgment.reasoningEffort` for the judgment tier — owned and resolved
-  by `ptp-codex-mode` (`0076_01_codex-command-tier-config`). This replaces the previous flat sourcing,
-  in which every Codex main run took its model from `codex.model` and its effort from
-  `codex.reasoningEffort` regardless of the command. The previous prohibition on new config keys is
-  **overturned**: the per-tier keys are sanctioned as the primary source for tier commands. An
+  by `ptp-codex-mode` (`0076_01_codex-command-tier-config`). An
   optional soft effort **prompt hint** MAY additionally be woven into `$WORK_PROMPT`.
 - **Forgiving fallback (not a second STOP), per field.** The tier's model and reasoning effort each
   fall back **independently**, mirroring the independent resolution `ptp-codex-mode` already gives all
@@ -842,10 +842,12 @@ git, and archive-force delegates to the inline `ptp-archive-force` skill.
 - **Effort is a prompt directive (`main=claude`), never an Agent parameter**; when `main=codex` it is the resolved reasoning effort plus an optional soft prompt hint.
 - **The Codex main invocation is write-capable but distinct from the reviewer** — it never loosens
   `ptp-codex-mode`'s read-only reviewer rule and never uses
-  `--dangerously-bypass-approvals-and-sandbox`. Per-tier config keys
+  `--dangerously-bypass-approvals-and-sandbox`. A family command takes model/effort from
+  `ptp-codex-mode`'s Codex lookup chain (`codex.<family>` first, `gpt-6-astra--high` last; both flags
+  always sent). For any other tier command, per-tier config keys
   (`codex.mechanical.model`/`codex.mechanical.reasoningEffort`,
-  `codex.judgment.model`/`codex.judgment.reasoningEffort`) are the **primary** source of model/effort
-  for a tier command, with the flat `codex.model`/`codex.reasoningEffort` as the forgiving fallback —
+  `codex.judgment.model`/`codex.judgment.reasoningEffort`) are the **primary** source of model/effort,
+  with the flat `codex.model`/`codex.reasoningEffort` as the forgiving fallback —
   see *The `main=codex` direction*.
 - **One foreground main run per `ptp-run-at-model` invocation** — not a fan-out, not a background
   Workflow. A single invocation runs exactly one blocking main run (one Claude subagent, or one

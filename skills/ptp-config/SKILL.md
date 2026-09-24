@@ -239,11 +239,81 @@ parameters = [
       { value: "ptp",         desc: "Use the ptp TDD skill (default)" }
     ],
     default: "ptp"
+  },
+  {
+    key:      "models.analyze",
+    label:    "Claude model for analyze commands",
+    jsonPath: ["models", "analyze"],
+    kind:     "string",
+    default:  "opus.high"
+  },
+  {
+    key:      "models.prompt",
+    label:    "Claude model for prompt commands",
+    jsonPath: ["models", "prompt"],
+    kind:     "string",
+    default:  "opus.high"
+  },
+  {
+    key:      "models.brainstorm",
+    label:    "Claude model for brainstorm commands",
+    jsonPath: ["models", "brainstorm"],
+    kind:     "string",
+    default:  "opus.high"
+  },
+  {
+    key:      "models.plan-review",
+    label:    "Claude model for plan-review commands",
+    jsonPath: ["models", "plan-review"],
+    kind:     "string",
+    default:  "opus.high"
+  },
+  {
+    key:      "models.apply-review",
+    label:    "Claude model for apply-review commands",
+    jsonPath: ["models", "apply-review"],
+    kind:     "string",
+    default:  "opus.high"
+  },
+  {
+    key:      "codex.analyze",
+    label:    "Codex model for analyze commands",
+    jsonPath: ["codex", "analyze"],
+    kind:     "string",
+    default:  "gpt-6-astra--high"
+  },
+  {
+    key:      "codex.prompt",
+    label:    "Codex model for prompt commands",
+    jsonPath: ["codex", "prompt"],
+    kind:     "string",
+    default:  "gpt-6-astra--high"
+  },
+  {
+    key:      "codex.brainstorm",
+    label:    "Codex model for brainstorm commands",
+    jsonPath: ["codex", "brainstorm"],
+    kind:     "string",
+    default:  "gpt-6-astra--high"
+  },
+  {
+    key:      "codex.plan-review",
+    label:    "Codex model for plan-review commands",
+    jsonPath: ["codex", "plan-review"],
+    kind:     "string",
+    default:  "gpt-6-astra--high"
+  },
+  {
+    key:      "codex.apply-review",
+    label:    "Codex model for apply-review commands",
+    jsonPath: ["codex", "apply-review"],
+    kind:     "string",
+    default:  "gpt-6-astra--high"
   }
 ]
 ```
 
-**Parameter menu:** The registry currently holds twenty-four entries. Step 2 builds an `AskUserQuestion`
+**Parameter menu:** The registry currently holds thirty-four entries. Step 2 builds an `AskUserQuestion`
 menu from each entry's `label` value and presents it to the user. The flow is data-driven: adding
 a new entry to the registry automatically adds it to the menu with no further edits to this flow.
 
@@ -255,7 +325,7 @@ a new entry to the registry automatically adds it to the menu with no further ed
 
 Use `AskUserQuestion` to ask the user which config layer to edit:
 
-- **User / global** — operates on `~/.claude/ptp/config.json`
+- **User** — operates on `~/.claude/ptp/config.json`
 - **Project** — operates on `<repo>/.claude/ptp/config.json`
 - **Workspace** — operates on `<workspace-root>/.claude/ptp/config.json`, offered only when its
   resolved config path **differs** from the Project target's resolved config path (normalized,
@@ -263,7 +333,7 @@ Use `AskUserQuestion` to ask the user which config layer to edit:
 
 **Path resolution:**
 
-- **Global:** resolve the user's home directory (on Windows:
+- **User:** resolve the user's home directory (on Windows:
   `C:\Users\<user>\.claude\ptp\config.json`; on POSIX: `$HOME/.claude/ptp/config.json`) and
   construct the absolute path.
 - **Project:** run `git rev-parse --show-toplevel` to find the repository root, then append
@@ -321,6 +391,16 @@ Build an `AskUserQuestion` menu from the registry entries' `label` values:
 22. **Backlog status option names** (`backlog.statusOptions`)
 23. **TDD enforcement** (`tdd`)
 24. **TDD skill plugin** (`tdd-plugin`)
+25. **Claude model for analyze commands** (`models.analyze`)
+26. **Claude model for prompt commands** (`models.prompt`)
+27. **Claude model for brainstorm commands** (`models.brainstorm`)
+28. **Claude model for plan-review commands** (`models.plan-review`)
+29. **Claude model for apply-review commands** (`models.apply-review`)
+30. **Codex model for analyze commands** (`codex.analyze`)
+31. **Codex model for prompt commands** (`codex.prompt`)
+32. **Codex model for brainstorm commands** (`codex.brainstorm`)
+33. **Codex model for plan-review commands** (`codex.plan-review`)
+34. **Codex model for apply-review commands** (`codex.apply-review`)
 
 Use the selected entry's `jsonPath`, `kind`, `values` (for enum entries), and `default` for the
 remaining steps. This is data-driven off the registry — adding a parameter requires only a new
@@ -379,12 +459,14 @@ turns one invocation into several writes. The idempotency/no-op report, the `wri
    - If the selected parameter's **parent key** exists in the root object but its value is **not a
      JSON object**, **STOP and report** — the parent exists but is not an object; merging into it
      would clobber data. File unchanged. End the command here. Specifically:
-     - For `codex.mode`, `codex.model`, or `codex.reasoningEffort` (they share the same `codex`
+     - For `codex.mode`, `codex.model`, `codex.reasoningEffort`, or any `codex.<family>` (they share the same `codex`
        parent): if `codex` exists but is not an object (e.g. `{"codex":"auto"}` or
        `{"codex":null}`), STOP.
      - For `review.maxIterations`, `review.minSeverity`, or `review.autoRecutOnBudgetExceeded` (they
        share the same `review` parent): if `review` exists but is not an object (e.g. `{"review":"x"}`
        or `{"review":null}`), STOP.
+     - For `models.<family>` (any of the five): if `models` exists but is not an object (e.g.
+       `{"models":"opus.high"}` or `{"models":null}`), STOP.
      - For `roles.main`: if `roles` exists but is not an object (e.g. `{"roles":"claude"}` or
        `{"roles":null}`), STOP.
      - For `telemetry.mode`, `telemetry.root`, `telemetry.port`, or `telemetry.retentionDays`
@@ -406,14 +488,14 @@ turns one invocation into several writes. The idempotency/no-op report, the `wri
      - `tdd` is a **top-level** key (its `jsonPath` is a single segment, `["tdd"]`) — it has no
        parent object, so it adds **no** parent-shape STOP row of its own. The existing root-object
        check above already covers it: only a non-object root stops the command for `tdd`.
-   - Absent parents (`codex`, `review`, `roles`, `telemetry`, `parallel`, `artifact`, or `backlog`
+   - Absent parents (`codex`, `models`, `review`, `roles`, `telemetry`, `parallel`, `artifact`, or `backlog`
      not present in the root — and, for `backlog.statusOptions`, an absent `statusOptions` under a present `backlog`)
      are fine — they will be created as empty objects on write. This is not clobbering.
 
 4. Show the **current value** of the selected parameter. This is the **authoritative** read — from
    the **selected target file alone** — and it is the sole diagnosis site: the STOP rules above bind
    only this read.
-   - Name the **selected target** (Global, Project, or Workspace) and its absolute path alongside the
+   - Name the **selected target** (User, Project, or Workspace) and its absolute path alongside the
      value.
    - If the parameter's value is set in the file (at its `jsonPath`), display:
      `Current value: <value>`
@@ -587,7 +669,7 @@ suggested value). Then validate the input:
 
 - **Accept:** a **non-empty** string, after trimming leading/trailing whitespace, that is a
   **repository-relative** path resolving **strictly below** the repository root. The value is
-  written as a JSON **string**, trimmed. This rule holds under **every** target — global, project, or
+  written as a JSON **string**, trimmed. This rule holds under **every** target — user, project, or
   workspace — including workspace: the value stays repository-root-relative and
   repository-root-validated regardless of which file it is written into; it is never re-anchored to
   the workspace root.
@@ -622,6 +704,44 @@ validate the input:
 
 When rejecting, report that the value must be non-empty and ask again. Only proceed to step 5 once a
 non-empty, non-whitespace-only string is in hand.
+
+#### kind = `string` (e.g. `models.<family>`, `codex.<family>`)
+
+Prompt the user for a free-text value (show the entry's `default`, `opus.high` or `gpt-6-astra--high`). Trim
+it, then validate the bare value with no prefix, by reference and never by a copied rule:
+
+- **`models.<family>`** must satisfy the `model:` token grammar and validation in the `model:` section
+  of `skills/ptp-run-at-model/SKILL.md` (for example `sonnet.medium`; `opus`, `gpt.high`, `opus.max`
+  and `model:opus.high` are invalid).
+- **`codex.<family>`** must satisfy the grammar and validation in
+  `skills/ptp-run-at-model/references/codex-model-token.md` (for example `gpt-6-astra--medium`; `gpt-6-astra`,
+  `--high`, `gpt-6-astra--max` and `gpt-6-astra.high` are invalid).
+
+Reject and re-prompt on an invalid value; never write it. A valid value is written as a JSON string.
+
+Family to command mapping:
+
+| Family | Commands |
+|--------|----------|
+| `analyze` | `/ptp:analyze` |
+| `prompt` | `/ptp:prompt`, `/ptp:prompt-fix`, `/ptp:prompt-write`, `/ptp:prompt-write-to-backlog` |
+| `brainstorm` | `/ptp:brainstorm`, `/ptp:brainstorm-only`, `/ptp:brainstorm-full`, `/ptp:review-brainstorm`, `/ptp:review-brainstorm-full` |
+| `plan-review` | `/ptp:review-plan`, `/ptp:review-plan-loop`, `/ptp:review-plan-full` |
+| `apply-review` | `/ptp:review`, `/ptp:review-loop`, `/ptp:review-full`, and the review step inside `/ptp:full-apply` |
+
+State plainly at the point of selection, by key:
+
+- **`models.<family>`** is read by that family's commands: the rule that reads it (resolution order,
+  per-layer validity, `main=codex` no-op) is `skills/ptp-run-at-model/references/family-default-target.md`,
+  cited and not restated here; the review step inside `/ptp:full-apply` reads `models.apply-review` by
+  `skills/ptp-full-apply/SKILL.md` step 2.
+- **`codex.<family>`** is read by the Codex lookup chain that `ptp-codex-mode` owns (family entry,
+  then `codex.judgment.*`, then flat `codex.*`, then `gpt-6-astra--high`), cited and not restated here: it
+  sets the Codex model and effort for that family's read-only Codex reviews and, under
+  `roles.main=codex`, for that family's Codex main runs.
+
+Writing a `codex.<family>` entry preserves every sibling `codex` member,
+including the `judgment` and `mechanical` objects.
 
 #### kind = `string` (e.g. `backlog.projectOwner`)
 
@@ -749,7 +869,7 @@ least one name), and take `ptp-backlog`'s built-in default row for that status o
 the other config layers.
 
 **The check stays single-layer over the selected target under all three targets.** Whether the
-selected target is Global, Project, or Workspace, the collision check reads that **selected target**
+selected target is User, Project, or Workspace, the collision check reads that **selected target**
 file alone and no other; adding a third target widens which file may be the selected target, never
 how many are read.
 
@@ -802,7 +922,8 @@ With the resolved path, the base JSON object (from step 3), and the chosen value
 
 2. **Set the target path:** in the base JSON object, navigate the selected entry's `jsonPath`:
    - If the parent key is absent from the root, create it as an empty object `{}`.
-     For `codex.mode`, `codex.model`, or `codex.reasoningEffort`: create `codex` as `{}`; for
+     For `codex.mode`, `codex.model`, `codex.reasoningEffort`, or any `codex.<family>`: create `codex` as `{}`; for
+     any `models.<family>`: create `models` as `{}`; for
      `review.maxIterations` or `review.minSeverity`: create `review` as `{}`; for `roles.main`:
      create `roles` as `{}`; for
      `telemetry.mode`, `telemetry.root`, `telemetry.port`, or `telemetry.retentionDays`: create
@@ -853,7 +974,10 @@ Examples:
 | Target file valid JSON with other keys | Merge; preserve all other keys. |
 | Target file present but invalid JSON | STOP, report parse failure, do **not** overwrite. |
 | Root parses to non-object (`[]`, string, number, `null`) | STOP, report, do **not** overwrite. |
-| `codex` present but not an object (`"codex":"auto"`, `"codex":null`) — applies to `codex.mode`, `codex.model`, and `codex.reasoningEffort` alike | STOP, report, do **not** overwrite. |
+| `models` present but not an object (`"models":"opus.high"`, `"models":null`) — applies to every `models.<family>` | STOP, report, do **not** overwrite. |
+| `models` absent | Created as `{}` on write; not clobbering. |
+| `models.<family>` or `codex.<family>` input failing token validation | Reject, re-prompt; do NOT write. |
+| `codex` present but not an object (`"codex":"auto"`, `"codex":null`) — applies to `codex.mode`, `codex.model`, `codex.reasoningEffort`, and every `codex.<family>` alike | STOP, report, do **not** overwrite. |
 | `review` present but not an object (`"review":"x"`, `"review":null`) — applies to `review.maxIterations`, `review.minSeverity`, and `review.autoRecutOnBudgetExceeded` alike | STOP, report, do **not** overwrite. |
 | `review` absent | Created as `{}` on write; not clobbering — applies to `review.maxIterations`, `review.minSeverity`, and `review.autoRecutOnBudgetExceeded` alike. |
 | `review.minSeverity` selection outside `low|medium|high|critical` | Not offered — the enum menu only presents the four valid values. |
@@ -979,6 +1103,9 @@ Examples:
   **string**, a multi-name row as a JSON **array of strings**. Empty or whitespace-only input, any empty
   element from a leading/trailing/doubled comma, and any row that would collide are rejected and
   re-prompted — never written.
+- **Never write an invalid `models.<family>` or `codex.<family>` value.** Only a trimmed value that
+  passes the referenced token validation may be written, as a JSON string; sibling `codex` members
+  (`judgment`, `mechanical`) are preserved.
 - **Never touch keys other than the selected parameter's `jsonPath`** (for a `map`-kind entry, the
   **effective path** `jsonPath + [member]`; sibling status rows are preserved as data). All other keys (including
   `deploy`, sibling `codex` keys, and any unknown keys) are preserved as data in the serialized
