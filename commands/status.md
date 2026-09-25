@@ -9,7 +9,7 @@ Show the current OpenSpec state so the user can decide what to do next in the pt
 
 Optional change selector: $ARGUMENTS
 
-Resolve `$ARGUMENTS` as a change selector per the `ptp-change-selector` skill (single id, `epic:XXXX`, `story:NN`, `epic:XXXX story:NN`, `epic:all`, or empty = all active changes). When the selector resolves to more than one change, run the steps below for each change **in story order**, rendering one table per change. One change with thin or missing artifacts must NOT abort the rest of the run.
+Resolve `$ARGUMENTS` as a change selector per the `ptp-change-selector` skill (single id, `epic:XXXX`, `story:NN`, `epic:XXXX story:NN`, `epic:all`, or empty = all active changes). Per that skill's §3 `/ptp:status` container resolution clause, the empty selector, `epic:all` and `epic:XXXX` also cover each covered epic's container (rendered as one row via Step A's container branch below), while `story:NN` and `epic:XXXX story:NN` never resolve to a container. When the selector resolves to more than one change, run the steps below for each change **in story order**, rendering one table per change. One change with thin or missing artifacts must NOT abort the rest of the run.
 
 ## Steps
 
@@ -23,7 +23,15 @@ Resolve `$ARGUMENTS` as a change selector per the `ptp-change-selector` skill (s
 
 #### Step A — Resolve the change folder
 
-Check whether `openspec/changes/<id>/` exists. If the folder does not exist, skip derivation and emit a single-row note: "no change folder yet" with a recommendation of `/ptp:brainstorm "<request>"` (or `/ptp:plan-multiple "<request>"` if the request is clearly too large for one change). Then move on to the next change.
+**Epic container branch.** When the resolved folder is an epic container `XXXX_00_<slug>` (story path exactly `00`), render it as a single informational row instead of running Steps B-F:
+
+- Emit a section heading naming it as an epic container (e.g. `## Epic container: <id>`), then a three-column table — **Step | Status | Signal / Notes** — with exactly one row: step `container`, status `container, not plannable`, notes listing which of `prompt.md`, `brainstorm.md`, `analysis.md` and `stages/` are present in the container folder.
+- When the container's `stages/brainstorm.json` is present and well-formed under the Step D-review marker rule, add that marker's rendering to the notes; any other marker state adds nothing and is never an error.
+- Do not run `openspec validate`, tally `tasks.md` checkboxes, read `stages/code.json`, `stages/apply.json` or `stages/archive.json`, render the nine-row table, or compute a recommendation — the row carries no archive-readiness verdict.
+- **Moved containers.** When the id came from an explicit bare container id and no active `openspec/changes/<id>/` folder exists, look it up under `openspec/epics_00/<YYYY-MM-DD>-<id>/` and render the row from that folder instead, naming the `epics_00` location in the notes. When neither the active folder nor an `epics_00` match exists, emit the existing "no change folder yet" note.
+- Then move on to the next change; skip Steps B-F entirely for a container.
+
+Otherwise, check whether `openspec/changes/<id>/` exists. If the folder does not exist, skip derivation and emit a single-row note: "no change folder yet" with a recommendation of `/ptp:brainstorm "<request>"` (or `/ptp:plan-multiple "<request>"` if the request is clearly too large for one change). Then move on to the next change.
 
 **One clause for archived changes.** When the id came from an **explicit** `<change-id>` and there is no active `openspec/changes/<id>/` folder but there **is** a matching `openspec/changes/archive/*-<id>/` folder, render the table from that archived folder instead of emitting the "no change folder yet" note — every subsequent step reads that folder. This is a **directed per-id lookup only**: the bare-`/ptp:status` active-change enumeration is unchanged and never sweeps archived changes into the report.
 
@@ -38,6 +46,8 @@ therefore historical for an already-archived change. Nothing here overrides a de
 recommendation — the notes explain them, they do not replace them.
 
 #### Step B — Inspect artifacts (read-only)
+
+**Container fallback for analysis and brainstorm.** When `analysis.md` or `brainstorm.md` is absent from the story's own folder, look it up in the story's epic's active container `XXXX_00_*` per the `ptp-change-selector` "story first, then container" lookup, and, when found there, render that row as present with notes naming the container. This fallback applies to these two rows only; the brainstorm review row still reads only the change's own `stages/brainstorm.json`.
 
 For the folder `openspec/changes/<id>/`, check for the presence of these files and directories:
 
@@ -186,9 +196,10 @@ Repeat Steps A–F for every remaining change in story order.
 
 - This command is **read-only**. Do not edit any file. Do not run `openspec apply` or `openspec archive`. Do not run a branch guard.
 - **Review markers are READ-ONLY here.** The command READS `stages/brainstorm.json` and `stages/plan.json` to derive the two review rows; it SHALL NOT create, repair, overwrite, or delete a marker, and SHALL NOT run a branch guard. Producing the marker is the job of the write-capable review loops / `/ptp:review-fix`, never of `/ptp:status`.
-- **Stage records are READ-ONLY here, all six kinds.** Permitted reads include `stages/<kind>.json` — the review markers plus the lifecycle records `stages/apply.json` and `stages/archive.json` (the latter also at `openspec/changes/archive/<YYYY-MM-DD>-<id>/stages/archive.json`). This command creates, repairs, overwrites and deletes **no** stage record; writing one is the job of that kind's writer — the review loops, the apply executor, the archive flow — never of `/ptp:status`.
+- **Stage records are READ-ONLY here, all five kinds.** Permitted reads include `stages/<kind>.json` — the review markers plus the lifecycle records `stages/apply.json` and `stages/archive.json` (the latter also at `openspec/changes/archive/<YYYY-MM-DD>-<id>/stages/archive.json`). This command creates, repairs, overwrites and deletes **no** stage record; writing one is the job of that kind's writer — the review loops, the apply executor, the archive flow — never of `/ptp:status`.
 - **No stage record steers anything.** The Step E recommendation ladder consults **no** stage record, and `/ptp:status` neither renders nor acts on a `code` record's `fingerprint` or `gateState` — the six-condition code-review skip predicate is not a `/ptp:status` concern.
-- Permitted operations only: `npx -y openspec list`, `npx -y openspec list --specs`, `npx -y openspec show <id>` (or direct folder reads if `show` is unsupported), `npx -y openspec validate <id> --strict`, and reads of files under `openspec/changes/<id>/` (including the `stages/<kind>.json` stage records).
+- Permitted operations only: `npx -y openspec list`, `npx -y openspec list --specs`, `npx -y openspec show <id>` (or direct folder reads if `show` is unsupported), `npx -y openspec validate <id> --strict`, reads of files under `openspec/changes/<id>/` (including the `stages/<kind>.json` stage records) and its epic's container folder, and, for an explicit container id with no active folder, reads under `openspec/epics_00/<YYYY-MM-DD>-<id>/`.
+  - Never validate a container: the `npx -y openspec validate <id> --strict` operation above runs only for a non-container change.
 - An absent artifact maps to a "not started" cell for its step — never to an error. For the plan step specifically, follow Step D's finer rule: all plan artifacts absent → "not started", but a partially present set (or `specs/` missing when required) → "incomplete". An absent `design.md` is neutral like an absent `analysis.md` and never renders the plan step as incomplete — it is disclosed in the plan row's Signal/Notes cell but never lowers the cell. Missing review markers render as `inferred / not tracked` — never as an error.
 - A validate failure is a derived signal for the plan cell only; it does NOT abort the status report.
 - One change with thin or missing artifacts does NOT abort the per-change loop — the remaining changes are rendered normally.

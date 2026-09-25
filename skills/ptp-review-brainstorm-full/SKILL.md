@@ -51,7 +51,8 @@ The loop drives the full iteration: review→confirm→fix-`brainstorm.md`→ver
 default 5). For each iteration's review pass the loop applies the existing **`ptp-review-brainstorm`**
 rubric inline over the located `brainstorm.md` — **defer** to that skill for the rubric; do **not**
 re-author it here, so the brainstorm-quality criteria live in exactly one place. Confirmed findings are
-fixed by minimal targeted edits to `brainstorm.md` (corrections only — add a missing option, expand a
+fixed by minimal targeted edits to the **located** `brainstorm.md` — the change's own, or its epic
+container's when `ptp-review-brainstorm` *Locating* fell back to the epic container (corrections only — add a missing option, expand a
 thin tradeoff, document a missing assumption); the brainstorm is **never** regenerated via
 `/ptp:brainstorm`. Verification is **N/A** — the loop runs no `openspec validate`.
 
@@ -111,11 +112,12 @@ Codex**; a Claude reviewer is never gated and always runs.
 Phase 2 starts with **fresh loop state**: Phase 1's `rejected_findings` do **not** carry over — the
 reviewer agent is an independent reviewer and its findings are evaluated on their own merits. When the
 reviewer is Codex, the loop drives the
-closed-book Codex review retargeted to `brainstorm.md` with **no** `openspec validate` (the caller
-reads `brainstorm.md` + any cited context, builds one self-contained prompt carrying the brainstorm
+closed-book Codex review retargeted to the **located** `brainstorm.md` (Phase 1's file, per
+`ptp-review-brainstorm` *Locating*) with **no** `openspec validate` (the caller
+reads that file + any cited context, builds one self-contained prompt carrying the brainstorm
 rubric as the audit instructions, and pipes it to `codex exec -s read-only` over stdin (assembled per
 the `ptp-codex-mode` flag-append rule — `-m`/`-c` always sent before the trailing `-`, from the Codex
-lookup chain for family `brainstorm`); Codex runs no commands), and confirmed findings are fixed by editing `brainstorm.md`
+lookup chain for family `brainstorm`); Codex runs no commands), and confirmed findings are fixed by editing that located file
 until it terminates `DONE` or `ITERATION CAP REACHED`.
 
 **Deliberate difference — NO `openspec validate`.** `codex-review-plan.md` inlines an authoritative

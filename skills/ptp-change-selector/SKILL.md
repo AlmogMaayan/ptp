@@ -50,6 +50,13 @@ split never renumbers any sibling.
 
 Legacy ids are **never produced going forward**. They are resolved by exact match only — not addressable via `epic:` or `story:` selectors.
 
+**Epic container.** A folder whose id matches the grammar above and whose story path is exactly
+`00` is the **epic container** of its epic, named `XXXX_00_<slug>` with `<slug>` the epic's
+kebab-case description. It is recognized by its name alone; no marker file is read. It holds
+epic-level files only (`ptp-artifact-contract` §6) and is **not an active change**: it is never
+planned, applied, reviewed as code, or validated, and an epic's stories keep story paths `01`
+upward. A deeper path such as `03_01` is never a container.
+
 ## 2. Selector grammar
 
 ### Selector grammar
@@ -107,6 +114,8 @@ stop.
 inputs: selector string; resolved workspace root
 
 1. list = folder names under <resolved workspace root>/openspec/changes/, excluding "archive"
+   and excluding every epic container (story path exactly 00, §1); the bare-id branch below
+   matches against the full listing, containers included
 2. parse each name:
    - if matches ^\d{4}(_\d{2})+_(?=[a-z0-9-]*[a-z])[a-z0-9]+(-[a-z0-9]+)*$ → epic-prefixed:
      (epic, story-path, desc), the story path being the maximal run of all-digit segments after the
@@ -118,7 +127,7 @@ inputs: selector string; resolved workspace root
        return (epic-prefixed ids sorted ascending by (epic, story)) + (legacy/unprefixed ids in listed order)
        [identical set and ordering to the empty-selector "all active changes" default]
    - bare id:
-       return [name] if a folder equals it
+       return [name] if a folder equals it (full listing — an epic container still resolves)
        else STOP "no change <id> under <resolved workspace root>"
    - epic:XXXX:
        matches = [c for c in list if c.epic == XXXX]
@@ -135,8 +144,15 @@ inputs: selector string; resolved workspace root
        if none    → STOP "no active change with story NN"
        if several → STOP "ambiguous story NN across epics <list>; qualify with epic:XXXX story:NN"
    - empty:
-       defer to the command's existing default
+       defer to the command's existing default, which drops every epic container (§1)
+       before it orders, confirms or disambiguates, and never offers one as a choice
 ```
+
+**Containers are skipped, not errors.** Because step 1 drops epic containers, `epic:all` over
+containers only STOPs with "no active changes", `epic:XXXX` over a lone container STOPs with
+"no changes in epic XXXX", and `story:00` STOPs with "no active change with story 00". An empty
+selector's default (usually `npx -y openspec list`, which does list a container as "No tasks") drops
+`_00` containers the same way.
 
 Ordering key is `(epic, story path)` ascending everywhere — story order per §1. When a resolved set mixes epic-prefixed and legacy/unprefixed ids — e.g. a command's empty-selector "all active changes" default — the epic-prefixed ids sort first by `(epic, story)` ascending and the legacy/unprefixed ids are **appended after** them, in their listed order. Resolution reads only the resolved workspace root's `openspec/changes/` folder listing — no manifest, no persisted state.
 
@@ -154,14 +170,16 @@ reads differently from a genuinely missing change.
 
 ## 4. Epic allocation (producers only)
 
-Producers (`/ptp:plan-multiple`, `/ptp:brainstorm-decompose`, `/ptp:plan`, `/ptp:brainstorm`, `/ptp:analyze`, and `/ptp:prd` for the free-text case) allocate a fresh epic when creating a new change. The algorithm:
+Producers (`/ptp:plan-multiple`, `/ptp:brainstorm-decompose`, `/ptp:plan`, `/ptp:brainstorm`, `/ptp:brainstorm-full`, `/ptp:prompt-write`, and `/ptp:analyze`) allocate a fresh epic when creating a new change or epic container. The algorithm:
 
 ```
 1. candidates = folder names under <resolved workspace root>/openspec/changes/
                  (excluding "archive")
              + folder names under <resolved workspace root>/openspec/changes/archive/
                with each leading YYYY-MM-DD- date prefix stripped
-2. epics = { leading 4-digit group : name matches ^\d{4}_ }
+             + folder names under <resolved workspace root>/openspec/epics_00/
+               with each leading YYYY-MM-DD- date prefix stripped (a missing epics_00/ adds nothing)
+2. epics = { leading 4-digit group : name matches ^\d{4}_ }   (an epic container XXXX_00_* counts)
 3. next = max(epics) + 1   (if epics is non-empty)
         = 1                 (if no epic-prefixed folders exist)
 4. epic_str = zero-pad(next, 4)   →  "0001", "0002", …
@@ -175,12 +193,21 @@ that belongs to `ptp-branch-guard` and is not settled here.
 
 
 **Per-producer usage:**
-- `/ptp:plan-multiple` — calls this once, then assigns `epic_str_01`, `epic_str_02`, … to slices in dependency order. When it is instead re-cutting a change that returned `NEEDS SPLIT`, it allocates **no** epic and uses §4b's sub-story allocation.
-- `/ptp:brainstorm-decompose` — calls this once (fresh decomposition only — it has no re-cut mode), then assigns `epic_str_01`, `epic_str_02`, … to slices in dependency order, exactly as `/ptp:plan-multiple` does.
-- `/ptp:plan` — calls this once and assigns `epic_str_01_<desc>` for a standalone change. **Exception:** when `/ptp:plan` is invoked with a fully-formed `XXXX_NN_` id (the `/ptp:plan-multiple` → `/ptp:plan` delegation path), it preserves that id verbatim and does NOT allocate a new epic.
-- `/ptp:brainstorm` — calls this once and assigns `epic_str_01_<desc>` so the later `/ptp:plan` keeps the same id.
-- `/ptp:analyze` — always allocates `epic_str_01_<subject-slug>` to house an analysis doc (no proposal, design, tasks, or spec delta); never routes onto an existing active change, regardless of scope overlap.
-- `/ptp:prd` — allocates `epic_str_01_<desc>` **only** when the argument is **free text** (non-empty, carrying no `epic:`/`story:` token, and matching no existing active change folder); it then creates the change folder and authors the PRD into it. For every selector form (`epic:XXXX`, `epic:XXXX story:NN`, `story:NN`, `epic:all`, a folder-matching bare id, or omitted) it projects/consumes via the `ptp-prd` epic projection and allocates nothing.
+- `/ptp:plan-multiple` — calls this once, then assigns `epic_str_01`, `epic_str_02`, … to slices in dependency order. When it is instead re-cutting a change that returned `NEEDS SPLIT`, it allocates **no** epic and uses §4b's sub-story allocation. Handed a bare epic container id, it allocates **no** epic and follows §4c's "Decomposing with a container".
+- `/ptp:brainstorm-decompose` — calls this once (fresh decomposition only — it has no re-cut mode), then assigns `epic_str_01`, `epic_str_02`, … to slices in dependency order, exactly as `/ptp:plan-multiple` does. Handed a bare epic container id, it allocates **no** epic and follows §4c's "Decomposing with a container".
+- `/ptp:plan` — given free text, calls this once and assigns `epic_str_01_<desc>` for a standalone change; it creates no epic container. **Exception:** when `/ptp:plan` is invoked with a fully-formed `XXXX_NN_` id whose story path is not `00` (the `/ptp:plan-multiple` → `/ptp:plan` delegation path), it preserves that id verbatim and does NOT allocate a new epic. A bare container id `XXXX_00_<slug>` is not that exception: it is planned per §4c.
+- `/ptp:brainstorm` and `/ptp:brainstorm-full` — given free text, call this once and create the epic container `epic_str_00_<desc>`, writing `brainstorm.md` there. Given an existing change id, a container included, they keep it verbatim and allocate nothing.
+- `/ptp:prompt-write` — given no argument, or one that resolves to no existing change, calls this once and creates the epic container `epic_str_00_<desc>`, writing `prompt.md` there. An argument naming an existing change, a container included, writes into that folder.
+- `/ptp:analyze` — always allocates a fresh epic and creates its container `epic_str_00_<subject-slug>` to house an analysis doc (no proposal, design, tasks, or spec delta); never routes onto an existing change, regardless of scope overlap.
+
+**Container writers.** A fresh epic-level writer — `/ptp:prompt-write`, `/ptp:analyze`,
+`/ptp:brainstorm`, `/ptp:brainstorm-full` — names its new folder `XXXX_00_<desc>`, `<desc>` derived
+as before, writes its one epic-level file there, and creates **no** story folder. Only a fresh
+allocation creates a container, so an epic never gets a second one that way. **Second-container
+STOP:** `/ptp:brainstorm` or `/ptp:brainstorm-full` handed a `_00` id that names no folder STOPs when
+its epic `XXXX` already has another container, under `openspec/changes/` or (date prefix stripped)
+`openspec/epics_00/`, and names that container: "epic `XXXX` already has container `<existing-id>`; pass that id". With no
+other container it creates the folder under the id it was given.
 
 ### 4b. Sub-story allocation (`NEEDS SPLIT` re-cuts only)
 
@@ -194,17 +221,15 @@ Three rules make this safe:
 
 1. **The parent is replaced, never kept — and its anchored artifacts move first.** The parent folder
    is deleted only after every artifact it holds that the children do **not** re-author is moved into
-   the **first child**: `brainstorm.md`, `analysis.md`, and — decisively — `prd.md`. A PRD is anchored
-   at its epic's lowest-numbered story folder (`ptp-prd`), so splitting story `01` would otherwise
-   **delete the epic's PRD**; moving it into `XXXX_01_01_…` keeps it anchored, because that child is
-   the epic's new lowest-numbered story under §1's story order. `brainstorm.md` may instead go to
+   the **first child**: `brainstorm.md` and `analysis.md`. `brainstorm.md` may instead go to
    `openspec/brainstorms/<parent-id>-brainstorm.md` — **always that path, never a child's own
    `brainstorm.md`**, which the child's planning run writes for itself and would overwrite, and which
    in any case describes the parent's whole pre-split scope rather than that child's. Only the
    regenerable planning artifacts the children re-author — `proposal.md`, `design.md`, `tasks.md`,
    spec deltas, `effort.md` — are discarded, the same preserve-then-delete order
    `/ptp:plan-multiple` step 4 uses. Parent and children never coexist, which is what keeps story
-   order equal to plain lexicographic id order.
+   order equal to plain lexicographic id order. A re-cut never touches the epic container: it never
+   creates, writes, moves or deletes `XXXX_00_*` (§4c).
 2. **Dependency references are rewritten at the re-cut.** Every active sibling whose `proposal.md`
    declares `depends on <parent-id>` is updated to depend on the split's **last** child (the chain's
    completion); a dependency **into** the split from outside never targets a mid-chain child unless
@@ -214,19 +239,67 @@ Three rules make this safe:
    segments under that parent, active and archived) + 1`, so a second re-cut of the same parent (or
    a re-cut after some children were archived) never reuses a child number.
 
+### 4c. Planning from a container
+
+`/ptp:plan` handed a bare container id `XXXX_00_<slug>` treats it as its **input**, not its output.
+It allocates no epic, and a container id that names no folder under `openspec/changes/` STOPs:
+"no epic container `<id>`".
+
+- **Story number.** The new change is `XXXX_NN_<slug>`, where `NN` is one above the highest top-level
+  story segment of epic `XXXX` among active folders and archived folders (date prefix stripped),
+  containers excluded; an epic with no story gets `01`.
+- **Slug.** `<slug>` is the container's slug, verbatim.
+- **Read in place.** The container's `brainstorm.md`, when present, is the decision source. Its
+  `prompt.md` and `analysis.md` are request context; with no container `brainstorm.md`, the planner
+  brainstorms inline from them and writes the story's own `brainstorm.md`. None of them is copied.
+- **No write.** Nothing is written into the container. This is a producer path, so the §5 epic
+  container guard does not apply.
+
+**Epic-level file lookup (story first, then container).** A reader looking for a story's `brainstorm.md`, `prompt.md` or
+`analysis.md` reads the story folder first and, only when that file is absent there, the same-named
+file in its epic's container `XXXX_00_*` under `openspec/changes/`. The story file wins, being more
+specific. An older epic that keeps these files in a story folder is found by that first step, so no
+migration is needed.
+
+**Full story id: context only.** `/ptp:plan` handed a full story id (`XXXX_NN_…`, `NN` not `00`)
+treats a container `brainstorm.md` found by that lookup as context only, never as that story's
+decision, and still writes the story's own `brainstorm.md`: a `/ptp:plan-multiple` member plans one
+slice, and the container may describe the whole epic.
+
+**Decomposing with a container.** This rule is owned here; `/ptp:plan-multiple`,
+`/ptp:brainstorm-decompose` and `/ptp:full` cite it and restate none of it.
+
+- **Container input.** Handed a bare container id, a decomposer allocates no epic; one naming no
+  folder STOPs in beat 1, as `/ptp:plan` does above. It reads the
+  container's `prompt.md`, `brainstorm.md` and `analysis.md` in place and never writes, moves or
+  deletes the container. Its slices are `XXXX_NN_…`, numbered consecutively from the epic's next story
+  number above (`01` for a fresh container). On fallback `/ptp:plan-multiple` hands the container id to
+  `/ptp:plan`; `/ptp:brainstorm-decompose` hands `/ptp:brainstorm` a fresh story id at the next story
+  number, never the container id (that would overwrite the container's `brainstorm.md`).
+- **Fresh-split container.** On the split path only, a fresh decomposition creates its new epic's
+  container `XXXX_00_<desc>` in beat 2, before any member starts; `<desc>` is the input folder's desc,
+  or the ≤5-word summary of the request. `/ptp:plan-multiple` step 4 moves the input folder's
+  `prompt.md`, `brainstorm.md` and `analysis.md` into it. A fallback creates no container.
+- **Capsule.** When no `brainstorm.md` is moved into the new container — always, for
+  `/ptp:brainstorm-decompose`, which copies nothing from its input — beat 2 writes its decompose
+  capsule there as the container's `brainstorm.md`, in the `ptp-brainstorming` shape and holding no
+  slice list. The capsule is not an umbrella doc.
+- **Member no-write.** No member writes the container: the member prompt names the container id as
+  read-only context, a `/ptp:plan` member treats its brainstorm as context only (above), and a
+  `/ptp:brainstorm` member writes only its own story folder. The container is written once, by beat 2,
+  before any member starts.
+
 ## 5. Command roles
 
 All ptp commands that take a change argument fall into one of two roles. Reference the appropriate role in one line near the command's `## Inputs` section.
 
 ### Role A — Producers (allocate + name)
 
-Commands: `/ptp:plan-multiple`, `/ptp:brainstorm-decompose`, `/ptp:plan`, `/ptp:brainstorm`, `/ptp:analyze`, `/ptp:prd`
+Commands: `/ptp:plan-multiple`, `/ptp:brainstorm-decompose`, `/ptp:plan`, `/ptp:brainstorm`, `/ptp:brainstorm-full`, `/ptp:prompt-write`, `/ptp:analyze`
 
-These **allocate** a fresh epic and **name** the change folder. The pure producers (`/ptp:plan-multiple`, `/ptp:brainstorm-decompose`, `/ptp:plan`, `/ptp:brainstorm`, `/ptp:analyze`) do not consume selectors — they produce ids. The **hybrid producer** (`/ptp:prd`) also resolves its argument onto existing changes — it allocates a fresh epic only in specific cases and otherwise routes onto an existing change (`/ptp:prd` projects a selector onto existing epics). Each references this skill for the allocation algorithm and the id format contract.
+These **allocate** a fresh epic and **name** the change folder. The pure producers (`/ptp:plan-multiple`, `/ptp:brainstorm-decompose`, `/ptp:plan`, `/ptp:brainstorm`, `/ptp:analyze`) do not consume selectors — they produce ids. A **hybrid producer** (`/ptp:prompt-write`) also resolves its argument onto existing changes — it allocates a fresh epic only when no existing change is targeted and otherwise routes onto an existing change. Each references this skill for the allocation algorithm and the id format contract.
 
-**Limited producer — `/ptp:analyze`**: always allocates a fresh `XXXX_01_<subject-slug>` only to house an analysis doc; it never produces proposal/design/tasks/spec-delta and never routes onto an existing active change, regardless of scope overlap.
-
-**Limited/hybrid producer — `/ptp:prd`**: a producer **only** for the free-text case (a non-empty argument that carries no `epic:`/`story:` token and matches no existing active change folder), where it allocates `XXXX_01_<desc>` via §4, creates the folder, and authors the PRD into it. For every selector form (`epic:XXXX`, `epic:XXXX story:NN`, `story:NN`, `epic:all`, a folder-matching bare id, or omitted) it consumes/projects and allocates nothing. It is **not** a generic set-capable Role-B consumer — its consumer behavior is the additive `ptp-prd` epic projection (one PRD per projected epic), not the §3 set-iterate contract.
+**Limited producer — `/ptp:analyze`**: on every invocation allocates a fresh epic container `XXXX_00_<subject-slug>` only to house an analysis doc; it never produces proposal/design/tasks/spec-delta and never routes onto an existing change, regardless of scope overlap.
 
 ### Role B — Set-capable consumers (resolve + iterate)
 
@@ -238,11 +311,43 @@ Commands: `review`, `review-loop`, `review-full`, `codex-review`, `codex-review-
 
 These **resolve** the selector via the algorithm in §3 and, if it resolves to more than one change, **iterate** their existing per-change behavior in story order, reporting per change. When the selector resolves to exactly one change, the command behaves identically to its prior single-id behavior.
 
+**Epic container guard.** A per-change step that needs planning artifacts — `openspec validate`,
+plan review, apply, code review, effort, full-apply, and the backlog run and continue flows — STOPs
+when a bare id resolves to an epic container (§1): "`<id>` is an epic container, not an active
+change; use `epic:XXXX` for its stories". It runs no `openspec validate`. A step that reads only
+`prompt.md`, `brainstorm.md`, `analysis.md` or `stages/` markers MAY run on a container.
+
+**Archive-family resolution.** The archive family is `/ptp:archive`, `/ptp:archive-force`,
+`/ptp:archive-and-deploy` and `/ptp:archive-and-merge-to-master`. For the archive family only,
+resolution yields two things: the active stories to archive, which never include a container, and the
+epics the selector covers for the closing step.
+
+- `epic:XXXX` covers epic `XXXX`. It STOPs with "no changes in epic XXXX" only when that epic has
+  neither an active story nor a container.
+- A bare container id resolves exactly as `epic:XXXX` for its epic. It never reaches the
+  planning-artifact consumer guard above, and no archive gate validates the container.
+- `epic:all`, and `/ptp:archive-force`'s empty/all default, cover every epic that has a container.
+  `epic:all` STOPs with "no active changes" only when there is neither an active story nor a
+  container.
+- `story:NN` and `epic:XXXX story:NN` cover no epic beyond those of the stories they resolve.
+- An empty-selector disambiguation never offers a container.
+
+Every other selector consumer, except `/ptp:status`, keeps skipping containers.
+
+**`/ptp:status` container resolution.** For `/ptp:status` only, resolution keeps the epic containers
+the selector covers, instead of dropping them per step 1. The empty selector and `epic:all` cover
+every epic's container and STOP with "no active changes" only when there is neither an active story
+nor a container. `epic:XXXX` covers epic `XXXX`'s container and STOPs with "no changes in epic XXXX"
+only when that epic has neither an active story nor a container. `story:NN` and
+`epic:XXXX story:NN` never resolve to a container. An exact bare container id resolves even when no
+active folder has that name, so `/ptp:status` can look in `openspec/epics_00/`, and never reaches the
+planning-artifact consumer guard above. A container orders as story `00`, before its epic's stories.
+
 **Single-context consumer — `/ptp:codex-review-uncommitted`** (not in the set-capable list above): it gains the `argument-hint` update and **resolves** its argument through this skill (satisfying the shared-grammar requirement), but because it grades a single working tree it requires the selector to resolve to **exactly one** change. If the selector resolves to more than one change (e.g. `epic:XXXX`), **STOP** and ask the user for a bare id or `epic:XXXX story:NN`. It never iterates and reviews the working tree once.
 
 **Orchestration command — `/ptp:full-apply`**: Set-capable. Selector expansion, per-story ordering, and the apply→review-full loop are delegated to the `ptp-full-apply` skill (which launches the `ptp-full-apply` workflow); the command is a thin wrapper that accepts a selector (or explicit id list, or empty) and passes it through. (The former `/ptp:full-apply-effort` has been collapsed into `/ptp:full-apply` — a workflow agent carries its own model, so there is no session-dial effort gate to honor separately.)
 
 **Not set-capable:**
 - `/ptp:full-plan` — a producer-orchestrator; it decomposes via `/ptp:plan-multiple` and plan-reviews each slice it just produced, not a selector over existing changes.
-- `/ptp:full` — an end-to-end producer-orchestrator: it runs the full-plan flow (decompose via `/ptp:plan-multiple` + per-slice plan-review) and, on plan convergence, continues into the full-apply flow (apply + review-full per slice) over the slices it just produced. Like `/ptp:full-plan` it takes a request / oversized-change argument, not a selector over existing changes.
+- `/ptp:full` — an end-to-end producer-orchestrator: it runs the full-plan flow (decompose via `/ptp:plan-multiple` + per-slice plan-review) and, on plan convergence, continues into the full-apply flow (apply + review-full per slice) over the slices it just produced. Like `/ptp:full-plan` it takes a request / oversized-change argument, not a selector over existing changes. Both also accept a bare epic container id, passed on to `/ptp:plan-multiple` per §4c's "Decomposing with a container"; the slice set is the story ids it reports, never the container.
 - `/ptp:brainstorm-only` — no change folder, no epic; writes to `openspec/brainstorms/` only.

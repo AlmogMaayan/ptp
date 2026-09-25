@@ -479,7 +479,7 @@ exactly the commands `ptp-review-loop` drives under `review.maxIterations`. Ever
 runs appear in **no** per-iteration view: the grouping rule below would happily number three
 `/ptp:apply` runs "iterations 1–3" and compare them against a review cap that says nothing about
 them, manufacturing a sequence and a flag out of unrelated work. Note the eligibility is keyed on
-the **`command`**, not on the `ptp-telemetry` [command-phase-mapping] `phase` enumeration, because the plan-, PRD-, and brainstorm-kind review loops
+the **`command`**, not on the `ptp-telemetry` [command-phase-mapping] `phase` enumeration, because the plan- and brainstorm-kind review loops
 map to those phases while still running under the same cap.
 
 **Iteration numbers are derived, and the report says so.** `ptp-review-loop` keeps its counter in

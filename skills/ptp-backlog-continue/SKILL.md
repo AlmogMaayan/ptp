@@ -315,7 +315,7 @@ is visible at a glance rather than discovered after an archive.
 For each prefix in the candidate's `changeEpics`, in array order, and for each of that prefix's change
 folders in ascending story order:
 
-1. **Locate the change folder** `openspec/changes/<prefix>_*`, under the **resolved workspace root**
+1. **Locate the change folder** `openspec/changes/<prefix>_*` — excluding the epic container `<prefix>_00_<slug>` (`ptp-change-selector` §1), which is never archived or applied — under the **resolved workspace root**
    bound in precondition 2a. That an `openspec/…` literal is workspace-relative at all is the
    `workspace` capability's own anchoring rule — owned by `ptp-workspace`, cited here and not restated;
    what this step adds is only **which** root the lookup uses, and it never falls back to a second
@@ -544,8 +544,8 @@ is reported as a **refusal**, mirroring the bare flow's step-3 failure and `ptp-
 
 Reached under `phase:apply` against the selected `planned` candidate (*Apply-mode target selection*).
 For each prefix in that candidate's `changeEpics`, in **array order** (the canonical write makes it
-ascending numeric), and for each of that prefix's change folders `openspec/changes/<prefix>_*` in
-**ascending story order** under the **resolved workspace root** bound in precondition 2a:
+ascending numeric), and for each of that prefix's change folders `openspec/changes/<prefix>_*` (excluding the epic container
+`<prefix>_00_<slug>`, per `ptp-change-selector` §1) in **ascending story order** under the **resolved workspace root** bound in precondition 2a:
 
 1. **Locate the change folder** under that one bound root — the same anchoring the bare flow's step 1
    uses (`ptp-workspace`'s rule, cited not restated), never a second lookup at the repository root. A

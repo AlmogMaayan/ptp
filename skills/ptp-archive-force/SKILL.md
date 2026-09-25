@@ -19,6 +19,9 @@ This skill receives from the calling command `/ptp:archive-force`:
 
 - **`resolved-ids`** — an ordered list of change folder names (story order) already resolved via the `ptp-change-selector` skill. Do **not** re-resolve the selector grammar here; ids arrive fully resolved.
 - **`from_all`** — boolean; `true` if the command was invoked with no argument (the empty/all default), `false` for any explicit selector.
+- **`covered-epics`** — the epics the selector covers for the closing step, per the `ptp-change-selector`
+  §3 archive-family resolution: `epic:XXXX`/bare-container-id cover that one epic, `epic:all` and the
+  empty/all default cover every epic with a container, and a story selector covers no extra epic.
 
 ## Gate-bypass contract
 
@@ -34,8 +37,9 @@ These gates are bypassed by design. They are still **reported** per change (see 
 
 **Only when `from_all` is `true`:**
 
-1. Print the full resolved id list.
-2. **STOP** (conversational stop) and ask the user to confirm they want to force-archive all listed changes.
+1. Print the full resolved id list, plus any `covered-epics` epic that has a container and no active
+   story (a lone-container epic) — named as a closing-step candidate, not a change to archive.
+2. **STOP** (conversational stop) and ask the user to confirm they want to force-archive all listed changes, including the lone-container epics named above.
 3. On the user's in-conversation confirmation, proceed with that **same already-resolved list** — do **not** re-resolve the empty selector. This ensures the confirmed run cannot re-trigger the stop.
 
 **When `from_all` is `false`** (explicit selector: `id`, `epic:XXXX`, `story:NN`, `epic:XXXX story:NN`): proceed immediately — no scope stop.
@@ -75,6 +79,16 @@ write-temp-then-rename protocol, into the **archived** folder only and never int
 folder. The record carries **no** force-archive marker: nothing in it distinguishes a force-archive from a
 gated one. A failed resolution or write is reported and does not change the archive's outcome.
 
+## Closing step
+
+After the per-change procedure above finishes processing every id in `resolved-ids` — the main run —
+run `/ptp:archive` step 8 ("Close epic containers") once, over `covered-epics`. It runs in the outer
+session, spawns nothing, and checks every epic with a story this run archived plus every
+`covered-epics` epic with a container and no active story, moving each eligible container to
+`openspec/epics_00/<YYYY-MM-DD>-<container-id>` per that step's move rule. A container failure is a
+per-epic failure, reported alongside the change results, and never reopens or affects a change already
+archived by the main run above.
+
 ## Reporting
 
 ### Per-change report (after each id is processed)
@@ -89,6 +103,7 @@ gated one. A failed resolution or write is reported and does not change the arch
 
 - Total processed, succeeded, failed.
 - For any failed id: the id and the reason for failure.
+- One container line per checked epic from the closing step: its target, or why it stayed or failed.
 
 ## Hard rules
 

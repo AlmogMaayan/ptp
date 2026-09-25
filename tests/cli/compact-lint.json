@@ -1,0 +1,55 @@
+{
+  "script": "scripts/ptp-compact-lint.js",
+  "cases": [
+    {
+      "id": "container-skipped-with-assumed-contract",
+      "tree": {
+        "repo/.git": "dir",
+        "repo/openspec/changes/0001_00_demo/prompt.md": "# Demo epic\n\nAn epic-level prompt.\n"
+      },
+      "cwd": "repo",
+      "argv": ["--change", "0001_00_demo", "--repo", ".", "--assume-contract=ptp-compact", "--format=json"],
+      "expect": {
+        "exitCode": 0,
+        "stdout": {
+          "contract": "container",
+          "skipped": true,
+          "findings": []
+        }
+      }
+    },
+    {
+      "id": "container-skipped-by-path",
+      "tree": {
+        "repo/.git": "dir",
+        "repo/openspec/changes/0001_00_demo/prompt.md": "# Demo epic\n\nAn epic-level prompt.\n"
+      },
+      "cwd": "repo",
+      "argv": ["--path", "openspec/changes/0001_00_demo", "--repo", ".", "--format=json"],
+      "expect": {
+        "exitCode": 0,
+        "stdout": {
+          "contract": "container",
+          "skipped": true,
+          "findings": []
+        }
+      }
+    },
+    {
+      "id": "story-folder-still-linted",
+      "tree": {
+        "repo/.git": "dir",
+        "repo/openspec/changes/0001_01_demo/proposal.md": "## Why\n\nA demo story.\n\n## What Changes\n\n- One change.\n"
+      },
+      "cwd": "repo",
+      "argv": ["--change", "0001_01_demo", "--repo", ".", "--assume-contract=ptp-compact", "--format=json"],
+      "expect": {
+        "exitCode": 0,
+        "stdout": {
+          "contract": "ptp-compact",
+          "skipped": false
+        }
+      }
+    }
+  ]
+}

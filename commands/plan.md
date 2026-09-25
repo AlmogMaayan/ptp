@@ -25,11 +25,14 @@ Before creating or updating **any** file, run the **`ptp-branch-guard`** preambl
 Before proceeding, look for a brainstorming doc in these locations (in order):
 
 1. `openspec/changes/<change-id>/brainstorm.md` — preferred, co-located with the change (written by `/ptp:brainstorm`).
-2. `openspec/brainstorms/*-brainstorm.md` — a general, change-agnostic brainstorm from `/ptp:brainstorm-only`.
+2. The epic container's `openspec/changes/XXXX_00_*/brainstorm.md` — `ptp-change-selector` §4c's epic-level file lookup, story first, then container. Its `prompt.md` and `analysis.md` are found the same way and read as request context.
+3. `openspec/brainstorms/*-brainstorm.md` — a general, change-agnostic brainstorm from `/ptp:brainstorm-only`.
 
 **Ordering invariant:** the change folder is *born holding `brainstorm.md`* — that is the first file written into `openspec/changes/<change-id>/`. The OpenSpec artifacts (`proposal.md` / `design.md` / `tasks.md` / spec deltas) are layered on top afterward (step 3). Concretely:
 
 - **If `openspec/changes/<change-id>/brainstorm.md` already exists** (the `/ptp:brainstorm` path), read it. It is the source-of-truth input for the OpenSpec artifacts you are about to write. It is the decision source, not a section to copy: the OpenSpec artifacts carry the decision, not the deliberation, and the brainstorm's path is deterministic, so `proposal.md` does not record it.
+- **No-copy exception — planning from an epic container** (step 1 was handed `XXXX_00_<slug>`). The container's `brainstorm.md`, when present, is the decision source, read **in place** and never copied, so the story folder is born holding its first OpenSpec artifact instead. With no container `brainstorm.md`, brainstorm inline from the container's `prompt.md` and `analysis.md` and write the story's own `brainstorm.md` first, per the invariant. Nothing is ever written into the epic container, and the `ptp-change-selector` §5 epic container guard does not apply to this producer path.
+- **Full story id: the container brainstorm is context only.** When a full story id was provided, its folder holds no `brainstorm.md`, and its epic container's does, treat the container file as context, never as this story's decision (it may describe the whole epic): brainstorm inline for this story and write the story's own `brainstorm.md`, per the invariant. No general brainstorm is copied in this case.
 - **If only a general `openspec/brainstorms/*-brainstorm.md` exists** (the `/ptp:brainstorm-only` path), create the change folder and **copy that file into `openspec/changes/<change-id>/brainstorm.md` first**, then read it and proceed as above.
 - **If none exists**, DO NOT stop. Auto-run brainstorming inline (see step 2 below) and save its output to `openspec/changes/<change-id>/brainstorm.md` — again, before writing any OpenSpec artifacts. The `/ptp:plan` command is autonomous end-to-end: from a raw request, it produces both the brainstorm decision capsule AND the OpenSpec artifacts without prompting the user mid-flow.
 
@@ -42,7 +45,7 @@ planning work is high-judgment and must not depend on the session model. Everyth
 outer session (the branch guard, already run above, and step 1's change-id allocation) runs **first,
 in the outer session**; then a single foreground `opus.high` subagent performs steps 2–6 and reports.
 
-1. **Pick the change id** (outer session). **If a fully-formed `XXXX_NN_` id is provided** (the `/ptp:plan-multiple` → `/ptp:plan` delegation path), preserve it verbatim and do NOT allocate a new epic — do not "normalize" it. **Otherwise** — whether no id was provided or only a partial id/description was — allocate a single-story epic `XXXX_01_<desc>` via the `ptp-change-selector` skill (§4, epic allocation), where `<desc>` is ≤ 5 kebab-case words derived from the provided text or the request. **Never produce a legacy/plain id (`NN_…` or bare kebab) going forward** — a non-full provided id is treated as a `<desc>` source, not preserved as-is. Do NOT pause to confirm — pick a reasonable description and proceed. This stays in the outer session: it is cheap, and the branch guard above may already have read it to name the feature branch. `/ptp:plan` has **no guaranteed-abort precondition** (a missing brainstorm doc auto-runs inline, it does not STOP — see *Preconditions*), so nothing else needs to stay outer.
+1. **Pick the change id** (outer session). **If a bare epic container id `XXXX_00_<slug>` is provided**, it is this command's input, not its output: plan the epic's next story `XXXX_NN_<slug>` per `ptp-change-selector` §4c (`NN` one above the epic's highest story segment, active and archived; `<slug>` the container's), allocating no epic, and hand the steps 2–6 run both the story id and the container id; when that container id names no folder under `openspec/changes/`, **STOP** — "no epic container `<id>`" — before the branch guard and before any write. **If a fully-formed `XXXX_NN_` id is provided, `NN` not `00`** (the `/ptp:plan-multiple` → `/ptp:plan` delegation path), preserve it verbatim and do NOT allocate a new epic — do not "normalize" it. **Otherwise** — whether no id was provided or only a partial id/description was — allocate a single-story epic `XXXX_01_<desc>` via the `ptp-change-selector` skill (§4, epic allocation), where `<desc>` is ≤ 5 kebab-case words derived from the provided text or the request. **Never produce a legacy/plain id (`NN_…` or bare kebab) going forward** — a non-full provided id is treated as a `<desc>` source, not preserved as-is. Do NOT pause to confirm — pick a reasonable description and proceed. This stays in the outer session: it is cheap, and the branch guard above may already have read it to name the feature branch. Its one STOP — a container id that names no folder — fires here, before any write; a missing brainstorm doc auto-runs inline and never STOPs (see *Preconditions*), so nothing else needs to stay outer.
 
 **Run steps 2–6 via `ptp-run-at-model` at `opus.high`.** After the branch guard and step-1 id
 allocation, invoke the **`ptp-run-at-model`** skill with target `opus.high` and the work being
@@ -80,7 +83,7 @@ one of that section's two delivery modes.
    Do NOT skip (a) on the assumption that the request "is simple" — the decision and its assumptions still have to come from somewhere.
 
 3. **Populate the OpenSpec change folder** at `openspec/changes/<change-id>/` (already created above,
-   holding `brainstorm.md`). Write each artifact in the shape the **compact artifact contract** defines
+   holding `brainstorm.md` unless planned from an epic container brainstorm per *Preconditions*). Write each artifact in the shape the **compact artifact contract** defines
    (owned by the `compact-artifact-contract` capability — do not restate its shapes here):
 
    - `proposal.md` — the compact proposal shape. Emit OpenSpec's canonical `## Why` and `## What Changes`
@@ -162,7 +165,7 @@ one of that section's two delivery modes.
    `/ptp:plan-multiple <change-id>` — which re-cuts **this** change into those children per
    `ptp-change-selector` §4b. Offer no `/ptp:apply` command. Leave the change folder exactly as it
    stands — **delete nothing and move nothing**: the re-cut owns the parent's replacement, and a
-   `/ptp:plan` that tore the folder down would destroy the brainstorm (and any anchored `prd.md`)
+   `/ptp:plan` that tore the folder down would destroy the brainstorm
    the re-cut needs. The state and its payload are `ptp-writing-plans`' — do not restate them here.
 
    **This report carries no review tally.** `/ptp:plan` wraps no review orchestrator, so there is no

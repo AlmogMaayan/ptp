@@ -26,15 +26,14 @@ this skill — the skill receives these as inputs and does **not** redo them.
 | Input | Values | Source |
 |-------|--------|--------|
 | `request` | the original change request text (free-text path), or empty for the re-run-with-bare-id path | `$ARGUMENTS` from the command; threaded through to the Phase A brainstorm subagent so it brainstorms the actual request, not the lossy id slug. In the bare-id re-run path there is no request text — Phase A brainstorms from the change context (the id's `<desc>` and any existing `openspec/changes/<id>/` artifacts), exactly as `/ptp:brainstorm <id>` does. |
-| `change-id` | fully-formed `XXXX_NN_<desc>` change id | Allocated/preserved by the outer session (derived from the request text, or preserved verbatim when `$ARGUMENTS` is already a fully-formed id). |
+| `change-id` | fully-formed `XXXX_NN_<desc>` change id, or an epic container id `XXXX_00_<desc>` | Allocated/preserved by the outer session per `ptp-change-selector` §4 *Container writers*: free text allocates a fresh epic and yields its container id `XXXX_00_<desc>` (no story folder); a fully-formed id in `$ARGUMENTS`, story or container, is preserved verbatim; a `_00` id that names no folder STOPs, before any write, when its epic already has another container (the second-container STOP). |
 | `codex.mode` decision | already-resolved mode decision from `ptp-codex-mode` | Resolved once in the outer session; threaded through to Phase B so the review subagent does not re-resolve it. |
 | `target` | A `<model>.<effort>` literal — the `brainstorm` family default target (`skills/ptp-run-at-model/references/family-default-target.md`; `opus.high` built in) by default, or the caller's resolved `model:` override | Resolved once by `commands/brainstorm-full.md`'s outer session. |
 
 Both phases run at the resolved `target` (default: the family default target per `family-default-target.md`) via `ptp-run-at-model`. This skill
 consumes the already-resolved target and does **not** re-parse a `model:` token — the command's outer
 session parsed and stripped it (see the "Optional caller-side `model:` override token" section of
-`ptp-run-at-model` for the token's grammar, validation, and refusal contract, and the corresponding
-note in `skills/ptp-prd/SKILL.md`). This skill does not restate that grammar.
+`ptp-run-at-model` for the token's grammar, validation, and refusal contract). This skill does not restate that grammar.
 
 ---
 
@@ -60,7 +59,9 @@ change context — the id's `<desc>` and any existing `openspec/changes/<id>/` a
 `/ptp:brainstorm <id>` does:
 
 1. Load context — read `openspec/project.md` if present, run `npx -y openspec list` and
-   `npx -y openspec list --specs` to see existing specs and in-flight changes.
+   `npx -y openspec list --specs` to see existing specs and in-flight changes; read
+   `prompt.md` and `analysis.md` when present, as request context, located by `ptp-change-selector`
+   §4c's lookup (the target folder first, then its epic container).
 2. Invoke the `ptp-brainstorming` skill (or `superpowers:brainstorming` when the skill-set directive names `tdd-plugin=superpowers`) in autonomous mode on the passed-through `request`
    (no clarifying questions — make reasonable assumptions and document them inline).
 3. Compare only material alternatives (what each changes, risk/blast radius, effort,

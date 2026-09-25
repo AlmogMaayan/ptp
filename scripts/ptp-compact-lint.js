@@ -42,6 +42,10 @@ const CONTRACT_VERSION = 1;
 
 const EFFORT_RE = /^(haiku|sonnet|opus)\.(low|medium|high|xhigh)$/;
 
+// Epic container id: the `ptp-change-selector` §1 grammar with a story path of exactly `00`. The
+// desc must contain a letter and carries no `_`, so `XXXX_00_01_desc` (story path `00_01`) never matches.
+const EPIC_CONTAINER_RE = /^\d{4}_00_(?=[a-z0-9-]*[a-z])[a-z0-9]+(-[a-z0-9]+)*$/;
+
 const HISTORY_WORDS = [
   'Amendment',
   'Correction',
@@ -86,8 +90,8 @@ const DESIGN_OWNED_HEADINGS = [
 ];
 
 // §2 — budgets. The four KEYED budgets are acceptance criteria: the `budget-exception` marker does
-// not excuse them, and a breach is reported as BUDGET_EXCEEDED (high). `prd.md` keeps the soft
-// posture, where the marker converts a breach into a note (BUDGET_OVERRUN, low).
+// not excuse them, and a breach is reported as BUDGET_EXCEEDED (high). SOFT_BUDGETS
+// holds any soft-posture artifact, where the marker converts a breach into a note (BUDGET_OVERRUN, low).
 const KEYED_BUDGETS = [
   { artifact: 'proposal.md', key: 'artifact.maxProposalWords', fallback: 400 },
   { artifact: 'design.md', key: 'artifact.maxDesignWords', fallback: 800 },
@@ -95,9 +99,7 @@ const KEYED_BUDGETS = [
   { artifact: 'specs/**/spec.md', key: 'artifact.maxSpecDeltaWords', fallback: 1200 },
 ];
 
-const SOFT_BUDGETS = {
-  'prd.md': 1200,
-};
+const SOFT_BUDGETS = {};
 
 // A RED declaration must name what breaks and the change that closes it: the contiguous-group rule
 // the contract owner states is unenforceable when the closing change is not identified.
@@ -389,6 +391,24 @@ function headingsInText(text) {
 function lintChange(dir, changeLabel, assumeContract, budgets, repoRoot) {
   const findings = [];
   const notes = [];
+
+  // --- Epic container skip ---
+  // A change directory whose base name is an epic container id (story path exactly `00`, per
+  // `ptp-change-selector` §1) holds no planning artifacts the compact contract could judge. It is
+  // skipped before the contract gate, so it takes precedence over --assume-contract=ptp-compact.
+  if (EPIC_CONTAINER_RE.test(path.basename(path.resolve(dir)))) {
+    return {
+      contract: 'container',
+      contractVersion: null,
+      change: changeLabel,
+      path: dir,
+      skipped: true,
+      assumed: false,
+      findings: [],
+      notes: [],
+      summary: { high: 0, medium: 0, low: 0 },
+    };
+  }
 
   // --- Contract gate ---
   const openspecYamlPath = path.join(dir, '.openspec.yaml');
@@ -736,7 +756,9 @@ function lintChange(dir, changeLabel, assumeContract, budgets, repoRoot) {
 
 function printText(report) {
   const lines = [];
-  if (report.skipped) {
+  if (report.skipped && report.contract === 'container') {
+    lines.push('Change is an epic container (contract: container); linter skipped — no findings reported.');
+  } else if (report.skipped) {
     lines.push('Change is legacy (contract: ' + report.contract + '); linter skipped — no findings reported.');
   } else {
     for (const f of report.findings) {

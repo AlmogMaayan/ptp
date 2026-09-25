@@ -47,7 +47,7 @@ relayed back per `ptp-run-at-model`'s *Result relay*. (For a multi-change or emp
 selector, the one subagent handles the whole per-change pass.)
 
 1. **Resolve scope and gather artifacts (you, via Bash — not Codex).**
-   - If `$ARGUMENTS` names a change, audit just it. If empty, run `npx -y openspec list` and audit **every** active change (repeat steps 2–4 per change; do not stop at the first).
+   - If `$ARGUMENTS` names a change, audit just it. If empty, run `npx -y openspec list`, drop `_00` epic containers (`ptp-change-selector` §3), and audit **every** active change (repeat steps 2–4 per change; do not stop at the first).
    - For each change, gather the `artifact` review kind's **required set** from
      `openspec/changes/<change-id>/` and nothing outside it: `proposal.md`, `design.md` when
      present (its absence is never itself a finding), `tasks.md`, and `specs/**/spec.md` when
@@ -57,8 +57,9 @@ selector, the one subagent handles the whole per-change pass.)
 
 `TLDR.md` and `effort.md` are never inlined for any kind.
 
-   **Disputed-decision carve-out.** `brainstorm.md` is not part of the required set. Inline it
-   only for the iteration carrying an open finding that **disputes the source** of a decision,
+   **Disputed-decision carve-out.** `brainstorm.md` is not part of the required set. Inline it —
+   located by `ptp-change-selector` §4c's lookup, the change's own file first, then its epic
+   container's — only for the iteration carrying an open finding that **disputes the source** of a decision,
    and only for that iteration: once that finding is **resolved or rejected**, the next
    iteration's prompt carries the required set alone again.
 

@@ -11,13 +11,12 @@ Drive it a step at a time (`brainstorm → plan → apply → review → archive
 | # | Install | Command |
 |---|---------|---------|
 | 1 | **OpenSpec CLI** (required) | `npm install -g openspec` — falls back to `npx -y openspec ...` |
-| 2 | **prd-taskmaster** (optional, for `/ptp:prd`) | `/plugin marketplace add anombyte93/prd-taskmaster` then `/plugin install prd` |
-| 3 | **Codex CLI** (optional, second reviewer) | put `codex` on PATH; verify with `codex --version` |
-| 4 | Superpowers (optional — required only when `tdd-plugin=superpowers`) | `/plugin install superpowers@claude-plugins-official` |
+| 2 | **Codex CLI** (optional, second reviewer) | put `codex` on PATH; verify with `codex --version` |
+| 3 | Superpowers (optional — required only when `tdd-plugin=superpowers`) | `/plugin install superpowers@claude-plugins-official` |
 
 **Node** is needed only for the bundled telemetry receiver.
 
-Without prd-taskmaster, `/ptp:prd` authors the PRD inline. Without Codex, behavior follows `codex.mode`.
+Without Codex, behavior follows `codex.mode`.
 
 **Migration note — Superpowers is optional, selected by `tdd-plugin`.** Which TDD skill set PtP uses is chosen by the `tdd-plugin` config key. Under **`tdd-plugin=ptp`** (the default, including unset) PtP's own commands, agents, skills, and workflows invoke only PtP-owned skills, so conflict-free operation requires the Superpowers plugin **absent or disabled**. Under **`tdd-plugin=superpowers`** PtP invokes the restored `superpowers:*` skills and requires Superpowers **present and enabled** — selecting that value without the plugin present and enabled is a hard stop, never a silent PtP-native fallback. Either way, an installed Superpowers plugin registers its own `SessionStart` hook, which can inject `superpowers:using-superpowers` and direct an agent toward applicable Superpowers skills — a mechanism outside PtP's reach, so removing PtP's own invocations is not a guarantee that no agent ever invokes a Superpowers skill.
 
@@ -147,8 +146,8 @@ Tokens placed anywhere in a command's argument text. Nothing is persisted.
 | `ticket:<value>` | `/ptp:backlog-run` | Selects a single `Ready` entry to run by its board node id or its exact `title` (double-quote a title containing whitespace, e.g. `ticket:"Add dark mode"`), then stops. Mutually exclusive with `count:{count}`. Owned by the `ptp-backlog-run` skill. |
 | `phase:{plan,full}` | `/ptp:backlog-run` | Which flow each taken epic runs. `phase:plan` runs `/ptp:full-plan` only, landing a converged epic on `planned`; `phase:full` (or an absent token) runs the full plan-and-apply flow, landing `in-review`. Enum body, `plan` or `full`; combines freely with `count:{count}` and `ticket:<value>`. Owned by the `ptp-backlog-run` skill. |
 | `phase:apply` | `/ptp:backlog-continue` | Switches into apply mode: selects a `planned` epic, drives `/ptp:full-apply` over its already-planned slices, and settles the entry `in-review` on convergence or `blocked` on halt. Enum body, exactly `apply`; any accompanying text is passed verbatim as a brief to the apply work. Owned by the `ptp-backlog-continue` skill. |
-| `model:<model>.<effort>` | `/ptp:brainstorm`, `/ptp:prd`, `/ptp:brainstorm-full`, `/ptp:prd-full`, `/ptp:analyze`, `/ptp:prompt`, `/ptp:prompt-fix`, `/ptp:prompt-write` | Overrides the target model/effort for this invocation. |
-| `codex-model:<model>--<effort>` | `/ptp:brainstorm`, `/ptp:prd`, `/ptp:brainstorm-full`, `/ptp:prd-full`, `/ptp:analyze`, `/ptp:prompt`, `/ptp:prompt-fix`, `/ptp:prompt-write` (same commands as `model:`; parse step not yet wired into those command files — see `skills/ptp-run-at-model/SKILL.md`) | Overrides the Codex model/reasoning-effort for this invocation, but only when `main=codex` resolves; a no-op under `main=claude`. Effort ∈ `{minimal, low, medium, high}`. |
+| `model:<model>.<effort>` | `/ptp:brainstorm`, `/ptp:brainstorm-full`, `/ptp:analyze`, `/ptp:prompt`, `/ptp:prompt-fix`, `/ptp:prompt-write` | Overrides the target model/effort for this invocation. |
+| `codex-model:<model>--<effort>` | `/ptp:brainstorm`, `/ptp:brainstorm-full`, `/ptp:analyze`, `/ptp:prompt`, `/ptp:prompt-fix`, `/ptp:prompt-write` (same commands as `model:`; parse step not yet wired into those command files — see `skills/ptp-run-at-model/SKILL.md`) | Overrides the Codex model/reasoning-effort for this invocation, but only when `main=codex` resolves; a no-op under `main=claude`. Effort ∈ `{minimal, low, medium, high}`. |
 | `parallel:on` / `parallel:off` | `/ptp:plan-multiple`, `/ptp:full-plan`, `/ptp:full` | Overrides `parallel.mode` for this invocation. |
 
 ---
@@ -172,6 +171,25 @@ Anywhere a change argument is taken:
 | bare id | that exact change folder |
 | *(omitted)* | all active changes, epic then story |
 
+### Epic container (_00)
+
+An epic container is a story-`00` folder `XXXX_00_<slug>` that holds only epic-level files —
+`prompt.md`, `brainstorm.md`, `analysis.md`, `stages/` — and never planning artifacts
+(`proposal.md`, `design.md`, `tasks.md`, `specs/`).
+
+- **Writers.** `/ptp:analyze` always creates a fresh container to house its analysis doc.
+  `/ptp:prompt-write`, `/ptp:brainstorm` and `/ptp:brainstorm-full` create one on a fresh epic.
+  `/ptp:plan-multiple`, `/ptp:brainstorm-decompose` and `/ptp:full` create one on a fresh split, or
+  read an existing one when handed a container id.
+- **Planning from a container.** `/ptp:plan <container-id>` plans the epic's next story, reading the
+  container's files in place and writing nothing into it.
+- **Selectors and status.** Every selector consumer except the archive family and `/ptp:status`
+  skips containers. An exact bare container id always resolves. `/ptp:status` renders a container as
+  one "container, not plannable" row.
+- **Archive closing step.** Once an epic has no active story left, the container moves as-is to
+  `openspec/epics_00/<YYYY-MM-DD>-XXXX_00_<slug>/`, with no spec sync. A failed move never undoes the
+  archived stories or blocks the deploy gate.
+
 ---
 
 ## Commands
@@ -183,17 +201,6 @@ Anywhere a change argument is taken:
 | `/ptp:full "<request \| change-id>"` | Plan phase (decompose → dual plan-review per slice); if every slice converges, continues into apply + dual code-review per story. Never archives. |
 | `/ptp:full-plan "<request \| change-id>"` | The planning half only. Decompose + dual artifact review per slice. Writes no code. |
 | `/ptp:full-apply [selector \| id …]` | The execution half only. Runs `apply → review-full` per story sequentially, each at the model from its `effort.md` (review floored at `sonnet`/`high`, or set by a valid `models.apply-review` entry). Omit the argument to run all active changes. |
-
-### PRD (optional, upstream)
-
-| Command | Does |
-|---------|------|
-| `/ptp:prd [selector \| "<description>"]` | Writes an epic PRD to `prd.md` in the change folder. A free-text description allocates a fresh epic. Omit for all active epics. |
-| `/ptp:prd-full <epic-selector>` | `/ptp:prd` then the dual-reviewer inline-fix PRD loop, in one flow. |
-| `/ptp:review-prd [epic-selector]` | Read-only PRD-quality gate. Reports PASS / WARN / FAIL. |
-| `/ptp:codex-review-prd <epic-selector>` | Codex single-pass PRD audit. Read-only. |
-| `/ptp:codex-review-prd-loop <epic-selector>` | Codex PRD review + inline fixes, looped to convergence. |
-| `/ptp:review-prd-full [epic-selector]` | Dual-reviewer inline-fix PRD loop; edits the PRD, writes one marker per epic. |
 
 ### Prompt
 
@@ -245,7 +252,7 @@ Anywhere a change argument is taken:
 
 | Command | Does |
 |---------|------|
-| `/ptp:archive <selector>` | Checks the archive gates (tasks complete, no open Critical/High, validation passes), then `openspec archive` + spec sync. |
+| `/ptp:archive <selector>` | Checks the archive gates (tasks complete, no open Critical/High, validation passes), then `openspec archive` + spec sync. After the story loop, closes each fully-archived epic: its `_00` container moves to `openspec/epics_00/`. |
 | `/ptp:archive-force <selector>` | Archives past the gates, still syncing specs, and reports which gates it bypassed. |
 | `/ptp:deploy` | commit → push → PR → squash-merge → delete branch → run the deploy workflow → return to clean `master`. Fixes conflicts/CI/deploy failures within `deploy.maxFixRounds`. Refuses on `master`/`main`; never self-approves. Requires `gh` authenticated. |
 | `/ptp:deploy-pr-approved` | Finishes a `/ptp:deploy` that stopped for a required approval, after someone else approves the PR. |
@@ -259,7 +266,7 @@ Anywhere a change argument is taken:
 
 | Command | Does |
 |---------|------|
-| `/ptp:status [change-id]` | Active changes, validation status, task progress, recommended next command. |
+| `/ptp:status [change-id]` | Active changes, validation status, task progress, recommended next command. An epic container renders as one "container, not plannable" row instead of the lifecycle table. |
 | `/ptp:analyze "<bug \| question>"` | Read-only investigation → `analysis.md` in the change folder. Produces no proposal, changes no source. |
 | `/ptp:config` | Interactive config editor for every key above. |
 | `/ptp:workspace-init` | Declares the current directory a ptp workspace: `openspec init --tools none .` plus a `{}` seed at `<cwd>/.claude/ptp/config.json` when absent. No arguments; refuses when an `openspec` entry is already there or no git root is found. |
@@ -329,7 +336,7 @@ To turn it off: set `telemetry.mode=off` and run `/ptp:telemetry stop`. Nothing 
 
 ## Skills
 
-Claude invokes these automatically; you don't call them directly. `ptp`, `ptp-prd`, `ptp-change-selector`, `ptp-branch-guard`, `ptp-branch-prep`, `ptp-run-at-model`, `ptp-agent-roles`, `ptp-codex-mode`, `ptp-full`, `ptp-full-apply`, `ptp-brainstorm-full`, `ptp-review-brainstorm`, `ptp-review-brainstorm-full`, `ptp-review-prd`, `ptp-review-prd-full`, `ptp-prd-full`, `ptp-review-loop`, `ptp-telemetry`, `ptp-telemetry-status`, `ptp-telemetry-report`, `ptp-telemetry-analyze`, `ptp-telemetry-setup`, `ptp-telemetry-start`, `ptp-telemetry-stop`, `ptp-telemetry-export`, `ptp-parallel-fanout`, `ptp-backlog`, `ptp-backlog-write`, `ptp-backlog-run`, `ptp-backlog-continue`, `ptp-github-projects-gh`, `ptp-archive-force`. The `openspec-*` skills back the `opsx:` commands.
+Claude invokes these automatically; you don't call them directly. `ptp`, `ptp-change-selector`, `ptp-branch-guard`, `ptp-branch-prep`, `ptp-run-at-model`, `ptp-agent-roles`, `ptp-codex-mode`, `ptp-full`, `ptp-full-apply`, `ptp-brainstorm-full`, `ptp-review-brainstorm`, `ptp-review-brainstorm-full`, `ptp-review-loop`, `ptp-telemetry`, `ptp-telemetry-status`, `ptp-telemetry-report`, `ptp-telemetry-analyze`, `ptp-telemetry-setup`, `ptp-telemetry-start`, `ptp-telemetry-stop`, `ptp-telemetry-export`, `ptp-parallel-fanout`, `ptp-backlog`, `ptp-backlog-write`, `ptp-backlog-run`, `ptp-backlog-continue`, `ptp-github-projects-gh`, `ptp-archive-force`. The `openspec-*` skills back the `opsx:` commands.
 
 The `openspec-*` skills are edited only in `skills/openspec-*/`. `.claude/skills/openspec-*/` and
 `.codex/skills/openspec-*/` are generated from that single source and must not be hand-edited — run
@@ -355,7 +362,6 @@ Whole thing at once
 Step by step
   → /ptp:prompt "<request>" | /ptp:prompt-fix "<correction>"  # conversational, writes no file
   → /ptp:prompt-write [change-id | selector]                  # persist the conversation to prompt.md
-  → /ptp:prd [<sel>] | /ptp:prd-full <sel> | /ptp:review-prd[-full] [<sel>]
   → /ptp:analyze "<subject>"          # read-only investigation → analysis doc
   → /ptp:brainstorm "<request>" | /ptp:brainstorm-only "<topic>" | /ptp:brainstorm-full "<request>"
   → /ptp:review-brainstorm[-full] [<sel>]
@@ -367,7 +373,7 @@ Step by step
 
 Codex second opinion (needs codex on PATH)
   → /ptp:codex-review[-loop] <sel> | /ptp:codex-review-plan[-loop] <sel>
-  → /ptp:codex-review-prd[-loop] <sel> | /ptp:codex-review-uncommitted [sel]
+  → /ptp:codex-review-uncommitted [sel]
 
 Ship
   → /ptp:deploy | /ptp:deploy-pr-approved | /ptp:merge-to-master
@@ -399,6 +405,7 @@ Experimental     /opsx:explore | /opsx:propose | /opsx:apply | /opsx:archive
 
 ## Changelog
 
+| **0.19.0** | Removes the `/ptp:prd*` surface: six commands, four skills, the `prd` review-loop kind, the `prd.md` budget, and three retired specs (0083_01). Adds the epic container `XXXX_00_<slug>` — a story-`00` folder holding only epic-level files (`prompt.md`, `brainstorm.md`, `analysis.md`, `stages/`), never planning artifacts, skipped by every selector consumer except the archive family and `/ptp:status` (0083_02). `/ptp:analyze`, `/ptp:prompt-write`, `/ptp:brainstorm` and `/ptp:brainstorm-full` write containers directly on a fresh epic, and every reader falls back from a story's file to its epic's container (0083_03). `/ptp:plan`, `/ptp:plan-multiple`, `/ptp:brainstorm-decompose` and `/ptp:full` plan from a container id, reading its files in place and writing nothing into it (0083_04). The archive family's closing step moves a container with no active story left to `openspec/epics_00/<YYYY-MM-DD>-XXXX_00_<slug>/`, with no spec sync and no blocking of the deploy gate on a failed move (0083_05). `/ptp:status` renders a container as one "container, not plannable" row, looked up in `openspec/epics_00/` when moved, and this README documents the container shape (0083_06). |
 | **0.18.0** | Adds ten per-family model keys to `/ptp:config` (`models.<family>` and `codex.<family>` for analyze, prompt, brainstorm, plan-review, apply-review), validated by reference to the existing token grammars, with a new `models` parent and the config target relabelled "User". The five Claude families now read their `models.<family>` entry as their default target (a valid `model:` token first, then the entry, then `opus.high`), per the new `skills/ptp-run-at-model/references/family-default-target.md`; `/ptp:full-apply` and `/ptp:full` Phase B take a valid `models.apply-review` entry as every story's review target, replacing the `sonnet`/`high` floor. The `codex.<family>` keys are now read by a per-field Codex lookup chain in `ptp-codex-mode` (the family entry, then `codex.judgment.*`, then flat `codex.*`, then the built-in `gpt-6-astra--high`), so every read-only `codex exec` and every family command's `main=codex` run always sends `-m` and `-c model_reasoning_effort`; the former bare `codex exec -s read-only -` with nothing configured is removed, and `/ptp:full-apply` / `/ptp:full` Phase B take their Codex review target from the `apply-review` chain (0082_03). |
 | **0.17.0** | Adds `/ptp:prompt-write-to-backlog`, owned by a new `ptp-prompt-write-to-backlog` skill: like `/ptp:prompt-write`, but it persists the accumulated `/ptp:prompt` understanding as one backlog entry, created as `/ptp:backlog-add` creates one, instead of writing `prompt.md`. Registered in `skills/ptp/SKILL.md` and exempted from the branch guard beside `backlog-add`. |
 | **0.16.1** | Adds a phase split to the backlog commands and skills, so an epic can be planned now and applied later. Adds a new `planned` backlog status to the `ptp-backlog` skill — its status enum, board-mapping option table, validator vocabulary, and transition table gain the rows `in-progress → planned`, `planned → in-review`, and `planned → blocked`, with `planned → cancelled` riding the existing `any → cancelled` row (0079_01). Adds a per-invocation `phase:{plan,full}` token to `/ptp:backlog-run`, owned by the `ptp-backlog-run` skill: `phase:plan` runs each ready epic through `/ptp:full-plan` (plan and dual review only) and lands a converged epic on `planned` instead of `in-review`; `phase:full` is an explicit synonym for the default full plan-and-apply run; an absent token is unchanged; an out-of-enum value refuses; the token combines freely with `count:{count}` and `ticket:<value>`; and the terminal report tells a deliberate stop at `planned` apart from a failure to converge (0079_02). Adds a `phase:apply` mode to `/ptp:backlog-continue`, owned by the `ptp-backlog-continue` skill: it selects a `planned` entry, drives `/ptp:full-apply` over that epic's already-planned slices, writes `planned → in-review` on convergence and `planned → blocked` on a halt, and carries any accompanying issue text verbatim as a brief to the apply work; a later bare `/ptp:backlog-continue` still takes `in-review → done` (0079_03). |

@@ -71,7 +71,7 @@ is written as the **empty string** — never invented, and **never a reason to s
 | `phase` | Commands |
 |---|---|
 | `brainstorm` | `/ptp:brainstorm`, `/ptp:brainstorm-only`, `/ptp:brainstorm-full`, `/ptp:review-brainstorm`, `/ptp:review-brainstorm-full` |
-| `plan` | `/ptp:plan`, `/ptp:plan-multiple`, `/ptp:full-plan`, `/ptp:prd`, `/ptp:prd-full`, `/ptp:review-prd*`, `/ptp:review-plan*`, `/ptp:effort`, `/ptp:analyze` |
+| `plan` | `/ptp:plan`, `/ptp:plan-multiple`, `/ptp:full-plan`, `/ptp:review-plan*`, `/ptp:effort`, `/ptp:analyze` |
 | `apply` | `/ptp:apply`, `/ptp:full-apply` |
 | `review` | `/ptp:review`, `/ptp:review-full`, `/ptp:review-loop`, `/ptp:codex-review*` |
 | `archive` | `/ptp:archive`, `/ptp:archive-force` |

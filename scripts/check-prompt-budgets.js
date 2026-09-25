@@ -32,7 +32,7 @@ const SKILL_BODY_MAX = 10000;
 const AGENT_BODY_MAX = 1500;
 
 const ACRONYM_ALLOWLIST = new Set([
-  'PTP', 'PRD', 'TLDR', 'CLI', 'API', 'JSON', 'MCP', 'TDD', 'README',
+  'PTP', 'TLDR', 'CLI', 'API', 'JSON', 'MCP', 'TDD', 'README',
 ]);
 
 const ROUTER_PATH = 'skills/ptp/SKILL.md';
@@ -92,7 +92,6 @@ const EXEMPTIONS = [
   { file: 'commands/brainstorm-only.md', rule: 'ordinary-command-body', reason: 'owner command: owns the change-agnostic brainstorm protocol, no owning skill' },
   { file: 'commands/brainstorm.md', rule: 'ordinary-command-body', reason: 'owner command: owns the per-change brainstorm protocol, no owning skill' },
   { file: 'commands/codex-review-plan.md', rule: 'ordinary-command-body', reason: 'owner command: owns the closed-book artifact-review payload protocol' },
-  { file: 'commands/codex-review-prd.md', rule: 'ordinary-command-body', reason: 'owner command: owns the closed-book requirements-review payload protocol' },
   { file: 'commands/codex-review-uncommitted.md', rule: 'ordinary-command-body', reason: 'owner command: owns the closed-book working-tree review payload protocol' },
   { file: 'commands/codex-review.md', rule: 'ordinary-command-body', reason: 'owner command: owns the closed-book code-review payload protocol' },
   { file: 'commands/effort.md', rule: 'ordinary-command-body', reason: 'owner command: owns the model + effort rubric policy' },

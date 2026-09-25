@@ -9,7 +9,7 @@ section is the single source of truth for the token's grammar, validation, and r
 supporting command references this section rather than restating it. It is the `main=codex` sibling of
 the `model:` section above, and follows the same detect-then-validate shape with a different
 delimiter and enum. **In scope, `codex-model:` targets the same commands that support `model:`** —
-`/ptp:brainstorm`, `/ptp:prd`, `/ptp:brainstorm-full`, `/ptp:prd-full`, `/ptp:analyze`, `/ptp:prompt`,
+`/ptp:brainstorm`, `/ptp:brainstorm-full`, `/ptp:analyze`, `/ptp:prompt`,
 `/ptp:prompt-fix`, and `/ptp:prompt-write` (the same list the `model:` section names); no other caller
 of this skill is in scope. **As of this writing those command files have not yet been updated with an
 explicit `codex-model:` parse step** — only this skill's contract exists so far, matching this slice's

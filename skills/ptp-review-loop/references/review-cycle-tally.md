@@ -66,7 +66,7 @@ path.
 ## Return contract
 
 The terminal outcome returns `reviewTally` at both terminal states — `DONE` and
-`ITERATION CAP REACHED` — for all four loop kinds (`code`, `artifact`, `brainstorm`, `prd`), in both
+`ITERATION CAP REACHED` — for all three loop kinds (`code`, `artifact`, `brainstorm`), in both
 the standalone `deferMarker = false` mode and the `deferMarker = true` mode a `-full` orchestrator
 drives. The addition is purely additive: no marker version bump, no existing consumer keys on the
 field. A terminal outcome that carries no `reviewTally` means **not reported**, never a tally of
@@ -88,7 +88,7 @@ Like a marker-write failure, this note is **reported but not fatal**: it changes
 verdict, and no convergence decision, and the rest of the marker is written by the same single atomic
 write. `SKILL.md`'s `## Review-convergence marker` section **owns** this rule — it states it there in
 short form and points here for this full form — and every other marker writer (`review-full`,
-`review-plan-full`, `ptp-review-brainstorm-full`, `ptp-review-prd-full`, `agents/ptp-review.md`,
+`review-plan-full`, `ptp-review-brainstorm-full`, `agents/ptp-review.md`,
 `/ptp:review-fix`) references **that section** rather than restating the line. The two *Preconditions* STOPs that write no marker at
 all still write none, and so carry no tally and no omission note.
 
