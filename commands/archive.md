@@ -11,7 +11,13 @@ Archiving uses the native `openspec` CLI, not opsx — consistent with every oth
 
 Change id: $ARGUMENTS
 
-Resolve `$ARGUMENTS` as a change selector per the `ptp-change-selector` skill; if it resolves to more than one change (e.g. `epic:XXXX`), archive each in story order, each through the existing per-change archive gates below. Preserve the existing empty-argument default: omitting `$ARGUMENTS` falls back to the `openspec list` disambiguation.
+Resolve `$ARGUMENTS` as a change selector per the `ptp-change-selector` skill, including its §3
+archive-family resolution (`/ptp:archive` is a member of that family): the selector yields the
+active stories to archive (never a container) and the epics it covers for the closing step (step 8
+below), following that section's `epic:XXXX`, bare-container-id, `epic:all`, story-selector and
+empty-selector rules. If it resolves to more than one story, archive each in story order, each
+through the existing per-change archive gates below. Preserve the existing empty-argument default:
+omitting `$ARGUMENTS` falls back to the `openspec list` disambiguation.
 
 ## Branch safety (first step)
 
@@ -27,7 +33,7 @@ the outer session**, in this exact order:
 
 1. **Resolve the change id** (outer session). The branch guard and the spawn both need the resolved
    id, so resolve it first:
-   - If `$ARGUMENTS` is empty, run `npx -y openspec list` and, if it is ambiguous, ask the user which change to archive. **Never** guess or auto-select. (This is an abort-guaranteeing precondition — a guaranteed abort must never spawn a subagent.)
+   - If `$ARGUMENTS` is empty, run `npx -y openspec list`, drop `_00` epic containers (`ptp-change-selector` §3), and, if it is ambiguous, ask the user which change to archive. **Never** guess or auto-select. (This is an abort-guaranteeing precondition — a guaranteed abort must never spawn a subagent.)
 
 2. **Run the `ptp-branch-guard` preamble** (outer session) per the *Branch safety* section above —
    the subagent cannot cut the branch (it cannot launch the `ptp-branch-prep` Workflow), so HEAD must
@@ -71,7 +77,7 @@ the outer session**, in this exact order:
    tasks-complete and validation refusals it enforces today, and review-clean stays an outer human
    confirmation as it always was.
 
-5. **Confirm the action** (outer session — interactive) — show the user exactly what will happen (which change moves to `openspec/changes/archive/`, that delta specs under `specs/` will be merged into `openspec/specs/`, and whether `--skip-specs` will be used per the step-3 inspection). Proceed once confirmed (the user invoking this command counts as intent, but show the summary first).
+5. **Confirm the action** (outer session — interactive) — show the user exactly what will happen (which change moves to `openspec/changes/archive/`, that delta specs under `specs/` will be merged into `openspec/specs/`, and whether `--skip-specs` will be used per the step-3 inspection). Also list the container moves step 8 will attempt: each candidate epic (per the §3 archive-family resolution) that has a container names its planned target `openspec/epics_00/<today>-<container-id>`, even when this run resolved to no story. Proceed once confirmed (the user invoking this command counts as intent, but show the summary first).
 
 6. **Run the already-confirmed archive operation via `ptp-run-at-model` at `sonnet.medium`.** Invoke
    the **`ptp-run-at-model`** skill with target `sonnet.medium` and the work below; it spawns one
@@ -89,7 +95,44 @@ the outer session**, in this exact order:
 
 If `$ARGUMENTS` resolved to more than one change, repeat steps 1–7 per change in story order — one
 sequential `ptp-run-at-model` invocation (one blocking subagent) per change, never a parallel
-fan-out (the branch guard is a no-op after the first cut).
+fan-out (the branch guard is a no-op after the first cut). A step 3 or step 4 STOP ends only this
+story loop — it does not end the whole command — so step 8 below still runs once, after the loop
+ends, whether the loop finished every story or stopped at a blocker.
+
+8. **Close epic containers** (outer session, once per invocation, after the story loop above). This
+   step runs in the outer session and spawns nothing, like `plan-multiple` step 5f. When no story ran
+   this invocation, it first runs the `ptp-branch-guard` preamble (Branch safety, above), using a
+   container id — rather than a story id — as the branch-name leaf. The outer session writes the
+   report lines itself once the step finishes, after it relays the story results.
+
+   **Candidates.** Two groups of epics, per the §3 archive-family resolution:
+   - every epic with at least one story this run archived;
+   - every epic the selector covers that has a container and no active story.
+
+   **The move rule.** For each candidate epic that has a container:
+   - Re-list `openspec/changes/` at closing time. If any folder of that epic has a story path other
+     than exactly `00`, at any depth, keep the container and name those folders in the report.
+   - If the epic has two container folders, move neither and report both.
+   - Otherwise move the container, unchanged, to
+     `openspec/epics_00/<YYYY-MM-DD>-<container-id>` (today's local date), creating
+     `openspec/epics_00/` when missing.
+   - If the target already exists, fail that epic and leave the container in place.
+
+   Each epic is independent — a failure is reported and the step continues to the next epic.
+
+   **Windows-safe move.** The move is one rename inside the same `openspec/` tree. It never copies
+   and then deletes, and it never uses a form that nests the source inside an existing directory —
+   no plain `mv` or `Move-Item` onto an existing folder. Check existence first, then rename with a
+   form that itself refuses to nest: `mv -T` in Git Bash, or `[System.IO.Directory]::Move` in
+   PowerShell (which throws when the target exists). Afterward confirm the target exists and the
+   source is gone. A locked file on Windows fails the whole rename — report it as a failure with the
+   tool's own error.
+
+   **What the move never does.** It runs no `openspec validate`, no `openspec archive`, and no spec
+   sync. It writes no `stages/archive.json`. Any `stages/` markers already inside the container move
+   with it unchanged.
+
+   **Report.** One line per checked container: its target, or why it stayed or failed.
 
 ## Hard rules
 
@@ -102,4 +145,5 @@ fan-out (the branch guard is a no-op after the first cut).
   `analysis.md` / `effort.md` never refuses, warns, or delays an archive.
 - The archive rewrites, compacts, trims, reformats, or deletes **no** artifact of the change being
   archived and **no** artifact already under `openspec/changes/archive/` — its only writes are the
-  folder move, the delta-spec sync, and `stages/archive.json`.
+  folder move, the delta-spec sync, `stages/archive.json`, and step 8's unchanged move of an epic
+  container into `openspec/epics_00/`.

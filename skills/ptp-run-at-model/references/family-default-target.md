@@ -65,7 +65,6 @@ the built-in targets.
 
 ## Commands that stay at their current targets
 
-These commands read no `models.<family>` entry: `/ptp:plan`, `/ptp:plan-multiple`, `/ptp:prd`,
-`/ptp:prd-full`, `/ptp:review-prd`, `/ptp:review-prd-full`, `/ptp:review-fix`, every `codex-review*`
-command (including `/ptp:codex-review-loop`, `/ptp:codex-review-plan-loop` and
-`/ptp:codex-review-prd-loop`, which stay at `opus.high`), and every `backlog-*` command.
+These commands read no `models.<family>` entry: `/ptp:plan`, `/ptp:plan-multiple`,
+`/ptp:review-fix`, every `codex-review*` command (including `/ptp:codex-review-loop` and
+`/ptp:codex-review-plan-loop`, which stay at `opus.high`), and every `backlog-*` command.

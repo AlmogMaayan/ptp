@@ -6,7 +6,7 @@ argument-hint: "[change-id | selector] [model:<model>.<effort>]"
 ## Arguments
 
 Take the argument, if any, as a change selector. Resolve it through the `ptp-change-selector` skill.
-An empty argument, or one resolving to no existing active change, allocates a fresh epic instead. The
+An empty argument, or one resolving to no existing change (an epic container counts as existing), allocates a fresh epic instead. The
 argument MAY also carry an optional `model:<model>.<effort>` override token; see
 `skills/ptp-prompt-write/SKILL.md` for how it is parsed and honored. No other selector grammar is
 introduced here.

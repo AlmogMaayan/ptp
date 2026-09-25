@@ -53,16 +53,24 @@ directions.
 
 ## Locating the brainstorm
 
-Mirror `/ptp:plan`'s Preconditions ordering — a brainstorm lives in one of two places rather than a
-fixed artifact folder:
+Mirror `/ptp:plan`'s Preconditions ordering — a brainstorm lives in one of three places rather than a
+fixed artifact folder, tried in this order (steps 1–2 are `ptp-change-selector` §4c's epic-level file
+lookup, story first, then container):
 
 1. **Change-scoped, preferred.** If the resolved scope is a **change id**, prefer
    `openspec/changes/<change-id>/brainstorm.md` (the `/ptp:brainstorm` output and the direct
    `/ptp:plan` source). When this file exists it wins outright — a general brainstorm is ignored for
    that change.
 
-2. **General fallback, only when unambiguously associated.** If the change-scoped file is **absent**,
-   fall back to a general `openspec/brainstorms/*-brainstorm.md` (the `/ptp:brainstorm-only` output)
+2. **Epic container.** If the change-scoped file is **absent** and the change id is epic-prefixed,
+   read its epic container's `openspec/changes/XXXX_00_*/brainstorm.md` when present; it then wins
+   over any general brainstorm, and no "no brainstorm to review" finding is raised. **Review once:**
+   when several resolved changes in one run locate the same epic container file, that file is
+   reviewed once, its findings reported under the lowest story (`ptp-change-selector` §1 story order)
+   and the other stories noting that they share it.
+
+3. **General fallback, only when unambiguously associated.** If neither the change-scoped nor the
+   epic container file exists, fall back to a general `openspec/brainstorms/*-brainstorm.md` (the `/ptp:brainstorm-only` output)
    **only when exactly one** such general file is **unambiguously associated** with the change.
    **Unambiguously associated** is defined deterministically: a general file is associated **iff** it
    names the change id (or its `NN_` story token or `epic:` token) in its filename **or** its body,
@@ -71,11 +79,11 @@ fixed artifact folder:
    brainstorm to review"). This rule is stated here so the review step never has to invent an
    association heuristic.
 
-3. **Empty-argument default.** With no selector, the scope is **every active change**; review each
+4. **Empty-argument default.** With no selector, the scope is **every active change**; review each
    active change's `brainstorm.md`. A general `openspec/brainstorms/` file with **no change folder**
    is **out of scope entirely** (there is no change id to key on). The command is **selector-only** —
    `ptp-change-selector` resolves change *selectors*, not file paths — so a general file enters
-   review **only** through the deterministic association fallback (step 2) for a resolved change,
+   review **only** through the deterministic association fallback (step 3) for a resolved change,
    **never** as a standalone file-path argument.
 
 ---

@@ -11,7 +11,6 @@
  *   - review-code       commands/review.md
  *   - review-plan       commands/review-plan.md
  *   - brainstorm        skills/ptp-review-brainstorm/SKILL.md
- *   - prd               skills/ptp-review-prd/SKILL.md
  *   - review-loop       commands/review-loop.md
  *   - review-plan-loop  commands/review-plan-loop.md
  *
@@ -75,17 +74,6 @@ const CASES = {
       { kind: "forbids", pattern: "codex exec -s workspace-write", why: "the review pass must never use the write-capable main-implementer invocation" },
     ],
   },
-  prd: {
-    file: "skills/ptp-review-prd/SKILL.md",
-    assertions: [
-      { kind: "requires", pattern: "ptp-agent-roles", why: "must resolve { main, reviewer } via ptp-agent-roles" },
-      { kind: "requires", pattern: "codex exec -s read-only", why: "the main=codex direction must run a read-only codex exec pass" },
-      { kind: "requires", pattern: "ptp-codex-mode", why: "the codex pass must be assembled per ptp-codex-mode's flag-append rule" },
-      { kind: "requires", pattern: "install .{0,20}codex.{0,40}roles\\.main.{0,3}=.{0,3}claude", why: "codex absent under main=codex must STOP with an install-or-set-roles.main=claude message" },
-      { kind: "requires", pattern: "no.{0,10}`?openspec validate`?", why: "must keep the no-openspec-validate rule" },
-      { kind: "forbids", pattern: "codex exec -s workspace-write", why: "the review pass must never use the write-capable main-implementer invocation" },
-    ],
-  },
   "review-loop": {
     file: "commands/review-loop.md",
     assertions: [
@@ -124,13 +112,6 @@ const CASES = {
   },
   "codex-review-plan-cmd": {
     file: "commands/codex-review-plan.md",
-    assertions: [
-      { kind: "requires", pattern: "lookup chain", why: "the codex invocation must cite ptp-codex-mode's Codex lookup chain" },
-      { kind: "forbids", pattern: "both unset yields exactly", why: "the bare no-flag invocation contract is removed; -m and -c are always sent" },
-    ],
-  },
-  "codex-review-prd-cmd": {
-    file: "commands/codex-review-prd.md",
     assertions: [
       { kind: "requires", pattern: "lookup chain", why: "the codex invocation must cite ptp-codex-mode's Codex lookup chain" },
       { kind: "forbids", pattern: "both unset yields exactly", why: "the bare no-flag invocation contract is removed; -m and -c are always sent" },

@@ -34,8 +34,6 @@ skill, and reports. A command that owns itself carries its own contract.
 | `commands/codex-review-loop.md` | `skills/ptp-review-loop/SKILL.md` |
 | `commands/codex-review-plan-loop.md` | `skills/ptp-review-loop/SKILL.md` |
 | `commands/codex-review-plan.md` | `commands/codex-review-plan.md` |
-| `commands/codex-review-prd-loop.md` | `skills/ptp-review-loop/SKILL.md` |
-| `commands/codex-review-prd.md` | `commands/codex-review-prd.md` |
 | `commands/codex-review-uncommitted.md` | `commands/codex-review-uncommitted.md` |
 | `commands/codex-review.md` | `commands/codex-review.md` |
 | `commands/config.md` | `skills/ptp-config/SKILL.md` |
@@ -50,8 +48,6 @@ skill, and reports. A command that owns itself carries its own contract.
 | `commands/merge-to-master.md` | `skills/ptp-deploy/SKILL.md` |
 | `commands/plan-multiple.md` | `commands/plan-multiple.md` |
 | `commands/plan.md` | `commands/plan.md` |
-| `commands/prd-full.md` | `skills/ptp-prd-full/SKILL.md` |
-| `commands/prd.md` | `skills/ptp-prd/SKILL.md` |
 | `commands/prompt-fix.md` | `skills/ptp-prompt-draft/SKILL.md` |
 | `commands/prompt-write-to-backlog.md` | `skills/ptp-prompt-write-to-backlog/SKILL.md` |
 | `commands/prompt-write.md` | `skills/ptp-prompt-write/SKILL.md` |
@@ -64,8 +60,6 @@ skill, and reports. A command that owns itself carries its own contract.
 | `commands/review-plan-full.md` | `commands/review-plan-full.md` |
 | `commands/review-plan-loop.md` | `skills/ptp-review-loop/SKILL.md` |
 | `commands/review-plan.md` | `commands/review-plan.md` |
-| `commands/review-prd-full.md` | `skills/ptp-review-prd-full/SKILL.md` |
-| `commands/review-prd.md` | `skills/ptp-review-prd/SKILL.md` |
 | `commands/review.md` | `commands/review.md` |
 | `commands/status.md` | `commands/status.md` |
 | `commands/telemetry-analyze.md` | `skills/ptp-telemetry-analyze/SKILL.md` |

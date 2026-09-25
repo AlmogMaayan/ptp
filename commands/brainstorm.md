@@ -42,11 +42,11 @@ session**, over the now token-free `$ARGUMENTS`. The actual brainstorm work — 
 deterministic model** via the **`ptp-run-at-model`** skill at the resolved target (the `brainstorm` family default target by
 default, or the valid `model:` override): brainstorming is high-judgment creative work and must not
 depend on whatever model the session happens to be on. The branch guard (already run above) and step 1's
-change-id allocation (cheap, never a guaranteed abort, and the branch guard reads the allocated id to
+change-id allocation (cheap, its only STOP fires before any write, and the branch guard reads the allocated id to
 name the branch on `master`) stay **outer**; then a single foreground subagent at the resolved target
 performs steps 2–8 and reports.
 
-1. **Pick the change id** (outer session). If the user supplied a fully-formed `XXXX_NN_` id, preserve it verbatim. Otherwise — no id, or only a partial id/description supplied — allocate a single-story epic `XXXX_01_<desc>` via the `ptp-change-selector` skill (§4, epic allocation), where `<desc>` is ≤ 5 kebab-case words derived from the supplied text or the request. **Never produce a legacy/plain id going forward** — a non-full supplied id is treated as a `<desc>` source, not preserved as-is. Do NOT pause to confirm — pick a reasonable description and proceed. Allocating the epic-prefixed id here ensures the later `/ptp:plan` keeps the same id. If it turns out wrong, the user can rename later.
+1. **Pick the change id** (outer session). If the user supplied a fully-formed `XXXX_NN_` id — a story id or an epic container id `XXXX_00_<desc>` — preserve it verbatim and allocate nothing; a `_00` id that names no folder STOPs when its epic already has another container, per `ptp-change-selector` §4 *Container writers* (second-container STOP). Otherwise — no id, or only a partial id/description supplied — allocate a fresh epic via the `ptp-change-selector` skill (§4, epic allocation) and use its epic container `XXXX_00_<desc>`, where `<desc>` is ≤ 5 kebab-case words derived from the supplied text or the request; no story folder is created. **Never produce a legacy/plain id going forward** — a non-full supplied id is treated as a `<desc>` source, not preserved as-is. Do NOT pause to confirm — pick a reasonable description and proceed. If it turns out wrong, the user can rename later.
 
 **Run steps 2–8 via `ptp-run-at-model` at the resolved target.** Only after the branch guard and step
 1's change-id allocation have settled in the outer session, invoke the **`ptp-run-at-model`** skill with
@@ -67,7 +67,9 @@ concern.
 closure must reach the Codex main run, per `ptp-run-at-model`'s *The `main=codex` direction* and
 `ptp-skill-contract` § *Agent neutrality*, by one of that section's two delivery modes.
 
-2. **Load context** — read the relevant project files. If `openspec/project.md` exists, read it. **If
+2. **Load context** — read the relevant project files. If `openspec/project.md` exists, read it. Also
+   read `prompt.md` and `analysis.md` when present, as request context, located by
+   `ptp-change-selector` §4c's lookup (the target folder first, then its epic container). **If
    `ptp-run-at-model`'s optional part (f) supplied an inlined `openspec list` / `openspec list --specs`
    snapshot, use that snapshot in place of running the commands below** — this step still runs
    unconditionally, only its *source* changes; a supplied-but-empty snapshot is honored as a real "no

@@ -8,23 +8,21 @@ are not `skills/ptp-<name>/`, so ownership is declared here on the owner's side:
 
 Owns command: /ptp:codex-review-loop
 Owns command: /ptp:codex-review-plan-loop
-Owns command: /ptp:codex-review-prd-loop
 Owns command: /ptp:review-plan-loop
 
 # ptp-review-loop — shared loop protocol
 
 ## Purpose
 
-**Model dispatch target.** Via `ptp-run-at-model`, which owns spawn-and-relay and requires a caller-supplied target, `/ptp:review-loop` and `/ptp:review-plan-loop` run this skill's work at their family target (`skills/ptp-run-at-model/references/family-default-target.md`); `/ptp:codex-review-loop`, `/ptp:codex-review-plan-loop` and `/ptp:codex-review-prd-loop` at `opus.high`. This names targets only.
+**Model dispatch target.** Via `ptp-run-at-model`, which owns spawn-and-relay and requires a caller-supplied target, `/ptp:review-loop` and `/ptp:review-plan-loop` run this skill's work at their family target (`skills/ptp-run-at-model/references/family-default-target.md`); `/ptp:codex-review-loop` and `/ptp:codex-review-plan-loop` at `opus.high`. This names targets only.
 
-This skill encodes the iteration semantics shared by the `/ptp:*-loop` commands **and** the `-full` review orchestrators that drive it (Phase 1/Phase 2 of `/ptp:review-brainstorm-full`, `/ptp:review-prd-full`, etc.). Each caller supplies `kind` + `reviewer`; this skill drives the loop. The `/ptp:*-loop` callers are enumerated below; the `-full` orchestrators additionally drive it, per the note under the table.
+This skill encodes the iteration semantics shared by the `/ptp:*-loop` commands **and** the `-full` review orchestrators that drive it (Phase 1/Phase 2 of `/ptp:review-brainstorm-full`, etc.). Each caller supplies `kind` + `reviewer`; this skill drives the loop. The `/ptp:*-loop` callers are enumerated below; the `-full` orchestrators additionally drive it, per the note under the table.
 
 ```
 /ptp:review-loop            → kind=code,       reviewer=ptp
 /ptp:codex-review-loop      → kind=code,       reviewer=codex
 /ptp:review-plan-loop       → kind=artifact,   reviewer=ptp
 /ptp:codex-review-plan-loop → kind=artifact,   reviewer=codex
-/ptp:codex-review-prd-loop  → kind=prd,        reviewer=codex   (once per resolved epic)
 ```
 
 The `/ptp:review-brainstorm-full` skill (`ptp-review-brainstorm-full`) also drives this loop with
@@ -32,9 +30,7 @@ The `/ptp:review-brainstorm-full` skill (`ptp-review-brainstorm-full`) also driv
 resolved from `roles.main` via `ptp-agent-roles` (default `roles.main=claude`: Phase 1
 `reviewer=ptp`, Phase 2 `reviewer=codex`) — so the
 `-full` suffix means a dual-reviewer inline-fix loop at every pipeline stage (brainstorm, artifact,
-code). The `prd` kind is anchored to the epic's **lowest-numbered story change folder**: the caller resolves
-the selector to epics and drives this loop **once per epic** over
-`openspec/changes/<id>/prd.md` (see the change-folder input variant below).
+code).
 
 ## Section index
 
@@ -52,12 +48,11 @@ trigger rather than with this file:
 
 | Input | Values | Source |
 |-------|--------|--------|
-| `kind` | `code` \| `artifact` \| `brainstorm` \| `prd` | Supplied by the calling command |
+| `kind` | `code` \| `artifact` \| `brainstorm` | Supplied by the calling command |
 | `reviewer` | `ptp` \| `codex` | Supplied by the caller: names the review dispatch (`ptp`=in-session, `codex`=`codex exec`), not phase, derived from `{main,reviewer}` per `ptp-agent-roles`. |
 | `fixDispatch` | `dispatched` \| `inline` | Supplied by the calling command. **Defaults to `inline`** when the caller supplies no value. Only a caller running this loop in the **outer session** with its Agent-nesting level unspent may pass `dispatched`. Its full contract — the two modes, the fail-safe default, and what each mode may and may not do — is under **## Fix dispatch** below. |
 | `runningTarget` | a `{model}.{effort}` literal | Supplied by the calling command: the target the caller's own main run is executing at, passed so the fix pass can detect and report a model divergence under `fixDispatch = inline`. Absent or unparseable → record the running model as **unknown** and emit the divergence line naming the evaluated model and `unknown`; never throw, never stop, never report the target as fully honored. It influences reporting only — never which findings are fixed, how they are fixed, the step (f) exit check, or any terminal state. |
-| `change-id` | string | A single resolved change id passed through from the calling command (for `kind ∈ {code, artifact, brainstorm}`). The caller resolves any selector (e.g. `epic:XXXX`) via `ptp-change-selector` and iterates this skill once per resolved change — this skill receives and processes exactly one change per invocation. |
-| **change-folder input variant** (`kind = prd` only) | `epic` + PRD file path | For `kind = prd` the caller passes a resolved **epic** and the **PRD file path** `openspec/changes/<id>/prd.md` (where `<id>` is the epic's lowest-numbered story, resolved by scanning active + archived changes per `ptp-prd`) **in place of** a brainstorm/artifact change folder. The caller resolves any epic selector via the `ptp-prd` projection and iterates this skill once per resolved epic — this skill receives and processes exactly one epic's PRD per invocation. The `<change-id>` used in the `DONE` next-command recommendation is the epic's lowest-numbered story id. |
+| `change-id` | string | A single resolved change id passed through from the calling command. The caller resolves any selector (e.g. `epic:XXXX`) via `ptp-change-selector` and iterates this skill once per resolved change — this skill receives and processes exactly one change per invocation. |
 
 The calling command is responsible for precondition checks before invoking this skill:
 
@@ -65,7 +60,6 @@ The calling command is responsible for precondition checks before invoking this 
 - `kind=code` → caller must verify `openspec/changes/<change-id>/` exists; redirect to `/ptp:plan` if missing.
 - `kind=artifact` → caller must verify `openspec/changes/<change-id>/` exists; redirect to `/ptp:plan` if missing.
 - `kind=brainstorm` → caller must verify `openspec/changes/<change-id>/` exists; redirect to `/ptp:brainstorm` if missing (the brainstorm stage creates the folder — it precedes `/ptp:plan`, so a `/ptp:plan` redirect here would skip the brainstorm). The existence of `brainstorm.md` itself is **NOT** an abort precondition — a missing brainstorm is a Phase-1 Critical finding handled inside the review pass (step b), mirroring `ptp-review-brainstorm`.
-- `kind=prd` → caller resolves the **epic** and the **PRD file path** `openspec/changes/<id>/prd.md` (via the `ptp-prd` selector→epic projection and lowest-story-`<id>` rule, scanning active + archived changes) and passes them in place of a change folder. The existence of the **PRD file** is **NOT** an abort precondition — a missing PRD is a Critical "no PRD to review" finding handled inside the review pass (step b), mirroring `kind=brainstorm`.
 
 ## Resolution
 
@@ -172,7 +166,7 @@ mislabeled Critical vanish, violating the never-silently-drop rule.
 
 **Stable key for an unrankable finding.** Because such a finding is in scope, it reaches step (d)
 and needs a stable key. Only the `kind = code` key carries a `severity` field (the `artifact` /
-`brainstorm` / `prd` keys do not), so only it needs a rule: record the reviewer's raw label
+`brainstorm` keys do not), so only it needs a rule: record the reviewer's raw label
 verbatim when one was emitted (e.g. `Blocker`), and the sentinel `<unlabeled>` when none was. The
 four-value schema is unchanged for the labeled findings it already covers; this only names the
 value to use in the fail-safe case, so carry-over deduplication works on unrankable findings too
@@ -224,10 +218,9 @@ Workflow — a second Agent-nesting level throws. How it fixes is **role-aware**
 **Why the default is `inline`:** it **cannot throw** — a caller that omits its budget gets the
 fail-safe direction rather than a runtime failure when the loop has findings to fix.
 
-**Who passes what today.** All nine loop-driving callers (`/ptp:review-loop`, `/ptp:review-full`,
+**Who passes what today.** All seven loop-driving callers (`/ptp:review-loop`, `/ptp:review-full`,
 `/ptp:review-plan-loop`, `/ptp:review-plan-full`, `/ptp:review-brainstorm-full`,
-`/ptp:review-prd-full`, `/ptp:codex-review-loop`, `/ptp:codex-review-plan-loop`,
-`/ptp:codex-review-prd-loop`) pass `inline`, each already running its whole orchestration inside one
+`/ptp:codex-review-loop`, `/ptp:codex-review-plan-loop`) pass `inline`, each already running its whole orchestration inside one
 `ptp-run-at-model` main run. A `codex-*-loop` caller's Codex **review** shell-out does not change this —
 it costs no Agent-nesting level.
 
@@ -250,7 +243,7 @@ the target may simply be scored over a larger set than is fixed, an over-estimat
 **Prohibitions survive dispatch.** A dispatched fix run — and a `roles.main = codex` inline fix by the
 Codex main — is bound by every prohibition an in-session inline fix pass is, and the fixing run's
 prompt carries them **explicitly**: never invoke `/ptp:apply`, never regenerate artifacts via
-`/ptp:plan` / `/ptp:brainstorm` / `/ptp:prd`, never archive, never commit. Re-targeting or re-routing
+`/ptp:plan` / `/ptp:brainstorm`, never archive, never commit. Re-targeting or re-routing
 changes *which party edits*, never *what an edit may be*.
 
 **Verification stays with the loop.** Step (h) runs in the loop's own context after step (g) returns,
@@ -288,7 +281,7 @@ the rest accumulate per iteration, at step (h) or at the step (f) converging-exi
 `reviewTally` and `fixed_candidates` are **in-conversation state** (see the table below) and are
 covered unchanged by the never-persist rule; the tally reaches disk only as the marker's optional
 `reviewTally` field (see `## Review-convergence marker`), added by that marker's existing single write.
-The terminal outcome returns `reviewTally` at both `DONE` and `ITERATION CAP REACHED`, for all four
+The terminal outcome returns `reviewTally` at both `DONE` and `ITERATION CAP REACHED`, for all three
 loop kinds, in both `deferMarker` modes — purely additive, no marker version bump. It **decides
 nothing** (see `## Hard rules`) and is the **primary source of truth** for review-cycle counts
 (`ptp-telemetry` is off by default and is not a dependency).
@@ -304,8 +297,8 @@ At each of its two terminal states the loop writes a small **durable** per-kind 
 marker — the only durable on-disk side effect beyond the artifact edits the loop already makes. This is
 distinct from the in-conversation loop control state above, which is NEVER persisted.
 
-**Stage-record family.** The four review kinds this skill writes (`brainstorm`, `plan`, `prd`, `code`)
-are the **review** members of a six-kind **stage-record family**. The other two are the *lifecycle* kinds
+**Stage-record family.** The three review kinds this skill writes (`brainstorm`, `plan`, `code`)
+are the **review** members of a five-kind **stage-record family**. The other two are the *lifecycle* kinds
 `apply` (`stages/apply.json`, written by the apply executor) and `archive` (`stages/archive.json`, written
 by the archive flow after a successful archive). The family's full contract — the folder, the record
 shape, the per-kind `terminalState` vocabularies, the tolerant read (an absent, unreadable, malformed, or
@@ -319,7 +312,7 @@ skip predicate — that decision is made over `stages/code.json` alone — and n
 carries a `fingerprint` or a `gateState` field. Neither `stages/apply.json` nor `stages/archive.json` may
 authorize, block, shorten, or otherwise steer any review step.
 
-**Which kinds write a marker.** **Every** kind writes one — `brainstorm`, `artifact`, `prd`, and
+**Which kinds write a marker.** **Every** kind writes one — `brainstorm`, `artifact`, and
 `code`. A marker is written whether or not any `/ptp:status` column reads it: **this** capability adds no
 `/ptp:status` column for the `code` marker (the `status` capability owns which rows the table has, and
 renders the `code` record in its own **code review** row), and the marker is written so that the *fact* of
@@ -330,7 +323,7 @@ of any rendering.
 
 ```json
 {
-  "kind": "brainstorm | plan | prd | code",
+  "kind": "brainstorm | plan | code",
   "terminalState": "converged | cap-reached",
   "gateState": "LOOP_DONE",
   "reviewers": ["ptp", "codex"],
@@ -357,12 +350,12 @@ of any rendering.
 ```
 
 `gateState` and `fingerprint` are **code-only**: they are written to `stages/code.json` for
-`kind = code` and for no other kind. A `brainstorm` / `plan` / `prd` marker carries neither field, and
+`kind = code` and for no other kind. A `brainstorm` / `plan` marker carries neither field, and
 its shape is exactly what it is today.
 
 | Field | Type | Value |
 |-------|------|-------|
-| `kind` | string | `"brainstorm"`, `"plan"`, `"prd"`, or `"code"` — the review kind this marker records, and (for `brainstorm` / `plan` / `code`) the `/ptp:status` row it feeds. No `/ptp:status` column is required to exist for a marker to be written — the `prd` marker feeds none — and a row that does read a marker applies its own kind-must-match rule, so a marker of the wrong kind is never rendered. Derived from the loop `kind`: `brainstorm`→`"brainstorm"`, `artifact`→`"plan"`, `prd`→`"prd"`, `code`→`"code"`. |
+| `kind` | string | `"brainstorm"`, `"plan"`, or `"code"` — the review kind this marker records, and the `/ptp:status` row it feeds. No `/ptp:status` column is required to exist for a marker to be written, and a row that does read a marker applies its own kind-must-match rule, so a marker of the wrong kind is never rendered. Derived from the loop `kind`: `brainstorm`→`"brainstorm"`, `artifact`→`"plan"`, `code`→`"code"`. |
 | `terminalState` | string | `"converged"` (loop reached `DONE`) or `"cap-reached"` (loop reached `ITERATION CAP REACHED`). This two-value domain is **unchanged** by the `code` kind — in particular the `-full` mode-skip green state (Phase 1 done, Codex skipped by `codex.mode`) is recorded as `"converged"`, its distinctness preserved by `gateState` rather than by a third `terminalState` value. |
 | `gateState` | string | **`kind = code` only.** The terminal vocabulary of the run that produced the marker: `"BOTH_PHASES_DONE"`, `"PHASE1_DONE_CODEX_SKIPPED"`, `"PHASE1_CAP"`, or `"PHASE2_CAP"` for a two-phase `-full` run; `"LOOP_DONE"` or `"LOOP_CAP"` for a standalone single-reviewer `kind = code` loop run. Sourced from the run's **own** terminal outcome. It exists so a mode-skipped run is never flattened into a plain both-phases run by a later reader; it is reported, never used to decide skip eligibility. |
 | `fingerprint` | object | **`kind = code` only.** A content fingerprint of what the review evaluated — see `skills/ptp-review-loop/references/code-marker-fingerprint.md`. **Absent** when it could not be computed; there is no partial fingerprint. |
@@ -371,7 +364,7 @@ its shape is exactly what it is today.
 | `iterations` | integer | The iteration count of the last phase that ran (≥ 1). |
 | `minSeverity` | string | The **effective resolved** severity threshold of the run that produced this marker: `"low"`, `"medium"`, `"high"`, or `"critical"` — always the lowercase canonical form, never the raw config text. Under a `-full` orchestrator's single combined write this is the threshold used by the **last phase that ran**, the same rule already applied to `iterations`. |
 | `timestamp` | string | ISO-8601 UTC instant the marker was written. |
-| `reviewTally` | object | **Optional; all four kinds** — unlike `gateState`/`fingerprint`, not code-only; no lifecycle record carries it. Keyed by reviewer (`ptp`\|`codex`), one key per phase that ran (key set = `reviewers`); each value is `cycles` plus the seven counters of **## Review cycle tally**, persisted verbatim, non-negative integers, `capped` a count not a boolean. Purely additive — absent means **unknown**, never a fabricated zero; no migration, no version bump, and no rewrite or backfill of a stored record. Full field-shape rationale: `skills/ptp-review-loop/references/review-cycle-tally.md`. |
+| `reviewTally` | object | **Optional; all three kinds** — unlike `gateState`/`fingerprint`, not code-only; no lifecycle record carries it. Keyed by reviewer (`ptp`\|`codex`), one key per phase that ran (key set = `reviewers`); each value is `cycles` plus the seven counters of **## Review cycle tally**, persisted verbatim, non-negative integers, `capped` a count not a boolean. Purely additive — absent means **unknown**, never a fabricated zero; no migration, no version bump, and no rewrite or backfill of a stored record. Full field-shape rationale: `skills/ptp-review-loop/references/review-cycle-tally.md`. |
 
 **`minSeverity` is purely additive — absent means `low`.** Markers written before this field existed
 carry no `minSeverity`; **any** reader that consumes the field reads an absent value as `"low"`. No
@@ -384,13 +377,11 @@ not key on, so old and new markers both render exactly as they do today.
 
 - loop `kind = brainstorm` → `stages/brainstorm.json` (status "brainstorm review" column)
 - loop `kind = artifact`   → `stages/plan.json`       (status "plan review" column)
-- loop `kind = prd`        → `stages/prd.json`        (sibling of `stages/brainstorm.json` and `stages/plan.json`)
-- loop `kind = code`       → `stages/code.json`       (sibling of the three above; the `status` capability's **code review** row reads it, and this capability requires no such row for the marker to be written)
+- loop `kind = code`       → `stages/code.json`       (sibling of the two above; the `status` capability's **code review** row reads it, and this capability requires no such row for the marker to be written)
 
 **Location.** For every kind the marker lives under
 `openspec/changes/<change-id>/stages/` — a subfolder **sibling to `specs/`**, created on demand
-(mkdir-if-absent). For `kind = prd`, `<change-id>` is the epic's lowest-numbered story id (resolved by
-the active-or-archived scan, matching the PRD file at `openspec/changes/<id>/prd.md`). The marker is NOT
+(mkdir-if-absent). The marker is NOT
 an OpenSpec artifact folder entry, so `openspec validate --strict` ignores it and `openspec archive`
 carries it along with the change. The same atomic write-temp-then-rename protocol and `deferMarker`
 contract below apply to every kind.
@@ -485,9 +476,6 @@ always carrying `-m`/`-c` from its Codex lookup chain for this `kind`:
 - `ptp` / `brainstorm` — run the `ptp-review-brainstorm` rubric inline over the located `brainstorm.md`: a semantic-sufficiency check (existence & non-placeholder; a stated decision; every materially available alternative named with the reason it was not taken; recorded assumptions; internal consistency with no coexisting current and obsolete truth; a usable handoff to `/ptp:plan`) with no fixed option count and no fixed set of tradeoff axes. A missing `brainstorm.md` is recorded as a Critical "no brainstorm to review" finding inside this pass (the loop cannot fix it). Do NOT re-author the rubric here — it lives in `ptp-review-brainstorm`.
 - `codex` / `brainstorm` — run the `codex-review-plan.md` closed-book protocol inline, **retargeted to `brainstorm.md`** and with **NO** `openspec validate` (a brainstorm precedes any proposal/spec, so there is nothing to validate): read `brainstorm.md` and any cited context yourself (you, via Read), build a single self-contained prompt carrying the brainstorm rubric as the audit instructions plus the full brainstorm text and any cited source excerpts, and pipe it to `codex exec -s read-only` over stdin. As with the `ptp` variant, a missing `brainstorm.md` is recorded as a Critical "no brainstorm to review" finding inside this pass (the loop cannot fix it) — do not attempt to build a Codex prompt over an absent file.
   - **First-iteration payload (kind `brainstorm`).** Inline exactly the required set: `brainstorm.md` and the cited source excerpts, and no `openspec validate` result.
-- `ptp` / `prd` — run the `ptp-review-prd` rubric inline over the resolved PRD file `openspec/changes/<id>/prd.md` (PRD existence & non-placeholder; all schema sections present; requirements split functional/non-functional and trace to goals; testable acceptance criteria; scope/non-goal consistency; measurable goals; real Dependencies/Risks/Open questions). A missing PRD file is recorded as a Critical "no PRD to review" finding inside this pass (the loop cannot fix it). Do NOT re-author the rubric here — it lives in `ptp-review-prd`. (Used by slice 2's `/ptp:review-prd-full` orchestrator; documented now so the kind is complete.)
-- `codex` / `prd` — run the `codex-review-plan.md` closed-book protocol inline, **retargeted to the PRD file `openspec/changes/<id>/prd.md`** and with **NO** `openspec validate` (a PRD precedes any proposal/spec, so there is nothing to validate): read the PRD file and any cited context yourself (you, via Read), build a single self-contained prompt carrying the PRD rubric as the audit instructions plus the full PRD text and any cited source excerpts, and pipe it to `codex exec -s read-only` over stdin. As with the `ptp` variant, a missing PRD file is recorded as a Critical "no PRD to review" finding inside this pass (the loop cannot fix it) — surface the missing-PRD note in the prompt in place of the PRD text rather than building a Codex prompt over an absent file.
-  - **First-iteration payload (kind `prd`).** Inline exactly the required set: `prd.md` and the cited source excerpts, and no `openspec validate` result.
 
 **Two rules bind every Codex payload above, stated once (task 7.3).** `TLDR.md` and `effort.md` are
 never inlined, for any kind. And on any iteration after the first, running in a **fresh Codex
@@ -596,7 +584,7 @@ defined in `commands/effort.md` § *Fix mode (`mode:fix`)* — passing:
 - this pass's **frozen CONFIRMED in-scope finding set** (the findings step (e) confirmed, after the
   step (c) filters — never the below-threshold bucket, never a rejected or carried-over finding);
 - the loop `kind`; and
-- the change artifacts for the resolved change (for `kind = prd`, the resolved epic's PRD file).
+- the change artifacts for the resolved change.
 
 The result is `fixTarget`, the `{model}.{effort}` on the first line of that mode's output block.
 
@@ -626,9 +614,8 @@ running session does. The per-kind rules below bind whichever party fixes:
 - `kind=code` → edit source files directly. **Never** invoke `/ptp:apply`. **Never** commit.
 - `kind=artifact` → make minimal targeted edits to the affected artifact(s). **Never** regenerate artifacts via `/ptp:plan`. Corrections only (fix a wrong section, add a missing scenario, fill a thin block) — not re-fabrication.
 - `kind=brainstorm` → make minimal targeted edits to `brainstorm.md`. **Never** regenerate the brainstorm via `/ptp:brainstorm`. Corrections only (add a missing option, expand a thin tradeoff, document a missing assumption) — not re-fabrication.
-- `kind=prd` → make minimal targeted edits to the PRD file `openspec/changes/<id>/prd.md`. **Never** regenerate the PRD via `/ptp:prd`. Corrections only (fill a missing schema section, sharpen a vague acceptance criterion, add a measurable goal) — not re-fabrication.
 
-A missing `brainstorm.md` / PRD Critical finding has nothing to edit and stays unfixed (the iteration cap is the backstop).
+A missing `brainstorm.md` Critical finding has nothing to edit and stays unfixed (the iteration cap is the backstop).
 
 **Prefer removal, and pay for each addition by deleting** — `references/bounded-review.md`.
 
@@ -644,13 +631,11 @@ Run a cheap, fast verification appropriate to `kind`:
 - `kind=code` → tests, lint, and typecheck for the files touched this iteration.
 - `kind=artifact` → `npx -y openspec validate <change-id> --strict`.
 - `kind=brainstorm` → **N/A** — run **NO** `openspec validate` (a brainstorm precedes any proposal/spec, so there is nothing to validate). Record `verify = N/A (brainstorm precedes any spec)` in `per_iteration_summary`.
-- `kind=prd` → **N/A** — run **NO** `openspec validate` (a PRD precedes any proposal/spec, so there is nothing to validate). Record `verify = N/A (PRD precedes any spec)` in `per_iteration_summary`.
-
 A failing verification is **reported in `per_iteration_summary`** but does NOT abort the loop — the next iteration picks up regressions; the iteration cap is the backstop.
 
 Append a summary entry to `per_iteration_summary`: iteration number, findings-confirmed count, findings-rejected count, carry-over count, **below-threshold count** (the size of this iteration's `below_threshold` bucket from (c2) — `0` on every run at the default `low`), fixes applied, verification result, and — for an iteration that reached step (g) — the **evaluated `fixTarget`** (lowercase `{model}.{effort}`), whether it was **defaulted** to `opus.high` because the evaluation failed, the resolved **`fixDispatch`** mode, and whether the target was **fully honored**. An iteration that never reached step (g) records **no** fix target rather than a fabricated or carried-over one.
 
-**Size measurement and the budget check (mandatory; `kind` ∈ {`artifact`, `brainstorm`, `prd`}).**
+**Size measurement and the budget check (mandatory; `kind` ∈ {`artifact`, `brainstorm`}).**
 Measure the artifacts this `kind` owns, append this iteration's `artifact_sizes` entry, and apply the
 two halt conditions in `references/bounded-review.md`; either ends the run in
 `ARTIFACT BUDGET EXCEEDED` in place of another iteration. `kind = code` measures nothing.
@@ -686,7 +671,7 @@ Go back to step (a).
 ## Stable finding key
 
 Used at step (d) to match findings across iterations for carry-over rejection deduplication. The
-per-kind key shapes — `code`, `artifact`, `brainstorm`, `prd`, and the sentinels the unfixable
+per-kind key shapes — `code`, `artifact`, `brainstorm`, and the sentinels the unfixable
 missing-file findings use — are in `skills/ptp-review-loop/references/stable-finding-key.md`.
 
 ## Terminal states
@@ -722,11 +707,9 @@ Report:
    - `kind=code`     → `/ptp:archive <change-id>` (or `/ptp:status` first).
    - `kind=artifact` → `/ptp:apply <change-id>` if not yet implemented; `/ptp:review-plan <change-id>` for a post-apply artifact check. (Recommend these to the user — do not invoke them.)
    - `kind=brainstorm` → `/ptp:plan <change-id>` (the brainstorm is sound; proceed to author the OpenSpec artifacts). (Recommend it to the user — do not invoke it.)
-   - `kind=prd` → `/ptp:plan <change-id>` (the PRD is sound; proceed to author the OpenSpec artifacts — `<change-id>` is the epic's lowest-numbered story id). (Recommend it to the user — do not invoke it.)
-
 **Marker write (after the report above).** For **every** kind, write the per-kind marker
 (`brainstorm`→`stages/brainstorm.json`, `artifact`→`stages/plan.json`,
-`prd`→`openspec/changes/<id>/stages/prd.json`, `code`→`stages/code.json`) per the
+`code`→`stages/code.json`) per the
 **## Review-convergence marker** section, with `terminalState: "converged"`, `reviewers` = the
 reviewer(s) that ran this loop run, `iterations` = the final `iteration` value, `minSeverity` = the
 effective resolved `MIN_SEVERITY` for this run (lowercase canonical), `timestamp` = now (UTC
@@ -754,7 +737,7 @@ for splitting a change whose findings were all genuine.
 
 ### ARTIFACT BUDGET EXCEEDED
 
-Reached when step (h)'s budget check fires, for `kind` ∈ {`artifact`, `brainstorm`, `prd`} only. A
+Reached when step (h)'s budget check fires, for `kind` ∈ {`artifact`, `brainstorm`} only. A
 **halt, not a round**: the remedy it recommends is a **split**, never a longer review. Its report,
 its marker write, and the two halt conditions are in `references/bounded-review.md`.
 
@@ -782,7 +765,7 @@ Report:
 
 **Marker write (after the report above).** For **every** kind, write the per-kind marker
 (`brainstorm`→`stages/brainstorm.json`, `artifact`→`stages/plan.json`,
-`prd`→`openspec/changes/<id>/stages/prd.json`, `code`→`stages/code.json`) per the
+`code`→`stages/code.json`) per the
 **## Review-convergence marker** section, with `terminalState: "cap-reached"` and the same `kind` /
 `reviewers` (the reviewer that ran) / `iterations` (the cap value) / `minSeverity` (the effective
 resolved `MIN_SEVERITY` for this run, lowercase canonical) / `timestamp` (now, UTC ISO-8601) fields,
@@ -813,13 +796,13 @@ the retained `fixed_candidates` count and `capped` to the in-scope `CONFIRMED` f
 - **Never silently absorb a partially-honored fix target.** Under `fixDispatch = inline` the model half of `fixTarget` cannot be honored; the divergence is reported in the iteration summary and in both terminal reports. Emitting it is mandatory — omitting it is a violation of this rule, not an optimization.
 - **Never spawn a Claude Agent or Workflow from inside the loop under `fixDispatch = inline`** — a second Agent-nesting level throws; the write-capable `codex exec` Bash **shell-out** that fixes under `roles.main = codex` is permitted (no nesting level, so it never throws). Under `roles.main = codex` the loop's Claude reviewer edits neither code nor artifacts — only the resolved main agent writes.
 - **Never persist loop control state to disk.** `iteration`, `rejected_findings`, and `per_iteration_summary` live only in conversation context. This rule does NOT forbid the durable terminal review-convergence marker below — that marker is a deliberate exception and is the loop's only on-disk side effect beyond the artifact edits it already makes.
-- **Write the per-kind review-convergence marker on terminal states for every kind** (`brainstorm`→`stages/brainstorm.json`, `artifact`→`stages/plan.json`, `prd`→`openspec/changes/<id>/stages/prd.json`, `code`→`stages/code.json`), per the **## Review-convergence marker** section, with a `kind = code` marker additionally carrying `gateState` and — when computable — the `fingerprint` from `skills/ptp-review-loop/references/code-marker-fingerprint.md`. **Never** write a marker when invoked with `deferMarker = true` (the `-full` orchestrator performs the single combined write). The marker is written via the atomic write-temp-then-rename protocol; a marker-write failure is reported but does not change the terminal state.
+- **Write the per-kind review-convergence marker on terminal states for every kind** (`brainstorm`→`stages/brainstorm.json`, `artifact`→`stages/plan.json`, `code`→`stages/code.json`), per the **## Review-convergence marker** section, with a `kind = code` marker additionally carrying `gateState` and — when computable — the `fingerprint` from `skills/ptp-review-loop/references/code-marker-fingerprint.md`. **Never** write a marker when invoked with `deferMarker = true` (the `-full` orchestrator performs the single combined write). The marker is written via the atomic write-temp-then-rename protocol; a marker-write failure is reported but does not change the terminal state.
 - **Never skip a review on anything but an eligible marker.** The six conjunctive conditions in `skills/ptp-review-loop/references/code-marker-skip-eligibility.md` are the only basis for skipping an otherwise-mandatory code review, evaluating them never mutates a marker, and any ineligible outcome runs the review exactly as it would without a marker. Condition 6 in particular is resolved against `ptp-codex-mode`'s decision contract **at check time**, never against a mode carried by the marker.
 - **Iteration cap is resolved from `review.maxIterations` (layered config, default 5).** There is no `--max-iterations` CLI flag. If the cap is hit, report and stop — do not silently increment past it. The cap is not a safety net to spend: reaching it while findings remain is evidence the change is too large.
 - **Never dispatch a review pass without the acceptance bar**, and never reject a finding without stating the check behind it.
 - **Never resolve a finding by adding text where removing or tightening it would do**, and never let a round grow an artifact without deleting equivalent text in the same round.
-- **Never run another round past the budget check.** Measuring artifact sizes each round is mandatory for `kind` ∈ {`artifact`, `brainstorm`, `prd`}; a breach ends the loop in `ARTIFACT BUDGET EXCEEDED` with a split recommendation. Omitting the measurement is a violation of this rule, not an optimization.
+- **Never run another round past the budget check.** Measuring artifact sizes each round is mandatory for `kind` ∈ {`artifact`, `brainstorm`}; a breach ends the loop in `ARTIFACT BUDGET EXCEEDED` with a split recommendation. Omitting the measurement is a violation of this rule, not an optimization.
 - **Codex variants** (`reviewer=codex`) must run `codex exec -s read-only` with the full prompt piped over stdin (`-`), assembled per the `ptp-codex-mode` flag-append rule (`-m`/`-c` always sent from the Codex lookup chain). Never pass `--full-auto`, `--sandbox workspace-write`, or `--dangerously-bypass-approvals-and-sandbox`.
-- **The caller runs `openspec validate` (for `kind=code` / `kind=artifact` only — never for `kind=brainstorm` or `kind=prd`, which each precede any proposal/spec) and all file reads for Codex** — Codex executes no `npx`, no network, no install commands. The closed-book / inlined-diff protocol from `codex-review.md` / `codex-review-plan.md` applies.
+- **The caller runs `openspec validate` (for `kind=code` / `kind=artifact` only — never for `kind=brainstorm`, which precedes any proposal/spec) and all file reads for Codex** — Codex executes no `npx`, no network, no install commands. The closed-book / inlined-diff protocol from `codex-review.md` / `codex-review-plan.md` applies.
 - **The `reviewTally` decides nothing.** No counter it holds is an input to convergence, the severity
   threshold, the iteration cap, any terminal state, the fix target, or the code-marker skip predicate.

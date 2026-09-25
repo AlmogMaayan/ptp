@@ -46,7 +46,7 @@ new defect, not a fix.
 
 ## The size measurement and the halt (step (h))
 
-For `kind` ∈ {`artifact`, `brainstorm`, `prd`}, measure after the fix pass and append one
+For `kind` ∈ {`artifact`, `brainstorm`}, measure after the fix pass and append one
 `artifact_sizes` entry for the iteration: the word count of each artifact this `kind` owns, counted
 as the compact artifact contract defines a word (`skills/ptp-artifact-contract/SKILL.md`), with the
 spec deltas counted as their sum. Then apply, in order:

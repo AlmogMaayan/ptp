@@ -33,7 +33,7 @@ looks a command up in a table; the **caller always supplies the target** (see *T
 | Target | Commands (representative) |
 |--------|---------------------------|
 | `sonnet.medium` | `archive`, `archive-force`, `master`, and the deploy family (`deploy`, `deploy-pr-approved`, `merge-to-master`) via their own skills |
-| `opus.high` | `plan`, `plan-multiple`, `review-prd*`, and the PRD stage (`prd`, `prd-full`) |
+| `opus.high` | `plan`, `plan-multiple` |
 | the family default target (`references/family-default-target.md`; `opus.high` built in) | `analyze`, the prompt and brainstorm families, `review-brainstorm*`, `review`, `review-loop`, `review-full`, `review-plan*` |
 | read line 1 of `effort.md` | `apply` |
 
@@ -126,11 +126,11 @@ The skill then runs, **in this order**:
 
    | Candidate | Assessment | Verdict |
    |---|---|---|
-   | Every `opus.high` site, named in full: `commands/` — `analyze`, `brainstorm`, `brainstorm-full`, `brainstorm-only`, `plan`, `plan-multiple` (beats 2 and 3), `prd`, `prd-full`, `/ptp:prompt`, `/ptp:prompt-fix`, `/ptp:prompt-write`, `full`, `full-plan`, `review`, `review-loop`, `review-full`, `review-plan`, `review-plan-full`, `review-plan-loop`, `review-brainstorm`, `review-brainstorm-full`, `review-prd`, `review-prd-full`, `codex-review`, `codex-review-loop`, `codex-review-plan`, `codex-review-plan-loop`, `codex-review-prd`, `codex-review-prd-loop`, `codex-review-uncommitted`; `skills/` — `ptp-analyze`, `ptp-brainstorm-full`, `ptp-prd`, `ptp-prd-full`, `ptp-prompt-draft`, `ptp-prompt-write`, `ptp-review-brainstorm-full`, `ptp-review-prd-full`, `ptp-full`, `ptp-full-apply` | Every one of them produces design, decomposition, PRD, or review judgment that a later stage consumes without re-deriving it. The verdict is identical for each, so they share one row rather than being assessed differently. | Judgment-carrying; downgrade forbidden by the rule above. |
+   | Every `opus.high` site, named in full: `commands/` — `analyze`, `brainstorm`, `brainstorm-full`, `brainstorm-only`, `plan`, `plan-multiple` (beats 2 and 3), `/ptp:prompt`, `/ptp:prompt-fix`, `/ptp:prompt-write`, `full`, `full-plan`, `review`, `review-loop`, `review-full`, `review-plan`, `review-plan-full`, `review-plan-loop`, `review-brainstorm`, `review-brainstorm-full`, `codex-review`, `codex-review-loop`, `codex-review-plan`, `codex-review-plan-loop`, `codex-review-uncommitted`; `skills/` — `ptp-analyze`, `ptp-brainstorm-full`, `ptp-prompt-draft`, `ptp-prompt-write`, `ptp-review-brainstorm-full`, `ptp-full`, `ptp-full-apply` | Every one of them produces design, decomposition, or review judgment that a later stage consumes without re-deriving it. The verdict is identical for each, so they share one row rather than being assessed differently. | Judgment-carrying; downgrade forbidden by the rule above. |
    | Every `sonnet.medium` site, named in full: `commands/` — `archive`, `archive-force`, `master`, `deploy`, `deploy-master`, `deploy-pr-approved`, `merge-to-master`; `skills/` — `ptp-archive-and-deploy`, `ptp-deploy-master` | The git plumbing inside them is mechanical, but the *step* is not, and this holds for each one individually: `/ptp:archive` and `/ptp:archive-force` decide whether the gates pass and merge delta specs into the shared `openspec/specs/` tree; `/ptp:master` must distinguish a clean tree from a dirty one and refuse rather than force; `/ptp:deploy`, `/ptp:deploy-pr-approved`, `/ptp:merge-to-master`, `/ptp:deploy-master` and their two skills autonomously diagnose and repair merge conflicts, CI failures, and deploy failures within a retry budget, and decide when a human approval is required. None has a single verifiable correct outcome fixed in advance, so none meets the mechanical test. | Not mechanical; every one stays at `sonnet.medium`. |
    | `/ptp:apply` (`effort.md`-derived per-change target) | The target is the change's own recorded recommendation, and implementation is judgment-carrying by definition. | No fixed target to downgrade; judgment-carrying. |
    | `/ptp:review-fix` (evaluated per-fix-pass target — see the **Fix-work carve-out** above) | It names no fixed target: its single confirm-and-fix run takes the fix target evaluated over the frozen finding set, with `opus.high` as the documented fallback. This is the `/ptp:apply` shape — a target derived per work item rather than a blanket downgrade — so the rule is satisfied the same way it is there. The **review** judgment it acts on was produced at `opus.high` by a separate review command, and this command's own review target is unchanged because it runs no review. | No fixed target to downgrade; judgment-carrying. |
-   | Both `haiku` sites, named in full: `ptp-branch-prep`, defined in `skills/ptp-branch-guard/SKILL.md` and named by every guarded command that cites it (`brainstorm`, `brainstorm-full`, `plan`, `prd`, `prd-full`, and this skill); and `ptp-workspace-init` (`skills/ptp-workspace-init/SKILL.md`), which names `haiku.low` for `/ptp:workspace-init` | Each already runs at `haiku`, and each meets the mechanical test individually: `ptp-branch-prep` is pure git plumbing (stash/checkout/pull/branch), pinned there by a hard no-escalate rule; `ptp-workspace-init` runs one fixed CLI invocation, an ordered preflight whose gates are enumerated, and a single conditional file write — fully specified, no design judgment, a single verifiable outcome. | Already at the cheapest tier; nothing to change. |
+   | Both `haiku` sites, named in full: `ptp-branch-prep`, defined in `skills/ptp-branch-guard/SKILL.md` and named by every guarded command that cites it (`brainstorm`, `brainstorm-full`, `plan`, and this skill); and `ptp-workspace-init` (`skills/ptp-workspace-init/SKILL.md`), which names `haiku.low` for `/ptp:workspace-init` | Each already runs at `haiku`, and each meets the mechanical test individually: `ptp-branch-prep` is pure git plumbing (stash/checkout/pull/branch), pinned there by a hard no-escalate rule; `ptp-workspace-init` runs one fixed CLI invocation, an ordered preflight whose gates are enumerated, and a single conditional file write — fully specified, no design judgment, a single verifiable outcome. | Already at the cheapest tier; nothing to change. |
    | The `full` family's workflow agents (`workflows/ptp-full-apply.js`) | Named outside this skill (the family does not use it): the apply agent takes the per-story recommendation with `opus` as its default, and the code-review agent takes that story's resolved review target — the same recommendation floored at `sonnet`/`high`, or a valid `models.apply-review` entry's pair, with `opus`/`high` as its default — and may be re-spawned once at a more capable model when its own fix-target evaluation names one. Both are judgment-carrying stages, and neither names a fixed target to downgrade. | Judgment-carrying; downgrade forbidden. |
    | `ptp-workflow-cache-heal` | A Bash step invoked directly via the Bash tool, not an agent spawn — it has no `model` parameter to choose at all. | Not a spawn site; no model to name. |
    | `plan-multiple`'s cross-reference verification (step 5f) | Runs in the **outer session**, after the beat-3 join, not inside any spawned agent — it has no `model` parameter to choose. | Not a spawn site; no model to name. |
@@ -341,11 +341,10 @@ Any command that references this skill MAY additionally support an **opt-in, per
 `model:<model>.<effort>` token that a user embeds anywhere in that command's free-text argument text,
 to override the command's stated default target for that single invocation only. This section is the
 single source of truth for the token's grammar, validation, and refusal contract; a supporting command
-references this section rather than restating it. As of this writing, `/ptp:brainstorm`, `/ptp:prd`,
-`/ptp:brainstorm-full`, `/ptp:prd-full`, `/ptp:analyze`, `/ptp:prompt`, `/ptp:prompt-fix`, and
-`/ptp:prompt-write` support this token (see `commands/brainstorm.md`, `commands/prd.md` /
-`skills/ptp-prd/SKILL.md`, `commands/brainstorm-full.md` / `skills/ptp-brainstorm-full/SKILL.md`,
-`commands/prd-full.md` / `skills/ptp-prd-full/SKILL.md`, `commands/analyze.md` /
+references this section rather than restating it. As of this writing, `/ptp:brainstorm`,
+`/ptp:brainstorm-full`, `/ptp:analyze`, `/ptp:prompt`, `/ptp:prompt-fix`, and
+`/ptp:prompt-write` support this token (see `commands/brainstorm.md`,
+`commands/brainstorm-full.md` / `skills/ptp-brainstorm-full/SKILL.md`, `commands/analyze.md` /
 `skills/ptp-analyze/SKILL.md`, `commands/prompt.md` and `commands/prompt-fix.md` /
 `skills/ptp-prompt-draft/SKILL.md`, and `commands/prompt-write.md` / `skills/ptp-prompt-write/SKILL.md`);
 no other caller of this skill is affected.
@@ -426,7 +425,7 @@ target resolution for that invocation.
 Any command that references this skill MAY additionally support an **opt-in, per-invocation**
 `codex-model:<model>--<effort>` token — the `main=codex` sibling of the `model:` token above, same
 detect-then-validate shape, double-dash delimiter, split on the last `--`. Scoped to the same
-commands `model:` targets (`/ptp:brainstorm`, `/ptp:prd`, `/ptp:brainstorm-full`, `/ptp:prd-full`,
+commands `model:` targets (`/ptp:brainstorm`, `/ptp:brainstorm-full`,
 `/ptp:analyze`, `/ptp:prompt`, `/ptp:prompt-fix`, `/ptp:prompt-write`); as of this writing those
 command files have not yet been updated with the parse step, so the token has no effect for any
 invocation until that follow-up lands. Full grammar, the two-stage detect-then-validate rule, all

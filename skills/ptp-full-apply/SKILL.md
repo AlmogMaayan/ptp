@@ -48,10 +48,10 @@ For the same reason, the `apply` stage record (`openspec/changes/<id>/stages/app
 
 ## Change discovery and ordering
 
-- **Explicit `change-ids`** → use that list **verbatim, in the given order** (the user is asserting the dependency order). Skip discovery entirely.
+- **Explicit `change-ids`** → use that list **verbatim, in the given order** (the user is asserting the dependency order). Skip discovery entirely. Because this list skips `ptp-change-selector` §3, check it here: if any id is an epic container (story path exactly `_00`, §1), **STOP** with the §5 epic container guard message — "`<id>` is an epic container, not an active change; use `epic:XXXX` for its stories" — before any apply.
 - **Selector input** (the argument starts with `epic:` or `story:`) → pre-resolve the whole string via `ptp-change-selector`: `epic:XXXX` → all that epic's active stories in ascending story order; `epic:XXXX story:NN` / unambiguous `story:NN` → the single resolved change. Treat the resolved id(s) as an explicit id list (no discovery, no scope confirmation).
 - **Empty `change-ids`** → discover:
-  1. Run `npx -y openspec list` to enumerate active changes.
+  1. Run `npx -y openspec list` to enumerate active changes, dropping every `_00` epic container (`ptp-change-selector` §3).
   2. Order by epic then story (`XXXX_NN_`) ascending; append any legacy/unprefixed ids after in `openspec list` order.
   3. If the list is empty → **STOP**: "no active changes to run."
   4. **One-time scope confirmation — no-arg path only.** Print the full resolved ordered id list and **STOP before any apply**, so the user confirms they really mean *every* active change. The active set may include changes unrelated to the current work or not yet plan-reviewed (no `tasks.md`, still being planned). The user re-invokes — with the confirmed set or an explicit id subset — to proceed.

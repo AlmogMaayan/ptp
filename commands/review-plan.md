@@ -63,7 +63,7 @@ pipe it to `codex exec -s read-only` over stdin per *Role resolution* above.
 
 1. **Resolve scope:**
    - If `$ARGUMENTS` names a change, review just that change.
-   - If `$ARGUMENTS` is empty, run `npx -y openspec list` and review **every** active change. Do not stop at the first failure — review all of them.
+   - If `$ARGUMENTS` is empty, run `npx -y openspec list`, drop `_00` epic containers (`ptp-change-selector` §3), and review **every** active change. Do not stop at the first failure — review all of them.
 
 2. **For each change in scope, load its artifacts** from `openspec/changes/<change-id>/`:
    - `proposal.md`; `design.md` (may be absent — its absence is never itself a finding); `tasks.md`;
@@ -72,7 +72,8 @@ pipe it to `codex exec -s read-only` over stdin per *Role resolution* above.
      and SHALL NOT block `/ptp:apply`; lines 2 and beyond are ignored, never validated).
    - Do **not** load `TLDR.md`. It is not an input to this review, and a legacy folder carrying one is not a finding.
    - `brainstorm.md` is **not** a default input: read it only to adjudicate a **disputed** decision
-     source. A `Source` path that does not resolve is **not** a blocking condition.
+     source, locating it by `ptp-change-selector` §4c's lookup — the change's own file first, then
+     its epic container's. A `Source` path that does not resolve is **not** a blocking condition.
 
 3. **Run the rubric** against each change. This is a structured artifact audit authored inline — do **not** invoke the `ptp-requesting-code-review` skill (it targets code; artifacts are a different object). Apply that same rigor to the reasoning, not the code.
 

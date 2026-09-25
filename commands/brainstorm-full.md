@@ -1,6 +1,6 @@
 ---
 description: Explore a change and then review the brainstorm with both reviewers until it converges
-argument-hint: "<short description of the change> (or a fully-formed XXXX_NN_<desc> id to re-run on an existing change)"
+argument-hint: "<short description of the change> (free text yields an epic container XXXX_00_<desc>; a fully-formed XXXX_NN_<desc> id is kept, and a new _00 id STOPs when its epic already has another container)"
 ---
 
 ## Arguments

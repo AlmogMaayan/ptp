@@ -77,6 +77,12 @@ archive the flow writes `<archive-location>/stages/archive.json` exactly as `/pt
 specifies, with no separate rule here — and the archive-convergence gate below keys on the subagent's
 terminal state, **never** on that record.
 
+Each Phase A "STOP the whole command" below ends only this story loop, not the whole command: once
+the loop ends — whether every change archived or it stopped at a blocking change — `/ptp:archive`
+step 8 ("Close epic containers") runs once, before the archive-convergence gate, over the epics the
+selector covers. A container failure is reported and never blocks Phase B; the archive-convergence
+gate below keys only on story terminal states.
+
 For each `c`, in order:
 
 1. **Outer session (interactive, before the spawn — the subagent is non-interactive per
@@ -125,7 +131,9 @@ For each `c`, in order:
 
 ## Archive-convergence gate
 
-Phase B (deploy) runs **only if every** resolved change reached the `completed` archive terminal state.
+Phase B (deploy) runs **only if every** resolved change reached the `completed` archive terminal state
+— this gate keys **only** on story terminal states; the closing step's container moves run before this
+gate and never affect it, so a container failure never blocks Phase B.
 A change fails to converge in any of these ways, and **all** STOP the whole command **before**
 Phase B (no partial deploy):
 
@@ -167,14 +175,16 @@ Relay the deploy's terminal state verbatim in meaning:
 
 Report at whichever terminal point is reached:
 
-- **Ship summary** (deploy `completed`) — the changes archived in order, then the deploy ship summary
-  (PR merged, branch deleted, deploy conclusion, clean base branch).
+- **Ship summary** (deploy `completed`) — the changes archived in order, the closing step's container
+  lines (step 8: each checked container's target, or why it stayed or failed), then the deploy ship
+  summary (PR merged, branch deleted, deploy conclusion, clean base branch).
 - **Blocking-change STOP** (Phase A did not converge) — name the blocking change and the
   gate/confirmation it failed: an **outer** tasks-complete or validation gate failed (mode (a)), **or**
   an outer review-clean/confirm-action confirmation was not given (mode (b)), **or** an archive
   subagent returned `refused` (mode (c), and which gate — unchecked tasks or failing validation). State
-  plainly that the deploy phase was **not** entered (no partial deploy) and list the
-  changes that archived before the blocker.
+  plainly that the deploy phase was **not** entered (no partial deploy), list the
+  changes that archived before the blocker, and include step 8's container lines for the epics
+  checked before the loop stopped.
 - **Deploy `refused`** — relayed as a gate/precondition failure (e.g. a fix-loop budget exhausted),
   **not** as success.
 - **Deploy `needs-human-action`** — the reason, the PR URL, and the exact follow-up

@@ -36,7 +36,7 @@ set:
 |---|---|
 | `key` | the stable finding key, computed per `skills/ptp-review-loop/SKILL.md` for the review kind in play |
 | `severity` | one label from the `review-severity` capability's domain and ordering |
-| `location` | the file plus line range (code), or the nearest enclosing heading (artifact, brainstorm, PRD) |
+| `location` | the file plus line range (code), or the nearest enclosing heading (artifact, brainstorm) |
 | `defect` | one sentence naming what is wrong |
 | `evidence` | the quoted text, command output, or cited requirement that makes it wrong |
 | `remedy` | the concrete change that resolves it |

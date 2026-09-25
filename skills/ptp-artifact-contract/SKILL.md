@@ -16,11 +16,11 @@ emission order, detection heuristics) are owned elsewhere and are not restated h
 
 ## 1. Ownership table (contract v1)
 
-Nine rows. `Budget` is words. **A budget carrying a config key is an acceptance criterion, not
+Eight rows. `Budget` is words. **A budget carrying a config key is an acceptance criterion, not
 guidance:** an artifact over it is defective, and the only two remedies are to remove text or to
 split the change. Review effort scales with the number of claims a document makes, so an unbounded
-artifact is an unbounded review. The two budgets with no key (`brainstorm.md`, `prd.md`) stay
-**soft** — exceeding one requires an explicit written justification in the artifact, never
+artifact is an unbounded review. The one budget with no key (`brainstorm.md`) stays
+**soft** — exceeding it requires an explicit written justification in the artifact, never
 truncation. Under either posture the control is "no duplicate information and no claim the change
 does not need," never "delete necessary information."
 
@@ -37,7 +37,6 @@ layered per `ptp-workspace`.
 | `tasks.md` | Ordered agent-executable actions and verification | Rationale essays, copied requirements, review history | 600; 5–15 checkboxes, each ≤ 60 words | `artifact.maxTasksWords`, `artifact.maxTaskCount`, `artifact.maxTaskWords` |
 | `effort.md` | The apply complexity recommendation | Explanation, blank section, Codex runtime configuration | one line | — |
 | `TLDR.md` | Nothing required by the model workflow | Everything | not created | — |
-| `prd.md` | Epic-level problem, outcomes, scope, requirements | Per-story design/task repetition, empty boilerplate | 1200 (soft; real multi-story epics only) | — |
 | `analysis.md` | Conclusion, evidence, unknowns | Investigation diary, revision history | none (current conclusions only) | — |
 
 **The spec deltas are budgeted, and the sum is what is budgeted.** They were historically the one
@@ -130,7 +129,7 @@ Every planning artifact describes only the latest intended state.
 ## 4. Prose readability
 
 Every markdown file a ptp writer creates or edits under `openspec/changes/<id>/` —
-`brainstorm.md`, `proposal.md`, `design.md`, `tasks.md`, the spec deltas, `prd.md`, and
+`brainstorm.md`, `proposal.md`, `design.md`, `tasks.md`, the spec deltas, and
 `analysis.md` — follows four prose rules.
 
 1. **Short sentences.** State one point per sentence.  Break a long compound or run-on sentence
@@ -171,3 +170,17 @@ The contract version is the pair **(schema name, schema `version` integer)** —
 - **Boundary with `effort-rubric`:** the one-line rule binds only changes recorded as `ptp-compact`.
   `effort-rubric`'s line-1/blank/justification contract continues to bind every other change and is
   not amended here.
+
+## 6. Epic container
+
+An epic container is the folder `XXXX_00_<slug>` that `ptp-change-selector` §1 defines: story path
+exactly `00`, recognized by its name alone, and never an active change.
+
+It MAY hold only epic-level files: `prompt.md`, `brainstorm.md`, `analysis.md`, and review markers
+under `stages/`.
+
+It MUST NOT hold `proposal.md`, `design.md`, `tasks.md`, `specs/`, `effort.md`, or `.openspec.yaml`.
+Planning artifacts always land in a story folder `XXXX_NN_<desc>` with `NN` of `01` or above.
+
+Each file a container holds keeps the §4 prose rules, and the §1 ownership row of its file name
+where one exists (`prompt.md` has none).

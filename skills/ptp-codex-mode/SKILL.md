@@ -22,11 +22,10 @@ to the README §Configuration table (the *schema*). It changes no config and add
 
 **Mode-gated — they ask this skill whether to run their Codex phase:**
 
-`/ptp:review-full`, `/ptp:review-plan-full`, `/ptp:review-brainstorm-full`, `/ptp:review-prd-full`,
-`/ptp:full`, `/ptp:full-apply`, `/ptp:brainstorm-full`, `/ptp:prd-full` (and the skills behind them:
-`ptp-full`, `ptp-full-apply`, `ptp-review-brainstorm-full`, `ptp-review-prd-full`, `ptp-brainstorm-full`,
-`ptp-prd-full` — the brainstorm/PRD `-full` orchestrators run a `-full` review as their Phase B, which
-consults this skill).
+`/ptp:review-full`, `/ptp:review-plan-full`, `/ptp:review-brainstorm-full`,
+`/ptp:full`, `/ptp:full-apply`, `/ptp:brainstorm-full` (and the skills behind them:
+`ptp-full`, `ptp-full-apply`, `ptp-review-brainstorm-full`, `ptp-brainstorm-full` — the brainstorm
+`-full` orchestrator runs a `-full` review as its Phase B, which consults this skill).
 
 **NOT gated — the explicit `/ptp:codex-*` commands** (see *Explicit-override rule* below): invoking
 them is itself the opt-in to Codex, so they bypass the mode gate entirely and are listed here only
@@ -147,8 +146,7 @@ effort = family.effort ?? codex.judgment.reasoningEffort ?? codex.reasoningEffor
   `gpt-6-astra--high` (model `gpt-6-astra`, effort `high`).
 - A set `codex.judgment.model` with no effort key anywhere yields that model and effort `high`.
 - **Family of a read-only call site** comes from its review kind: `code` → `apply-review`,
-  `artifact` → `plan-review`, `brainstorm` → `brainstorm`, `prd` → **no family** (the chain starts
-  at `codex.judgment.*`).
+  `artifact` → `plan-review`, `brainstorm` → `brainstorm`.
 - **Precedence above the chain:** a Codex dispatch target passed down by a workflow (the
   `codexReview*` fields) still wins over the chain. `ptp-full` and `ptp-full-apply` compute that
   target with the `apply-review` chain, so it is always set.
@@ -338,8 +336,7 @@ write-capable invocation.
 ## Explicit-override rule
 
 The explicit `/ptp:codex-*` commands — `/ptp:codex-review`, `/ptp:codex-review-loop`,
-`/ptp:codex-review-plan`, `/ptp:codex-review-plan-loop`, `/ptp:codex-review-prd`,
-`/ptp:codex-review-prd-loop`, `/ptp:codex-review-uncommitted` — are
+`/ptp:codex-review-plan`, `/ptp:codex-review-plan-loop`, `/ptp:codex-review-uncommitted` — are
 **not** gated by `codex.mode`. Invoking one of them is itself an explicit request for the Codex
 reviewer, so the mode gate does not apply: they **always attempt Codex** and STOP only if `codex` is
 genuinely missing from PATH. `mode=off` does **not** make `/ptp:codex-review` skip Codex. Those
@@ -366,8 +363,7 @@ print sites that emit these strings are not edited here (that is 0027_03).
 
 ## Mode-skip terminal state
 
-When a `*-full` review (`/ptp:review-full`, `/ptp:review-plan-full`, `/ptp:review-brainstorm-full`, or
-`/ptp:review-prd-full`) converges its main phase and the Codex phase is skipped by mode, it
+When a `*-full` review (`/ptp:review-full`, `/ptp:review-plan-full`, or `/ptp:review-brainstorm-full`) converges its main phase and the Codex phase is skipped by mode, it
 terminates in a distinct, **green-class** terminal state — separate from the both-phases label so a
 human can tell the two apart:
 
@@ -406,8 +402,7 @@ in `ptp-full-apply`, no pre-run stop in `/ptp:full`), with the skip always named
   (valid only when they pass the `codex-model-token.md` step 2 split rule; never refuse).
 - The Codex lookup chain, per field: family entry, then `codex.judgment.*`, then `codex.model` /
   `codex.reasoningEffort`, then the built-in `gpt-6-astra--high`. A read-only site's family comes from its
-  review kind (`code` → `apply-review`, `artifact` → `plan-review`, `brainstorm` → `brainstorm`,
-  `prd` → none).
+  review kind (`code` → `apply-review`, `artifact` → `plan-review`, `brainstorm` → `brainstorm`).
 - The reviewer gate is symmetric: the MAIN agent's phase always runs; only the REVIEWER agent's
   phase is gated. Main/reviewer come from `ptp-agent-roles`' `{ main, reviewer }`. At the default
   `roles.main = claude` (reviewer=codex) this reduces to "the main phase always runs; only
