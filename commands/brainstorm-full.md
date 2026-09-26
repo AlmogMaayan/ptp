@@ -5,6 +5,8 @@ argument-hint: "<short description of the change> (free text yields an epic cont
 
 ## Arguments
 
+First parse and strip the `scout:on|off` token, before the branch guard, per the gate section of `skills/ptp-run-at-model/references/scout-prestep.md`, and pass the effective decision to the skill as `scout`.
+
 Parse and strip the per-invocation `model:<model>.<effort>` token, then take the remainder as a short description or a fully-formed change id.
 
 ## Owner

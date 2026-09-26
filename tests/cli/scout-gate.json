@@ -1,0 +1,230 @@
+{
+  "script": "scripts/ptp-resolve-scout-gate.js",
+  "cases": [
+    {
+      "id": "token-on-beats-config",
+      "tree": {
+        "repo/.git": "dir",
+        "repo/openspec": "dir",
+        "repo/.claude/ptp/config.json": "{\"brainstorm\":{\"scout\":\"off\"}}\n"
+      },
+      "cwd": "repo",
+      "argv": [
+        "add x scout:on"
+      ],
+      "expect": {
+        "exitCode": 0,
+        "stdout": {
+          "scout": "on",
+          "source": "token",
+          "args": "add x"
+        }
+      }
+    },
+    {
+      "id": "token-off-beats-config",
+      "tree": {
+        "repo/.git": "dir",
+        "repo/openspec": "dir",
+        "repo/.claude/ptp/config.json": "{\"brainstorm\":{\"scout\":\"on\"}}\n"
+      },
+      "cwd": "repo",
+      "argv": [
+        "scout:off add x"
+      ],
+      "expect": {
+        "exitCode": 0,
+        "stdout": {
+          "scout": "off",
+          "args": "add x"
+        }
+      }
+    },
+    {
+      "id": "absent-config-on",
+      "tree": {
+        "repo/.git": "dir",
+        "repo/openspec": "dir",
+        "repo/.claude/ptp/config.json": "{\"brainstorm\":{\"scout\":\"on\"}}\n"
+      },
+      "cwd": "repo",
+      "argv": [
+        "add x"
+      ],
+      "expect": {
+        "exitCode": 0,
+        "stdout": {
+          "scout": "on"
+        }
+      }
+    },
+    {
+      "id": "absent-config-off",
+      "tree": {
+        "repo/.git": "dir",
+        "repo/openspec": "dir",
+        "repo/.claude/ptp/config.json": "{\"brainstorm\":{\"scout\":\"off\"}}\n"
+      },
+      "cwd": "repo",
+      "argv": [
+        "add x"
+      ],
+      "expect": {
+        "exitCode": 0,
+        "stdout": {
+          "scout": "off"
+        }
+      }
+    },
+    {
+      "id": "uppercase-prefix-absent",
+      "tree": {
+        "repo/.git": "dir",
+        "repo/openspec": "dir",
+        "repo/.claude/ptp/config.json": "{\"brainstorm\":{\"scout\":\"off\"}}\n"
+      },
+      "cwd": "repo",
+      "argv": [
+        "Scout:on x"
+      ],
+      "expect": {
+        "exitCode": 0,
+        "stdout": {
+          "scout": "off",
+          "args": "Scout:on x"
+        }
+      }
+    },
+    {
+      "id": "embedded-not-candidate",
+      "tree": {
+        "repo/.git": "dir",
+        "repo/openspec": "dir",
+        "repo/.claude/ptp/config.json": "{\"brainstorm\":{\"scout\":\"off\"}}\n"
+      },
+      "cwd": "repo",
+      "argv": [
+        "noscout:on x"
+      ],
+      "expect": {
+        "exitCode": 0,
+        "stdout": {
+          "scout": "off"
+        }
+      }
+    },
+    {
+      "id": "other-tokens-preserved",
+      "tree": {
+        "repo/.git": "dir",
+        "repo/openspec": "dir",
+        "repo/.claude/ptp/config.json": "{\"brainstorm\":{\"scout\":\"off\"}}\n"
+      },
+      "cwd": "repo",
+      "argv": [
+        "fast:on x scout:on model:opus.high"
+      ],
+      "expect": {
+        "exitCode": 0,
+        "stdout": {
+          "args": "fast:on x model:opus.high"
+        }
+      }
+    },
+    {
+      "id": "bad-value",
+      "tree": {
+        "repo/.git": "dir",
+        "repo/openspec": "dir",
+        "repo/.claude/ptp/config.json": "{\"brainstorm\":{\"scout\":\"off\"}}\n"
+      },
+      "cwd": "repo",
+      "argv": [
+        "x scout:true"
+      ],
+      "expect": {
+        "exitCode": 1,
+        "stdout": {
+          "candidates": [
+            "scout:true"
+          ]
+        }
+      }
+    },
+    {
+      "id": "bad-case-value",
+      "tree": {
+        "repo/.git": "dir",
+        "repo/openspec": "dir",
+        "repo/.claude/ptp/config.json": "{\"brainstorm\":{\"scout\":\"off\"}}\n"
+      },
+      "cwd": "repo",
+      "argv": [
+        "scout:ON"
+      ],
+      "expect": {
+        "exitCode": 1,
+        "stdout": {
+          "candidates": [
+            "scout:ON"
+          ]
+        }
+      }
+    },
+    {
+      "id": "empty-value",
+      "tree": {
+        "repo/.git": "dir",
+        "repo/openspec": "dir",
+        "repo/.claude/ptp/config.json": "{\"brainstorm\":{\"scout\":\"off\"}}\n"
+      },
+      "cwd": "repo",
+      "argv": [
+        "scout: x"
+      ],
+      "expect": {
+        "exitCode": 1,
+        "stdout": {
+          "candidates": [
+            "scout:"
+          ]
+        }
+      }
+    },
+    {
+      "id": "two-candidates",
+      "tree": {
+        "repo/.git": "dir",
+        "repo/openspec": "dir",
+        "repo/.claude/ptp/config.json": "{\"brainstorm\":{\"scout\":\"off\"}}\n"
+      },
+      "cwd": "repo",
+      "argv": [
+        "scout:on scout:off"
+      ],
+      "expect": {
+        "exitCode": 1,
+        "stdout": {
+          "candidates": [
+            "scout:on",
+            "scout:off"
+          ]
+        }
+      }
+    },
+    {
+      "id": "usage-no-args",
+      "tree": {
+        "repo/.git": "dir",
+        "repo/openspec": "dir",
+        "repo/.claude/ptp/config.json": "{\"brainstorm\":{\"scout\":\"off\"}}\n"
+      },
+      "cwd": "repo",
+      "argv": [],
+      "expect": {
+        "exitCode": 2,
+        "stdoutEmpty": true
+      }
+    }
+  ]
+}

@@ -81,3 +81,50 @@ six-label shape (see `design.md` §4/§5).
 - **Observable check:** The post-run capsule contains exactly one `## Decision` heading and exactly
   one `## Assumptions` heading, and no heading or text matching `history`, `revision`, or `previous`
   (case-insensitive) appears anywhere in the file.
+
+### PT-B6 — Intent vs implementation
+
+- **Failure mode:** Implementation-first — weighs the requested mechanism before naming the outcome.
+- **Setup:** The request is a second telemetry JSON file "so the report reads faster".
+- **Prompt:** Run `ptp-brainstorming` under `mode: autonomous` on that request.
+- **Required behavior:** The capsule names the outcome (a faster-reading report) and cites
+  `skills/ptp-telemetry-report/SKILL.md` before it weighs the new file as an option.
+- **Failing behavior:** The capsule adopts or compares the second JSON file without stating the outcome
+  or citing the report skill.
+- **Observable check:** The capsule states the outcome and cites `skills/ptp-telemetry-report/SKILL.md`
+  ahead of any mention of the new file.
+
+### PT-B7 — Reuse vs a parallel abstraction
+
+- **Failure mode:** Parallel abstraction — invents a new mechanism where an existing one fits.
+- **Setup:** The request is a per-loop retry cap setting.
+- **Prompt:** Run `ptp-brainstorming` under `mode: autonomous` on that request.
+- **Required behavior:** The capsule extends `review.maxIterations` (`skills/ptp-config/SKILL.md:61`)
+  and its layered merge, and rejects a new settings file or loader.
+- **Failing behavior:** The capsule proposes a new settings file, loader, or parallel config key family.
+- **Observable check:** The capsule cites `skills/ptp-config/SKILL.md:61` and lists a new settings file
+  or loader only as a rejected alternative.
+
+### PT-B8 — No false complexity
+
+- **Failure mode:** False complexity — invents mechanism or traverses unrelated owners for a trivial fix.
+- **Setup:** The request is a one-word wording fix in `skills/ptp-version/SKILL.md`.
+- **Prompt:** Run `ptp-brainstorming` under `mode: autonomous` on that request.
+- **Required behavior:** The capsule cites that file, records "Only one viable direction", adds no
+  mechanism and traverses no unrelated owner.
+- **Failing behavior:** The capsule invents alternatives, a new mechanism, or inspects unrelated
+  owners.
+- **Observable check:** The capsule cites `skills/ptp-version/SKILL.md`, contains the line
+  "Only one viable direction", and cites no other owner.
+
+### PT-B9 — A compact capsule
+
+- **Failure mode:** Bloat — the capsule turns into a design or plan document.
+- **Setup:** The request is a large feature.
+- **Prompt:** Run `ptp-brainstorming` under `mode: autonomous` on that request.
+- **Required behavior:** The capsule has exactly three headings, no `## Impact`, `## Flow`, `## Plan`
+  or `## Tasks` heading, no checkbox, and stays within the `brainstorm.md` budget
+  (`skills/ptp-artifact-contract/SKILL.md:33`).
+- **Failing behavior:** An impact, flow, plan or tasks heading, a checkbox, or an over-budget capsule.
+- **Observable check:** The capsule has exactly three `## ` headings, none of those four names, no
+  `- [ ]` line, and its word count is within the budget.

@@ -24,6 +24,8 @@ the resolved `parallel.mode` applies (absent is not `off`). Valid → strip and 
 invocation only. Invalid → refuse and STOP in the outer session before the branch guard or any
 spawn.
 
+The `scout:on|off` token parse (`skills/ptp-run-at-model/references/scout-prestep.md` § *The scout gate*) is identical to `/ptp:plan-multiple`'s.
+
 This command parses **no `fast:` token** and gains **no `model:` override token** — members run at
 the `brainstorm` family default target (beat 3 below; `opus.high` built in) (or the `codex.model`/`codex.reasoningEffort` equivalent under
 `roles.main=codex`).
@@ -49,7 +51,7 @@ slices into its epic per `ptp-change-selector` §4c ("Decomposing with a contain
 ## Branch safety (beat 1, first write-affecting step)
 
 Beat 1 runs entirely in the outer session, in this exact order: (1) parse and strip the
-`parallel:` token, (2) allocate the fresh epic per `ptp-change-selector` §4 — or, for a container id,
+`parallel:` and `scout:` tokens, (2) allocate the fresh epic per `ptp-change-selector` §4 — or, for a container id,
 allocate **no** epic, the guard's leaf being the container id per `ptp-branch-guard` case 1, (3) run the
 **`ptp-branch-guard`** preamble once, (4) gather read-only input (see Beat 1 below). No main run of
 any kind starts before beat 1 has completed. The branch guard's full rule (naming, the
@@ -87,6 +89,8 @@ not restate it), then the split-or-fall-back decision, ending in the structured 
 slice id is allocated here, before any beat-3 member starts, exactly as `/ptp:plan-multiple`'s Beat 2
 does. Beat 2 must not attempt to launch `ptp-branch-prep` (its own branch-guard check is a no-op) and
 must start no further main run.
+
+**Scout map.** Exactly `/ptp:plan-multiple`'s Beat 2 *Scout map* paragraph, with `/ptp:brainstorm` as the fallback and the members; restate none.
 
 **Fresh-split capsule.** On the split path of a fresh decomposition only, beat 2 creates the new
 epic's container `XXXX_00_<desc>` — `<desc>` the input folder's desc, or the ≤5-word summary of the

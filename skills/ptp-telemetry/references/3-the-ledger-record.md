@@ -93,6 +93,7 @@ the *run* rather than on the *command*.
 | A read-only `codex exec` reviewer call site (`ptp-codex-mode`) | `codex` | `codex` |
 | A `ptp-full-apply` measured `agent()` call | `workflow-agent` | `claude` |
 | The outer-session command bracket (§6.5) | `main` | `claude` |
+| The outer-session brainstorm scout spawn (`ptp-run-at-model` pre-step) | `subagent` | `claude` |
 
 The `main`/`claude` pairing is emitted by that one write point (§6.5) and by no other.
 
@@ -114,6 +115,8 @@ reviewer) while a read-only reviewer shell-out is `agent_role=codex`. Collapsing
 | `ptp-full-apply` review agent | `terminalState: PHASE1_CAP` / `PHASE2_CAP` | `needs-human-action` |
 | `ptp-full-apply` review agent | `terminalState: FIX_TARGET_ESCALATION` | `needs-human-action` |
 | Any `ptp-full-apply` agent | `null` / unparseable result | `needs-human-action` |
+| brainstorm scout | map check passed | `completed` |
+| brainstorm scout | check failed / spawn error / no result | `refused` |
 
 No case is left unmapped, so **no close line can ever carry an empty `outcome`**.
 

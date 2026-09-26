@@ -276,6 +276,13 @@ parameters = [
     default:  "opus.high"
   },
   {
+    key:      "models.brainstorm-scout",
+    label:    "Claude model for the brainstorm scout",
+    jsonPath: ["models", "brainstorm-scout"],
+    kind:     "string",
+    default:  "sonnet.medium"
+  },
+  {
     key:      "codex.analyze",
     label:    "Codex model for analyze commands",
     jsonPath: ["codex", "analyze"],
@@ -309,11 +316,22 @@ parameters = [
     jsonPath: ["codex", "apply-review"],
     kind:     "string",
     default:  "gpt-6-astra--high"
+  },
+  {
+    key:      "brainstorm.scout",
+    label:    "Run the brainstorm scout",
+    jsonPath: ["brainstorm", "scout"],
+    kind:     "enum",
+    values: [
+      { value: "off", desc: "No scout (default)" },
+      { value: "on",  desc: "Run the read-only scout before brainstorm main runs" }
+    ],
+    default: "off"
   }
 ]
 ```
 
-**Parameter menu:** The registry currently holds thirty-four entries. Step 2 builds an `AskUserQuestion`
+**Parameter menu:** The registry currently holds thirty-six entries. Step 2 builds an `AskUserQuestion`
 menu from each entry's `label` value and presents it to the user. The flow is data-driven: adding
 a new entry to the registry automatically adds it to the menu with no further edits to this flow.
 
@@ -396,11 +414,13 @@ Build an `AskUserQuestion` menu from the registry entries' `label` values:
 27. **Claude model for brainstorm commands** (`models.brainstorm`)
 28. **Claude model for plan-review commands** (`models.plan-review`)
 29. **Claude model for apply-review commands** (`models.apply-review`)
-30. **Codex model for analyze commands** (`codex.analyze`)
-31. **Codex model for prompt commands** (`codex.prompt`)
-32. **Codex model for brainstorm commands** (`codex.brainstorm`)
-33. **Codex model for plan-review commands** (`codex.plan-review`)
-34. **Codex model for apply-review commands** (`codex.apply-review`)
+30. **Claude model for the brainstorm scout** (`models.brainstorm-scout`)
+31. **Codex model for analyze commands** (`codex.analyze`)
+32. **Codex model for prompt commands** (`codex.prompt`)
+33. **Codex model for brainstorm commands** (`codex.brainstorm`)
+34. **Codex model for plan-review commands** (`codex.plan-review`)
+35. **Codex model for apply-review commands** (`codex.apply-review`)
+36. **Run the brainstorm scout** (`brainstorm.scout`)
 
 Use the selected entry's `jsonPath`, `kind`, `values` (for enum entries), and `default` for the
 remaining steps. This is data-driven off the registry — adding a parameter requires only a new
@@ -465,7 +485,7 @@ turns one invocation into several writes. The idempotency/no-op report, the `wri
      - For `review.maxIterations`, `review.minSeverity`, or `review.autoRecutOnBudgetExceeded` (they
        share the same `review` parent): if `review` exists but is not an object (e.g. `{"review":"x"}`
        or `{"review":null}`), STOP.
-     - For `models.<family>` (any of the five): if `models` exists but is not an object (e.g.
+     - For `models.<family>` or `models.brainstorm-scout` (every `models.*` entry): if `models` exists but is not an object (e.g.
        `{"models":"opus.high"}` or `{"models":null}`), STOP.
      - For `roles.main`: if `roles` exists but is not an object (e.g. `{"roles":"claude"}` or
        `{"roles":null}`), STOP.
@@ -476,6 +496,8 @@ turns one invocation into several writes. The idempotency/no-op report, the `wri
      - For `parallel.mode` or `parallel.maxConcurrency` (they share the same `parallel` parent): if
        `parallel` exists but is not an object (e.g. `{"parallel":"on"}` or `{"parallel":null}`),
        STOP.
+     - For `brainstorm.scout`: if `brainstorm` exists but is not an object (e.g. `{"brainstorm":"on"}` or
+       `{"brainstorm":null}`), STOP.
      - For any `artifact.*` key (all six share the same `artifact` parent): if `artifact` exists
        but is not an object (e.g. `{"artifact":400}` or `{"artifact":null}`), STOP.
      - For `backlog.projectOwner` or `backlog.projectNumber` (they share the same `backlog`
@@ -488,7 +510,7 @@ turns one invocation into several writes. The idempotency/no-op report, the `wri
      - `tdd` is a **top-level** key (its `jsonPath` is a single segment, `["tdd"]`) — it has no
        parent object, so it adds **no** parent-shape STOP row of its own. The existing root-object
        check above already covers it: only a non-object root stops the command for `tdd`.
-   - Absent parents (`codex`, `models`, `review`, `roles`, `telemetry`, `parallel`, `artifact`, or `backlog`
+   - Absent parents (`codex`, `models`, `review`, `roles`, `telemetry`, `parallel`, `artifact`, `brainstorm`, or `backlog`
      not present in the root — and, for `backlog.statusOptions`, an absent `statusOptions` under a present `backlog`)
      are fine — they will be created as empty objects on write. This is not clobbering.
 
@@ -705,7 +727,7 @@ validate the input:
 When rejecting, report that the value must be non-empty and ask again. Only proceed to step 5 once a
 non-empty, non-whitespace-only string is in hand.
 
-#### kind = `string` (e.g. `models.<family>`, `codex.<family>`)
+#### kind = `string` (e.g. every `models.*` entry, `codex.<family>`)
 
 Prompt the user for a free-text value (show the entry's `default`, `opus.high` or `gpt-6-astra--high`). Trim
 it, then validate the bare value with no prefix, by reference and never by a copied rule:
@@ -735,6 +757,7 @@ State plainly at the point of selection, by key:
   per-layer validity, `main=codex` no-op) is `skills/ptp-run-at-model/references/family-default-target.md`,
   cited and not restated here; the review step inside `/ptp:full-apply` reads `models.apply-review` by
   `skills/ptp-full-apply/SKILL.md` step 2.
+- **`models.brainstorm-scout`** is not a command family and has no `codex.*` twin: the scout pre-step in `skills/ptp-run-at-model/references/scout-prestep.md` reads it (a valid `model:` token, else `sonnet.medium`).
 - **`codex.<family>`** is read by the Codex lookup chain that `ptp-codex-mode` owns (family entry,
   then `codex.judgment.*`, then flat `codex.*`, then `gpt-6-astra--high`), cited and not restated here: it
   sets the Codex model and effort for that family's read-only Codex reviews and, under
@@ -928,7 +951,7 @@ With the resolved path, the base JSON object (from step 3), and the chosen value
      create `roles` as `{}`; for
      `telemetry.mode`, `telemetry.root`, `telemetry.port`, or `telemetry.retentionDays`: create
      `telemetry` as `{}`; for `parallel.mode` or `parallel.maxConcurrency`: create `parallel` as
-     `{}`; for any `artifact.*` key: create `artifact` as `{}`; for
+     `{}`; for any `artifact.*` key: create `artifact` as `{}`; for `brainstorm.scout`: create `brainstorm` as `{}`; for
      `backlog.projectOwner` or `backlog.projectNumber`: create
      `backlog` as `{}`; for `backlog.statusOptions`: create `backlog` as `{}` and then
      `statusOptions` as `{}` when absent, in the same manner as the existing parents. For `tdd` or
@@ -999,6 +1022,8 @@ Examples:
 | `parallel` absent | Created as `{}` on write; not clobbering. |
 | `parallel.mode` selection outside `off\|on` | Not offered — the enum menu only presents the two valid values. |
 | `parallel.maxConcurrency` input non-integer (`2.5`, `"3"`, `abc`), zero, negative, or outside `1..10` (`11`) | Reject, re-prompt; do NOT write. |
+| `brainstorm` present but not an object (`"brainstorm":"on"`, `"brainstorm":null`) — applies to `brainstorm.scout` | STOP, report, do **not** overwrite. |
+| `brainstorm` absent | Created as `{}` on write; not clobbering. |
 | `artifact` present but not an object (`"artifact":400`, `"artifact":null`) — applies to all six `artifact.*` keys alike | STOP, report, do **not** overwrite. |
 | `artifact` absent | Created as `{}` on write; not clobbering — applies to all six `artifact.*` keys alike. |
 | An `artifact.*` input non-integer (`400.5`, `"400"`, `abc`), zero, or negative | Reject, re-prompt; do NOT write. |
@@ -1082,6 +1107,8 @@ Examples:
   range 1 to 10 may be written. Any non-integer, non-numeric, string-typed, zero, negative, or
   above-10 input is rejected and re-prompted — never written, so the editor can never produce a
   configuration that disables the cap or invites a rate-limit incident.
+- **Never write an out-of-enum value for `brainstorm.scout`.** Only `off` or `on` may be written. The
+  value comes from the step 4 enum menu, and the scout gate reads this key (`references/scout-prestep.md` § *The scout gate*) — never from free-form user input.
 - **Never write an out-of-enum value for `tdd`.** Only `advisory` or `mandatory` may be written.
   The value comes from the step 4 enum menu — never from free-form user input.
 - **Never write an out-of-enum value for `tdd-plugin`.** Only `superpowers` or `ptp` may be

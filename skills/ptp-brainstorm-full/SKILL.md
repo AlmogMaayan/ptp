@@ -29,6 +29,7 @@ this skill — the skill receives these as inputs and does **not** redo them.
 | `change-id` | fully-formed `XXXX_NN_<desc>` change id, or an epic container id `XXXX_00_<desc>` | Allocated/preserved by the outer session per `ptp-change-selector` §4 *Container writers*: free text allocates a fresh epic and yields its container id `XXXX_00_<desc>` (no story folder); a fully-formed id in `$ARGUMENTS`, story or container, is preserved verbatim; a `_00` id that names no folder STOPs, before any write, when its epic already has another container (the second-container STOP). |
 | `codex.mode` decision | already-resolved mode decision from `ptp-codex-mode` | Resolved once in the outer session; threaded through to Phase B so the review subagent does not re-resolve it. |
 | `target` | A `<model>.<effort>` literal — the `brainstorm` family default target (`skills/ptp-run-at-model/references/family-default-target.md`; `opus.high` built in) by default, or the caller's resolved `model:` override | Resolved once by `commands/brainstorm-full.md`'s outer session. |
+| `scout` | `on` \| `off` | Resolved once by the command's outer session per the gate section (token, else `brainstorm.scout`). |
 
 Both phases run at the resolved `target` (default: the family default target per `family-default-target.md`) via `ptp-run-at-model`. This skill
 consumes the already-resolved target and does **not** re-parse a `model:` token — the command's outer
@@ -46,6 +47,17 @@ The outer session guarantees:
   this skill is never entered in that case.
 - Under `auto` or `off`: this skill proceeds; Phase B applies the pre-resolved mode decision to
   determine whether the Codex loop runs.
+
+---
+
+## Scout pre-step (gated)
+
+Apply the pre-resolved `scout`; the pre-step is `skills/ptp-run-at-model/references/scout-prestep.md`'s *Brainstorm scout pre-step*.
+
+- Gate `off`: no pre-step runs, neither phase prompt carries part (i), and both are byte-identical to today's.
+- Gate `on`: run the pre-step once, on the Phase A `ptp-run-at-model` call, and hold the checked map in the outer session. Phase A and Phase B each carry the same map as part (i), inline in `$WORK_PROMPT` under `main=codex`. The scout is never re-run for Phase B.
+- Before Phase B, drop Phase B's part (i) with the pre-step's `scout map omitted: <reason>` line when a map line cites a path inside `openspec/changes/<change-id>/` or its epic container.
+- A failed pre-step never STOPs.
 
 ---
 

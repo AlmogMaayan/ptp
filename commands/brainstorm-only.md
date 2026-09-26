@@ -17,8 +17,10 @@ Before creating or updating **any** file, run the **`ptp-branch-guard`** preambl
 
 ## Steps
 
+**Scout gate (outer session, a read-only token parse before the branch guard).** Parse and strip `scout:on|off` from the topic and resolve the gate per `ptp-run-at-model`'s `references/scout-prestep.md` § *The scout gate*; when it resolves on, invoke `ptp-run-at-model` below with its *Brainstorm scout pre-step* requested. Gate off adds nothing.
+
 The "Branch safety (first step)" preamble above runs **in the outer session** and is this command's
-**only** outer-session precondition — `/ptp:brainstorm-only` is epic-less (it allocates no change id, so
+**only** outer-session write precondition — `/ptp:brainstorm-only` is epic-less (it allocates no change id, so
 there is no step-1 id allocation to keep outer). The actual brainstorm work — steps 1–7 — **runs at a
 deterministic model** via the **`ptp-run-at-model`** skill at the `brainstorm` family default target (`skills/ptp-run-at-model/references/family-default-target.md`; `opus.high` built in): brainstorming is high-judgment
 creative work and must not depend on whatever model the session happens to be on.

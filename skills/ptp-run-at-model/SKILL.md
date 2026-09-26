@@ -283,6 +283,7 @@ The skill then runs, **in this order**:
          NOT invoke the seven `ptp-*` replacement skills. Write every Superpowers artifact to the ptp
          target named in this prompt (never `docs/superpowers/...`), do not commit, and do not stop
          for a human approval gate — ptp runs autonomously and reviews afterwards."
+     - (i) **(optional)** a scout map, carried in both branches: `references/scout-prestep.md`.
 
      The spawn is **foreground**: the session **blocks** until the subagent returns.
 

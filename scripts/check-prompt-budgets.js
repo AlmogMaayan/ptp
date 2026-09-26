@@ -41,6 +41,7 @@ const ORDINARY_SECTIONS = ['Arguments', 'Owner', 'Report'];
 const AGENT_SECTIONS = {
   'agents/ptp-apply.md': ['Inputs', 'Task', 'Return'],
   'agents/ptp-review.md': ['Inputs', 'Scope', 'Task', 'Return'],
+  'agents/ptp-brainstorm-scout.md': ['Inputs', 'Task', 'Return'],
 };
 
 // The seven policies this capability closes over. The name is spelled here

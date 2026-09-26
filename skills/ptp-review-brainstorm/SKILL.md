@@ -109,11 +109,20 @@ viable" incantation is required and its absence is not a finding. Sections popul
 never required. What blocks is an alternative a reader can see was **materially available** being
 neither compared nor named, or a decision that is not stated or not usable.
 
+**Decision-quality checks.** Whichever agent holds the reviewer role actively runs every check:
+
+- **A — missed impact**: omitted flows, entry points, consumers, state transitions, permissions, caches, background work, parallel functionality, downstream effects.
+- **B — unnecessary complexity**: new services, managers, interfaces, persistence, state, config, duplicate abstractions, extra UI steps, parallel mechanisms. Ask "why can't the existing architecture own this?" A materially simpler approach on the existing architecture that delivers the same behavior is a defect, not a preference.
+- **C — flow correctness**: stale state, other views not updating, reload breaking, an alternate path bypassing the mechanism, wrong permissions, an unnecessary extra action, failure/retry inconsistency, technical success without the requested product behavior.
+- **D — wrong-approach counterexample**: ask "how could this approach still be wrong?" A realistic scenario where the design is consistent and implementable yet the outcome is not delivered.
+
+**Finding rules.** Each finding states the specific problem, its evidence (`path:line` or the flow step), why it matters to the requested behavior, and the minimal correction or question. The main agent remains the architect: a finding proposes the smallest correction, never a redesign. A preference between equivalent designs is dropped, not reported, since at `review.minSeverity=low` a reported Low is still in the loop's handling scope and would churn. A finding the reviewer cannot evidence from the material it holds is phrased as a question at Medium, never High.
+
 **Blocking conditions — exhaustive.** Only these may block: a missing or placeholder brainstorm; a
 missing decision; a materially available alternative that is neither compared nor named; a decision
 unusable as a handoff to `/ptp:plan` (apply-level direction would have to be re-decided); an internal
-contradiction; coexisting current and obsolete truth. Prose depth, option count, and section count
-never block.
+contradiction; coexisting current and obsolete truth; a check-A missed impact; a check-B unnecessary complexity; a check-C flow defect; a check-D counterexample. Prose depth, option count, section count, nor a preference
+ever block.
 
 ---
 
@@ -123,8 +132,8 @@ never block.
   source).
 - **High** — placeholder/empty content; **no stated decision**; a **materially available** alternative
   that is neither compared nor named; an internal contradiction; coexisting current and obsolete
-  truth; or **not a usable handoff**.
-- **Medium** — undocumented assumptions; a usable-but-gappy handoff.
+  truth; or **not a usable handoff**; a check-B defect; a check-A missed impact that breaks the requested behavior; a check-C flow defect; a check-D counterexample showing the approach cannot deliver the outcome.
+- **Medium** — undocumented assumptions; a usable-but-gappy handoff; check D is Medium by default; a check-A impact that only raises risk; an unevidenced decision-quality question.
 - **Low** — nits: wording, formatting, ordering.
 
 The rubric above and this classification are **unchanged** by the severity threshold: every finding

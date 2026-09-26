@@ -1,0 +1,243 @@
+{
+  "script": "scripts/ptp-scout-map-cache.js",
+  "cases": [
+    {
+      "id": "lookup-miss",
+      "tree": {
+        "openspec": "dir"
+      },
+      "cwd": ".",
+      "argv": [
+        "lookup",
+        "--workspace",
+        ".",
+        "--epic",
+        "0084"
+      ],
+      "expect": {
+        "exitCode": 0,
+        "stdout": {
+          "ok": true,
+          "state": "miss",
+          "map": null
+        }
+      }
+    },
+    {
+      "id": "lookup-hit",
+      "tree": {
+        "src/a.js": "a\n",
+        "openspec/scout-cache/0084.json": "{\"version\":1,\"files\":{\"src/a.js\":\"87428fc522803d31065e7bce3cf03fe475096631e5e07bbd7a0fde60c4cf25c7\"}}\n",
+        "openspec/scout-cache/0084.md": "- entry: x — src/a.js:1\n"
+      },
+      "cwd": ".",
+      "argv": [
+        "lookup",
+        "--workspace",
+        ".",
+        "--epic",
+        "0084"
+      ],
+      "expect": {
+        "exitCode": 0,
+        "stdout": {
+          "state": "hit",
+          "changed": []
+        }
+      }
+    },
+    {
+      "id": "lookup-hit-crlf",
+      "tree": {
+        "src/a.js": "a\r\n",
+        "openspec/scout-cache/0084.json": "{\"version\":1,\"files\":{\"src/a.js\":\"87428fc522803d31065e7bce3cf03fe475096631e5e07bbd7a0fde60c4cf25c7\"}}\n",
+        "openspec/scout-cache/0084.md": "- entry: x — src/a.js:1\n"
+      },
+      "cwd": ".",
+      "argv": [
+        "lookup",
+        "--workspace",
+        ".",
+        "--epic",
+        "0084"
+      ],
+      "expect": {
+        "exitCode": 0,
+        "stdout": {
+          "state": "hit"
+        }
+      }
+    },
+    {
+      "id": "lookup-invalidated-hash",
+      "tree": {
+        "src/a.js": "b\n",
+        "openspec/scout-cache/0084.json": "{\"version\":1,\"files\":{\"src/a.js\":\"87428fc522803d31065e7bce3cf03fe475096631e5e07bbd7a0fde60c4cf25c7\"}}\n",
+        "openspec/scout-cache/0084.md": "- entry: x — src/a.js:1\n"
+      },
+      "cwd": ".",
+      "argv": [
+        "lookup",
+        "--workspace",
+        ".",
+        "--epic",
+        "0084"
+      ],
+      "expect": {
+        "exitCode": 0,
+        "stdout": {
+          "state": "invalidated",
+          "changed": [
+            "src/a.js"
+          ]
+        }
+      }
+    },
+    {
+      "id": "lookup-invalidated-missing",
+      "tree": {
+        "openspec": "dir",
+        "openspec/scout-cache/0084.json": "{\"version\":1,\"files\":{\"src/gone.js\":\"87428fc522803d31065e7bce3cf03fe475096631e5e07bbd7a0fde60c4cf25c7\"}}\n",
+        "openspec/scout-cache/0084.md": "- entry: x — src/a.js:1\n"
+      },
+      "cwd": ".",
+      "argv": [
+        "lookup",
+        "--workspace",
+        ".",
+        "--epic",
+        "0084"
+      ],
+      "expect": {
+        "exitCode": 0,
+        "stdout": {
+          "state": "invalidated",
+          "changed": [
+            "src/gone.js"
+          ]
+        }
+      }
+    },
+    {
+      "id": "store-first",
+      "tree": {
+        "src/a.js": "a\n",
+        "map.md": "- entry: x — src/a.js:1\n"
+      },
+      "cwd": ".",
+      "argv": [
+        "store",
+        "--workspace",
+        ".",
+        "--epic",
+        "0084",
+        "--map",
+        "map.md"
+      ],
+      "expect": {
+        "exitCode": 0,
+        "stdout": {
+          "ok": true,
+          "previous": false,
+          "files": 1,
+          "gitignore": "created"
+        }
+      }
+    },
+    {
+      "id": "store-rerun-diff",
+      "tree": {
+        "src/a.js": "a\n",
+        "openspec/scout-cache/0084.json": "{\"version\":1,\"files\":{\"src/a.js\":\"87428fc522803d31065e7bce3cf03fe475096631e5e07bbd7a0fde60c4cf25c7\"}}\n",
+        "openspec/scout-cache/0084.md": "- entry: x — src/a.js:1\n",
+        "map.md": "- entry: y — src/a.js:1\n"
+      },
+      "cwd": ".",
+      "argv": [
+        "store",
+        "--workspace",
+        ".",
+        "--epic",
+        "0084",
+        "--map",
+        "map.md"
+      ],
+      "expect": {
+        "exitCode": 0,
+        "stdout": {
+          "previous": true,
+          "added": [
+            "- entry: y — src/a.js:1"
+          ],
+          "removed": [
+            "- entry: x — src/a.js:1"
+          ]
+        }
+      }
+    },
+    {
+      "id": "store-drops-change-folder",
+      "tree": {
+        "src/a.js": "a\n",
+        "map.md": "- entry: x — src/a.js:1\n- note: z — openspec/changes/0084_05_x/brainstorm.md:3\n"
+      },
+      "cwd": ".",
+      "argv": [
+        "store",
+        "--workspace",
+        ".",
+        "--epic",
+        "0084",
+        "--map",
+        "map.md"
+      ],
+      "expect": {
+        "exitCode": 0,
+        "stdout": {
+          "dropped": 1,
+          "files": 1
+        }
+      }
+    },
+    {
+      "id": "bad-epic",
+      "tree": {
+        "openspec": "dir"
+      },
+      "cwd": ".",
+      "argv": [
+        "lookup",
+        "--workspace",
+        ".",
+        "--epic",
+        "84"
+      ],
+      "expect": {
+        "exitCode": 2,
+        "stdoutEmpty": true,
+        "stderrCode": "bad-args"
+      }
+    },
+    {
+      "id": "store-missing-map",
+      "tree": {
+        "openspec": "dir"
+      },
+      "cwd": ".",
+      "argv": [
+        "store",
+        "--workspace",
+        ".",
+        "--epic",
+        "0084",
+        "--map",
+        "map.md"
+      ],
+      "expect": {
+        "exitCode": 2,
+        "stdoutEmpty": true,
+        "stderrCode": "map-unreadable"
+      }
+    }
+  ]
+}
