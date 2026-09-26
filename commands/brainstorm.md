@@ -37,6 +37,8 @@ section of **`ptp-run-at-model`** — do not restate that grammar/validation her
   change-id allocation, and before any subagent spawn. Report the offending candidate(s) and the two
   valid enums (`sonnet|opus|haiku|fable`, `low|medium|high|xhigh`).
 
+**Scout gate (outer session, beside the `model:` parse).** Parse and strip `scout:on|off` and resolve the gate per `ptp-run-at-model`'s `references/scout-prestep.md` § *The scout gate*; when it resolves on, invoke `ptp-run-at-model` below with its *Brainstorm scout pre-step* requested. A `/ptp:brainstorm-decompose` member runs no scout. Gate off adds nothing.
+
 Step 1 (pick the change id) and the "Branch safety (first step)" preamble above run **in the outer
 session**, over the now token-free `$ARGUMENTS`. The actual brainstorm work — steps 2–8 — **runs at a
 deterministic model** via the **`ptp-run-at-model`** skill at the resolved target (the `brainstorm` family default target by

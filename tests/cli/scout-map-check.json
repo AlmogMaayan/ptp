@@ -1,0 +1,207 @@
+{
+  "script": "scripts/ptp-scout-map-check.js",
+  "cases": [
+    {
+      "id": "valid-map",
+      "tree": {
+        "map.md": "- entry: a — src/a.js:1\n- owner: b — src/b.js:2\n- state: c — src/c.js:3\n"
+      },
+      "cwd": ".",
+      "argv": [
+        "map.md"
+      ],
+      "expect": {
+        "exitCode": 0,
+        "stdout": {
+          "ok": true
+        }
+      }
+    },
+    {
+      "id": "sentinel-only",
+      "tree": {
+        "map.md": "Nothing beyond the named files\n"
+      },
+      "cwd": ".",
+      "argv": [
+        "map.md"
+      ],
+      "expect": {
+        "exitCode": 0,
+        "stdout": {
+          "ok": true
+        }
+      }
+    },
+    {
+      "id": "crlf-and-blank-lines",
+      "tree": {
+        "map.md": "- entry: a — src/a.js:1\r\n\r\n- owner: b — src/b.js:2\r\n"
+      },
+      "cwd": ".",
+      "argv": [
+        "map.md"
+      ],
+      "expect": {
+        "exitCode": 0,
+        "stdout": {
+          "lines": 2
+        }
+      }
+    },
+    {
+      "id": "conclusion-word-inside-path",
+      "tree": {
+        "map.md": "- entry: a — src/should-x.js:3\n"
+      },
+      "cwd": ".",
+      "argv": [
+        "map.md"
+      ],
+      "expect": {
+        "exitCode": 0,
+        "stdout": {
+          "ok": true
+        }
+      }
+    },
+    {
+      "id": "windows-path",
+      "tree": {
+        "map.md": "- entry: a — C:\\should\\b.js:7\n"
+      },
+      "cwd": ".",
+      "argv": [
+        "map.md"
+      ],
+      "expect": {
+        "exitCode": 0,
+        "stdout": {
+          "ok": true
+        }
+      }
+    },
+    {
+      "id": "sixty-one-lines",
+      "tree": {
+        "map.md": "- entry: thing 0 — src/a.js:1\n- entry: thing 1 — src/a.js:2\n- entry: thing 2 — src/a.js:3\n- entry: thing 3 — src/a.js:4\n- entry: thing 4 — src/a.js:5\n- entry: thing 5 — src/a.js:6\n- entry: thing 6 — src/a.js:7\n- entry: thing 7 — src/a.js:8\n- entry: thing 8 — src/a.js:9\n- entry: thing 9 — src/a.js:10\n- entry: thing 10 — src/a.js:11\n- entry: thing 11 — src/a.js:12\n- entry: thing 12 — src/a.js:13\n- entry: thing 13 — src/a.js:14\n- entry: thing 14 — src/a.js:15\n- entry: thing 15 — src/a.js:16\n- entry: thing 16 — src/a.js:17\n- entry: thing 17 — src/a.js:18\n- entry: thing 18 — src/a.js:19\n- entry: thing 19 — src/a.js:20\n- entry: thing 20 — src/a.js:21\n- entry: thing 21 — src/a.js:22\n- entry: thing 22 — src/a.js:23\n- entry: thing 23 — src/a.js:24\n- entry: thing 24 — src/a.js:25\n- entry: thing 25 — src/a.js:26\n- entry: thing 26 — src/a.js:27\n- entry: thing 27 — src/a.js:28\n- entry: thing 28 — src/a.js:29\n- entry: thing 29 — src/a.js:30\n- entry: thing 30 — src/a.js:31\n- entry: thing 31 — src/a.js:32\n- entry: thing 32 — src/a.js:33\n- entry: thing 33 — src/a.js:34\n- entry: thing 34 — src/a.js:35\n- entry: thing 35 — src/a.js:36\n- entry: thing 36 — src/a.js:37\n- entry: thing 37 — src/a.js:38\n- entry: thing 38 — src/a.js:39\n- entry: thing 39 — src/a.js:40\n- entry: thing 40 — src/a.js:41\n- entry: thing 41 — src/a.js:42\n- entry: thing 42 — src/a.js:43\n- entry: thing 43 — src/a.js:44\n- entry: thing 44 — src/a.js:45\n- entry: thing 45 — src/a.js:46\n- entry: thing 46 — src/a.js:47\n- entry: thing 47 — src/a.js:48\n- entry: thing 48 — src/a.js:49\n- entry: thing 49 — src/a.js:50\n- entry: thing 50 — src/a.js:51\n- entry: thing 51 — src/a.js:52\n- entry: thing 52 — src/a.js:53\n- entry: thing 53 — src/a.js:54\n- entry: thing 54 — src/a.js:55\n- entry: thing 55 — src/a.js:56\n- entry: thing 56 — src/a.js:57\n- entry: thing 57 — src/a.js:58\n- entry: thing 58 — src/a.js:59\n- entry: thing 59 — src/a.js:60\n- entry: thing 60 — src/a.js:61"
+      },
+      "cwd": ".",
+      "argv": [
+        "map.md"
+      ],
+      "expect": {
+        "exitCode": 1,
+        "stdout": {
+          "problems": [
+            "too-many-lines"
+          ]
+        }
+      }
+    },
+    {
+      "id": "over-word-ceiling",
+      "tree": {
+        "map.md": "- entry: word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word — src/a.js:1\n- entry: word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word — src/a.js:2\n- entry: word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word — src/a.js:3\n- entry: word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word — src/a.js:4\n- entry: word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word — src/a.js:5\n- entry: word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word — src/a.js:6\n- entry: word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word — src/a.js:7\n- entry: word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word — src/a.js:8\n- entry: word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word — src/a.js:9\n- entry: word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word — src/a.js:10\n- entry: word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word — src/a.js:11\n- entry: word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word — src/a.js:12\n- entry: word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word — src/a.js:13\n- entry: word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word — src/a.js:14\n- entry: word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word — src/a.js:15\n- entry: word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word — src/a.js:16\n- entry: word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word — src/a.js:17\n- entry: word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word — src/a.js:18\n- entry: word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word — src/a.js:19\n- entry: word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word — src/a.js:20\n- entry: word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word — src/a.js:21\n- entry: word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word — src/a.js:22\n- entry: word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word — src/a.js:23\n- entry: word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word — src/a.js:24\n- entry: word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word — src/a.js:25\n- entry: word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word — src/a.js:26\n- entry: word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word — src/a.js:27\n- entry: word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word — src/a.js:28\n- entry: word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word — src/a.js:29\n- entry: word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word — src/a.js:30"
+      },
+      "cwd": ".",
+      "argv": [
+        "map.md"
+      ],
+      "expect": {
+        "exitCode": 1,
+        "stdout": {
+          "problems": [
+            "too-many-words"
+          ]
+        }
+      }
+    },
+    {
+      "id": "uncited-line",
+      "tree": {
+        "map.md": "- entry: a — src/a.js:1\n- owner: no citation here\n"
+      },
+      "cwd": ".",
+      "argv": [
+        "map.md"
+      ],
+      "expect": {
+        "exitCode": 1,
+        "stdout": {
+          "problems": [
+            "uncited-line"
+          ]
+        }
+      }
+    },
+    {
+      "id": "conclusion-line",
+      "tree": {
+        "map.md": "- entry: we should change this — src/a.js:1\n"
+      },
+      "cwd": ".",
+      "argv": [
+        "map.md"
+      ],
+      "expect": {
+        "exitCode": 1,
+        "stdout": {
+          "problems": [
+            "conclusion"
+          ]
+        }
+      }
+    },
+    {
+      "id": "sentinel-with-others",
+      "tree": {
+        "map.md": "Nothing beyond the named files\n- entry: a — src/a.js:1\n"
+      },
+      "cwd": ".",
+      "argv": [
+        "map.md"
+      ],
+      "expect": {
+        "exitCode": 1,
+        "stdout": {
+          "problems": [
+            "sentinel-not-alone"
+          ]
+        }
+      }
+    },
+    {
+      "id": "empty-file",
+      "tree": {
+        "map.md": ""
+      },
+      "cwd": ".",
+      "argv": [
+        "map.md"
+      ],
+      "expect": {
+        "exitCode": 1,
+        "stdout": {
+          "problems": [
+            "empty"
+          ]
+        }
+      }
+    },
+    {
+      "id": "missing-file",
+      "tree": {
+        "other.md": "x"
+      },
+      "cwd": ".",
+      "argv": [
+        "map.md"
+      ],
+      "expect": {
+        "exitCode": 2,
+        "stdoutEmpty": true
+      }
+    }
+  ]
+}

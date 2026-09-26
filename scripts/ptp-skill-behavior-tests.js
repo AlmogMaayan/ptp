@@ -193,6 +193,27 @@ function evaluateFixture(root, skillDir, skillName, results) {
       continue;
     }
 
+    // Optional `file`: a reference file of this skill, evaluated in place of the SKILL.md body.
+    let targetText = skillBody;
+    if ("file" in assertion) {
+      const f = assertion.file;
+      let fileText = null;
+      let fileWhy = "";
+      if (typeof f !== "string" || !/^references\/[^/\\]+\.md$/.test(f)) {
+        fileWhy = "file must match references/<name>.md";
+      } else {
+        const fp = path.join(skillDir, f);
+        if (!fs.existsSync(fp)) fileWhy = "file '" + f + "' does not exist";
+        else if (!isWithinRoot(skillDir, fp)) fileWhy = "file '" + f + "' resolves outside the skill directory";
+        else fileText = stripFrontmatter(normalize(fs.readFileSync(fp, "utf8")));
+      }
+      if (fileText === null) {
+        results.push({ skill: skillName, id: idLabel, why: assertion.why + " (" + fileWhy + ")" });
+        continue;
+      }
+      targetText = fileText;
+    }
+
     if (assertion.kind === "requires" || assertion.kind === "forbids") {
       if (typeof assertion.pattern !== "string" || assertion.pattern.length === 0) {
         results.push({ skill: skillName, id: idLabel, why: assertion.why + " (missing pattern)" });
@@ -205,7 +226,7 @@ function evaluateFixture(root, skillDir, skillName, results) {
         results.push({ skill: skillName, id: idLabel, why: assertion.why + " (uncompilable pattern: " + e.message + ")" });
         continue;
       }
-      const matched = re.test(skillBody);
+      const matched = re.test(targetText);
       if (assertion.kind === "requires" && !matched) {
         results.push({ skill: skillName, id: idLabel, why: assertion.why });
         continue;
@@ -230,7 +251,7 @@ function evaluateFixture(root, skillDir, skillName, results) {
       for (const p of assertion.patterns) {
         try {
           const re = new RegExp(p, "i");
-          const m = re.exec(skillBody);
+          const m = re.exec(targetText);
           offsets.push(m ? m.index : -1);
         } catch (e) {
           compileError = e;

@@ -5,65 +5,71 @@ description: Use for a ptp planning flow's brainstorming step, turning a change 
 
 # ptp-brainstorming — decide, then write one capsule
 
-Turn a change request into a single durable decision. The shared authoring rules — agent neutrality
-and its delivery modes, the per-skill budget, the finding format, and the pointer to the artifact
-contract — are owned by `skills/ptp-skill-contract/SKILL.md`. Load it, and every other file this one
-points to for a rule it does not restate, before applying this contract; a Claude role loads them
-through the Skill tool. This file restates none of it.
+Turn a change request into a single durable decision. Authoring rules, budget, finding format and
+the artifact contract pointer are owned by `skills/ptp-skill-contract/SKILL.md`. Load it, and every
+other file this one points to, before applying this contract; a Claude role loads them through the
+Skill tool.
 
 ## Mode
 
-The caller declares `mode: autonomous` or `mode: interactive`. **When the caller declares nothing,
-assume autonomous** — every ptp pipeline entry point is autonomous.
+The caller declares `mode: autonomous` or `mode: interactive`; when it declares nothing, assume
+autonomous.
 
 - **Autonomous** — ask nothing, use no user-question tool, wait for no approval. Resolve each
-  ambiguity against the repository, take the most reasonable reading, and record it as an assumption
-  in the capsule — under `## Assumptions` when the fallback shape below applies, otherwise in the
-  field the caller's shape designates — with the evidence behind it.
-- **Interactive** — ask only a question whose different answers would change the decision, the
-  scope, or a contract. Never ask what the repository already answers, and never send a
-  questionnaire. Ask for approval once, on the decision; never re-ask per section.
+  ambiguity against the repository and record the reading as an assumption with its evidence, in the
+  field the caller's shape designates, else under `## Assumptions`.
+- **Interactive** — never ask what the repository answers and never send a questionnaire. Ask only
+  when the repository cannot settle materially different readings, or a wrong guess would be costly
+  to reverse or change behavior, data, permissions or architecture. Never ask about naming,
+  placement or obvious technical choices. Ask one focused question, and ask for approval once.
 
-## Inspect before deciding
+## Intent first
 
-Read the real surface first: the files, specs, and commands the request names, and the ones those
-reference. Cite what you read as `path` or `path:line` inside the capsule. A decision resting on a
-guess about this repository is a defect, not a shortcut.
+State the outcome, the observable behavior, the constraints, and the behavior that must remain. An
+implementation idea is a hypothesis until inspection supports it.
 
-## Alternatives
+## Inspect — a bounded search
 
-Compare only **material** alternatives — options differing in observable behavior, contract, risk,
-or blast radius. When exactly one direction is viable, say so with the reason. Never invent an
-option to reach a count, and never keep one the inspection already eliminated.
+Trace outward from the entry point, grepping for the owner, callers, consumers, state, alternate
+paths, permissions and similar features. Follow only an edge that adds a new owner or new state; stop
+when the blast radius stops growing. Read at outline level. Specs, prior brainstorms and
+`analysis.md` say where to look first, never what is true: cite every fact from code as `path` or
+`path:line`. A spec/code mismatch becomes an assumption citing both, and the decision follows the
+code. An uncited guess is a defect.
 
-## Output — one capsule, nothing else
+## Decide
 
-Write exactly one file, at the path the caller names (ptp planning names
-`openspec/changes/<change-id>/brainstorm.md`). Use the artifact shape the caller specifies; when the
-caller specifies none, use:
+Take the smallest coherent change on the existing architecture: fewer concepts, less state, fewer
+parallel mechanisms, not fewer lines. Ask whether a materially simpler or more native way exists.
+Walk the flow before choosing: entry, state change, persistence, consumers, reload, alternate path,
+failure. Compare only material alternatives. When exactly one direction is viable, say so. Never
+invent an option, and never keep one inspection eliminated.
+
+## Output — one capsule
+
+Write one file at the caller's path (ptp planning: `openspec/changes/<change-id>/brainstorm.md`),
+in the caller's shape and within its word budget; else:
 
 ```md
 ## Decision
-<what will be done and why — 1-3 sentences, citing the files inspected>
+<what and why — 1-3 sentences, citing files inspected>
 
 ## Alternatives
 - <material option> — rejected: <reason>
-  (or the single line: Only one viable direction — <reason>)
+  (or: Only one viable direction — <reason>)
 
 ## Assumptions
-- <assumption> — <evidence or basis>
+- <assumption> — <evidence>
 ```
 
-Stay inside the caller's word budget. The number is owned by the compact artifact contract, not
-by this file.
+Impact or flow context is a clause, never a heading.
 
 ## Never
 
-- Write a second copy anywhere — no `docs/plans`, no other docs folder, no summary file.
-- Run `git commit`, `git add`, or any other git command.
-- Append revision history, earlier drafts, or the conversation. A re-run **replaces** the capsule.
-- Carry the full design, the implementation plan, or the task list. Those belong to `design.md` and
-  to `ptp-writing-plans`.
-- Invoke an implementation skill. The next step is the caller's to choose.
+- Write a copy anywhere: no `docs/plans`, no other docs folder.
+- Run any git command.
+- Keep history: a re-run replaces the capsule.
+- Carry the design, plan or tasks.
+- Invoke an implementation skill.
 
-Conformance fixtures: `pressure-tests.md` (maintenance only — not a runtime input).
+Conformance fixtures: `pressure-tests.md` and `behavior-tests.md` (maintenance only — not a runtime input).
