@@ -283,8 +283,7 @@ covered unchanged by the never-persist rule; the tally reaches disk only as the 
 `reviewTally` field (see `## Review-convergence marker`), added by that marker's existing single write.
 The terminal outcome returns `reviewTally` at both `DONE` and `ITERATION CAP REACHED`, for all three
 loop kinds, in both `deferMarker` modes — purely additive, no marker version bump. It **decides
-nothing** (see `## Hard rules`) and is the **primary source of truth** for review-cycle counts
-(`ptp-telemetry` is off by default and is not a dependency).
+nothing** (see `## Hard rules`) and is the **primary source of truth** for review-cycle counts.
 
 Full accumulation mechanics — the cycle definition, the seven-counter disposition table, the `fixed`
 lifecycle, and the return contract's exact scoping — live in

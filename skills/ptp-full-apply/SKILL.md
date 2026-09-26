@@ -15,7 +15,6 @@ This skill is the orchestration contract behind the single `/ptp:full-apply` com
 |-------|--------|--------|
 | `change-ids` | change selector, list of change ids, or empty | Passed through from `$ARGUMENTS`. Resolved via `ptp-change-selector`: a `epic:XXXX` / `story:NN` selector is pre-resolved to its story id(s) before launch; explicit ids are used verbatim; empty → discover via `npx -y openspec list` (see ordering below). |
 | `fast` | `true` \| `false` — the resolved fast-mode posture for this invocation (default `false`) | Resolved once by `commands/full-apply.md`'s outer session (token parsed and stripped, preflight run once); consumed here without re-parsing |
-| `telemetry` | `true` — added to the workflow's `args` **only** when `telemetry.mode` resolves to `on`; **omitted entirely** otherwise | Resolved once here per the `ptp-telemetry` skill's layered, forgiving config read, before the launch (see *Telemetry: the launcher owns the gate and the append*) |
 
 Besides the `fast` input above there is no `effort_gate` input — and `fast` is not one: it is a session-level posture flag, not a model or effort selector. Per-story model/effort comes from each story's `effort.md`, read by the command before launch.
 
@@ -39,12 +38,9 @@ For the same reason, the `apply` stage record (`openspec/changes/<id>/stages/app
 4. **Run the `ptp-workflow-cache-heal` step** (see that skill for the canonical Bash command) via the
    Bash tool over both cached executable globs (`~/.claude/plugins/cache/ptp/*/*/workflows/*.js` and `~/.claude/plugins/cache/ptp/*/*/scripts/*.js`). Then **launch the workflow:**
    ```
-   // Launch the workflow EXACTLY ONCE. The two forms below are mutually exclusive —
-   // pick the one matching the resolved telemetry.mode; never issue both.
-   Workflow({ name: 'ptp:ptp-full-apply', args: { stories, workspaceRoot, fast, tddPlugin } })                   // telemetry.mode !== 'on' (property omitted entirely)
-   Workflow({ name: 'ptp:ptp-full-apply', args: { stories, workspaceRoot, fast, tddPlugin, telemetry: true } })  // telemetry.mode === 'on'
+   Workflow({ name: 'ptp:ptp-full-apply', args: { stories, workspaceRoot, fast, tddPlugin } })
    ```
-   where `stories = [{ id, model, effort, reviewModel, reviewEffort }, …]` in apply order — each entry additionally carrying the optional `codexApplyModel`, `codexApplyEffort`, `codexReviewModel`, `codexReviewEffort` fields **only** when `roles.main` resolved to `codex` (step 2), and none under `main=claude` — and `fast` is a **top-level**, invocation-level boolean (never per story — and neither is `telemetry`) resolved by the command's outer session — an omitted `fast` is read as `false` by the script, adding no fast-mode note. `workspaceRoot` is the **resolved workspace root** this session resolved once at entry (`ptp-workspace`), carried top-level beside `stories`: the script prefixes it onto each agent prompt's change-folder path and names it on its own `Workspace root:` line, so no spawned agent re-derives a root; omitting it leaves the pre-change bare relative path. `tddPlugin` is the `tdd-plugin` config value this session resolves **once before the launch** through the forgiving layered configuration reader (`ptp-workspace` contract: missing/malformed/out-of-enum layer ignored, default `ptp`, never STOP) — the workflow sandbox has no config or file access, so the launcher must resolve it and pass it top-level beside `stories`; the script parses it by strict identity (`superpowers` iff exactly that string, else `ptp`) and emits the skill-set directive into every apply and review prompt, so an omitted `tddPlugin` renders the default `ptp` variant. (Use the named form — the plugin ships `workflows/ptp-full-apply.js` whose `meta.name` is `ptp-full-apply`. There is no project-relative `scriptPath` under a global plugin install.) The workflow loops the stories in order, spawning `agentType:'ptp:ptp-apply'` at the story's `model` then `agentType:'ptp:ptp-review'` at the story's `reviewModel`, each agent's effort injected as a prompt directive; it returns `{ results, halted, total }`. The two review fields are read by **strict membership** in their closed vocabularies (`haiku`/`sonnet`/`opus` and `low`/`medium`/`high`/`xhigh`), so an omitted or unrecognized value falls back to `opus` / `high` — the pre-existing constants — and the fallback is logged when a supplied value was the one rejected. The Opus-only per-agent note condition is now **one rule covering both prompts**: an agent gets the fast-mode note only when fast is on **and that agent's own resolved model is `opus`** — the apply agent on the story's `model`, the review agent on its `reviewModel`, and an escalated re-spawn on the escalated model.
+   where `stories = [{ id, model, effort, reviewModel, reviewEffort }, …]` in apply order — each entry additionally carrying the optional `codexApplyModel`, `codexApplyEffort`, `codexReviewModel`, `codexReviewEffort` fields **only** when `roles.main` resolved to `codex` (step 2), and none under `main=claude` — and `fast` is a **top-level**, invocation-level boolean (never per story) resolved by the command's outer session — an omitted `fast` is read as `false` by the script, adding no fast-mode note. `workspaceRoot` is the **resolved workspace root** this session resolved once at entry (`ptp-workspace`), carried top-level beside `stories`: the script prefixes it onto each agent prompt's change-folder path and names it on its own `Workspace root:` line, so no spawned agent re-derives a root; omitting it leaves the pre-change bare relative path. `tddPlugin` is the `tdd-plugin` config value this session resolves **once before the launch** through the forgiving layered configuration reader (`ptp-workspace` contract: missing/malformed/out-of-enum layer ignored, default `ptp`, never STOP) — the workflow sandbox has no config or file access, so the launcher must resolve it and pass it top-level beside `stories`; the script parses it by strict identity (`superpowers` iff exactly that string, else `ptp`) and emits the skill-set directive into every apply and review prompt, so an omitted `tddPlugin` renders the default `ptp` variant. (Use the named form — the plugin ships `workflows/ptp-full-apply.js` whose `meta.name` is `ptp-full-apply`. There is no project-relative `scriptPath` under a global plugin install.) The workflow loops the stories in order, spawning `agentType:'ptp:ptp-apply'` at the story's `model` then `agentType:'ptp:ptp-review'` at the story's `reviewModel`, each agent's effort injected as a prompt directive; it returns `{ results, halted, total }`. The two review fields are read by **strict membership** in their closed vocabularies (`haiku`/`sonnet`/`opus` and `low`/`medium`/`high`/`xhigh`), so an omitted or unrecognized value falls back to `opus` / `high` — the pre-existing constants — and the fallback is logged when a supplied value was the one rejected. The Opus-only per-agent note condition is now **one rule covering both prompts**: an agent gets the fast-mode note only when fast is on **and that agent's own resolved model is `opus`** — the apply agent on the story's `model`, the review agent on its `reviewModel`, and an escalated re-spawn on the escalated model.
 
 ## Change discovery and ordering
 
@@ -65,69 +61,6 @@ One story is fully processed (`apply → review-full`) before the next begins �
 **The one bounded re-spawn.** A review agent whose freshly evaluated fix target names a model **more capable** than the one it is running on makes no edit and returns `terminalState: 'FIX_TARGET_ESCALATION'` with that target. The workflow then re-spawns that story's review **exactly once**, at the target's model and effort, labelled `review:<id>#esc`, and the convergence gate reads the **escalated** run's `terminalState` (the first run's result is retained on the story record as `reviewEscalatedFrom`, for reporting only). This is not a loop: the ladder is `haiku < sonnet < opus` and an already-escalated run never escalates again, so at most one re-spawn exists — this bound holds whether `reviewModel` came from the `sonnet`-floored derivation or from a `models.apply-review` entry (which may name `haiku`). An escalation that cannot be honored — from an already-escalated run, with an absent/unparseable/non-escalating target, or from a run already at the `opus` ceiling — **halts that story** with an explicit reason instead of re-spawning. `FIX_TARGET_ESCALATION` is **never** gate-success, and the sequencing is otherwise untouched: still one story at a time, still apply fully before review.
 
 **Mode-skip is gate-success (per `ptp-codex-mode`).** When a story's `review-full` converges its main-agent phase and skips a Codex reviewer phase because `codex.mode` resolved to `off` (or `auto` with `codex` absent), that is the mode-skip terminal state `PHASE 1 DONE — CODEX SKIPPED (mode=…)` — a **converged**, gate-success outcome, not a halt. (Only a Codex reviewer can be mode-skipped; a Claude reviewer always runs.) So `workflows/ptp-full-apply.js` needs no logic change, the `ptp-review` agent reports a mode-skipped review with `terminalState === 'BOTH_PHASES_DONE'` (the human-facing report still names the skip); the existing `terminalState === 'BOTH_PHASES_DONE'` gate then continues to the next story. The run halts only on a genuinely non-converged review (an iteration cap), never on a legitimate mode-skip.
-
-## Telemetry: the launcher owns the gate and the append
-
-The workflow sandbox can neither read config nor write files, so **this skill** — which has `Bash` —
-owns both halves of the fan-out write point. The record shape, the `run_id` mint-once-then-propagate
-rule, the store layout, the append protocol, and the CSV rules are defined **once**, in the
-`ptp-telemetry` skill (`ptp-telemetry` [ledger-record]); this section **references** them and lists no ledger fields.
-
-**Before the launch — resolve the gate.** Resolve `telemetry.mode` per `ptp-telemetry`'s
-forgiving reader (`ptp-telemetry` [config-resolution]), over the layers `ptp-workspace`
-(`skills/ptp-workspace/SKILL.md`) defines (any missing file / missing key / parse error /
-out-of-enum value leaves the prior value; never crash, never STOP). Add a **top-level**
-`telemetry: true` to the workflow's `args` **only when it resolves to `on`** — by the same
-strict-boolean-identity convention the existing `fast` argument uses. When it does not resolve to
-`on`, **omit the property entirely**, so `args` is byte-identical to today's, the workflow captures no
-timestamp, mints and injects no `run_id`, emits no `timings`, and returns today's exact prompts and
-per-story records.
-
-**After the workflow returns — append the rows.** For each entry of a story's returned `timings`
-array, append **one ledger run per measured agent** with `agent_role=workflow-agent`, using the
-`run_id` the workflow **minted** and the `t_start` / `t_end` / `agent_label` it measured. These rows
-are the ledger's one **post-hoc** case: **both** the open and the close line are appended after the
-fact, because the launcher never sees the run while it is running — it receives the measured window
-only once the workflow returns. `ptp-telemetry` [append-protocol] names this as the single exception to "the open line
-is written before the observed work begins"; no other write point may use it.
-
-**`timings` holds one entry per `agent()` call that actually ran** — for a converged story, apply plus review; for a story whose review escalated, apply plus review plus the escalated review; and for a **halted** story, exactly the calls made before the halt (the apply entry alone for a story halted at apply, apply plus review for one halted at review, and all three when an escalated review ran). A halted story surfaces fewer entries only because fewer calls were made, never because entries are withheld — so append a row for every entry present, whatever their number.
-
-The append is gated and fire-and-forget exactly like every other write point: nothing is written when
-the mode is not `on`, and **any** error is swallowed — telemetry never halts the run, never changes a
-story's bucket, and never alters the terminal report.
-
-**Outcome mapping (no case left unmapped).** The workflow's agents speak their own enums, so this
-skill maps every one of them onto a writable `outcome`:
-
-| Agent result | `outcome` |
-|---|---|
-| apply `stageReached: completed` | `completed` |
-| review `terminalState: BOTH_PHASES_DONE` (including a mode-skipped review) | `completed` |
-| apply `stageReached: blocked` | `needs-human-action` |
-| review `terminalState: PHASE1_CAP` / `PHASE2_CAP` | `needs-human-action` |
-| review `terminalState: FIX_TARGET_ESCALATION` | `needs-human-action` |
-| apply `stageReached: failed` | `refused` |
-| a `null` or unparseable agent result (the `null` the workflow already tolerates) | `needs-human-action` |
-
-`FIX_TARGET_ESCALATION` reaches that row on **two** paths, and the row covers both. When the escalation **could not be honored** it is the story's own terminal review result. When it **was** honored it is the result of the *first* review run only — and that run still has its own `timings` entry, so it still gets its own row. **Which result maps to which entry** for an escalated story: the story record holds the escalated run's result in `review` and the first run's in `reviewEscalatedFrom`, so map the `review:<id>` entry from `reviewEscalatedFrom` and the `review:<id>#esc` entry from `review`. Either way the state **never** maps to `completed`; on the honored path the story-level verdict is carried by the escalated run's row, not by the first run's.
-
-**No workflow-derived close line may carry an empty `outcome`.**
-
-**Belt-and-braces fallback.** The spawned `ptp:ptp-apply` / `ptp:ptp-review` agents *do* have `Bash`,
-and each MAY append **exactly one open line** under the `run_id` the workflow injected into its
-prompt — never a close line, never a CSV row (see `agents/ptp-apply.md` / `agents/ptp-review.md`).
-That buys crash visibility for a workflow killed before this skill can append anything. Rows sharing
-a `run_id` **reconcile to one run** rather than duplicating, per `ptp-telemetry` [append-protocol]'s
-reduction rule.
-
-This only works because the workflow **mints** the `run_id` at `t_start` and **injects** it into the
-spawned agent's prompt: an id each writer derived independently from its own clock reading would
-differ between the two writers and make the reconciliation impossible, whereas a **single minted id**
-— derived or random — handed to both writers works. Because the agent writes only the open line, this
-skill remains the **sole** writer of the close line and of the CSV row for workflow runs, so
-`runs.csv` holds exactly one row per closed run even when a run has two ledger writers. The fallback
-is therefore optional: an agent that writes nothing costs only crash visibility.
 
 ## Terminal report
 

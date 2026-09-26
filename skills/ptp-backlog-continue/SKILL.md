@@ -611,12 +611,6 @@ drives `/ptp:full-apply`, which owns per-slice `/ptp:review-full` and resolves `
 (*The apply flow*); this command still invokes `/ptp:review-full` nowhere directly and resolves
 `codex.mode` nowhere. On no flow does this command evaluate a reviewer gate of its own.
 
-## Telemetry
-
-**No new write point.** The runs this command drives — `/ptp:archive`'s and the fix pass's — use their
-existing `ptp-telemetry` write points unchanged. This skill mints no `run_id`, opens no ledger line,
-and resolves no telemetry key of its own.
-
 ## Report contract
 
 Every report names the **branch the command ran on** and **every outstanding structural problem** the

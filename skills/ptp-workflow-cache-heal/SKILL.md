@@ -17,7 +17,7 @@ validator, so a skill-documented Bash step does run — in the agent's tool cont
 the `Workflow({ name: ... })` call. That is the only layer where the heal can live.
 
 **`scripts/*.js` is covered for a related but not identical reason.** A helper run as
-`node scripts/ptp-otel-sink.js` is **not** subject to the named-workflow validator at all — nothing
+`node scripts/ptp-compact-lint.js` is **not** subject to the named-workflow validator at all — nothing
 rejects it up front. It is nonetheless subject to exactly the same carriage-return injection: a
 Windows checkout with `core.autocrlf=true` rewrites the file on the way out of git, and a `\r` at the
 end of a shebang line, inside a template literal, or inside a regular expression fails at runtime in
@@ -55,7 +55,7 @@ done
 - **Whole-glob** — the two globs `~/.claude/plugins/cache/ptp/*/*/workflows/*.js` and
   `~/.claude/plugins/cache/ptp/*/*/scripts/*.js` cover every cached version directory and every
   shipped executable — both workflow scripts and every `scripts/*.js` helper (today
-  `ptp-otel-sink.js`) — in one pass, so stale versions are healed too. The two `*`
+  `ptp-compact-lint.js`) — in one pass, so stale versions are healed too. The two `*`
   segments are the **marketplace/plugin-name** directory (`ptp/`) and the **version** directory: the real
   installed layout is `~/.claude/plugins/cache/ptp/ptp/<version>/workflows/*.js`, so a single-`*` glob
   (`cache/ptp/*/workflows/*.js`) reaches one level too shallow and silently matches **zero** files.
@@ -85,5 +85,3 @@ rather than inlining the command body, so the logic lives in exactly one place:
 - `skills/ptp-full/SKILL.md` — before the `Workflow({ name: 'ptp:ptp-full-apply' })` launch
 - `commands/full-apply.md` — before the `Workflow({ name: 'ptp:ptp-full-apply' })` launch
 - `commands/full.md` — before the `Workflow({ name: 'ptp:ptp-full-apply' })` launch
-- `skills/ptp-telemetry/SKILL.md` — before `start` launches `scripts/ptp-otel-sink.js` from the
-  installed plugin directory (the `scripts/*.js` half of the glob)

@@ -62,14 +62,6 @@ skill, and reports. A command that owns itself carries its own contract.
 | `commands/review-plan.md` | `commands/review-plan.md` |
 | `commands/review.md` | `commands/review.md` |
 | `commands/status.md` | `commands/status.md` |
-| `commands/telemetry-analyze.md` | `skills/ptp-telemetry-analyze/SKILL.md` |
-| `commands/telemetry-export.md` | `skills/ptp-telemetry-export/SKILL.md` |
-| `commands/telemetry-report.md` | `skills/ptp-telemetry-report/SKILL.md` |
-| `commands/telemetry-setup.md` | `skills/ptp-telemetry-setup/SKILL.md` |
-| `commands/telemetry-start.md` | `skills/ptp-telemetry-start/SKILL.md` |
-| `commands/telemetry-status.md` | `skills/ptp-telemetry-status/SKILL.md` |
-| `commands/telemetry-stop.md` | `skills/ptp-telemetry-stop/SKILL.md` |
-| `commands/telemetry.md` | `skills/ptp-telemetry/SKILL.md` |
 | `commands/update.md` | `commands/update.md` |
 | `commands/version.md` | `skills/ptp-version/SKILL.md` |
 | `commands/workspace-init.md` | `skills/ptp-workspace-init/SKILL.md` |

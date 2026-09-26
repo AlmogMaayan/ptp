@@ -17,7 +17,7 @@ Every ptp step that **creates or updates files** — planning artifacts, source 
 
 **Do NOT run the guard — read-only** (they never write working-tree ptp/OpenSpec artifacts, so there is nothing to keep off the base branch):
 
-`review`, `review-plan`, `review-brainstorm`, `codex-review`, `codex-review-plan`, `codex-review-uncommitted`, `status`, `version`, `telemetry`, `backlog`.
+`review`, `review-plan`, `review-brainstorm`, `codex-review`, `codex-review-plan`, `codex-review-uncommitted`, `status`, `version`, `backlog`.
 
 **Do NOT run the guard — utility writes outside the repo tree** (they change state, but never a ptp/OpenSpec working-tree artifact, so the base-branch guard does not apply): `update` (updates the *installed plugin*, no repo files), `config` (writes only `.claude/ptp/config.json` tool config, not a ptp artifact), and `backlog-add` / `backlog-edit` / `prompt-write-to-backlog` (they write a GitHub Projects v2 board over `gh` — creating or editing exactly one board item — and create or modify no repo file). Listed here separately so each category's rationale stays accurate.
 

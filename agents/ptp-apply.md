@@ -21,11 +21,6 @@ Your prompt carries these resolved values. Take each verbatim; never re-derive o
   shell invocation. Never resolve or re-derive a root of your own.
 - **artifact paths** — `openspec/changes/<change-id>/`, holding `tasks.md` (the source of truth for
   task order), `specs/**/spec.md`, `design.md` when present, and `proposal.md`.
-- **telemetry run id** — optional. When present, you MAY append **exactly one open line** under that
-  id to the ptp run ledger per `skills/ptp-telemetry/SKILL.md` (record shape, store location, append
-  protocol) — never a close line, never a CSV row. Use the supplied id verbatim and never mint one.
-  No supplied id means write nothing and touch no telemetry file or directory: the supplied id **is**
-  your `telemetry.mode` gate. Any telemetry error is swallowed and never alters your terminal state.
 - **fast-mode note** — optional and informational. It does not change your effort calibration. You
   MAY mention the requested posture in `notes`.
 - **Codex dispatch target** — optional. When present, your prompt names a Codex model and/or

@@ -166,9 +166,7 @@ relative to the **resolved workspace root** — not to the repository root, and 
 directory a step happens to run in. This one statement anchors all of them, so adding the workspace
 concept rewrites none of the bare relative paths already spelled throughout ptp text.
 
-The rule names exactly one exception: `openspec/telemetry`, which stays anchored to the repository
-root through `scripts/ptp-otel-sink.js`'s own `--repo <repo root>` argument. A further exception
-requires amending this skill, and is never introduced by analogy.
+The rule names no exception.  An exception requires amending this skill, and is never introduced by analogy.
 
 ### The openspec CLI runs with cwd at the resolved root
 
@@ -409,7 +407,7 @@ defect. How a rejection is spelled on the wire is internal to the executable hal
 It states no parameter's kind, domain, default, or validity. Each of those stays with the skill that
 already owns that parameter — `codex.*` with `ptp-codex-mode`, `roles.*` with `ptp-agent-roles`,
 `review.*` with `ptp-review-loop`, `parallel.*` with `ptp-parallel-fanout`, `deploy.*` with
-`ptp-deploy`, `telemetry.*` with `ptp-telemetry`, `backlog.*` with `ptp-github-projects-gh`, `tdd` with `ptp-test-driven-development`,
+`ptp-deploy`, `backlog.*` with `ptp-github-projects-gh`, `tdd` with `ptp-test-driven-development`,
 `tdd-plugin` with `ptp-skill-contract`
 — so this contract adds no second authority over any configuration key. A key whose value is
 interpreted relative to some root keeps that rule with its owner as well; this contract decides only
