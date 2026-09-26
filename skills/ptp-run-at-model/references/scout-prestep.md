@@ -15,7 +15,7 @@ A caller MUST NOT supply a map that failed the map check, or one that cites a fi
 
 ## Brainstorm scout pre-step
 
-Run only by an outer session, after the step-4 command-bracket open and before the main-run ledger open. A main run never spawns the scout, and a caller-side `model:` token never retargets it.
+Run only by an outer session, after step 4 and before step 5. A main run never spawns the scout, and a caller-side `model:` token never retargets it.
 
 1. Resolve `models.brainstorm-scout` through the layered configuration. A layer counts only when it matches the `model:` grammar; otherwise the value is `sonnet.medium`. Never STOP, under either `roles.main`.
 With a change id, consult the scout map cache per `references/scout-map-cache.md` around this spawn.
@@ -29,10 +29,6 @@ A multi-run caller may hand one checked map to several runs. The scout has no Co
 ## Spawn-site audit verdict
 
 `sonnet.medium` is admissible for the scout, because the main run re-verifies the map (a map line is never evidence). The scout is a new spawn site, not a downgrade of an existing one, and the nil result for the existing sites stands.
-
-## Telemetry
-
-The scout spawn is a `subagent`/`claude` write point in the ledger record's §3.3, labelled `scout:<id>`, with the phase taken from the command. It reuses step 4's single `telemetry.mode` resolution and is fire-and-forget. A passed map check closes as `completed`; a failed check, spawn error or missing result closes as `refused`.
 
 ## The scout gate
 

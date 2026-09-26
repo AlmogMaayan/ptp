@@ -67,8 +67,7 @@ removed from the argument string, so it can never be classified as a bare id. A 
 spaces may be quoted. The stripped value is not discarded — it is handed to `ptp-workspace` as the
 override of the one workspace resolution the step performs at its entry; stripping removes the token
 from **this skill's** input only. This adds no selector form: after stripping, the remainder is
-classified and resolved exactly as it is when no token was supplied. The precedent is
-`/ptp:telemetry report`, which strips its own literal `write` keyword the same way.
+classified and resolved exactly as it is when no token was supplied.
 
 A command argument string is classified in this order (first match wins):
 
@@ -303,9 +302,7 @@ These **allocate** a fresh epic and **name** the change folder. The pure produce
 
 ### Role B — Set-capable consumers (resolve + iterate)
 
-Commands: `review`, `review-loop`, `review-full`, `codex-review`, `codex-review-loop`, `codex-review-plan`, `codex-review-plan-loop`, `review-plan`, `review-plan-loop`, `review-plan-full`, `review-fix`, `apply`, `effort`, `archive`, `archive-force`, `archive-and-deploy`, `status`, `full-apply`, `telemetry report`
-
-**`/ptp:telemetry report`** is set-capable and adds **no grammar**: it strips its own literal `write` keyword *before* the remaining argument reaches this skill, so the selector only ever sees a form defined here (`ptp-telemetry-report` [report-selector-delegation]). Under `epic:all` it treats each resolved epic as a **separate reporting scope** and never merges or sums figures across epics. (The other `/ptp:telemetry` subcommands take no selector — `export` is global by definition.)
+Commands: `review`, `review-loop`, `review-full`, `codex-review`, `codex-review-loop`, `codex-review-plan`, `codex-review-plan-loop`, `review-plan`, `review-plan-loop`, `review-plan-full`, `review-fix`, `apply`, `effort`, `archive`, `archive-force`, `archive-and-deploy`, `status`, `full-apply`
 
 `epic:all` is immediately available to every consumer in this list the moment it lands — no per-command change is required. Any set-capable consumer that receives `epic:all` resolves it through §3 and operates on all active changes.
 

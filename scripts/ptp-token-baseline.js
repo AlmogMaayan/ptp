@@ -3,15 +3,13 @@
  * ptp-token-baseline — the read-only token-reduction baseline tool.
  *
  * Normative contract: `openspec/specs/token-baseline/spec.md` (capability `token-baseline`).
- * Plain Node, zero dependencies, no network. Read-only over the repository and over the telemetry
- * store: the ONLY file this tool ever writes inside either tree is the record `capture` creates
- * under `baselines/`. `--selftest`'s fixture tree lives outside both, under `os.tmpdir()`, and is
- * created and removed by the tool itself.
+ * Plain Node, zero dependencies, no network. Read-only over the repository: the ONLY file this tool
+ * ever writes inside it is the record `capture` creates under `baselines/`. `--selftest`'s fixture
+ * tree lives outside it, under `os.tmpdir()`, and is created and removed by the tool itself.
  *
  * Subcommands:
  *   corpus [--json]                              word counts for prompts and representative artifacts
- *   tokens --from <iso> --to <iso> [--root <d>]  attributed model-token aggregation over [from, to)
- *   capture --name <n> --from <iso> --to <iso>   writes baselines/<n>.json; never overwrites
+ *   capture --name <n>                           writes baselines/<n>.json; never overwrites
  *   compare --before <r> --after <r> --scope <s> --out <r>   scoped attribution of a program epic
  *   verify <record-path>                         recomputes recorded counts; exit 1 on any drift
  *   --selftest                                   assertions over fixtures in a temp directory
@@ -24,17 +22,12 @@ const os = require('os');
 const path = require('path');
 const crypto = require('crypto');
 const { execFileSync } = require('child_process');
-// The layered config reader. `ptp-workspace` (skills/ptp-workspace/SKILL.md) owns the layer list and
-// its precedence; this file states neither and supplies only `telemetry.root`'s validity rule.
-const { configLayers, resolveConfigKey, REJECT } = require('./ptp-resolve-workspace.js');
-
 const USAGE = [
   'ptp-token-baseline — the read-only token-reduction baseline tool',
   '',
   'Usage:',
   '  node scripts/ptp-token-baseline.js corpus [--json]',
-  '  node scripts/ptp-token-baseline.js tokens --from <iso> --to <iso> [--root <dir>] [--json]',
-  '  node scripts/ptp-token-baseline.js capture --name <name> --from <iso> --to <iso> [--export-ran]',
+  '  node scripts/ptp-token-baseline.js capture --name <name>',
   '  node scripts/ptp-token-baseline.js compare --before <rec> --after <rec> --scope <scope.json> --out <rec>',
   '  node scripts/ptp-token-baseline.js verify <record-path>',
   '  node scripts/ptp-token-baseline.js --selftest',
@@ -274,268 +267,12 @@ function cmdCorpus(opts, repoRoot) {
   return 0;
 }
 
-/* ------------------------------------------------------------------ telemetry token aggregation */
-
-const DEFAULT_TELEMETRY_ROOT = 'openspec/telemetry';
-const UNATTRIBUTED_DIR = '_unattributed';
-/** The substrate's closed LLM pair — the two `span_kind`s the span record populates token columns for. */
-const LLM_KINDS = ['llm_request', 'api_request'];
-const INPUT_TOKENS_EXCLUSION_REASON = 'cache-affected; see analysis §Evidence';
-
-function readJsonFile(p) {
-  try { return JSON.parse(fs.readFileSync(p, 'utf8')); } catch (_) { return null; }
-}
-
-/** `telemetry.root` validation, as the telemetry capability defines it: repo-relative, no escape. */
-function isValidRoot(v) {
-  if (typeof v !== 'string' || v.length === 0) return false;
-  if (/[\r\n]/.test(v)) return false;
-  if (path.isAbsolute(v) || /^[a-zA-Z]:/.test(v) || v.startsWith('\\\\') || v.startsWith('/')) return false;
-  const parts = v.split(/[\\/]+/).filter((s) => s.length > 0 && s !== '.');
-  if (parts.some((s) => s === '..')) return false;
-  return parts.length > 0;
-}
-
-/**
- * Layered exactly as every other ptp reader layers: `ptp-workspace`
- * (`skills/ptp-workspace/SKILL.md`) owns the layer list and its precedence, and this file restates
- * neither. `telemetry.root` stays REPOSITORY-relative whichever layer supplied it.
- */
-function resolveTelemetryRoot(repoRoot) {
-  const layers = configLayers({ repoRoot });
-  const root = resolveConfigKey(layers, 'telemetry.root', (v) => (isValidRoot(v) ? v : REJECT), DEFAULT_TELEMETRY_ROOT);
-  return path.resolve(repoRoot, root.value);
-}
-
-/**
- * RFC-4180 record split, tolerating a BOM, CRLF, and a final line with no terminator.
- *
- * Returns `{ rows, endedInsideQuote }`. The flag is reported rather than swallowed because a file
- * whose parse ends mid-quote was TORN — the receiver was flushing when it was read — and its last
- * record is a fragment, not a record. `readSpansCsv` drops that fragment; see there for why a
- * fragment must never reach the aggregation.
- */
-function parseCsv(text) {
-  let s = String(text);
-  if (s.charCodeAt(0) === 0xfeff) s = s.slice(1);
-  const rows = [];
-  let row = [];
-  let field = '';
-  let quoted = false;
-  let sawAny = false;
-  for (let i = 0; i < s.length; i += 1) {
-    const ch = s[i];
-    if (quoted) {
-      if (ch === '"') {
-        if (s[i + 1] === '"') { field += '"'; i += 1; } else { quoted = false; }
-      } else { field += ch; }
-      sawAny = true;
-      continue;
-    }
-    if (ch === '"') { quoted = true; sawAny = true; continue; }
-    if (ch === ',') { row.push(field); field = ''; sawAny = true; continue; }
-    if (ch === '\r' && s[i + 1] === '\n') { continue; } // CRLF terminator: the \n does the work
-    if (ch === '\r' || ch === '\n') { row.push(field); rows.push(row); row = []; field = ''; sawAny = false; continue; }
-    field += ch;
-    sawAny = true;
-  }
-  if (field.length > 0 || sawAny || row.length > 0) { row.push(field); rows.push(row); }
-  return { rows, endedInsideQuote: quoted };
-}
-
-/**
- * Read one canonical `spans.csv` into objects keyed by its header. Three kinds of non-record are
- * dropped rather than converted:
- *
- * - a stray DUPLICATE header row, which a hand-concatenated or partially re-exported file can
- *   carry, and which would otherwise become a row whose `span_kind` is the literal `span_kind`;
- * - a row whose cell count is not the header's — a blank line, or a TORN trailing record caught
- *   mid-flush;
- * - the final record when the parse ended inside an unclosed quote, which is a fragment by
- *   construction.
- *
- * The width test is what makes torn rows safe. Padding a short row's absent cells with `''` would
- * hand the aggregation a row whose `output_tokens` reads as `0` and whose `command` survived — an
- * invented zero-token attributed row, which inflates `coverage.attributedRows` and can flip a
- * record's `telemetry.status` from `pending` to `captured`. That is exactly the fabrication
- * design.md §3.6 invariant 3 forbids, and it would be frozen into an immutable record. Dropping the
- * fragment matches the substrate's own reader rule, which tolerates a torn trailing line by
- * SKIPPING it. A complete final record with no trailing newline has the full width and is kept.
- */
-function readSpansCsv(absPath) {
-  const parsed = parseCsv(fs.readFileSync(absPath, 'utf8'));
-  const rows = parsed.rows;
-  if (rows.length === 0) return [];
-  const header = rows[0].map((h) => h.trim());
-  const last = parsed.endedInsideQuote ? rows.length - 1 : rows.length;
-  const out = [];
-  for (let i = 1; i < last; i += 1) {
-    const r = rows[i];
-    if (r.length !== header.length) continue; // blank line, or a torn / malformed record
-    if (r[0] === header[0] && r[1] === header[1]) continue; // stray duplicate header
-    const obj = {};
-    for (let c = 0; c < header.length; c += 1) obj[header[c]] = r[c];
-    out.push(obj);
-  }
-  return out;
-}
-
-/**
- * The canonical materialized view, and ONLY it: `<root>/<dir>/spans.csv` for each immediate child
- * directory. Never a `spans*.csv` glob — a glob would sweep a stale copy or a hand-made backup
- * (`spans.csv.bak`, `spans-old.csv`) into a record that is then frozen (design.md §3.4).
- */
-function enumerateSpanFiles(telemetryRoot) {
-  const out = [];
-  let entries;
-  try { entries = fs.readdirSync(telemetryRoot, { withFileTypes: true }); } catch (_) { return out; }
-  for (const e of entries.slice().sort((a, b) => (a.name < b.name ? -1 : 1))) {
-    if (!e.isDirectory()) continue;
-    const f = path.join(telemetryRoot, e.name, 'spans.csv');
-    if (fs.existsSync(f)) out.push({ dir: e.name, file: f });
-  }
-  return out;
-}
-
-function toNumber(v) {
-  const n = Number(String(v === undefined ? '' : v).trim());
-  return Number.isFinite(n) ? n : 0;
-}
-
-/**
- * The pinned instant form: ISO-8601 with an EXPLICIT UTC designator (`Z` or a zero offset).
- *
- * Bare `Date.parse` is deliberately NOT the acceptance test. It reads an ISO string carrying no
- * designator (`2026-07-01T00:00:00`) as LOCAL time, so a window argument spelled without one would
- * be silently shifted by the running machine's offset — and `capture` then freezes that shifted
- * window into an immutable record. It also accepts wholly non-ISO spellings (`Jan 5 2026`) whose
- * meaning is implementation-defined. Both are exactly the "no value ever stands in for an unknown"
- * failure design.md §3.6 invariant 3 rules out, so an instant that does not state UTC explicitly is
- * not an instant this tool will read.
- *
- * Calendar validity is checked EXPLICITLY rather than left to `Date.parse`, which does not reject
- * an out-of-range component: this engine reads `2026-02-30T00:00:00Z` as March 2nd and
- * `2026-13-01T00:00:00Z` as January of 2027. Silently rolling a malformed stamp into a real instant
- * is the same fabrication the designator rule closes, so the parsed instant is rendered back and
- * every written component must survive the round trip unchanged.
- */
-const UTC_INSTANT = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2})(?:\.\d+)?)?(?:Z|[+-]00:00)$/;
-
-function parseInstant(v) {
-  if (typeof v !== 'string') return null;
-  const s = v.trim();
-  const m = UTC_INSTANT.exec(s);
-  if (m === null) return null; // empty, offset-less, or non-ISO — never guessed at
-  const ms = Date.parse(s);
-  if (!Number.isFinite(ms)) return null;
-  // Every spelling that reaches here states UTC, so the UTC components must equal the written ones.
-  const d = new Date(ms);
-  const written = [m[1], m[2], m[3], m[4], m[5], m[6] === undefined ? '00' : m[6]].map(Number);
-  const actual = [d.getUTCFullYear(), d.getUTCMonth() + 1, d.getUTCDate(),
-    d.getUTCHours(), d.getUTCMinutes(), d.getUTCSeconds()];
-  for (let i = 0; i < written.length; i += 1) if (written[i] !== actual[i]) return null;
-  return ms;
-}
-
-function addTo(map, key, n) { map[key] = (map[key] || 0) + n; }
-
-/**
- * The `telemetry` half of the record, over the half-open window `[from, to)`.
- *
- * Coverage partitions the in-window dated LLM rows by ONE predicate evaluated per row — a row is
- * unattributed when it comes from an `_unattributed/` file OR carries an empty `command`, attributed
- * otherwise — so a row satisfying both conditions is counted exactly once. Reading the two
- * conditions as two additive contributions would double the denominator.
- */
-function computeTokens(telemetryRoot, fromMs, toMs, repoRoot) {
-  const sources = [];
-  const byCommand = {};
-  const byPhase = {};
-  const byChangeId = {};
-  let attributedTokens = 0;
-  let unattributedTokens = 0;
-  let attributedRows = 0;
-  let undatedRows = 0;
-  let inputTokens = 0;
-
-  for (const src of enumerateSpanFiles(telemetryRoot)) {
-    const bytes = fs.readFileSync(src.file);
-    const under = repoRoot && !path.relative(repoRoot, src.file).startsWith('..');
-    sources.push({
-      path: under ? relPath(repoRoot, src.file) : src.file.split(path.sep).join('/'),
-      sha256: crypto.createHash('sha256').update(bytes).digest('hex'),
-    });
-    for (const row of readSpansCsv(src.file)) {
-      if (LLM_KINDS.indexOf(row.span_kind) === -1) continue; // a tool row contributes to neither total
-      const ts = parseInstant(row.start_ts);
-      if (ts === null) { undatedRows += 1; continue; } // never assigned to the window, never dropped
-      if (ts < fromMs || ts >= toMs) continue;
-      const out = toNumber(row.output_tokens);
-      inputTokens += toNumber(row.input_tokens);
-      const unattributed = src.dir === UNATTRIBUTED_DIR || String(row.command || '').trim() === '';
-      if (unattributed) { unattributedTokens += out; continue; }
-      attributedTokens += out;
-      attributedRows += 1;
-      addTo(byCommand, row.command, out);
-      addTo(byPhase, row.phase === undefined ? '' : row.phase, out);
-      addTo(byChangeId, row.change_id === undefined ? '' : row.change_id, out);
-    }
-  }
-
-  const denominator = attributedTokens + unattributedTokens;
-  return {
-    sources,
-    outputTokens: { total: attributedTokens, byCommand, byPhase, byChangeId },
-    inputTokens: { total: inputTokens, excluded: true, reason: INPUT_TOKENS_EXCLUSION_REASON },
-    coverage: {
-      attributedTokens,
-      unattributedTokens,
-      attributedRows,
-      // `null`, never `0`: 0/0 is unknown, and the never-fabricate invariant forbids showing it as a number.
-      ratio: denominator === 0 ? null : attributedTokens / denominator,
-      undatedRows,
-    },
-  };
-}
-
-function resolveWindow(opts) {
-  const from = parseInstant(opts.from);
-  const to = parseInstant(opts.to);
-  if (from === null) return { error: '--from must be an ISO-8601 instant with an explicit UTC designator (e.g. 2026-07-01T00:00:00.000Z)' };
-  if (to === null) return { error: '--to must be an ISO-8601 instant with an explicit UTC designator (e.g. 2026-07-01T00:00:00.000Z)' };
-  if (!(from < to)) return { error: '--from must be strictly earlier than --to' };
-  return { from, to };
-}
-
-function cmdTokens(opts, repoRoot) {
-  const w = resolveWindow(opts);
-  if (w.error) { process.stderr.write('ptp-token-baseline: ' + w.error + '\n'); return 1; }
-  const root = typeof opts.root === 'string' ? path.resolve(repoRoot, opts.root) : resolveTelemetryRoot(repoRoot);
-  const result = computeTokens(root, w.from, w.to, repoRoot);
-  if (opts.json) {
-    process.stdout.write(JSON.stringify(result, null, 2) + '\n');
-    return 0;
-  }
-  process.stdout.write([
-    'telemetry root:      ' + root,
-    'source spans.csv:    ' + result.sources.length,
-    'attributed tokens:   ' + result.coverage.attributedTokens,
-    'unattributed tokens: ' + result.coverage.unattributedTokens,
-    'attributed rows:     ' + result.coverage.attributedRows,
-    'coverage ratio:      ' + (result.coverage.ratio === null ? 'null (no in-window model tokens)' : result.coverage.ratio),
-    'undated rows:        ' + result.coverage.undatedRows,
-    'input tokens:        ' + result.inputTokens.total + ' (excluded: ' + result.inputTokens.reason + ')',
-    '',
-  ].join('\n'));
-  return 0;
-}
-
 /* ------------------------------------------------------------------ capture */
 
-const RECORD_SCHEMA = 1;
+const RECORD_SCHEMA = 2;
 const BASELINES_DIR = 'baselines';
 const PROXY_METRIC = 'corpus.totals';
-const PENDING_REASON = 'no attributed in-window LLM rows; the word corpus is the operative proxy metric';
+const PENDING_REASON = 'ptp no longer records telemetry; the word proxy (corpus.totals) is the operative metric';
 
 /** Read-only. A failure records `gitRef: null` rather than failing the capture. */
 function gitRef(repoRoot) {
@@ -553,19 +290,7 @@ function gitRef(repoRoot) {
 
 function buildRecord(ctx) {
   const corpus = computeCorpus(ctx.repoRoot);
-  const tokens = computeTokens(ctx.telemetryRoot, ctx.fromMs, ctx.toMs, ctx.repoRoot);
-  const telemetry = {
-    // `pending` iff the window resolved NO attributed LLM ROWS — the row count, not the token sum,
-    // because an attributed row may legitimately carry zero output tokens.
-    status: tokens.coverage.attributedRows === 0 ? 'pending' : 'captured',
-    // The tool cannot observe whether `export` ran, so it never asserts that it did.
-    exportRanBefore: ctx.exportRan === true ? true : null,
-    sources: tokens.sources,
-    outputTokens: tokens.outputTokens,
-    inputTokens: tokens.inputTokens,
-    coverage: tokens.coverage,
-  };
-  if (telemetry.status === 'pending') telemetry.reason = PENDING_REASON;
+  const telemetry = { status: 'pending', reason: PENDING_REASON };
   return {
     schema: RECORD_SCHEMA,
     name: ctx.name,
@@ -573,7 +298,6 @@ function buildRecord(ctx) {
     capturedAt: new Date().toISOString(),
     gitRef: gitRef(ctx.repoRoot),
     countingRule: COUNTING_RULE,
-    window: { from: new Date(ctx.fromMs).toISOString(), to: new Date(ctx.toMs).toISOString() },
     telemetry,
     corpus,
     proxyMetric: PROXY_METRIC,
@@ -621,32 +345,19 @@ function doCapture(ctx) {
 }
 
 function cmdCapture(opts, repoRoot) {
-  const w = resolveWindow(opts);
-  if (w.error) { process.stderr.write('ptp-token-baseline: ' + w.error + '\n'); return 1; }
+  // The telemetry-window flags are retired. They are REFUSED by name rather than ignored, so a caller
+  // never believes a record was windowed or sourced from a store it never read.
+  for (const flag of ['from', 'to', 'root', 'export-ran']) {
+    if (opts[flag] !== undefined) {
+      process.stderr.write('ptp-token-baseline: capture no longer accepts --' + flag + ' (ptp no longer records telemetry); use --name only\n');
+      return 1;
+    }
+  }
   if (typeof opts.name !== 'string' || opts.name === '') {
     process.stderr.write('ptp-token-baseline: capture requires --name <name>\n');
     return 1;
   }
-  // `capture`'s contracted invocation is `--name --from --to [--export-ran]` (design.md §3.1) — and
-  // deliberately carries no `--root`. Its output is FROZEN and later slices state their reduction
-  // claim against it, so the store it was computed from must be the one the telemetry capability
-  // resolves, not one chosen per invocation. The flag is REFUSED rather than ignored: silently
-  // ignoring it would let a caller believe a record came from a store it never read. `tokens`, whose
-  // output is ephemeral, keeps the override the capability grants it.
-  if (opts.root !== undefined) {
-    process.stderr.write('ptp-token-baseline: capture does not accept --root — a frozen record is '
-      + 'always captured from the resolved telemetry.root (use `tokens --root` to aggregate another store)\n');
-    return 1;
-  }
-  const root = resolveTelemetryRoot(repoRoot);
-  const res = doCapture({
-    repoRoot,
-    telemetryRoot: root,
-    name: opts.name,
-    fromMs: w.from,
-    toMs: w.to,
-    exportRan: opts['export-ran'] === true,
-  });
+  const res = doCapture({ repoRoot, name: opts.name });
   process.stdout.write('ptp-token-baseline: ' + res.message + '\n');
   return res.code;
 }
@@ -975,12 +686,8 @@ function computeComparison(ctx) {
 }
 
 /**
- * `compare`'s own reader, deliberately NOT named `readJsonFile`: the telemetry section already owns a
- * top-level `readJsonFile` returning the parsed value or `null`, and two module-scope function
- * declarations of one name silently resolve to the later one for the WHOLE module — which would make
- * `resolveTelemetryRoot` read `{ raw, value }` and drop every configured `telemetry.root`.
- *
- * This one returns `{ raw, value }` on success and `{ error }` on failure: `compare` needs the raw
+ * `compare`'s own reader. It returns `{ raw, value }` on success and `{ error }` on failure:
+ * `compare` needs the raw
  * bytes for the source digest, and needs a refusal message rather than an indistinguishable `null`.
  */
 function readJsonRecordFile(p) {
@@ -1065,7 +772,7 @@ function cmdCompare(opts, repoRoot) {
 
 /**
  * The tool's only automated check. Every assertion runs against a fixture tree the harness creates
- * under `os.tmpdir()` — outside the repository and outside the telemetry store, the one exception
+ * under `os.tmpdir()` — outside the repository, the one exception
  * the capability's write-scope rule allows — and removes again on the way out, including on failure.
  * Assertions run in order, the run stops at the first failure, and the tree is removed either way.
  */
@@ -1120,31 +827,6 @@ function fileInventory(dir) {
   };
   walk(dir);
   return out.sort();
-}
-
-/** The receiver's 26-column span schema, used only to build realistic selftest fixtures. */
-const FIXTURE_CSV_COLUMNS = [
-  'schema_version', 'epic', 'change_id', 'command', 'phase', 'agent_role', 'agent_label', 'cli',
-  'run_id', 'session_id', 'trace_id', 'span_id', 'parent_span_id', 'span_kind', 'tool_name',
-  'tool_class', 'model', 'start_ts', 'end_ts', 'duration_ms', 'success', 'error', 'input_tokens',
-  'output_tokens', 'cost_usd', 'notes',
-];
-
-/**
- * Fixture spans.csv, written the way the receiver writes one — BOM, CRLF terminators — plus a stray
- * DUPLICATE header row in the middle, so every fixture also exercises the parser's stated tolerance.
- */
-function writeFixtureSpans(t, rel, rows) {
-  const line = (cells) => cells.map((v) => {
-    const s = v === undefined ? '' : String(v);
-    return /[",]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
-  }).join(',') + '\r\n';
-  let body = '﻿' + line(FIXTURE_CSV_COLUMNS);
-  rows.forEach((r, i) => {
-    if (i === 1) body += line(FIXTURE_CSV_COLUMNS); // the stray duplicate header
-    body += line(FIXTURE_CSV_COLUMNS.map((c) => r[c]));
-  });
-  return t.write(rel, Buffer.from(body, 'utf8'));
 }
 
 const SELFTESTS = [
@@ -1280,89 +962,21 @@ const SELFTESTS = [
     t.eq('2.2 all six categories are present', c.changes.length, 6);
   },
 
-  function tokensOverFixtureStore(t) {
-    const root = path.join(t.dir, 'store-a');
-    writeFixtureSpans(t, 'store-a/epicA/spans.csv', [
-      { span_kind: 'llm_request', command: 'plan', phase: 'plan', change_id: '0001_01', start_ts: '2026-01-05T00:00:00.000Z', input_tokens: '10', output_tokens: '100' },
-      { span_kind: 'api_request', command: 'apply', phase: 'apply', change_id: '0001_02', start_ts: '2026-01-06T00:00:00.000Z', input_tokens: '5', output_tokens: '50' },
-      { span_kind: 'llm_request', command: 'plan', phase: 'plan', change_id: '0001_01', start_ts: '2025-12-01T00:00:00.000Z', input_tokens: '900', output_tokens: '999' },
-      { span_kind: 'llm_request', command: 'plan', phase: 'plan', change_id: '0001_01', start_ts: '', input_tokens: '700', output_tokens: '777' },
-      { span_kind: 'llm_request', command: '', phase: 'other', change_id: '', start_ts: '2026-01-07T00:00:00.000Z', input_tokens: '1', output_tokens: '7' },
-      { span_kind: 'tool', command: 'plan', phase: 'plan', change_id: '0001_01', start_ts: '2026-01-08T00:00:00.000Z', input_tokens: '4321', output_tokens: '1234' },
-    ]);
-    writeFixtureSpans(t, 'store-a/_unattributed/spans.csv', [
-      { span_kind: 'llm_request', command: 'plan', phase: 'plan', change_id: '0001_01', start_ts: '2026-01-09T00:00:00.000Z', input_tokens: '2', output_tokens: '20' },
-      { span_kind: 'llm_request', command: '', phase: '', change_id: '', start_ts: '2026-01-10T00:00:00.000Z', input_tokens: '1', output_tokens: '3' },
-    ]);
-    const r = computeTokens(root, Date.parse('2026-01-01T00:00:00.000Z'), Date.parse('2026-02-01T00:00:00.000Z'), null);
-    const sum = (o) => Object.keys(o).reduce((n, k) => n + o[k], 0);
-
-    t.eq('3.2 byCommand sums to the attributed total', sum(r.outputTokens.byCommand), r.outputTokens.total);
-    t.eq('3.2 byPhase sums to the attributed total', sum(r.outputTokens.byPhase), r.outputTokens.total);
-    t.eq('3.2 byChangeId sums to the attributed total', sum(r.outputTokens.byChangeId), r.outputTokens.total);
-    t.eq('3.2 the attributed total is the two in-window attributed rows', r.outputTokens.total, 150);
-    t.eq('3.2 a row outside the window is excluded', r.outputTokens.byCommand.plan, 100);
-    t.eq('3.2 an undated row lands in undatedRows', r.coverage.undatedRows, 1);
-    t.ok('3.2 an undated row lands in no group',
-      sum(r.outputTokens.byCommand) === 150 && r.coverage.unattributedTokens === 30,
-      JSON.stringify(r.coverage));
-    t.eq('3.2 an _unattributed/ row and an empty-command row both count as unattributed',
-      r.coverage.unattributedTokens, 30);
-    t.eq('3.2 neither unattributed row enters byCommand',
-      Object.keys(r.outputTokens.byCommand).sort(), ['apply', 'plan']);
-    t.eq('3.2 a row both under _unattributed/ and lacking a command is counted exactly once',
-      r.coverage.attributedTokens + r.coverage.unattributedTokens, 180);
-    t.eq('3.2 a tool row contributes zero output tokens', r.outputTokens.total + r.coverage.unattributedTokens, 180);
-    t.eq('3.2 a tool row contributes zero input tokens', r.inputTokens.total, 19);
-    t.eq('3.2 inputTokens.excluded is true', r.inputTokens.excluded, true);
-    t.ok('3.2 inputTokens carries its exclusion reason',
-      typeof r.inputTokens.reason === 'string' && r.inputTokens.reason.length > 0, r.inputTokens.reason);
-    t.eq('3.2 attributedRows counts rows, not tokens', r.coverage.attributedRows, 2);
-  },
-
-  function tokensDegradeHonestly(t) {
-    const absent = path.join(t.dir, 'no-such-store');
-    let r = null;
-    let threw = null;
-    try {
-      r = computeTokens(absent, Date.parse('2026-01-01T00:00:00.000Z'), Date.parse('2026-02-01T00:00:00.000Z'), null);
-    } catch (err) { threw = err; }
-    t.ok('3.3 an absent telemetry root does not throw', threw === null, String(threw));
-    t.eq('3.3 an absent telemetry root yields zero attributed tokens', r.coverage.attributedTokens, 0);
-    t.eq('3.3 an absent telemetry root yields a null ratio, never 0', r.coverage.ratio, null);
-    t.eq('3.3 an absent telemetry root yields zero attributed rows', r.coverage.attributedRows, 0);
-    t.eq('3.3 an absent telemetry root yields no sources', r.sources, []);
-
-    const root = path.join(t.dir, 'store-b');
-    writeFixtureSpans(t, 'store-b/epicA/spans.csv', [
-      { span_kind: 'llm_request', command: 'plan', phase: 'plan', change_id: '0001_01', start_ts: '2026-01-05T00:00:00.000Z', input_tokens: '10', output_tokens: '100' },
-      { span_kind: 'llm_request', command: '', phase: '', change_id: '', start_ts: '2026-01-05T00:00:01.000Z', input_tokens: '1', output_tokens: '100' },
-    ]);
-    const r2 = computeTokens(root, Date.parse('2026-01-01T00:00:00.000Z'), Date.parse('2026-02-01T00:00:00.000Z'), null);
-    t.ok('3.3 a store with in-window rows yields a numeric ratio', typeof r2.coverage.ratio === 'number', String(r2.coverage.ratio));
-    t.eq('3.3 that ratio is attributed / (attributed + unattributed)', r2.coverage.ratio, 0.5);
-  },
-
   function captureRefusalsAndDegradation(t) {
     const root = path.join(t.dir, 'repo-capture');
     // Five of the six representative changes present, so the depleted-corpus refusal does not fire.
     REPRESENTATIVE_CHANGES.slice(0, 5).forEach((spec) => {
       t.write(path.join('repo-capture', spec.changePath, 'proposal.md'), 'alpha beta gamma\n');
     });
-    const storeEmpty = path.join(t.dir, 'store-capture-empty');
-    fs.mkdirSync(storeEmpty, { recursive: true });
-    const base = {
-      repoRoot: root,
-      telemetryRoot: storeEmpty,
-      fromMs: Date.parse('2026-01-01T00:00:00.000Z'),
-      toMs: Date.parse('2026-02-01T00:00:00.000Z'),
-      exportRan: false,
-    };
+    const base = { repoRoot: root };
 
     // Degradation: no attributed rows ⇒ pending, corpus complete, exit 0.
     const pending = doCapture(Object.assign({}, base, { name: 'pending-one' }));
     t.eq('4.2 a window with no attributed rows still captures (exit 0)', pending.code, 0);
     t.eq('4.2 that record is pending', pending.record.telemetry.status, 'pending');
+    t.eq('4.2 that record carries schema 2', pending.record.schema, 2);
+    t.ok('4.2 that record carries no window', !Object.prototype.hasOwnProperty.call(pending.record, 'window'));
+    t.eq('4.2 the telemetry block is exactly status and reason', Object.keys(pending.record.telemetry).sort(), ['reason', 'status']);
     t.ok('4.2 that record carries a non-empty reason',
       typeof pending.record.telemetry.reason === 'string' && pending.record.telemetry.reason.length > 0,
       String(pending.record.telemetry.reason));
@@ -1391,21 +1005,6 @@ const SELFTESTS = [
     const r = doCapture(Object.assign({}, base, { repoRoot: depleted, name: 'depleted' }));
     t.eq('4.2 a depleted representative set is refused', r.code, 1);
     t.eq('4.2 the depleted refusal wrote nothing', fileInventory(depleted), inv);
-
-    // Status equivalence, keyed on ROWS: one attributed row carrying zero output tokens is still
-    // `captured`, because an attributed row may legitimately carry no output tokens.
-    const storeZero = path.join(t.dir, 'store-capture-zero');
-    writeFixtureSpans(t, 'store-capture-zero/epicA/spans.csv', [
-      { span_kind: 'llm_request', command: 'plan', phase: 'plan', change_id: '0001_01', start_ts: '2026-01-05T00:00:00.000Z', input_tokens: '0', output_tokens: '0' },
-    ]);
-    const zero = doCapture(Object.assign({}, base, { telemetryRoot: storeZero, name: 'zero-tokens' }));
-    t.eq('4.2 a zero-output attributed row still captures (exit 0)', zero.code, 0);
-    t.eq('4.2 a zero-output attributed row yields status captured', zero.record.telemetry.status, 'captured');
-    t.ok('4.2 a captured record carries no reason',
-      !Object.prototype.hasOwnProperty.call(zero.record.telemetry, 'reason'),
-      JSON.stringify(zero.record.telemetry.reason));
-    t.eq('4.2 that record counts one attributed row', zero.record.telemetry.coverage.attributedRows, 1);
-    t.eq('4.2 that record still totals zero output tokens', zero.record.telemetry.outputTokens.total, 0);
   },
 
   function verifyComparesRecordedState(t) {
@@ -1417,16 +1016,7 @@ const SELFTESTS = [
     REPRESENTATIVE_CHANGES.slice(0, 5).forEach((spec) => {
       t.write(path.join('repo-verify', spec.changePath, 'proposal.md'), 'alpha beta gamma\n');
     });
-    const storeEmpty = path.join(t.dir, 'store-verify');
-    fs.mkdirSync(storeEmpty, { recursive: true });
-    const cap = doCapture({
-      repoRoot: root,
-      telemetryRoot: storeEmpty,
-      name: 'verify-fixture',
-      fromMs: Date.parse('2026-01-01T00:00:00.000Z'),
-      toMs: Date.parse('2026-02-01T00:00:00.000Z'),
-      exportRan: false,
-    });
+    const cap = doCapture({ repoRoot: root, name: 'verify-fixture' });
     t.eq('4.3 the verify fixture captured', cap.code, 0);
     const recordBytes = fs.readFileSync(cap.path);
     const record = JSON.parse(recordBytes.toString('utf8'));
@@ -1481,58 +1071,20 @@ const SELFTESTS = [
     t.ok('4.3 removing it again restores a clean verify', verifyRecord(root, record).ok);
   },
 
-  function tornRowsAreDroppedNotPadded(t) {
-    const root = path.join(t.dir, 'store-torn');
-    const file = writeFixtureSpans(t, 'store-torn/epicA/spans.csv', [
-      { span_kind: 'llm_request', command: 'plan', phase: 'plan', change_id: '0001_01', start_ts: '2026-01-05T00:00:00.000Z', input_tokens: '10', output_tokens: '100' },
-    ]);
-    const whole = fs.readFileSync(file, 'utf8');
-    const window = [Date.parse('2026-01-01T00:00:00.000Z'), Date.parse('2026-02-01T00:00:00.000Z')];
-    const baseline = computeTokens(root, window[0], window[1], null);
-    t.eq('P3 the intact fixture attributes its one row', baseline.coverage.attributedRows, 1);
-
-    // A TORN trailing record: the receiver was flushing, so the row stops after `start_ts`. Padding
-    // it would invent an attributed row carrying 0 output tokens — and flip a `pending` record to
-    // `captured`. It must be dropped instead.
-    const torn = FIXTURE_CSV_COLUMNS.map((c) => ({
-      span_kind: 'llm_request', command: 'apply', phase: 'apply', change_id: '0001_02',
-      start_ts: '2026-01-06T00:00:00.000Z',
-    }[c] || '')).slice(0, 18).join(',');
-    fs.writeFileSync(file, whole + torn);
-    let r = computeTokens(root, window[0], window[1], null);
-    t.eq('P3 a torn short trailing row is dropped, not padded', r.coverage.attributedRows, 1);
-    t.eq('P3 a torn short trailing row contributes no tokens', r.outputTokens.total, 100);
-    t.eq('P3 a torn short trailing row invents no command', Object.keys(r.outputTokens.byCommand), ['plan']);
-
-    // A record caught mid-quote is a fragment by construction and is likewise dropped.
-    fs.writeFileSync(file, whole + FIXTURE_CSV_COLUMNS.map((c) => (c === 'span_kind' ? 'llm_request'
-      : c === 'command' ? 'apply' : c === 'start_ts' ? '2026-01-06T00:00:00.000Z'
-        : c === 'output_tokens' ? '"999' : '')).join(','));
-    r = computeTokens(root, window[0], window[1], null);
-    t.eq('P3 a record ending inside an unclosed quote is dropped', r.coverage.attributedRows, 1);
-    t.eq('P3 that fragment contributes no tokens', r.outputTokens.total, 100);
-
-    // A COMPLETE final record with no trailing newline is full width and is kept.
-    fs.writeFileSync(file, whole + FIXTURE_CSV_COLUMNS.map((c) => ({
-      span_kind: 'llm_request', command: 'apply', phase: 'apply', change_id: '0001_02',
-      start_ts: '2026-01-06T00:00:00.000Z', input_tokens: '1', output_tokens: '50',
-    }[c] || '')).join(','));
-    r = computeTokens(root, window[0], window[1], null);
-    t.eq('P3 a complete final row with no terminator is kept', r.coverage.attributedRows, 2);
-    t.eq('P3 that complete final row contributes its tokens', r.outputTokens.total, 150);
-  },
-
-  function captureRefusesARootOverride(t) {
-    const root = path.join(t.dir, 'repo-noroot');
-    t.write('repo-noroot/keep.md', 'x\n');
-    const inv = fileInventory(t.dir);
-    const code = cmdCapture({
-      _: ['capture'], name: 'should-not-exist',
-      from: '2026-01-01T00:00:00.000Z', to: '2026-02-01T00:00:00.000Z',
-      root: path.join(t.dir, 'somewhere-else'),
-    }, root);
-    t.eq('P3 capture refuses an explicit --root', code, 1);
-    t.eq('P3 the refused capture created no file', fileInventory(t.dir), inv);
+  function captureRefusesRetiredFlags(t) {
+    const root = path.join(t.dir, 'repo-retired');
+    REPRESENTATIVE_CHANGES.slice(0, 5).forEach((spec) => {
+      t.write(path.join('repo-retired', spec.changePath, 'proposal.md'), 'alpha beta gamma\n');
+    });
+    const flags = { from: '2026-01-01T00:00:00Z', to: '2026-02-01T00:00:00Z', root: path.join(t.dir, 'somewhere-else'), 'export-ran': true };
+    for (const flag of Object.keys(flags)) {
+      const inv = fileInventory(t.dir);
+      const opts = { _: ['capture'], name: 'should-not-exist' };
+      opts[flag] = flags[flag];
+      const code = cmdCapture(opts, root);
+      t.eq('P3 capture refuses the retired --' + flag, code, 1);
+      t.eq('P3 the refused --' + flag + ' capture created no file', fileInventory(t.dir), inv);
+    }
   },
 
   function verifyRefusesPathsOutsideTheRepo(t) {
@@ -1563,37 +1115,6 @@ const SELFTESTS = [
     const good = countPromptFile(root, path.join(root, 'commands/sample.md'));
     const okRecord = { countingRule: COUNTING_RULE, corpus: { prompts: [good], changes: [] } };
     t.ok('P2 an ordinary repo-relative entry still verifies', verifyRecord(root, okRecord).ok);
-  },
-
-  function instantsMustStateUtc(t) {
-    // Accepted: the pinned form, with or without fractional seconds, and a zero offset.
-    for (const good of ['2026-01-05T00:00:00.000Z', '2026-01-05T00:00:00Z', '2026-01-05T00:00Z',
-      '2026-01-05T00:00:00+00:00']) {
-      t.ok('3.1 ' + good + ' is a pinned UTC instant', parseInstant(good) === Date.parse(good), good);
-    }
-    // Refused: no designator (Date.parse would read it as LOCAL time and silently shift the window),
-    // a non-zero offset, a non-ISO spelling, an out-of-range calendar component, and the empty value.
-    for (const bad of ['2026-01-05T00:00:00', '2026-01-05', '2026-01-05T00:00:00+02:00',
-      'Jan 5 2026', '2026-02-30T00:00:00Z', '2026-13-01T00:00:00Z', '', '   ']) {
-      t.eq('3.1 ' + JSON.stringify(bad) + ' is not a pinned UTC instant', parseInstant(bad), null);
-    }
-    // A row whose start_ts states no UTC designator is UNDATED, never placed in the window by guess.
-    const root = path.join(t.dir, 'store-tz');
-    writeFixtureSpans(t, 'store-tz/epicA/spans.csv', [
-      { span_kind: 'llm_request', command: 'plan', phase: 'plan', change_id: '0001_01', start_ts: '2026-01-05T00:00:00.000Z', input_tokens: '1', output_tokens: '10' },
-      { span_kind: 'llm_request', command: 'plan', phase: 'plan', change_id: '0001_01', start_ts: '2026-01-06T00:00:00.000', input_tokens: '1', output_tokens: '20' },
-    ]);
-    const r = computeTokens(root, Date.parse('2026-01-01T00:00:00.000Z'), Date.parse('2026-02-01T00:00:00.000Z'), null);
-    t.eq('3.1 an offset-less start_ts lands in undatedRows', r.coverage.undatedRows, 1);
-    t.eq('3.1 an offset-less start_ts contributes to no total', r.outputTokens.total, 10);
-
-    // The same rule guards the window arguments, so a shifted window can never be frozen.
-    t.ok('3.1 an offset-less --from is refused',
-      /explicit UTC designator/.test(String(resolveWindow({ from: '2026-01-01T00:00:00', to: '2026-02-01T00:00:00Z' }).error)));
-    t.ok('3.1 an offset-less --to is refused',
-      /explicit UTC designator/.test(String(resolveWindow({ from: '2026-01-01T00:00:00Z', to: '2026-02-01T00:00:00' }).error)));
-    t.eq('3.1 a pinned window resolves', resolveWindow({ from: '2026-01-01T00:00:00Z', to: '2026-02-01T00:00:00Z' }).from,
-      Date.parse('2026-01-01T00:00:00Z'));
   },
 
   function countingRuleWhitespaceOnly(t) {
@@ -1785,7 +1306,6 @@ function main(argv) {
   const repoRoot = findRepoRoot(process.cwd());
   const sub = opts._[0];
   if (sub === 'corpus') return cmdCorpus(opts, repoRoot);
-  if (sub === 'tokens') return cmdTokens(opts, repoRoot);
   if (sub === 'capture') return cmdCapture(opts, repoRoot);
   if (sub === 'verify') return cmdVerify(opts, repoRoot);
   if (sub === 'compare') return cmdCompare(opts, repoRoot);

@@ -22,11 +22,6 @@ Values below marked *given* arrive in your prompt: take each verbatim, never re-
 - **artifact paths** — `openspec/changes/<change-id>/` must exist. Its `proposal.md`, `design.md`
   when present, `tasks.md` and `specs/**/spec.md` are the contract you review against;
   `stages/code.json` is the marker you write.
-- **telemetry run id** — optional. When present, you MAY append **exactly one open line** under that
-  id to the ptp run ledger per `skills/ptp-telemetry/SKILL.md` — never a close line, never a CSV row.
-  Use it verbatim, never mint one. No id means write nothing and touch no
-  telemetry path: the supplied id **is** your `telemetry.mode` gate. A telemetry error is swallowed
-  and never alters your terminal state or returned JSON.
 - **fast-mode note** — optional, informational. It changes neither the effort your prompt named
   nor the separately evaluated fix effort, and reaches you only on `opus`, so its
   absence is never a signal. You MAY mention it in `notes`.

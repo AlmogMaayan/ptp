@@ -8,8 +8,8 @@ six-label shape (see `design.md` §4/§5).
 
 - **Failure mode:** Planning ambiguity, autonomous mode — stalls or asks instead of assuming and
   recording.
-- **Setup:** Change request: "add a retry to the telemetry sink write path"
-  (`scripts/ptp-otel-sink.js`'s `writeBatch` is the sink's write path; no retry count is stated
+- **Setup:** Change request: "add a retry to the scout map cache write path"
+  (`scripts/ptp-scout-map-cache.js`'s `writeAtomic` is the cache's write path; no retry count is stated
   anywhere in the repository).
 - **Prompt:** Run `ptp-brainstorming` with `mode: autonomous` against that request, writing the
   capsule to `openspec/changes/0057_08_ptp-brainstorming-and-writing-plans-skills/brainstorm.md`.
@@ -85,13 +85,13 @@ six-label shape (see `design.md` §4/§5).
 ### PT-B6 — Intent vs implementation
 
 - **Failure mode:** Implementation-first — weighs the requested mechanism before naming the outcome.
-- **Setup:** The request is a second telemetry JSON file "so the report reads faster".
+- **Setup:** The request is a second status JSON file "so the status report reads faster".
 - **Prompt:** Run `ptp-brainstorming` under `mode: autonomous` on that request.
 - **Required behavior:** The capsule names the outcome (a faster-reading report) and cites
-  `skills/ptp-telemetry-report/SKILL.md` before it weighs the new file as an option.
+  `commands/status.md` before it weighs the new file as an option.
 - **Failing behavior:** The capsule adopts or compares the second JSON file without stating the outcome
-  or citing the report skill.
-- **Observable check:** The capsule states the outcome and cites `skills/ptp-telemetry-report/SKILL.md`
+  or citing the status command.
+- **Observable check:** The capsule states the outcome and cites `commands/status.md`
   ahead of any mention of the new file.
 
 ### PT-B7 — Reuse vs a parallel abstraction

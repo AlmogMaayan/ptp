@@ -96,38 +96,6 @@ parameters = [
     default: "claude"
   },
   {
-    key:      "telemetry.mode",
-    label:    "Record ptp run telemetry",
-    jsonPath: ["telemetry", "mode"],
-    kind:     "enum",
-    values: [
-      { value: "off", desc: "Record no telemetry; every ptp command behaves exactly as before (default)" },
-      { value: "on",  desc: "Record a run-ledger window per ptp main run under the telemetry store root" }
-    ],
-    default: "off"
-  },
-  {
-    key:      "telemetry.root",
-    label:    "Telemetry store root",
-    jsonPath: ["telemetry", "root"],
-    kind:     "string",
-    default:  "openspec/telemetry"
-  },
-  {
-    key:      "telemetry.port",
-    label:    "Telemetry receiver port",
-    jsonPath: ["telemetry", "port"],
-    kind:     "integer",
-    default:  4318
-  },
-  {
-    key:      "telemetry.retentionDays",
-    label:    "Telemetry raw-store retention (days)",
-    jsonPath: ["telemetry", "retentionDays"],
-    kind:     "integer",
-    default:  30
-  },
-  {
     key:      "parallel.mode",
     label:    "Run planning stages in parallel",
     jsonPath: ["parallel", "mode"],
@@ -331,7 +299,7 @@ parameters = [
 ]
 ```
 
-**Parameter menu:** The registry currently holds thirty-six entries. Step 2 builds an `AskUserQuestion`
+**Parameter menu:** The registry currently holds thirty-two entries. Step 2 builds an `AskUserQuestion`
 menu from each entry's `label` value and presents it to the user. The flow is data-driven: adding
 a new entry to the registry automatically adds it to the menu with no further edits to this flow.
 
@@ -392,35 +360,31 @@ Build an `AskUserQuestion` menu from the registry entries' `label` values:
 5. **Lowest severity to handle** (`review.minSeverity`)
 6. **Auto re-cut on plan-review budget halt** (`review.autoRecutOnBudgetExceeded`)
 7. **Main agent** (`roles.main`)
-8. **Record ptp run telemetry** (`telemetry.mode`)
-9. **Telemetry store root** (`telemetry.root`)
-10. **Telemetry receiver port** (`telemetry.port`)
-11. **Telemetry raw-store retention (days)** (`telemetry.retentionDays`)
-12. **Run planning stages in parallel** (`parallel.mode`)
-13. **Max parallel fan-out members** (`parallel.maxConcurrency`)
-14. **Max proposal.md words** (`artifact.maxProposalWords`)
-15. **Max design.md words** (`artifact.maxDesignWords`)
-16. **Max tasks.md words** (`artifact.maxTasksWords`)
-17. **Max tasks.md checkboxes** (`artifact.maxTaskCount`)
-18. **Max words per checkbox** (`artifact.maxTaskWords`)
-19. **Max spec-delta words (summed)** (`artifact.maxSpecDeltaWords`)
-20. **Backlog project owner** (`backlog.projectOwner`)
-21. **Backlog project number** (`backlog.projectNumber`)
-22. **Backlog status option names** (`backlog.statusOptions`)
-23. **TDD enforcement** (`tdd`)
-24. **TDD skill plugin** (`tdd-plugin`)
-25. **Claude model for analyze commands** (`models.analyze`)
-26. **Claude model for prompt commands** (`models.prompt`)
-27. **Claude model for brainstorm commands** (`models.brainstorm`)
-28. **Claude model for plan-review commands** (`models.plan-review`)
-29. **Claude model for apply-review commands** (`models.apply-review`)
-30. **Claude model for the brainstorm scout** (`models.brainstorm-scout`)
-31. **Codex model for analyze commands** (`codex.analyze`)
-32. **Codex model for prompt commands** (`codex.prompt`)
-33. **Codex model for brainstorm commands** (`codex.brainstorm`)
-34. **Codex model for plan-review commands** (`codex.plan-review`)
-35. **Codex model for apply-review commands** (`codex.apply-review`)
-36. **Run the brainstorm scout** (`brainstorm.scout`)
+8. **Run planning stages in parallel** (`parallel.mode`)
+9. **Max parallel fan-out members** (`parallel.maxConcurrency`)
+10. **Max proposal.md words** (`artifact.maxProposalWords`)
+11. **Max design.md words** (`artifact.maxDesignWords`)
+12. **Max tasks.md words** (`artifact.maxTasksWords`)
+13. **Max tasks.md checkboxes** (`artifact.maxTaskCount`)
+14. **Max words per checkbox** (`artifact.maxTaskWords`)
+15. **Max spec-delta words (summed)** (`artifact.maxSpecDeltaWords`)
+16. **Backlog project owner** (`backlog.projectOwner`)
+17. **Backlog project number** (`backlog.projectNumber`)
+18. **Backlog status option names** (`backlog.statusOptions`)
+19. **TDD enforcement** (`tdd`)
+20. **TDD skill plugin** (`tdd-plugin`)
+21. **Claude model for analyze commands** (`models.analyze`)
+22. **Claude model for prompt commands** (`models.prompt`)
+23. **Claude model for brainstorm commands** (`models.brainstorm`)
+24. **Claude model for plan-review commands** (`models.plan-review`)
+25. **Claude model for apply-review commands** (`models.apply-review`)
+26. **Claude model for the brainstorm scout** (`models.brainstorm-scout`)
+27. **Codex model for analyze commands** (`codex.analyze`)
+28. **Codex model for prompt commands** (`codex.prompt`)
+29. **Codex model for brainstorm commands** (`codex.brainstorm`)
+30. **Codex model for plan-review commands** (`codex.plan-review`)
+31. **Codex model for apply-review commands** (`codex.apply-review`)
+32. **Run the brainstorm scout** (`brainstorm.scout`)
 
 Use the selected entry's `jsonPath`, `kind`, `values` (for enum entries), and `default` for the
 remaining steps. This is data-driven off the registry — adding a parameter requires only a new
@@ -489,10 +453,6 @@ turns one invocation into several writes. The idempotency/no-op report, the `wri
        `{"models":"opus.high"}` or `{"models":null}`), STOP.
      - For `roles.main`: if `roles` exists but is not an object (e.g. `{"roles":"claude"}` or
        `{"roles":null}`), STOP.
-     - For `telemetry.mode`, `telemetry.root`, `telemetry.port`, or `telemetry.retentionDays`
-       (all four share the same `telemetry` parent): if
-       `telemetry` exists but is not an object (e.g. `{"telemetry":"on"}` or
-       `{"telemetry":null}`), STOP.
      - For `parallel.mode` or `parallel.maxConcurrency` (they share the same `parallel` parent): if
        `parallel` exists but is not an object (e.g. `{"parallel":"on"}` or `{"parallel":null}`),
        STOP.
@@ -510,7 +470,7 @@ turns one invocation into several writes. The idempotency/no-op report, the `wri
      - `tdd` is a **top-level** key (its `jsonPath` is a single segment, `["tdd"]`) — it has no
        parent object, so it adds **no** parent-shape STOP row of its own. The existing root-object
        check above already covers it: only a non-object root stops the command for `tdd`.
-   - Absent parents (`codex`, `models`, `review`, `roles`, `telemetry`, `parallel`, `artifact`, `brainstorm`, or `backlog`
+   - Absent parents (`codex`, `models`, `review`, `roles`, `parallel`, `artifact`, `brainstorm`, or `backlog`
      not present in the root — and, for `backlog.statusOptions`, an absent `statusOptions` under a present `backlog`)
      are fine — they will be created as empty objects on write. This is not clobbering.
 
@@ -603,7 +563,7 @@ Use `AskUserQuestion` to offer exactly two options:
 
 These are the only options. **Never write a value that is not a JSON boolean.** The value written to
 the file is the literal JSON boolean `true` or `false` — never the string `"true"`/`"false"`. This is
-the registry's first `boolean`-kind parameter: unlike `codex.mode`/`telemetry.mode`/`parallel.mode`
+the registry's first `boolean`-kind parameter: unlike `codex.mode`/`parallel.mode`
 (two-value **enums** of the strings `"on"`/`"off"`), this key is a plain JSON boolean, matching the
 shape a pure feature switch with no anticipated third value should take.
 
@@ -622,18 +582,6 @@ are:
 
 These are the only options. **Never write a value that is not in the entry's `values` list.** The
 value written to the file is exactly the selected string (verbatim, lowercase).
-
-#### kind = `enum` (e.g. `telemetry.mode`)
-
-Use `AskUserQuestion` to offer the parameter's `values`. For `telemetry.mode`, the two valid values
-are:
-
-1. **`off`** — Record no telemetry; every ptp command behaves exactly as before (default)
-2. **`on`** — Record a run-ledger window per ptp main run under the telemetry store root
-
-These are the only options. **Never write a value that is not in the entry's `values` list.** The
-value written to the file is exactly the selected string (verbatim, lowercase). Free-form values
-(e.g. `true`, `enabled`) are rejected and re-prompted, never written.
 
 #### kind = `enum` (e.g. `parallel.mode`)
 
@@ -683,36 +631,6 @@ no parent object).
 State plainly at the point of selection: **no consumer reads this key yet** — this change is
 resolve-only, mirroring `tdd`'s own first slice. Setting `superpowers` or `ptp` today changes no
 command's behavior.
-
-#### kind = `string` (e.g. `telemetry.root`)
-
-Prompt the user for a free-text value (show the entry's `default`, `openspec/telemetry`, as the
-suggested value). Then validate the input:
-
-- **Accept:** a **non-empty** string, after trimming leading/trailing whitespace, that is a
-  **repository-relative** path resolving **strictly below** the repository root. The value is
-  written as a JSON **string**, trimmed. This rule holds under **every** target — user, project, or
-  workspace — including workspace: the value stays repository-root-relative and
-  repository-root-validated regardless of which file it is written into; it is never re-anchored to
-  the workspace root.
-- **Reject and re-prompt** on any of the following — do NOT write an invalid value:
-  - empty or whitespace-only input;
-  - an **absolute path** (`/var/telemetry`, `C:\telemetry`, a UNC path, any drive- or root-anchored
-    form);
-  - any value containing a **`..` segment** (`../telemetry`, `a/../../b`);
-  - any value **resolving to the repository root itself** — `""`, `.`, `./`, `/`.
-
-When rejecting, report why (a telemetry root must stay inside the repository, and must not be the
-repository root itself — the store writes its own `.gitignore` / `.gitattributes` into its root and
-would otherwise overwrite the repository's) and ask again. Only proceed to step 5 once a valid
-repository-relative path is in hand.
-
-These are exactly the validity rules the `ptp-telemetry` **reader** applies
-(`ptp-telemetry` [telemetry-root-validation]). As with
-`review.maxIterations`, the two surfaces are complementary: this editor is **STRICT** (reject and
-re-prompt, so an invalid value is never written) while the reader is **FORGIVING** (an invalid
-layer's value is ignored, leaving the prior layer's valid value, ultimately defaulting to
-`openspec/telemetry`, never throwing or STOPping).
 
 #### kind = `string` (e.g. `codex.model`)
 
@@ -795,10 +713,10 @@ As with every other ptp parameter, the two surfaces are complementary: this edit
 reader is **FORGIVING** (an invalid layer's value is ignored; it never throws and never STOPs). Do not
 align one to the other.
 
-#### kind = `integer` (e.g. `review.maxIterations`, `telemetry.port`, `telemetry.retentionDays`, `parallel.maxConcurrency`, `backlog.projectNumber`, the six `artifact.*` budgets)
+#### kind = `integer` (e.g. `review.maxIterations`, `parallel.maxConcurrency`, `backlog.projectNumber`, the six `artifact.*` budgets)
 
 Prompt the user for an integer value (show the entry's `default` as the suggested value, e.g.
-`default: 5`, or `default: 4318` for `telemetry.port`). Then validate the input:
+`default: 5`). Then validate the input:
 
 - **Accept:** a plain positive integer (`>= 1`). The value is written as a JSON **number**, not
   a string.
@@ -808,26 +726,6 @@ Prompt the user for an integer value (show the entry's `default` as the suggeste
   - String-typed input that looks like a number (e.g. `"5"`)
   - Zero (`0`)
   - Any negative integer (e.g. `-1`)
-
-**`telemetry.port` carries one additional bound**, because it is a TCP port rather than a count: the
-value must also be **within `1..65535`**. Anything above that range (`70000`, `65536`) is rejected and
-re-prompted exactly as a zero or a negative value is. The receiver binds `127.0.0.1` only, so a
-privileged low port is not rejected here — but the suggested default `4318` is the OTLP/HTTP
-convention and is what `/ptp:telemetry setup` writes into the exporter endpoint.
-
-**`telemetry.retentionDays` carries no extra bound** — any positive integer is valid — but it
-**deletes data**, so state plainly at the point of selection what the value governs:
-
-- It prunes the **raw telemetry store only** — files under `<telemetry.root>/<epic>/raw/` — and only
-  when a human runs `/ptp:telemetry report`. No pipeline command ever prunes.
-- The **pruning step itself never deletes** `runs.ndjson`, `runs.csv`, or `spans.csv`, and never
-  touches the store-wide `<telemetry.root>/_unattributed/`.
-- **But that is not the same as the CSV keeping its history.** `/ptp:telemetry export` is always a
-  **global re-derivation from the raw store**, so the **next `export` after a prune rewrites
-  `spans.csv` without the pruned rows**. Saying only "the CSV is never pruned" would leave the user
-  with the exact opposite practical expectation, and they would discover the truth by losing data.
-- A retention of `N` keeps **N days plus today**: only files strictly older than the cutoff are
-  deleted. `ptp-telemetry-report` [retention] holds the full rule.
 
 **`parallel.maxConcurrency` carries one additional bound**, because it caps how many main runs may
 overlap: the value must also be **within `1..10`**. Anything above that range (`11`, `50`) is
@@ -850,12 +748,11 @@ keys at once, but the flow reaches `backlog.projectNumber` down the integer path
 otherwise never pass the note at all.
 
 **`backlog.projectNumber` carries no upper bound**, deliberately: it is the board's project number,
-project numbers are unbounded per owner, and a range like `telemetry.port`'s `1..65535` would be
-invented rather than derived. A positive integer `>= 1` is the whole rule, and the value is written as
+project numbers are unbounded per owner, and an upper bound would be invented rather than derived. A positive integer `>= 1` is the whole rule, and the value is written as
 a JSON **number**, never as a string. It has no default — unset means no board is configured.
 
-When rejecting, report why the value is invalid (e.g. "must be a positive integer >= 1", "must be
-a TCP port in 1..65535", or "must be an integer in 1..10") and ask again. Only proceed to step 5 once
+When rejecting, report why the value is invalid (e.g. "must be a positive integer >= 1" or "must be
+an integer in 1..10") and ask again. Only proceed to step 5 once
 a valid positive integer is in hand.
 
 **Relationship to the slice-01 resolver:** the validity rule used here (`>= 1`, positive integer)
@@ -949,8 +846,7 @@ With the resolved path, the base JSON object (from step 3), and the chosen value
      any `models.<family>`: create `models` as `{}`; for
      `review.maxIterations` or `review.minSeverity`: create `review` as `{}`; for `roles.main`:
      create `roles` as `{}`; for
-     `telemetry.mode`, `telemetry.root`, `telemetry.port`, or `telemetry.retentionDays`: create
-     `telemetry` as `{}`; for `parallel.mode` or `parallel.maxConcurrency`: create `parallel` as
+     `parallel.mode` or `parallel.maxConcurrency`: create `parallel` as
      `{}`; for any `artifact.*` key: create `artifact` as `{}`; for `brainstorm.scout`: create `brainstorm` as `{}`; for
      `backlog.projectOwner` or `backlog.projectNumber`: create
      `backlog` as `{}`; for `backlog.statusOptions`: create `backlog` as `{}` and then
@@ -1012,12 +908,6 @@ Examples:
 | Integer equals current stored value | Report no-op; do not write. |
 | `codex.model` input empty or whitespace-only | Reject, re-prompt; do NOT write. |
 | `codex.reasoningEffort` selection outside `minimal|low|medium|high` | Not offered — the enum menu only presents the four valid values. |
-| `telemetry` present but not an object (`"telemetry":"on"`, `"telemetry":null`) — applies to `telemetry.mode`, `telemetry.root`, `telemetry.port`, and `telemetry.retentionDays` alike | STOP, report, do **not** overwrite. |
-| `telemetry` absent | Created as `{}` on write; not clobbering. |
-| `telemetry.mode` selection outside `off|on` | Not offered — the enum menu only presents the two valid values. |
-| `telemetry.root` input empty, whitespace-only, absolute, containing `..`, or resolving to the repo root (`""`, `.`, `./`, `/`) | Reject, re-prompt; do NOT write. |
-| `telemetry.port` input non-integer (`4318.5`, `"4318"`, `abc`), zero, negative, or outside `1..65535` | Reject, re-prompt; do NOT write. |
-| `telemetry.retentionDays` input non-integer (`30.5`, `"30"`, `abc`), zero, or negative | Reject, re-prompt; do NOT write. |
 | `parallel` present but not an object (`"parallel":"on"`, `"parallel":null`) — applies to `parallel.mode` and `parallel.maxConcurrency` alike | STOP, report, do **not** overwrite. |
 | `parallel` absent | Created as `{}` on write; not clobbering. |
 | `parallel.mode` selection outside `off\|on` | Not offered — the enum menu only presents the two valid values. |
@@ -1073,14 +963,6 @@ Examples:
   menu — never from free-form user input.
 - **Never write an out-of-enum value for `roles.main`.** Only `claude` or `codex` may be written.
   The value comes from the step 4 enum menu — never from free-form user input.
-- **Never write an out-of-enum value for `telemetry.mode`.** Only `off` or `on` may be written. The
-  value comes from the step 4 enum menu — never from free-form user input.
-- **Never write an invalid `telemetry.root`.** Only a non-empty, trimmed, repository-relative path
-  resolving strictly below the repository root may be written. Empty/whitespace-only input, an
-  absolute path, any `..` segment, and any value resolving to the repository root itself (`""`, `.`,
-  `./`, `/`) are rejected and re-prompted — never written, so the editor can never produce a
-  configuration that directs telemetry writes outside the repository or points the store at the
-  repository root, where it would overwrite the repository's own `.gitignore` / `.gitattributes`.
 - **Never write an empty or whitespace-only string for `codex.model`.** Only a non-empty, trimmed
   string may be written; empty/whitespace-only input is rejected and re-prompted.
 - **Never write an invalid integer for `review.maxIterations`.** Only a positive integer (`>= 1`)
@@ -1089,18 +971,6 @@ Examples:
 - **Never write an out-of-enum value for `review.minSeverity`.** Only `low`, `medium`, `high`, or
   `critical` may be written. The value comes from the step 4 enum menu — never from free-form user
   input.
-- **Never write an invalid `telemetry.port`.** Only an integer within `1..65535` may be written. Any
-  non-integer, non-numeric, string-typed, zero, negative, or out-of-TCP-range input is rejected and
-  re-prompted — never written, so the editor can never produce a port the receiver could not bind.
-  (Changing this value does **not** update an already-written exporter endpoint: `/ptp:telemetry
-  setup` must be re-run and Claude Code restarted, which `ptp-telemetry-setup` [setup-merge-semantics] documents.)
-- **Never write an invalid `telemetry.retentionDays`.** Only a positive integer (`>= 1`) may be
-  written; zero, negatives, non-integers, non-numerics, and string-typed input are rejected and
-  re-prompted. **Zero matters most:** the runtime reader treats it as invalid and falls back to 30
-  precisely because "retain nothing" is the most destructive reading of a value this editor refuses
-  to write — the editor is the reason a zero can only ever arrive by a hand edit. The value prunes
-  the **raw** store only, on `/ptp:telemetry report` only; the next `export` after a prune
-  nevertheless rewrites `spans.csv` without the pruned rows (`ptp-telemetry-report` [retention]).
 - **Never write an out-of-enum value for `parallel.mode`.** Only `off` or `on` may be written. The
   value comes from the step 4 enum menu — never from free-form user input.
 - **Never write a `parallel.maxConcurrency` outside `1..10`.** Only an integer within the inclusive

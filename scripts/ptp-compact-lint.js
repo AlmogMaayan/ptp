@@ -186,8 +186,8 @@ function parseArgs(argv) {
     } else if (arg.startsWith('--repo=')) {
       args.repo = arg.slice('--repo='.length);
     } else if (arg === '--workspace') {
-      // Alias of --repo, writing the same root. `--repo` already names the REPOSITORY root in
-      // scripts/ptp-otel-sink.js, so the workspace spelling exists rather than a rename. When both
+      // Alias of --repo, writing the same root. The flag matches the workspace root every other
+      // ptp caller passes, so the workspace spelling exists rather than a rename. When both
       // appear the last occurrence wins, which is this loop's existing behavior for a repeated flag.
       args.repo = argv[i + 1];
       i += 1;

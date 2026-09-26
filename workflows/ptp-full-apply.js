@@ -141,37 +141,6 @@ function reviewPromptLines(id, model, effort, escalated, codexReviewModel, codex
   ]
 }
 
-// --- Telemetry measurement (gated from OUTSIDE by args.telemetry) -----------------------------
-//
-// Why this script never writes the run ledger itself: the sandbox injects only agent(), log(),
-// and args. There is no file-system access, no module loader, no way to launch an external
-// command, and no host-runtime globals — so writing a file from here is not possible. It is also
-// why the gate cannot live here: reading telemetry.mode would need the same missing access. The
-// launching skill therefore resolves the mode and passes a top-level boolean, and this script only
-// MEASURES each agent() window and mints its run id. skills/ptp-full-apply/SKILL.md (which has
-// Bash) appends the ledger rows once this script returns; see skills/ptp-telemetry/SKILL.md for
-// the record shape, the run-id rule, and the append protocol.
-
-// ISO-8601 UTC with milliseconds, the ledger's timestamp format.
-function nowIso() {
-  return new Date().toISOString()
-}
-
-// Mint a run id ONCE, at the moment t_start is captured, then propagate it to both writers of the
-// same run (the spawned agent via its prompt, the launching skill via the returned timing entry).
-// A second writer must never re-derive it — see skills/ptp-telemetry/SKILL.md. The scheme is free;
-// this one is the legible default join plus a short random suffix (no session id is visible here),
-// and it is line-safe: no CR, LF, comma, or double quote.
-function mintRunId(label, tStart) {
-  return label + '|' + tStart + '|' + Math.random().toString(36).slice(2, 10)
-}
-
-// One line appended to a spawned agent's prompt, handing it the minted id. Emitted ONLY on the
-// gated-on path, so the off-path prompt strings stay byte-identical to their pre-change form.
-function telemetryNote(runId) {
-  return 'Telemetry run id: `' + runId + '`. If you append a telemetry ledger line, use exactly this run_id — never mint your own — and follow the `ptp-telemetry` skill (one open line only; no close line, no CSV row; fire-and-forget, never altering your terminal state).'
-}
-
 const APPLY_SCHEMA = {
   type: 'object',
   properties: {
@@ -195,7 +164,7 @@ const REVIEW_SCHEMA = {
     // and is never gate-success. terminalState remains the ONLY gate key and BOTH_PHASES_DONE the
     // ONLY gate-success value.
     terminalState: { type: 'string', enum: ['BOTH_PHASES_DONE', 'PHASE1_CAP', 'PHASE2_CAP', 'FIX_TARGET_ESCALATION'] },
-    // Internal telemetry only (not read by the gate). These are the fix counts the
+    // Reporting only (not read by the gate). These are the fix counts the
     // ptp-review agent (agents/ptp-review.md) actually returns; keep the names matching
     // that producer's contract. The counts are ROLE-named, not agent-named: mainFixes is the
     // main phase's confirmed fix count and reviewerFixes the reviewer phase's, in either
@@ -241,13 +210,8 @@ const stories = (parsedArgs && parsedArgs.stories) || []
 // null, or a non-boolean value) means fast mode was not requested, preserving byte-identical
 // pre-change prompts for every launch that omits `fast`.
 const fast = (parsedArgs && parsedArgs.fast) === true
-// Same strict boolean identity as `fast`: the launching skill adds `telemetry: true` ONLY when it
-// resolved telemetry.mode to `on`, and omits the property entirely otherwise — so an absent,
-// undefined, null, or non-boolean value means telemetry is off and this script captures no
-// timestamp, mints and injects no run id, and emits no `timings` property.
-const telemetry = (parsedArgs && parsedArgs.telemetry) === true
-// The skill set that governs the spawned agents' runs. Strict identity, same convention as `fast`
-// and `telemetry`: the value selects the `superpowers` directive variant IFF it is exactly the
+// The skill set that governs the spawned agents' runs. Strict identity, same convention as `fast`:
+// the value selects the `superpowers` directive variant IFF it is exactly the
 // string `superpowers`; an absent, undefined, null, non-string, or any other value resolves to
 // `ptp` — so a resume or hand-built launch that omits the field renders the default variant rather
 // than crashing or leaking an out-of-enum value into the prompt. The two launching skills resolve
@@ -306,8 +270,6 @@ for (let i = 0; i < stories.length; i++) {
   log(`Story ${i + 1}/${stories.length}: ${s.id} — apply at ${mdl}.${eff}, review at ${revMdl}.${revEff}${revFellBack.length ? ` (unrecognized supplied ${revFellBack.join(', ')} — fell back to the default)` : ''}${fast ? ' (fast requested)' : ''}`)
 
   const applyLabel = `apply:${s.id}`
-  const applyStart = telemetry ? nowIso() : null
-  const applyRunId = telemetry ? mintRunId(applyLabel, applyStart) : null
 
   const applyPrompt = [
     `Implement the OpenSpec change \`${s.id}\` end-to-end, following the apply protocol in your system prompt.`,
@@ -319,7 +281,6 @@ for (let i = 0; i < stories.length; i++) {
     `After verifying each task, immediately edit tasks.md to mark it [x] — do this per task as you go, not in a batch at the end. Before returning, re-read tasks.md and confirm every task is [x].`,
     `Do NOT archive. Do NOT commit. Do NOT git add. Return the JSON object when all tasks are [x] and final verification passes.`,
     ...(fast && mdl === 'opus' ? [fastNote()] : []),
-    ...(telemetry ? [telemetryNote(applyRunId)] : []),
   ].join('\n\n')
 
   const apply = await agent(applyPrompt, {
@@ -330,29 +291,18 @@ for (let i = 0; i < stories.length; i++) {
     schema: APPLY_SCHEMA,
   })
 
-  const applyEnd = telemetry ? nowIso() : null
-  const applyTiming = telemetry
-    ? { run_id: applyRunId, t_start: applyStart, t_end: applyEnd, agent_label: applyLabel }
-    : null
-
   if (!apply || apply.stageReached !== 'completed') {
-    // The halted story keeps its apply timing entry — that window is exactly the one worth
-    // inspecting.
     const haltedRecord = { id: s.id, applyOk: false, apply: apply || null, review: null }
-    if (telemetry) haltedRecord.timings = [applyTiming]
     results.push(haltedRecord)
     halted = { id: s.id, reason: `apply did not complete (stageReached=${apply ? apply.stageReached : 'null'})` }
     break
   }
 
   const reviewLabel = `review:${s.id}`
-  const reviewStart = telemetry ? nowIso() : null
-  const reviewRunId = telemetry ? mintRunId(reviewLabel, reviewStart) : null
 
   const reviewPrompt = [
     ...reviewPromptLines(s.id, revMdl, revEff, false, codexReviewModel, codexReviewEffort),
     ...(fast && revMdl === 'opus' ? [fastNote()] : []),
-    ...(telemetry ? [telemetryNote(reviewRunId)] : []),
   ].join('\n\n')
 
   const review = await agent(reviewPrompt, {
@@ -362,11 +312,6 @@ for (let i = 0; i < stories.length; i++) {
     label: reviewLabel,
     schema: REVIEW_SCHEMA,
   })
-
-  const reviewEnd = telemetry ? nowIso() : null
-  const reviewTiming = telemetry
-    ? { run_id: reviewRunId, t_start: reviewStart, t_end: reviewEnd, agent_label: reviewLabel }
-    : null
 
   // --- Fix-target escalation: AT MOST ONE re-spawn per story, and never a loop -----------------
   //
@@ -378,20 +323,16 @@ for (let i = 0; i < stories.length; i++) {
   // possible; a second one is evidence of a contract violation, not a case to service.
   let finalReview = review
   let escalatedFrom = null
-  let escTiming = null
   let escalationHalt = null
 
   if (review && review.terminalState === 'FIX_TARGET_ESCALATION') {
     const target = parseFixTarget(review.fixTarget, REVIEW_MODELS, REVIEW_EFFORTS)
     if (target && REVIEW_MODELS.indexOf(target.model) > REVIEW_MODELS.indexOf(revMdl)) {
       const escLabel = `review:${s.id}#esc`
-      const escStart = telemetry ? nowIso() : null
-      const escRunId = telemetry ? mintRunId(escLabel, escStart) : null
 
       const escPrompt = [
         ...reviewPromptLines(s.id, target.model, target.effort, true, codexReviewModel, codexReviewEffort),
         ...(fast && target.model === 'opus' ? [fastNote()] : []),
-        ...(telemetry ? [telemetryNote(escRunId)] : []),
       ].join('\n\n')
 
       log(`Story ${i + 1}/${stories.length}: ${s.id} — review escalating once from ${revMdl} to fix target ${target.model}.${target.effort}`)
@@ -404,10 +345,6 @@ for (let i = 0; i < stories.length; i++) {
         schema: REVIEW_SCHEMA,
       })
 
-      const escEnd = telemetry ? nowIso() : null
-      escTiming = telemetry
-        ? { run_id: escRunId, t_start: escStart, t_end: escEnd, agent_label: escLabel }
-        : null
 
       escalatedFrom = review
       finalReview = escReview
@@ -433,13 +370,6 @@ for (let i = 0; i < stories.length; i++) {
   // An escalated story keeps the ESCALATED run's result in `review` — that is the one the gate
   // reads — and retains the first run's result for reporting only.
   if (escalatedFrom) storyRecord.reviewEscalatedFrom = escalatedFrom
-  // One timing entry per agent() call, in call order, so a story that ran two agents surfaces two
-  // windows rather than one ambiguous pair, and an escalated story surfaces three.
-  if (telemetry) {
-    storyRecord.timings = escTiming
-      ? [applyTiming, reviewTiming, escTiming]
-      : [applyTiming, reviewTiming]
-  }
   results.push(storyRecord)
 
   // The unhonorable escalation is consumed HERE, before the gate, so the gate below keeps its

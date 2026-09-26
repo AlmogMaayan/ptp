@@ -140,9 +140,8 @@ const CONFIG_RELATIVE = ['.claude', 'ptp', 'config.json'];
 // what keeps a legitimately falsy resolved value distinguishable from a rejection.
 const REJECT = Object.freeze({ ptpConfigRejection: true });
 
-// PTP_HOME_DIR overrides the home directory the GLOBAL layer sits under, byte-for-byte as
-// scripts/ptp-otel-sink.js's own homeDir() does, so the verification harness resolves configuration
-// without touching the real user config.
+// PTP_HOME_DIR overrides the home directory the GLOBAL layer sits under, so the verification harness
+// resolves configuration without touching the real user config.
 function homeDir() {
   return process.env.PTP_HOME_DIR || os.homedir();
 }
@@ -237,7 +236,7 @@ function configLayers(options) {
 }
 
 /**
- * Resolve ONE key over the layer list. `keyPath` is a dotted path (`"telemetry.root"`) or an array of
+ * Resolve ONE key over the layer list. `keyPath` is a dotted path (`"codex.model"`) or an array of
  * segments; `normalize` receives the raw value and returns either the value to resolve or `REJECT`;
  * `fallback` is the key's default, which applies LAST and only when no layer supplied a valid value.
  *
@@ -328,14 +327,14 @@ function buildFixture() {
   const arr = path.join(repo, "products", "arr");
   const dir = path.join(repo, "products", "dir");
 
-  writeDeep(configFileIn(home), JSON.stringify({ telemetry: { mode: "on", root: "global/store", port: 4000 } }));
+  writeDeep(configFileIn(home), JSON.stringify({ codex: { model: "global-model" }, parallel: { mode: "on", maxConcurrency: 4 } }));
 
   fs.mkdirSync(path.join(repo, ".git"), { recursive: true });
   fs.mkdirSync(path.join(repo, "openspec"), { recursive: true });
-  writeDeep(configFileIn(repo), JSON.stringify({ telemetry: { root: "repo/store", port: 5000 } }));
+  writeDeep(configFileIn(repo), JSON.stringify({ codex: { model: "repo-model" }, parallel: { maxConcurrency: 5 } }));
 
   fs.mkdirSync(path.join(foo, "openspec"), { recursive: true });
-  writeDeep(configFileIn(foo), JSON.stringify({ telemetry: { root: "  ws/store  ", port: "nope" } }));
+  writeDeep(configFileIn(foo), JSON.stringify({ codex: { model: "  ws-model  " }, parallel: { maxConcurrency: "nope" } }));
 
   fs.mkdirSync(path.join(bad, "openspec"), { recursive: true });
   writeDeep(configFileIn(bad), "{ this is not json");
@@ -359,7 +358,7 @@ function selfTestRootNormalizer(v) {
 }
 
 function selfTestPortNormalizer(v) {
-  return Number.isInteger(v) && v >= 1 && v <= 65535 ? v : REJECT;
+  return Number.isInteger(v) && v >= 1 && v <= 10 ? v : REJECT;
 }
 
 function selfTestModeNormalizer(v) {
@@ -373,9 +372,9 @@ function legacyTwoLayerRoot(homeRoot, repoRoot, fallback) {
   for (const file of [configFileIn(homeRoot), configFileIn(repoRoot)]) {
     const obj = readJsonFileOrNull(file);
     if (!isPlainObject(obj)) continue;
-    const t = obj.telemetry;
+    const t = obj.codex;
     if (!isPlainObject(t)) continue;
-    const normalized = selfTestRootNormalizer(t.root);
+    const normalized = selfTestRootNormalizer(t.model);
     if (normalized !== REJECT) root = normalized;
   }
   return root;
@@ -407,9 +406,9 @@ function runSelfTest() {
     check("equal-roots-layer-count", equal.length, 2);
     check("equal-roots-labels", equal.map((l) => l.label), ["global", "project"]);
     check("equal-roots-files-distinct", new Set(equal.map((l) => l.file)).size, 2);
-    const equalRoot = resolveConfigKey(equal, "telemetry.root", selfTestRootNormalizer, "openspec/telemetry");
-    check("equal-roots-root", equalRoot, { value: legacyTwoLayerRoot(fx.home, fx.repo, "openspec/telemetry"), layer: "project" });
-    check("equal-roots-mode", resolveConfigKey(equal, "telemetry.mode", selfTestModeNormalizer, "off"), { value: "on", layer: "global" });
+    const equalRoot = resolveConfigKey(equal, "codex.model", selfTestRootNormalizer, "default-model");
+    check("equal-roots-root", equalRoot, { value: legacyTwoLayerRoot(fx.home, fx.repo, "default-model"), layer: "project" });
+    check("equal-roots-mode", resolveConfigKey(equal, "parallel.mode", selfTestModeNormalizer, "off"), { value: "on", layer: "global" });
 
     // The git root is discovered from the working directory when no repository root is supplied.
     const walked = configLayers({ cwd: fx.foo });
@@ -419,10 +418,10 @@ function runSelfTest() {
     // (b) A distinct workspace root overrides ONE key; every other key keeps its earlier layer.
     const three = configLayers({ cwd: fx.foo, repoRoot: fx.repo });
     check("distinct-labels", three.map((l) => l.label), ["global", "project", "workspace"]);
-    check("distinct-root-wins", resolveConfigKey(three, "telemetry.root", selfTestRootNormalizer, "openspec/telemetry"), { value: "ws/store", layer: "workspace" });
-    check("distinct-port-unaffected", resolveConfigKey(three, "telemetry.port", selfTestPortNormalizer, 4318), { value: 5000, layer: "project" });
-    check("distinct-mode-unaffected", resolveConfigKey(three, "telemetry.mode", selfTestModeNormalizer, "off"), { value: "on", layer: "global" });
-    check("distinct-unset-key-defaults", resolveConfigKey(three, "telemetry.retentionDays", (v) => v, 30), { value: 30, layer: "default" });
+    check("distinct-model-wins", resolveConfigKey(three, "codex.model", selfTestRootNormalizer, "default-model"), { value: "ws-model", layer: "workspace" });
+    check("distinct-concurrency-unaffected", resolveConfigKey(three, "parallel.maxConcurrency", selfTestPortNormalizer, 5), { value: 5, layer: "project" });
+    check("distinct-mode-unaffected", resolveConfigKey(three, "parallel.mode", selfTestModeNormalizer, "off"), { value: "on", layer: "global" });
+    check("distinct-unset-key-defaults", resolveConfigKey(three, "review.maxIterations", (v) => v, 5), { value: 5, layer: "default" });
     check("distinct-absent-block-defaults", resolveConfigKey(three, "backlog.owner", (v) => v, null), { value: null, layer: "default" });
 
     // (c) An unparseable layer is skipped whole, leaving the earlier layers intact. So is a layer
@@ -430,33 +429,33 @@ function runSelfTest() {
     const unparseable = configLayers({ cwd: fx.bad, repoRoot: fx.repo });
     check("unparseable-layer-present", unparseable.length, 3);
     check("unparseable-layer-data-null", unparseable[2].data, null);
-    check("unparseable-root", resolveConfigKey(unparseable, "telemetry.root", selfTestRootNormalizer, "openspec/telemetry"), { value: "repo/store", layer: "project" });
+    check("unparseable-root", resolveConfigKey(unparseable, "codex.model", selfTestRootNormalizer, "default-model"), { value: "repo-model", layer: "project" });
     const nonObject = configLayers({ cwd: fx.arr, repoRoot: fx.repo });
-    check("non-object-root-skipped", resolveConfigKey(nonObject, "telemetry.root", selfTestRootNormalizer, "openspec/telemetry"), { value: "repo/store", layer: "project" });
+    check("non-object-root-skipped", resolveConfigKey(nonObject, "codex.model", selfTestRootNormalizer, "default-model"), { value: "repo-model", layer: "project" });
     const unreadable = configLayers({ cwd: fx.dir, repoRoot: fx.repo });
-    check("unreadable-layer-skipped", resolveConfigKey(unreadable, "telemetry.root", selfTestRootNormalizer, "openspec/telemetry"), { value: "repo/store", layer: "project" });
+    check("unreadable-layer-skipped", resolveConfigKey(unreadable, "codex.model", selfTestRootNormalizer, "default-model"), { value: "repo-model", layer: "project" });
 
     // A later layer's INVALID value never clears an earlier layer's valid one.
-    check("invalid-later-value-keeps-earlier", resolveConfigKey(three, "telemetry.port", selfTestPortNormalizer, 4318).value, 5000);
+    check("invalid-later-value-keeps-earlier", resolveConfigKey(three, "parallel.maxConcurrency", selfTestPortNormalizer, 5).value, 5);
 
     // (d) A rejecting normalizer: every layer is refused and the default applies last.
-    check("rejecting-normalizer", resolveConfigKey(three, "telemetry.root", () => REJECT, "openspec/telemetry"), { value: "openspec/telemetry", layer: "default" });
+    check("rejecting-normalizer", resolveConfigKey(three, "codex.model", () => REJECT, "default-model"), { value: "default-model", layer: "default" });
 
     // (e) A throwing normalizer is a rejection, never an exception -- for every layer, and for one.
     let threw = false;
     let alwaysThrows = null;
     try {
-      alwaysThrows = resolveConfigKey(three, "telemetry.root", () => { throw new Error("boom"); }, "openspec/telemetry");
+      alwaysThrows = resolveConfigKey(three, "codex.model", () => { throw new Error("boom"); }, "default-model");
     } catch (e) {
       threw = true;
     }
     check("throwing-normalizer-does-not-throw", threw, false);
-    check("throwing-normalizer-defaults", alwaysThrows, { value: "openspec/telemetry", layer: "default" });
-    const throwsOnWorkspace = resolveConfigKey(three, "telemetry.root", (v) => {
-      if (typeof v === "string" && v.indexOf("ws/") !== -1) throw new Error("boom");
+    check("throwing-normalizer-defaults", alwaysThrows, { value: "default-model", layer: "default" });
+    const throwsOnWorkspace = resolveConfigKey(three, "codex.model", (v) => {
+      if (typeof v === "string" && v.indexOf("ws-") !== -1) throw new Error("boom");
       return selfTestRootNormalizer(v);
-    }, "openspec/telemetry");
-    check("throwing-normalizer-rejects-one-layer-only", throwsOnWorkspace, { value: "repo/store", layer: "project" });
+    }, "default-model");
+    check("throwing-normalizer-rejects-one-layer-only", throwsOnWorkspace, { value: "repo-model", layer: "project" });
 
     // The duplicate-path rule keeps the EARLIEST occurrence, including a non-adjacent duplicate.
     const homeIsWorkspace = configLayers({ cwd: fx.repo, repoRoot: fx.repo, workspaceRoot: fx.home });
@@ -466,7 +465,7 @@ function runSelfTest() {
     // An absent workspace root is an absence, not an error.
     const suppressed = configLayers({ cwd: fx.foo, repoRoot: fx.repo, workspaceRoot: null });
     check("absent-workspace-two-layers", suppressed.map((l) => l.label), ["global", "project"]);
-    check("absent-workspace-root", resolveConfigKey(suppressed, "telemetry.root", selfTestRootNormalizer, "openspec/telemetry"), { value: "repo/store", layer: "project" });
+    check("absent-workspace-root", resolveConfigKey(suppressed, "codex.model", selfTestRootNormalizer, "default-model"), { value: "repo-model", layer: "project" });
   } catch (e) {
     failures.push("self-test harness threw: " + (e && e.message));
   } finally {

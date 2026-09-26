@@ -163,8 +163,7 @@ no part (f) input applies.
 1. **Assert the four `ptp-parallel-fanout` safety conditions** exactly as `/ptp:plan-multiple` does:
    write sets provably disjoint (each member writes only its own pre-allocated
    `openspec/changes/<slice-id>/brainstorm.md`; the epic container is written at most once, by
-   beat 2's fresh-split capsule, before any member starts, and never by a member; the shared
-   `ptp-telemetry` store is the contract's closed exception), no git state change in members (branch guard already ran, no-op for members),
+   beat 2's fresh-split capsule, before any member starts, and never by a member), no git state change in members (branch guard already ran, no-op for members),
    order-independent aggregation (sorted by ascending change id before reporting), join-then-gate
    (the report runs only after every member has returned).
 

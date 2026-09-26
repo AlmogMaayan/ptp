@@ -14,8 +14,6 @@ Drive it a step at a time (`brainstorm → plan → apply → review → archive
 | 2 | **Codex CLI** (optional, second reviewer) | put `codex` on PATH; verify with `codex --version` |
 | 3 | Superpowers (optional — required only when `tdd-plugin=superpowers`) | `/plugin install superpowers@claude-plugins-official` |
 
-**Node** is needed only for the bundled telemetry receiver.
-
 Without Codex, behavior follows `codex.mode`.
 
 **Migration note — Superpowers is optional, selected by `tdd-plugin`.** Which TDD skill set PtP uses is chosen by the `tdd-plugin` config key. Under **`tdd-plugin=ptp`** (the default, including unset) PtP's own commands, agents, skills, and workflows invoke only PtP-owned skills, so conflict-free operation requires the Superpowers plugin **absent or disabled**. Under **`tdd-plugin=superpowers`** PtP invokes the restored `superpowers:*` skills and requires Superpowers **present and enabled** — selecting that value without the plugin present and enabled is a hard stop, never a silent PtP-native fallback. Either way, an installed Superpowers plugin registers its own `SessionStart` hook, which can inject `superpowers:using-superpowers` and direct an agent toward applicable Superpowers skills — a mechanism outside PtP's reach, so removing PtP's own invocations is not a guarantee that no agent ever invokes a Superpowers skill.
@@ -54,7 +52,6 @@ Any missing file, missing key, bad JSON, or invalid value is skipped for that ke
                  "judgment":   { "model": "<stronger-model-id>", "reasoningEffort": "high" } },
   "roles":     { "main": "claude" },
   "review":    { "maxIterations": 5, "minSeverity": "low" },
-  "telemetry": { "mode": "off", "root": "openspec/telemetry", "port": 4318, "retentionDays": 30 },
   "parallel":  { "mode": "off", "maxConcurrency": 3 },
   "artifact":  { "maxProposalWords": 400, "maxDesignWords": 800, "maxTasksWords": 600,
                  "maxTaskCount": 15, "maxTaskWords": 60, "maxSpecDeltaWords": 1200 },
@@ -93,10 +90,6 @@ Any missing file, missing key, bad JSON, or invalid value is skipped for that ke
 | `codex.brainstorm` | model token | `gpt-6-astra--high` | Per-family Codex model and effort for the `brainstorm` command family; first step of the Codex lookup chain (`ptp-codex-mode`). |
 | `codex.plan-review` | model token | `gpt-6-astra--high` | Per-family Codex model and effort for the `plan-review` command family; first step of the Codex lookup chain (`ptp-codex-mode`). |
 | `codex.apply-review` | model token | `gpt-6-astra--high` | Per-family Codex model and effort for the `apply-review` command family; first step of the Codex lookup chain (`ptp-codex-mode`). |
-| `telemetry.mode` | `off` \| `on` | `off` | `on` records a run ledger (`runs.ndjson` + `runs.csv`) and, after `/ptp:telemetry setup`, spans in `spans.csv`. |
-| `telemetry.root` | repo-relative path | `openspec/telemetry` | Store root. Must resolve below the repo root; absolute paths, `..`, `""`, `.`, `./`, `/` are rejected. |
-| `telemetry.port` | `1`–`65535` | `4318` | Loopback port for the OTLP receiver. Changing it requires re-running `/ptp:telemetry setup` + a Claude Code restart. |
-| `telemetry.retentionDays` | integer ≥ 1 | `30` | Days of raw span files kept (N days plus today). Pruned only by `/ptp:telemetry report`, only in the reported epic's `raw/`. |
 | `parallel.mode` | `off` \| `on` | `off` | `on` permits eligible stages (`/ptp:plan-multiple`, `/ptp:full-plan`, `/ptp:full` Phase A) to run per-item runs concurrently. `/ptp:apply`, `/ptp:full-apply`, and `/ptp:archive` always run serially. |
 | `parallel.maxConcurrency` | `1`–`10` | `3` | Members run at once; extras run in batches. |
 | `brainstorm.scout` | `off` \| `on` | `off` | `on` runs the brainstorm scout; `scout:` overrides it (rule: `references/scout-prestep.md`). |
@@ -308,38 +301,9 @@ Status writes land on the shared board immediately, outside git; on an issue- or
 
 ---
 
-## Telemetry
-
-Opt-in timing data per epic. Every subcommand works as `/ptp:telemetry <sub>` or as the leaf command `/ptp:telemetry-<sub>`.
-
-**Setup (once):**
-
-1. `/ptp:config` → *Record ptp run telemetry* → `on` (set *Telemetry receiver port* if `4318` is taken).
-2. `/ptp:telemetry setup` — shows the `env` block and `.gitignore` changes as a diff and writes `<repo>/.claude/settings.local.json` only after you confirm. It then offers a second, separately confirmed step that wires `codex exec` telemetry for this repository; declining leaves Claude-side telemetry working.
-3. **Restart Claude Code** — the `env` block only applies at process start.
-4. Run ptp work as usual. The receiver starts itself; `/ptp:telemetry start` is never required.
-5. Read `openspec/telemetry/<epic>/spans.csv`, current mid-run.
-
-To turn it off: set `telemetry.mode=off` and run `/ptp:telemetry stop`. Nothing stops the receiver automatically.
-
-`setup` also creates `<telemetry.root>/.ptp-telemetry-credential`. It is gitignored — **do not commit or share it**. The receiver drops any batch that arrives without it.
-
-| Subcommand | Does |
-|------------|------|
-| `status` | Resolved mode/root/port, environment and receiver preflight, credential match verdict (never the value), lockfile state, per-epic run counts, and the Codex telemetry preflight. Changes nothing. |
-| `report [write] [selector]` | Timing report for the resolved epics: aggregate work time, elapsed wall time, `concurrency_factor`, breakdowns by phase/role/span kind and by `tool_class`, top time sinks, review-loop cost per iteration, and a data-quality footer. `write` also writes `<telemetry.root>/<epic>/report.md`. Deletes raw files older than `telemetry.retentionDays`. |
-| `analyze` | De-nested work breakdown over the whole raw store: LLM vs tools, inside-subagent vs main-agent, tokens by model, tool work by name, bash work by command, plus a data-quality footer. Takes no selector. Writes and deletes nothing. Not the same command as `/ptp:analyze`. |
-| `setup` | The confirm-first one-time opt-in above. The only ptp command that writes a Claude Code setting. |
-| `start` / `stop` | Manual receiver control. `start` is idempotent; `stop` verifies pid, port, and launch token first. |
-| `export` | Takes no arguments. Rebuilds every `spans.csv` from the raw store. Requires the receiver stopped — run `stop` → `export` → restart, setting `telemetry.mode=off` first if a ptp command might auto-start it in between. |
-
-`spans.csv` is a 26-column, RFC-4180 / UTF-8-BOM / CRLF file starting with `schema_version`; the column list and the `tool_class` buckets (`search`, `read`, `write`, `build_test`, `git`, `agent`, `other`) are defined in `skills/ptp-telemetry/SKILL.md`. An `otelcol-contrib` file exporter plus a continuous flatten step is a supported alternative receiver — same store layout, ledger, and CSV schema.
-
----
-
 ## Skills
 
-Claude invokes these automatically; you don't call them directly. `ptp`, `ptp-change-selector`, `ptp-branch-guard`, `ptp-branch-prep`, `ptp-run-at-model`, `ptp-agent-roles`, `ptp-codex-mode`, `ptp-full`, `ptp-full-apply`, `ptp-brainstorm-full`, `ptp-review-brainstorm`, `ptp-review-brainstorm-full`, `ptp-review-loop`, `ptp-telemetry`, `ptp-telemetry-status`, `ptp-telemetry-report`, `ptp-telemetry-analyze`, `ptp-telemetry-setup`, `ptp-telemetry-start`, `ptp-telemetry-stop`, `ptp-telemetry-export`, `ptp-parallel-fanout`, `ptp-backlog`, `ptp-backlog-write`, `ptp-backlog-run`, `ptp-backlog-continue`, `ptp-github-projects-gh`, `ptp-archive-force`. The `openspec-*` skills back the `opsx:` commands.
+Claude invokes these automatically; you don't call them directly. `ptp`, `ptp-change-selector`, `ptp-branch-guard`, `ptp-branch-prep`, `ptp-run-at-model`, `ptp-agent-roles`, `ptp-codex-mode`, `ptp-full`, `ptp-full-apply`, `ptp-brainstorm-full`, `ptp-review-brainstorm`, `ptp-review-brainstorm-full`, `ptp-review-loop`, `ptp-parallel-fanout`, `ptp-backlog`, `ptp-backlog-write`, `ptp-backlog-run`, `ptp-backlog-continue`, `ptp-github-projects-gh`, `ptp-archive-force`. The `openspec-*` skills back the `opsx:` commands.
 
 The `openspec-*` skills are edited only in `skills/openspec-*/`. `.claude/skills/openspec-*/` and
 `.codex/skills/openspec-*/` are generated from that single source and must not be hand-edited — run
@@ -393,9 +357,6 @@ Epic backlog
   → /ptp:backlog-run [count:{count}] [ticket:<value>] [phase:{plan,full}]  # Ready epics through /ptp:full, or plan-only with phase:plan
   → /ptp:backlog-continue [phase:apply] ["<what broke>"]  # finish, one scoped fix pass, or phase:apply a planned epic
 
-Telemetry (telemetry.mode = on)
-  → /ptp:telemetry status | report [write] [sel] | analyze | setup | start | stop | export
-
 Where am I / plugin
   → /ptp:status [change-id] | /ptp:effort <change-id> | /ptp:config
   → /ptp:workspace-init                        # make the current directory a workspace
@@ -408,6 +369,7 @@ Experimental     /opsx:explore | /opsx:propose | /opsx:apply | /opsx:archive
 
 ## Changelog
 
+| **0.21.0** | Removes the telemetry surface: the `/ptp:telemetry*` commands, the `ptp-telemetry*` skills, the OTLP receiver script, the analyze script, the `telemetry.*` config keys and the run wiring are gone, along with their README sections (0085_01 to 0085_06). |
 | **0.20.0** | Tightens the brainstorming skill: intent-first framing, a bounded search that stops when the blast radius stops growing, specs and prior notes used as an index while every fact is cited from code, and a smallest-change-on-the-existing-architecture decision; adds a behavior fixture and pressure tests PT-B6 to PT-B9 (0084_01). The brainstorm review rubric gains decision-quality checks A-D (missed impact, unnecessary complexity, flow correctness, wrong-approach counterexample) with finding rules (evidence, minimal correction, preferences between equivalent designs dropped, unevidenced findings phrased as a Medium question); the review loop's `brainstorm` kind now points at them instead of restating the rubric, and behavior fixtures cover the rubric, the loop pointer and the unchanged brainstorm-full and review-brainstorm-full orchestration (0084_02). The read-only `ptp-brainstorm-scout` agent, the `scripts/ptp-scout-map-check.js` map check, and the optional part (i) of `ptp-run-at-model` step 5 hand a cited scout map to a main run as an index, never as evidence; `models.brainstorm-scout` (default `sonnet.medium`) sets the scout model, the behavior-test harness gains a `file` field for reference assertions, and the telemetry ledger gains the scout write-point and outcome rows (0084_03). The scout gate arrives: the `scout:on|off` token and the `brainstorm.scout` config key (default `off`, settable in `/ptp:config`) are resolved by `scripts/ptp-resolve-scout-gate.js`, and `/ptp:brainstorm`, `/ptp:brainstorm-only` and `/ptp:plan` each carry one gate line; gate off adds nothing (0084_04_01). (0084_04_02) Adds a single brainstorm-full scout run once on Phase A and forwarded to Phase B as part (i), payload forwarding of the scout map into the brainstorm review loop, the plan-multiple and brainstorm-decompose beat-2 scout sites, and their behavior fixtures. (0084_05) Adds the scout map cache: `scripts/ptp-scout-map-cache.js` keeps a per-epic map under `openspec/scout-cache/`, invalidated by file-hash mismatch; a hit is handed only to the scout as an index, the scout always runs, and every line is re-verified. |
 | **0.19.0** | Removes the `/ptp:prd*` surface: six commands, four skills, the `prd` review-loop kind, the `prd.md` budget, and three retired specs (0083_01). Adds the epic container `XXXX_00_<slug>` — a story-`00` folder holding only epic-level files (`prompt.md`, `brainstorm.md`, `analysis.md`, `stages/`), never planning artifacts, skipped by every selector consumer except the archive family and `/ptp:status` (0083_02). `/ptp:analyze`, `/ptp:prompt-write`, `/ptp:brainstorm` and `/ptp:brainstorm-full` write containers directly on a fresh epic, and every reader falls back from a story's file to its epic's container (0083_03). `/ptp:plan`, `/ptp:plan-multiple`, `/ptp:brainstorm-decompose` and `/ptp:full` plan from a container id, reading its files in place and writing nothing into it (0083_04). The archive family's closing step moves a container with no active story left to `openspec/epics_00/<YYYY-MM-DD>-XXXX_00_<slug>/`, with no spec sync and no blocking of the deploy gate on a failed move (0083_05). `/ptp:status` renders a container as one "container, not plannable" row, looked up in `openspec/epics_00/` when moved, and this README documents the container shape (0083_06). |
 | **0.18.0** | Adds ten per-family model keys to `/ptp:config` (`models.<family>` and `codex.<family>` for analyze, prompt, brainstorm, plan-review, apply-review), validated by reference to the existing token grammars, with a new `models` parent and the config target relabelled "User". The five Claude families now read their `models.<family>` entry as their default target (a valid `model:` token first, then the entry, then `opus.high`), per the new `skills/ptp-run-at-model/references/family-default-target.md`; `/ptp:full-apply` and `/ptp:full` Phase B take a valid `models.apply-review` entry as every story's review target, replacing the `sonnet`/`high` floor. The `codex.<family>` keys are now read by a per-field Codex lookup chain in `ptp-codex-mode` (the family entry, then `codex.judgment.*`, then flat `codex.*`, then the built-in `gpt-6-astra--high`), so every read-only `codex exec` and every family command's `main=codex` run always sends `-m` and `-c model_reasoning_effort`; the former bare `codex exec -s read-only -` with nothing configured is removed, and `/ptp:full-apply` / `/ptp:full` Phase B take their Codex review target from the `apply-review` chain (0082_03). |

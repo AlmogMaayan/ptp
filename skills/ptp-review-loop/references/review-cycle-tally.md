@@ -78,7 +78,7 @@ of printing.
 A writer that cannot produce a tally omits `reviewTally` from the stage marker **entirely** — no
 partial tally, no zero-filled placeholder, no fabricated counter, exactly as with `fingerprint`. The
 omission is noted in the writer's **own terminal report**, as one line beside the place it already
-reports a marker-write failure — never a second file, never a log, never a telemetry record:
+reports a marker-write failure — never a second file, never a log:
 
 ```
 Review tally omitted from the stage marker (could not be produced).
@@ -99,5 +99,4 @@ all still write none, and so carry no tally and no omission note.
 ## Non-goals
 
 The tally decides nothing (see `## Hard rules` in `SKILL.md`). The in-memory `reviewTally` is the
-**primary source of truth** for review-cycle counts. `ptp-telemetry` is **off by default**, so this
-capability takes no dependency on it in either direction.
+**primary source of truth** for review-cycle counts.

@@ -77,7 +77,7 @@ login resolves for organizations and user accounts alike, so no `ownerType` key 
 ### Layered resolution
 
 Both keys resolve through the layered configuration contract owned by **`ptp-workspace`**
-(`skills/ptp-workspace/SKILL.md`) — the identical contract `codex.mode`, `review.*`, `telemetry.*`,
+(`skills/ptp-workspace/SKILL.md`) — the identical contract `codex.mode`, `review.*`,
 `roles.main`, and `parallel.*` already resolve through. This skill restates neither the layer list nor
 its precedence, and states only what makes a `backlog` value valid:
 

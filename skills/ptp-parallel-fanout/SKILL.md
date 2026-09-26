@@ -63,28 +63,7 @@ merely unlikely to overlap, not "probably fine", not established by inspection a
   (source files, `openspec/specs/`, README, skills, commands) cannot establish this condition,
   because nothing in their construction prevents two members touching the same file.
 
-**Scope: the member's *work product*.** The condition governs what the member produces. It has
-exactly **one closed exception**:
-
-> Writes a member makes into the shared `ptp-telemetry` store, **through that store's existing
-> protocols, which are already specified to be concurrency-safe**, do **not** defeat condition 1.
-
-The exception covers, and is limited to:
-
-| Shared telemetry path | Why it is already concurrency-safe as specified |
-|---|---|
-| `<telemetry.root>/<epic>/runs.ndjson` | The **append-only ledger protocol**: every write is a single append of one complete line; no writer reads the ledger before writing to it; no writer modifies or rewrites an existing line — so concurrent writers cannot produce a lost update or a partially overwritten record. |
-| `<telemetry.root>/<epic>/runs.csv` | The **CSV dual-write's atomic-rename initialization**: the header goes to a uniquely named temp file in the same directory and is moved in by a create-only (no-clobber) rename — specified precisely to survive two writers racing to create the header — after which every data write is a single-line append. |
-| `<telemetry.root>/.gitignore`, `<telemetry.root>/.gitattributes` | Creation is specified **idempotent** — an existing file is left untouched — so racing creators converge. |
-| `<telemetry.root>/`, `<telemetry.root>/<epic>/`, `<telemetry.root>/_unattributed/` | Directories are created **lazily** and every telemetry error is swallowed, so a racing creator is a no-op, never a failure. |
-
-Without this scoping clause a fan-out with `telemetry.mode=on` would fail condition 1 on its **own
-telemetry writes**, making the contract inert exactly when it is being measured.
-
-**The exception is closed.** It covers the `ptp-telemetry` store only and **admits nothing by
-analogy**: a member writing any *other* shared path fails condition 1, and a future shared store
-does **not** qualify by resembling this one. Adding a further store requires an explicit amendment
-to this contract.
+**Scope: the member's *work product*.** The condition governs what the member produces. Condition 1 has no exception: a member writing any shared path outside its own subtree fails it.
 
 ### 2. No member performs a git state change
 
@@ -119,7 +98,7 @@ oversight:
 
 Both keys resolve through the layered configuration contract owned by **`ptp-workspace`**
 (`skills/ptp-workspace/SKILL.md`), which owns the layers, their order, and the per-key **forgiving**
-merge — the same contract `ptp-codex-mode`, `ptp-agent-roles`, and `ptp-telemetry` resolve through.
+merge — the same contract `ptp-codex-mode` and `ptp-agent-roles` resolve through.
 This skill restates none of it and states only the two keys' own rules:
 
 ```
@@ -143,8 +122,7 @@ resolved value in place, and a later layer's invalid value never clears an earli
 one. Values such as `0`, `-1`, `2.5`, `"3"`, and `11` are invalid for `maxConcurrency`; the prior
 value (ultimately `3`) stands and the command proceeds. Resolution never throws and never STOPs.
 
-Both keys resolve **independently** of each other and of `codex.mode`, `roles.main`, and
-`telemetry.mode`.
+Both keys resolve **independently** of each other and of `codex.mode` and `roles.main`.
 
 ## Effective decision
 
@@ -170,7 +148,7 @@ the cap, they run in successive **batches**, and **each batch is joined before t
 
 Batching is chosen over a rolling window (start member 4 the instant any of 1–3 returns) because it
 is trivially deterministic: the observable interleaving does not depend on completion times, which
-keeps condition 3's reasoning and any future telemetry attribution simple. At the common N ≤ 4 with
+keeps condition 3's reasoning simple. At the common N ≤ 4 with
 cap 3 the difference is at most one straggler wait. A rolling window is not forbidden as a future
 optimization; it is simply not the contract today.
 
@@ -250,10 +228,8 @@ matter what `parallel.mode` resolves to.
   construction, (2) no git state change in any member, (3) order-independent aggregation sorted by
   ascending change id, (4) join-then-gate gating. They are caller obligations with no runtime
   enforcement; a caller that cannot establish all four **runs serially**.
-- Condition 1 is scoped to the member's **work product**, with one **closed** exception for the
-  `ptp-telemetry` store's already-concurrency-safe protocols — the append-only ledger, the CSV
-  dual-write's atomic-rename initialization, the idempotent policy files, and lazy directory
-  creation — admitting nothing by analogy.
+- Condition 1 is scoped to the member's **work product**, with no exception: a member writing
+  any shared path outside its own subtree fails it.
 - `parallel.mode` (`off`|`on`, default `off`) and `parallel.maxConcurrency` (integer 1–10, default
   `3`) resolve from layered ptp config, over the layers `ptp-workspace` defines, with a
   **forgiving** reader: missing file, absent key, unparseable JSON, or out-of-range/wrong-type
