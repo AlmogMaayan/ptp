@@ -61,8 +61,7 @@ The runner's own **corroborating after-snapshot uses that same `ptp-backlog` def
 ### The inline `ptp-full` invocation
 
 Between WRITE 0 and WRITE 1, **invoke the `ptp-full` skill inline** — a skill invocation driven
-in-session, **not** a spawned agent — with **exactly that skill's three declared inputs and no
-others**:
+in-session, **not** a spawned agent — supplying **exactly the three inputs below and no others**:
 
 | `ptp-full` input | Value |
 |---|---|
@@ -72,6 +71,9 @@ others**:
 
 **`codex.mode` is not among them.** It is absent from `skills/ptp-full/SKILL.md`'s Inputs table;
 `ptp-full` resolves it itself.
+
+**`scout` is not supplied either.** It is an optional `ptp-full` input; left unsupplied, `ptp-full`
+resolves the layered `brainstorm.scout` key itself (default `off`, never a STOP on a config typo).
 
 ### WRITE 1 — record the link, still `in-progress`
 
