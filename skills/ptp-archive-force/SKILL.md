@@ -81,6 +81,10 @@ gated one. A failed resolution or write is reported and does not change the arch
 
 ## Closing step
 
+**Read `commands/archive.md` in full before running this step** — "step 8" below refers to that file's
+numbered step, and driving it from this pointer alone, without having read `commands/archive.md`, risks
+silently skipping part of it.
+
 After the per-change procedure above finishes processing every id in `resolved-ids` — the main run —
 run `/ptp:archive` step 8 ("Close epic containers") once, over `covered-epics`. It runs in the outer
 session, spawns nothing, and checks every epic with a story this run archived plus every

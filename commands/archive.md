@@ -87,11 +87,45 @@ the outer session**, in this exact order:
    - **Re-enforce tasks-complete and validation as hard refusals** — if `tasks.md` still has any `- [ ]`, or `npx -y openspec validate <change-id> --strict` fails, **refuse** (return a `refused` terminal state) and do not archive.
    - **Archive via the CLI**: `npx -y openspec archive <change-id> --yes` — this moves the change to `openspec/changes/archive/` **and** updates the main specs from the delta specs, then validates. For changes with no spec deltas (per the step-3 inspection), add `--skip-specs`.
    - **Fallback if the CLI rejects the change** (e.g. an older change folder whose name does not start with a letter, which the CLI refuses): perform the archive manually, preserving the CLI's semantics — sync each delta spec in `openspec/changes/<change-id>/specs/<capability>/spec.md` into `openspec/specs/<capability>/spec.md` (apply ADDED/MODIFIED/REMOVED/RENAMED; a pure-ADDED delta with no existing main spec becomes a new canonical spec); then move `openspec/changes/<change-id>` → `openspec/changes/archive/<YYYY-MM-DD>-<change-id>` (using today's date; fail clearly if the target already exists). Then continue into the **Stage record** bullet below, which is the **single** place `<archive-location>/stages/archive.json` is written on either path — the fallback performs no write of its own, so the record is written exactly once per successful archive, never twice. On this path the archive location is the folder this bullet just moved the change to, and `specsSynced` is `true` when at least one delta spec was manually synced and `false` when the change had none — this path never runs the CLI, so it can never carry `--skip-specs`.
-   - **Stage record** — this bullet runs **once**, on whichever of the two routes above succeeded (the CLI archive or the manual fallback), and is the only writer of the record. **Only after** the archive reports success (never before, and never into the pre-move change folder), resolve the archive location: take it from the archive operation's own report — for the fallback, the folder it moved the change to — else fall back to the deterministic `openspec/changes/archive/<YYYY-MM-DD>-<change-id>`. If that folder exists, write `<location>/stages/archive.json` (creating `stages/` on demand) with `kind: "archive"`, `terminalState: "archived"`, an ISO-8601 UTC `timestamp`, and — when known — `archivedTo` (repo-relative) and `specsSynced`. `specsSynced` is defined by **outcome, not by flag**: `true` when delta specs were synchronized into the main specs, `false` when none were — on the CLI path that `false` is exactly the `--skip-specs` case. Write it atomically: serialize to a uniquely named temp file in the same `stages/` directory, then replace via a replace-if-exists rename only after the complete write succeeds; on failure clean up the temp file and leave any existing file untouched. This write is **not a gate**: if the location cannot be resolved or the write fails, report that and continue — the archive already succeeded, its terminal state is unchanged, and the archive stage simply reads as unknown. A refused archive writes no record anywhere.
-   - **Report** — change id, archive location, whether specs were synced (or skipped), and any gate warnings.
+   - **Stage record — a required step of this archive operation, not optional.** This bullet runs
+     **once**, on whichever of the two routes above succeeded (the CLI archive or the manual fallback),
+     and is the only writer of the record. The subagent **must attempt** this write whenever the
+     archive succeeded — it is part of what "performing the archive operation" means in this prompt, and
+     a subagent that returns a `completed`/success report without having attempted it has not correctly
+     performed step 6. **Only after** the archive reports success (never before, and never into the
+     pre-move change folder), resolve the archive location: take it from the archive operation's own
+     report — for the fallback, the folder it moved the change to — else fall back to the deterministic
+     `openspec/changes/archive/<YYYY-MM-DD>-<change-id>`. If that folder exists, write
+     `<location>/stages/archive.json` (creating `stages/` on demand) with `kind: "archive"`,
+     `terminalState: "archived"`, an ISO-8601 UTC `timestamp`, and — when known — `archivedTo`
+     (repo-relative) and `specsSynced`. `specsSynced` is defined by **outcome, not by flag**: `true` when
+     delta specs were synchronized into the main specs, `false` when none were — on the CLI path that
+     `false` is exactly the `--skip-specs` case. Write it atomically: serialize to a uniquely named temp
+     file in the same `stages/` directory, then replace via a replace-if-exists rename only after the
+     complete write succeeds; on failure clean up the temp file and leave any existing file untouched.
+     A write that is **attempted** and honestly reported as failed (location could not be resolved, or
+     the write itself errored) is **not a gate**: report that and continue — the archive already
+     succeeded, its terminal state is unchanged, and the archive stage simply reads as unknown. That
+     leniency covers only a reported, attempted failure — it does not excuse never attempting the write
+     at all, which is exactly what step 7's outer-session check below exists to catch. A refused archive
+     writes no record anywhere.
+   - **Report** — change id, archive location, whether specs were synced (or skipped), any gate
+     warnings, and whether the stage record was written, skipped-with-reason, or attempted-and-failed.
 
 7. **Relay** the subagent's result to the user verbatim in meaning — the success report, or a gate
-   refusal — never reporting a refusal as success. The flow is then complete.
+   refusal — never reporting a refusal as success.
+
+   **Outer-session stage-record check (per story).** After relaying a `completed` result for a change
+   whose archive location resolved, check — in the outer session — whether
+   `<archive-location>/stages/archive.json` actually exists on disk. If the subagent's report already
+   disclosed an attempted-and-failed or skipped-with-reason stage record, this check only confirms that
+   disclosure and changes nothing. If the report gave **no** such disclosure (i.e. it implied the write
+   happened) but the file is **absent**, treat **this story** as failed rather than `completed` — report
+   it as a stage-record omission (naming the change id and the expected path) rather than silently
+   accepting the success report, and do not advance to the next story's confirmations as if this one had
+   cleanly finished. This check exists precisely to catch a subagent that silently skips the stage-record
+   write while still reporting success; it adds no new gate to a subagent that reports its own stage-record
+   failure honestly, per the leniency in step 6 above. The flow is then complete for this story.
 
 If `$ARGUMENTS` resolved to more than one change, repeat steps 1–7 per change in story order — one
 sequential `ptp-run-at-model` invocation (one blocking subagent) per change, never a parallel
@@ -120,6 +154,11 @@ ends, whether the loop finished every story or stopped at a blocker.
 
    Each epic is independent — a failure is reported and the step continues to the next epic.
 
+   **Step 8 is never silently skipped.** Compute the candidate set above even when the story loop
+   archived nothing, and always run through it to completion before the terminal report is emitted —
+   this step is not conditional on step 6 or step 7 having produced output, and no earlier STOP in the
+   story loop excuses skipping it (see the paragraph above the *Candidates* list).
+
    **Windows-safe move.** The move is one rename inside the same `openspec/` tree. It never copies
    and then deletes, and it never uses a form that nests the source inside an existing directory —
    no plain `mv` or `Move-Item` onto an existing folder. Check existence first, then rename with a
@@ -132,7 +171,16 @@ ends, whether the loop finished every story or stopped at a blocker.
    sync. It writes no `stages/archive.json`. Any `stages/` markers already inside the container move
    with it unchanged.
 
-   **Report.** One line per checked container: its target, or why it stayed or failed.
+   **Report — required, one line per candidate epic.** The terminal report **must** carry exactly one
+   step-8 line for every candidate epic computed above: its target (`moved to
+   openspec/epics_00/<date>-<container-id>`) or why it was kept (no container, a non-`00` story path
+   still present, two container folders, a colliding target, or a failed move). A terminal report that
+   omits a step-8 line for a candidate epic, or that omits the step-8 section entirely when at least one
+   candidate epic exists, is **not** a valid completion of this command — treat it as an error requiring
+   the step to be re-run and the report corrected before the flow is considered done, exactly as a gate
+   refusal would be. This is the single owning statement of the step-8 reporting requirement; a caller
+   that drives this flow (e.g. `ptp-archive-and-merge-to-master`, `ptp-archive-and-deploy`,
+   `ptp-archive-force`, `ptp-backlog-continue`) cites this paragraph rather than restating it.
 
 ## Hard rules
 

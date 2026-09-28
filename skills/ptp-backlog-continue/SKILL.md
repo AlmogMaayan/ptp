@@ -361,6 +361,10 @@ folders in ascending story order:
 
 ### Driving `/ptp:archive`
 
+**Read `commands/archive.md` in full before driving this flow** — the "step N" pointers below (and in
+step 4 above) refer to that file's numbered steps, and driving `/ptp:archive` from this skill's prose
+alone, without having read `commands/archive.md`, risks silently skipping one of its numbered steps.
+
 `/ptp:archive`'s flow is used **as it is written** — its gates are never weakened, reordered, or
 removed, exactly as `ptp-archive-and-deploy` reuses them. Two notes on its two outer-session
 confirmations, which are reachable because this command stayed unwrapped:
