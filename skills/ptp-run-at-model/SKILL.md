@@ -185,7 +185,10 @@ The skill then runs, **in this order**:
    differs.
 
    - **`main == claude` (default — unchanged from before this change).** **Spawn ONE foreground
-     subagent** via the Agent tool with `model` = the resolved model. The prompt MUST contain:
+     subagent** via the Agent tool with `subagent_type: general-purpose` and `model` = the resolved
+     model. `ptp-run-at-model` is a skill, not an agent: its own name, and any other skill's name, is
+     never a valid agent type, and the caller never leaves the agent type open for the harness to fill
+     with the skill's own name. The prompt MUST contain:
      - (a) the **effort directive** for the resolved effort (see *Effort as a prompt directive*);
      - (b) an instruction to perform the command's actual work — invoke the same underlying skill, or
        run the same documented steps the command would have run in-session;

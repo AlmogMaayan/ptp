@@ -38,7 +38,7 @@ the single backlog write, and the terminal report all happen **in the outer sess
 
 **Why, precisely.** `ptp-run-at-model`'s *Nesting caveat* forbids naively wrapping a command whose
 work itself spawns a subagent or a Workflow. This command's work does exactly that, twice:
-`/ptp:archive` runs its already-confirmed archive operation inside one `ptp-run-at-model` subagent at
+`/ptp:archive` runs its already-confirmed archive operation as one `ptp-run-at-model` main run at
 `sonnet.medium`, and the issue-text flow's fix pass runs its own main run the same way. Both of those
 spawns are level 1 **only because this command took no level of its own**.
 

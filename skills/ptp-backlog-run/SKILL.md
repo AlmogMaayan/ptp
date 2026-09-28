@@ -44,7 +44,7 @@ Four points, and they are the whole contract:
 2. **Each epic is run by invoking the `ptp-full` skill inline** — the skill, driven in-session — never
    by delegating the epic to a nested agent that "runs the `/ptp:full` command".
 3. **`ptp-full`'s own internal spawning is the one permitted nesting level.** Its per-slice
-   `ptp-run-at-model` subagents and its `ptp-full-apply` Workflow launch are unchanged by this skill
+   subagents `ptp-run-at-model` spawns and its `ptp-full-apply` Workflow launch are unchanged by this skill
    and governed entirely by `ptp-full`. They are reachable **only because the runner took no nesting
    level of its own**.
 4. **No runner-level `model:` or `fast:` token in v1.** Model and effort selection stays inside each
@@ -54,7 +54,7 @@ Four points, and they are the whole contract:
 **Why wrapping is forbidden rather than merely discouraged.** `ptp-run-at-model`'s § *Nesting caveat*
 states that a command whose work itself spawns a subagent or a Workflow cannot be naively wrapped —
 the inner spawn would be a second nesting level, which throws. `/ptp:full` does **both**: per-slice
-`ptp-run-at-model` subagents *and* the `ptp-full-apply` Workflow launch. So a wrapped runner would
+subagents `ptp-run-at-model` spawns *and* the `ptp-full-apply` Workflow launch. So a wrapped runner would
 make **the first epic's Workflow launch throw**. `/ptp:backlog-run` is the escape hatch that same
 caveat names — "the command must be wrapped at a boundary that keeps the nested spawn in the outer
 session" — realized as *no wrapping at all*.
@@ -64,7 +64,7 @@ session" — realized as *no wrapping at all*.
 ```
 PERMITTED (what this skill requires):
 outer session (level 0)  →  ptp-full skill, INLINE, still level 0
-                         →  ptp-full's per-slice ptp-run-at-model subagents      = level 1  OK
+                         →  ptp-full's per-slice subagents ptp-run-at-model spawns = level 1  OK
                          →  ptp-full-apply Workflow + its agents                 = level 1  OK
 
 FORBIDDEN (what wrapping the runner would produce):
