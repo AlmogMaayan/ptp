@@ -88,6 +88,8 @@ one of that section's two delivery modes.
    holding `brainstorm.md` unless planned from an epic container brainstorm per *Preconditions*). Write each artifact in the shape the **compact artifact contract** defines
    (owned by the `compact-artifact-contract` capability — do not restate its shapes here):
 
+   Prose in every markdown artifact this step writes follows skills/ptp-artifact-contract/SKILL.md §4 "Prose readability".
+
    - `proposal.md` — the compact proposal shape. Emit OpenSpec's canonical `## Why` and `## What Changes`
      headers verbatim so `openspec validate` and `archive` recognize the proposal. Omit a section that has
      nothing to say rather than filling it with "None".

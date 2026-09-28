@@ -74,6 +74,8 @@ downstream parses fields out of:
 Captured via /ptp:prompt-write from a /ptp:prompt / /ptp:prompt-fix conversation on <date>.
 ```
 
+Prose in every markdown artifact this step writes follows skills/ptp-artifact-contract/SKILL.md §4 "Prose readability".
+
 ## Run at model
 
 `/ptp:prompt-write` is write-capable, so the abort-guaranteeing preconditions, the resolution/

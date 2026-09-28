@@ -85,6 +85,9 @@ change context — the id's `<desc>` and any existing `openspec/changes/<id>/` a
    `openspec/changes/<change-id>/brainstorm.md` (create the directory if absent). Nothing else:
    no full design document, no implementation plan, no deliberation history. Write current truth
    only: replace a superseded capsule in place rather than appending to it.
+
+   Prose in every markdown artifact this step writes follows skills/ptp-artifact-contract/SKILL.md §4 "Prose readability".
+
    **`superpowers-output-override`** (path-override): when the `tdd-plugin=superpowers` arm ran and Superpowers produced the brainstorm, override Superpowers' default output path and write the capsule instead to `<workspace root>/openspec/changes/<change-id>/brainstorm.md` (workspace root carried verbatim via `ptp-run-at-model` part (g); never re-derive it; never write to `docs/superpowers/specs/...` or `docs/plans/`); do not `git commit`/`git add` and do not stop at a human approval gate — this runs autonomously and ptp reviews afterward.
 
 **Step 8's STOP and `/ptp:plan` recommendation are suppressed** — the brainstorm subagent writes

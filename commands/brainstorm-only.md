@@ -61,6 +61,9 @@ closure must reach the Codex main run, per `ptp-run-at-model`'s *The `main=codex
    already exists, replace the superseded capsule in place and never append a correction, an earlier
    draft, or review-iteration narrative. Write the capsule to
    `openspec/brainstorms/YYYY-MM-DD-<topic>-brainstorm.md` and surface the absolute path back to the user.
+
+   Prose in every markdown artifact this step writes follows skills/ptp-artifact-contract/SKILL.md §4 "Prose readability".
+
    **`superpowers-output-override`** (path-override): when the `tdd-plugin=superpowers` arm ran and Superpowers produced the brainstorm, override Superpowers' default output path and write the capsule instead to `<workspace root>/openspec/brainstorms/YYYY-MM-DD-<topic>-brainstorm.md` (workspace root carried verbatim via `ptp-run-at-model` part (g); never re-derive it; never write to `docs/superpowers/specs/...` or `docs/plans/`); do not `git commit`/`git add` and do not stop at a human approval gate — this runs autonomously and ptp reviews afterward.
 7. **STOP.** Do not write any files under `openspec/changes/`. This command is intentionally epic-less — it writes only to `openspec/brainstorms/`, with no change folder yet. The epic is allocated when `/ptp:plan` turns this brainstorm into a change. When the exploration crystallizes into a concrete change, run `/ptp:plan <change-id>` — it will find this brainstorm in `openspec/brainstorms/`, copy it into `openspec/changes/<change-id>/brainstorm.md`, and proceed.
 

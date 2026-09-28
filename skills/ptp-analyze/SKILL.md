@@ -109,6 +109,8 @@ Always allocate a fresh epic via `ptp-change-selector` §4 and create its epic c
 - The filename is always `analysis.md` — do not date- or subject-stamp it. (The date and subject still appear inside the doc, in the header and `## Subject` section.)
 - Create the container folder; only the analysis doc is written into it.
 
+Prose in every markdown artifact this step writes follows skills/ptp-artifact-contract/SKILL.md §4 "Prose readability".
+
 **Schema — every section is required:**
 
 ```markdown
