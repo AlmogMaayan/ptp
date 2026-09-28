@@ -211,13 +211,42 @@ function main() {
     }
   }
 
+  const directiveFailure = checkSuperpowersDirectiveMatchesSkill();
+  if (directiveFailure) failures.push(directiveFailure);
+
   for (const f of failures) process.stdout.write(f + "\n");
   if (failures.length > 0) {
     process.stdout.write(failures.length + " assertion(s) failed\n");
     return 1;
   }
-  process.stdout.write("OK: " + ASSERTIONS.length + " apply-role assertions hold\n");
+  process.stdout.write("OK: " + (ASSERTIONS.length + 1) + " apply-role assertions hold\n");
   return 0;
+}
+
+// Case "superpowers directive matches ptp-run-at-model" (0089_01): the workflow's superpowers
+// skill-set directive string, once its JS escapes are undone, must occur verbatim exactly twice in
+// skills/ptp-run-at-model/SKILL.md (part (h) and the main=codex list). Returns a FAIL line or null.
+const DIRECTIVE_CASE = "superpowers directive matches ptp-run-at-model";
+function checkSuperpowersDirectiveMatchesSkill() {
+  let workflow;
+  let skill;
+  try {
+    workflow = readFile("workflows/ptp-full-apply.js");
+    skill = readFile("skills/ptp-run-at-model/SKILL.md");
+  } catch (e) {
+    return "FAIL " + DIRECTIVE_CASE + ": unreadable (" + e.message + ")";
+  }
+  const m = /tddPlugin === 'superpowers'\)\s*\{\s*return '((?:[^'\\\n]|\\.)*)'/.exec(workflow);
+  if (!m) {
+    return "FAIL " + DIRECTIVE_CASE + ": workflows/ptp-full-apply.js has no single-quoted superpowers directive string";
+  }
+  const directive = m[1].replace(/\\(.)/g, "$1");
+  const count = skill.split(directive).length - 1;
+  if (count !== 2) {
+    return "FAIL " + DIRECTIVE_CASE + ": the workflow directive occurs " + count +
+      " time(s) verbatim in skills/ptp-run-at-model/SKILL.md, expected 2";
+  }
+  return null;
 }
 
 if (require.main === module) {

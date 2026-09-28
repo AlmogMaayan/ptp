@@ -129,8 +129,11 @@ are:
   reach.
 - **`tdd-plugin=superpowers`**: **Superpowers present and enabled**, with Superpowers' output,
   auto-commit, and approval-gate defaults overridden to ptp's workspace-relative targets and autonomous
-  mode. Selecting this value without the plugin present and enabled is a hard stop, never a silent
-  `ptp-*` fallback.
+  mode. Brainstorming stays with `ptp-brainstorming` in this environment; every other replacement
+  skill switches to its Superpowers counterpart. Selecting this value without the plugin present and
+  enabled is a hard stop, never a silent `ptp-*` fallback. That hard stop covers every
+  `ptp-run-at-model`-wrapped command, `brainstorm*` and `review-brainstorm*` included, because the value
+  declares the environment rather than one command's skills.
 
 This section states policy only. The mechanisms that realize the `superpowers` environment are owned by
 the `superpowers-migration` capability and referenced there by name, not restated here: call-site
