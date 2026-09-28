@@ -10,7 +10,8 @@
  *   1. node scripts/ptp-skill-behavior-tests.js            (skill behavior + command-case fixtures)
  *   2. node scripts/check-prompt-budgets.js                (prompt-surface word budgets)
  *   3. node scripts/sync-openspec-skills.js --check        (vendored OpenSpec skill copies are in sync)
- *   4. node scripts/ptp-compact-lint.js --change <id> ...  (compact artifact contract for one change)
+ *   4. node scripts/check-agent-types.js                   (every named agent type resolves)
+ *   5. node scripts/ptp-compact-lint.js --change <id> ...  (compact artifact contract for one change)
  *
  * The compact-lint step needs a change target. A change id may be given as the first positional
  * argument, via `--change <id>` / `--change=<id>`, or via the `PTP_TEST_CHANGE` environment
@@ -90,6 +91,12 @@ function buildSteps(changeId) {
       args: [scriptPath('scripts/ptp-apply-role-tests.js')],
       grade: (run) => run.status === 0,
     },
+    {
+      name: 'agent-types',
+      command: 'node scripts/check-agent-types.js',
+      args: [scriptPath('scripts/check-agent-types.js')],
+      grade: (run) => run.status === 0,
+    },
   ];
 
   if (changeId) {
@@ -138,7 +145,7 @@ function printUsage() {
       '  node scripts/ptp-test.js --help',
       '  node scripts/ptp-test.js --list',
       '',
-      'Runs, in order: skill-behavior-tests, prompt-budgets, openspec-skill-sync, roles-resolver-self-test, apply-role-tests, compact-lint.',
+      'Runs, in order: skill-behavior-tests, prompt-budgets, openspec-skill-sync, roles-resolver-self-test, apply-role-tests, agent-types, compact-lint.',
       'The compact-lint step is skipped when no change id is supplied. Exits non-zero on any failure.',
       '',
     ].join('\n') + '\n'
@@ -152,6 +159,7 @@ function printList() {
     'openspec-skill-sync',
     'roles-resolver-self-test',
     'apply-role-tests',
+    'agent-types',
     'compact-lint',
   ];
   for (const n of names) process.stdout.write(n + '\n');

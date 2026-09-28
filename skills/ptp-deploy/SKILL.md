@@ -135,8 +135,8 @@ an open PR exists for the branch (`gh pr view --json url,state,reviewDecision`) 
 `reviewDecision` is `APPROVED` or the merge is otherwise no longer blocked. If a required
 approval is still missing → emit a `needs-human-action` terminal payload (reason = "PR requires
 an approving review (you cannot approve your own PR)", data = the PR URL, followUp = "have a
-*different* collaborator approve the PR, then re-run `/ptp:deploy-pr-approved`") so a wrapping
-`ptp-run-at-model` subagent can return it — **not** a `refused`, because the work is still
+*different* collaborator approve the PR, then re-run `/ptp:deploy-pr-approved`") so the
+`ptp-run-at-model` main run can return it — **not** a `refused`, because the work is still
 resumable by a human action. (For an unwrapped outer-session run, the equivalent STOP-with-guidance
 text — get it approved first — remains valid; the payload is the machine-readable form of the same
 guidance.)
@@ -173,14 +173,14 @@ title and a body that links the openspec change(s). Capture the PR number/URL.
 Loop up to `maxFixRounds`:
 - **Mergeability** — `gh pr view --json mergeable,mergeStateStatus`. If conflicting, merge the
   base branch into the feature branch (`git fetch origin && git merge origin/<base>`), resolve
-  conflicts. **When running inside a `ptp-run-at-model` subagent** (the default for all three
-  commands), resolve the conflict **inline** with the subagent's own Bash/Edit tools — **never**
+  conflicts. **When running as the `ptp-run-at-model` main run** (the default for all three
+  commands), resolve the conflict **inline** with the main run's own Bash/Edit tools — **never**
   spawn a nested fix subagent. Only an unwrapped, direct outer-session invocation of this skill MAY
   optionally delegate substantial resolution to a fix subagent via the Agent tool. Then commit and
   `git push`.
 - **Checks** — `gh pr checks <pr>`. For any failing required check, fetch its log
-  (`gh run view <run-id> --log-failed`), fix the cause **inline** when running inside a
-  `ptp-run-at-model` subagent (never a nested subagent); only an unwrapped outer-session invocation
+  (`gh run view <run-id> --log-failed`), fix the cause **inline** when running as the
+  `ptp-run-at-model` main run (never a nested subagent it spawns); only an unwrapped outer-session invocation
   MAY optionally delegate a substantial fix to a fix subagent. Then commit and `git push`.
 - Re-evaluate. When conflicts are gone and required checks pass, exit the loop. On exhausting
   the cap, **STOP** and report the outstanding conflicts/failures — never loop unbounded, never
@@ -202,8 +202,8 @@ reviewDecision,mergeStateStatus`:
   "re-run `/ptp:merge-to-master` (idempotent: commit skipped on a clean tree, the PR is reused,
   the gate now passes)." **Never** run `gh pr review --approve`; **never** `--admin`-bypass.
 
-  In addition to the STOP-with-guidance text, **emit a `needs-human-action` terminal payload** so a
-  wrapping `ptp-run-at-model` subagent can return it (and the outer session can surface the exact
+  In addition to the STOP-with-guidance text, **emit a `needs-human-action` terminal payload** so the
+  `ptp-run-at-model` main run can return it (and the outer session can surface the exact
   follow-up command): reason = "PR requires an approving review (you cannot approve your own PR)",
   data = the PR URL, followUp = `/ptp:deploy-pr-approved` in `deploy` mode and "re-run
   `/ptp:merge-to-master`" in `merge-only` mode. This is **never** downgraded to a `refused` or a
@@ -298,9 +298,9 @@ branch. On any STOP, state exactly what blocked and the single next action.
   human checkpoint, not something to force past.
 - **Never commit a fix directly to the base branch.** Deploy-failure fixes go through a branch
   whose leaf is `deploy-fix-<id>` and the PR mini-flow.
-- **When running inside a `ptp-run-at-model` subagent, resolve all fixes inline and never spawn a
+- **When running as the `ptp-run-at-model` main run, resolve all fixes inline and never spawn a
   nested fix subagent.** Both fix loops (step 4 PR-stage, step 8 deploy-stage) resolve conflicts,
-  failing checks, and deploy failures inline with the subagent's own Bash/Edit tools; only an
+  failing checks, and deploy failures inline with the main run's own Bash/Edit tools; only an
   unwrapped, direct outer-session invocation of this skill MAY optionally delegate a substantial fix
   to a fix subagent. Git branch-cutting (the `deploy-fix-<id>` leaf) is unaffected — git is not an Agent
   spawn.
