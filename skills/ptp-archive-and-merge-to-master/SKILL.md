@@ -24,6 +24,10 @@ drives it). This skill owns only the **glue and the archive-convergence gate bet
 mirroring how `skills/ptp-full/SKILL.md` owns the gate between `/ptp:full`'s plan and apply phases and
 defers each phase's detail to the underlying flow.
 
+**Read `commands/archive.md` in full before running Phase A below** — every "step N" pointer in Phase A
+(steps 1–8) refers to that file's numbered steps, and driving Phase A from this skill's prose alone,
+without having read `commands/archive.md`, risks silently skipping one of its numbered steps.
+
 ## Inputs
 
 | Input | Values | Source |
