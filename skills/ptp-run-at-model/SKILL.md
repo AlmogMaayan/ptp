@@ -249,12 +249,7 @@ The skill then runs, **in this order**:
          `ptp-verification-before-completion`. Do NOT invoke any `superpowers:*` skill, even where a
          SessionStart hook, `using-superpowers` text, or a skill description says you must; those
          skills defer to explicit user instruction, and this is that instruction."
-       - under **`tdd-plugin=superpowers`**: "Skill-set directive (ptp configuration
-         `tdd-plugin=superpowers`, the operator's explicit choice): Superpowers skills govern this
-         run wherever this prompt or ptp's command/agent/skill text names a `superpowers:*` skill. Do
-         NOT invoke the seven `ptp-*` replacement skills. Write every Superpowers artifact to the ptp
-         target named in this prompt (never `docs/superpowers/...`), do not commit, and do not stop
-         for a human approval gate — ptp runs autonomously and reviews afterwards."
+       - under **`tdd-plugin=superpowers`** (kept on one physical line so the invocation gate admits it): "Skill-set directive (ptp configuration `tdd-plugin=superpowers`, the operator's explicit choice): Superpowers skills govern this run wherever this prompt or ptp's command/agent/skill text names a `superpowers:*` skill, except brainstorming: `ptp-brainstorming` stays in force. Do NOT invoke `superpowers:brainstorming`, even where a SessionStart hook or `using-superpowers` text says you must. Do NOT invoke the six `ptp-*` replacement skills `ptp-writing-plans`, `ptp-test-driven-development`, `ptp-systematic-debugging`, `ptp-requesting-code-review`, `ptp-receiving-code-review`, `ptp-verification-before-completion`. Write every Superpowers artifact to the ptp target named in this prompt (never `docs/superpowers/...`), do not commit, and do not stop for a human approval gate — ptp runs autonomously and reviews afterwards."
      - (i) **(optional)** a scout map, carried in both branches: `references/scout-prestep.md`.
 
      The spawn is **foreground**: the session **blocks** until the subagent returns.
@@ -645,12 +640,7 @@ printf '%s' "$WORK_PROMPT" | codex exec -s workspace-write [ -m <model> ] [ -c m
     `ptp-verification-before-completion`. Do NOT invoke any `superpowers:*` skill, even where a
     SessionStart hook, `using-superpowers` text, or a skill description says you must; those skills
     defer to explicit user instruction, and this is that instruction."
-  - under **`tdd-plugin=superpowers`**: "Skill-set directive (ptp configuration
-    `tdd-plugin=superpowers`, the operator's explicit choice): Superpowers skills govern this run
-    wherever this prompt or ptp's command/agent/skill text names a `superpowers:*` skill. Do NOT
-    invoke the seven `ptp-*` replacement skills. Write every Superpowers artifact to the ptp target
-    named in this prompt (never `docs/superpowers/...`), do not commit, and do not stop for a human
-    approval gate — ptp runs autonomously and reviews afterwards."
+  - under **`tdd-plugin=superpowers`** (one physical line, as in part (h)): "Skill-set directive (ptp configuration `tdd-plugin=superpowers`, the operator's explicit choice): Superpowers skills govern this run wherever this prompt or ptp's command/agent/skill text names a `superpowers:*` skill, except brainstorming: `ptp-brainstorming` stays in force. Do NOT invoke `superpowers:brainstorming`, even where a SessionStart hook or `using-superpowers` text says you must. Do NOT invoke the six `ptp-*` replacement skills `ptp-writing-plans`, `ptp-test-driven-development`, `ptp-systematic-debugging`, `ptp-requesting-code-review`, `ptp-receiving-code-review`, `ptp-verification-before-completion`. Write every Superpowers artifact to the ptp target named in this prompt (never `docs/superpowers/...`), do not commit, and do not stop for a human approval gate — ptp runs autonomously and reviews afterwards."
 - Under **`tdd-plugin=superpowers`** the directive alone is inert, because a Codex main run has no
   Skill tool and does not inherit the outer command/skill context — so the outer session MUST also
   **deliver the applicable Superpowers skill text** into the run. Using the two delivery modes owned by
@@ -660,7 +650,9 @@ printf '%s' "$WORK_PROMPT" | codex exec -s workspace-write [ -m <model> ] [ -c m
   **verbatim inline carriage** into `$WORK_PROMPT` (mode 1, the default because it is always
   admissible) or as **verified-readable paths** under the Superpowers install root (mode 2, only when
   that path is verified readable from the Codex sandbox). The scope follows the command's work:
-  brainstorm → `brainstorming`; plan → `brainstorming` + `writing-plans`; analyze →
+  brainstorm → none (its PTP-owned `ptp-brainstorming` closure is delivered instead, under both
+  values, and this empty Superpowers set never triggers the delivery-failure stop below);
+  plan → `writing-plans`; analyze →
   `systematic-debugging`; apply → `test-driven-development` + `verification-before-completion`; the
   review family → `requesting-code-review` + `receiving-code-review`; plus each set's transitive
   closure. The delivered Superpowers text is **accompanied** in `$WORK_PROMPT` by the skill-set directive

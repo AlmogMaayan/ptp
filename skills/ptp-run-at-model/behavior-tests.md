@@ -203,6 +203,36 @@
       "pattern": "ptp-scout-map-cache\\.js",
       "why": "the cache reference carries this rule",
       "file": "references/scout-map-cache.md"
+    },
+    {
+      "id": "sp-0",
+      "kind": "requires",
+      "pattern": "tdd-plugin=superpowers[^\\n]*Do NOT invoke .superpowers.brainstorming.",
+      "why": "the superpowers directive forbids the Superpowers brainstorming skill on its marker line"
+    },
+    {
+      "id": "sp-1",
+      "kind": "requires",
+      "pattern": "six .ptp-\\*. replacement skills .ptp-writing-plans., .ptp-test-driven-development., .ptp-systematic-debugging., .ptp-requesting-code-review., .ptp-receiving-code-review., .ptp-verification-before-completion.",
+      "why": "the superpowers directive names the six forbidden ptp-* skills"
+    },
+    {
+      "id": "sp-2",
+      "kind": "requires",
+      "pattern": "brainstorm → none",
+      "why": "the codex closure map delivers no Superpowers text for brainstorm"
+    },
+    {
+      "id": "sp-3",
+      "kind": "requires",
+      "pattern": "plan → .writing-plans.;",
+      "why": "the codex closure map delivers only writing-plans for plan"
+    },
+    {
+      "id": "sp-4",
+      "kind": "forbids",
+      "pattern": "seven .ptp-\\*. replacement",
+      "why": "the superpowers directive no longer forbids all seven ptp-* skills"
     }
   ]
 }

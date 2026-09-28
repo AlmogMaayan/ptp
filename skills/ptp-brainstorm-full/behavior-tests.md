@@ -113,8 +113,20 @@
     {
       "id": "scout-req-15",
       "kind": "requires",
-      "pattern": "2\\. Invoke the .ptp-brainstorming. skill \\(or .superpowers:brainstorming. when the skill-set directive names .tdd-plugin=superpowers.\\) in autonomous mode",
+      "pattern": "2\\. Invoke the .ptp-brainstorming. skill in autonomous mode",
       "why": "scout pre-step on brainstorm-full"
+    },
+    {
+      "id": "scout-forbid-0",
+      "kind": "forbids",
+      "pattern": "superpowers.brainstorming",
+      "why": "Phase A invokes ptp-brainstorming under both tdd-plugin values"
+    },
+    {
+      "id": "scout-forbid-1",
+      "kind": "forbids",
+      "pattern": "superpowers-output-override",
+      "why": "brainstorm-full carries no brainstorm superpowers-output-override paragraph"
     },
     {
       "id": "order",
