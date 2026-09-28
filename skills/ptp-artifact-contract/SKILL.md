@@ -129,8 +129,9 @@ Every planning artifact describes only the latest intended state.
 ## 4. Prose readability
 
 Every markdown file a ptp writer creates or edits under `openspec/changes/<id>/` —
-`brainstorm.md`, `proposal.md`, `design.md`, `tasks.md`, the spec deltas, and
-`analysis.md` — follows four prose rules.
+`prompt.md`, `brainstorm.md`, `proposal.md`, `design.md`, `tasks.md`, the spec deltas, and
+`analysis.md` — and every change-agnostic brainstorm under `openspec/brainstorms/*.md` follows
+four prose rules.
 
 1. **Short sentences.** State one point per sentence.  Break a long compound or run-on sentence
    into separate short sentences rather than joining clauses with commas, semicolons, or dashes.
@@ -138,9 +139,10 @@ Every markdown file a ptp writer creates or edits under `openspec/changes/<id>/`
    terminal punctuation before the next sentence begins, so sentence boundaries are visible in the
    raw markdown.
 
-3. **Blank line between every prose line.** Put one blank line between every two lines of prose, so
-   each sentence or short group of sentences stands as its own visually separated block in the raw
-   markdown.
+3. **Blank line between sentences.** End each sentence with a paragraph break, a blank line before
+   the next sentence, unless the next sentence only makes sense right after it, in which case the
+   two MAY stay in one paragraph.  Never split a sentence across physical lines by a hard wrap, so
+   each prose paragraph is one physical line in the raw markdown.
 4. **Plain junior-developer English.** Write prose a junior developer can follow on a first read: plain
    words, short sentences, no jargon the reader has to look up, and no dense academic phrasing.
 

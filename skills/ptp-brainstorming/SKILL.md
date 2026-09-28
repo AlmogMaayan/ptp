@@ -64,6 +64,8 @@ in the caller's shape and within its word budget; else:
 
 Impact or flow context is a clause, never a heading.
 
+Prose in every markdown artifact this step writes follows skills/ptp-artifact-contract/SKILL.md §4 "Prose readability".
+
 ## Never
 
 - Write a copy anywhere: no `docs/plans`, no other docs folder.

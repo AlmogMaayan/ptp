@@ -32,6 +32,8 @@ caller specifies none, use:
 Usually 5-15 checkboxes; the caller's budget wins. Order by dependency: a checkbox may rely only on
 checkboxes above it. The last checkbox verifies the automatable success criteria.
 
+Prose in every markdown artifact this step writes follows skills/ptp-artifact-contract/SKILL.md §4 "Prose readability".
+
 ## Every checkbox
 
 - names the exact file or files it creates or modifies, and the outcome that makes it done;

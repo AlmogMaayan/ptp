@@ -100,6 +100,9 @@ closure must reach the Codex main run, per `ptp-run-at-model`'s *The `main=codex
    capsule in place and never append a correction, an earlier draft, or review-iteration narrative.
    Write the capsule to `openspec/changes/<change-id>/brainstorm.md`. Surface
    the absolute path back to the user.
+
+   Prose in every markdown artifact this step writes follows skills/ptp-artifact-contract/SKILL.md §4 "Prose readability".
+
    **`superpowers-output-override`** (path-override): when the `tdd-plugin=superpowers` arm ran and Superpowers produced the brainstorm, override Superpowers' default output path and write instead to `<workspace root>/openspec/changes/<change-id>/brainstorm.md` (workspace root carried verbatim via `ptp-run-at-model` part (g); never re-derive it; never write to `docs/superpowers/specs/...` or `docs/plans/`); do not `git commit`/`git add` and do not stop at a human approval gate — this runs autonomously and ptp reviews afterward.
 8. **STOP.** Do not write `proposal.md`, `design.md`, `tasks.md`, or spec deltas — those belong to `/ptp:plan`. The next step is `/ptp:plan <change-id>`, which transcribes `brainstorm.md` into the OpenSpec artifacts.
 
