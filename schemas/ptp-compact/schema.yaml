@@ -1,5 +1,5 @@
 name: ptp-compact
-version: 1
+version: 2
 description: Compact OpenSpec workflow — proposal → specs → design → tasks, under the compact artifact contract owned by skills/ptp-artifact-contract/SKILL.md
 artifacts:
   - id: proposal
@@ -37,6 +37,21 @@ artifacts:
       belong to `design.md`, `specs/**/spec.md`, `tasks.md`, and `brainstorm.md` respectively, per the
       ownership table.
     requires: []
+  - id: tldr
+    generates: tldr.md
+    description: explain this openspec/change to an idiot
+    template: tldr.md
+    instruction: >
+      Write a plain-language summary of the change, derived from `proposal.md`, for a reader who
+      knows nothing about the codebase.
+
+      Owner and contract: `tldr.md`'s ownership, must-not-contain list, and soft word budget
+      (150 words) are defined by `skills/ptp-artifact-contract/SKILL.md`. It is the one sanctioned
+      restatement of `proposal.md` and an input to no other artifact, so say nothing the proposal
+      does not say. On a re-plan, rewrite an existing `tldr.md` or `TLDR.md` in place. An epic
+      container carries none.
+    requires:
+      - proposal
   - id: specs
     generates: specs/**/*.md
     description: Detailed specifications for the change

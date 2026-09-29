@@ -8,7 +8,14 @@
         "repo/openspec/changes/0001_00_demo/prompt.md": "# Demo epic\n\nAn epic-level prompt.\n"
       },
       "cwd": "repo",
-      "argv": ["--change", "0001_00_demo", "--repo", ".", "--assume-contract=ptp-compact", "--format=json"],
+      "argv": [
+        "--change",
+        "0001_00_demo",
+        "--repo",
+        ".",
+        "--assume-contract=ptp-compact",
+        "--format=json"
+      ],
       "expect": {
         "exitCode": 0,
         "stdout": {
@@ -25,7 +32,13 @@
         "repo/openspec/changes/0001_00_demo/prompt.md": "# Demo epic\n\nAn epic-level prompt.\n"
       },
       "cwd": "repo",
-      "argv": ["--path", "openspec/changes/0001_00_demo", "--repo", ".", "--format=json"],
+      "argv": [
+        "--path",
+        "openspec/changes/0001_00_demo",
+        "--repo",
+        ".",
+        "--format=json"
+      ],
       "expect": {
         "exitCode": 0,
         "stdout": {
@@ -42,12 +55,151 @@
         "repo/openspec/changes/0001_01_demo/proposal.md": "## Why\n\nA demo story.\n\n## What Changes\n\n- One change.\n"
       },
       "cwd": "repo",
-      "argv": ["--change", "0001_01_demo", "--repo", ".", "--assume-contract=ptp-compact", "--format=json"],
+      "argv": [
+        "--change",
+        "0001_01_demo",
+        "--repo",
+        ".",
+        "--assume-contract=ptp-compact",
+        "--format=json"
+      ],
       "expect": {
         "exitCode": 0,
         "stdout": {
           "contract": "ptp-compact",
           "skipped": false
+        }
+      }
+    },
+    {
+      "id": "tldr-missing-is-low-advisory",
+      "tree": {
+        "repo/.git": "dir",
+        "repo/openspec/changes/0001_01_demo/proposal.md": "## Why\n\nA demo story.\n\n## What Changes\n\n- One change.\n\n## Build state\n\nGREEN\n",
+        "repo/openspec/changes/0001_01_demo/effort.md": "opus.high\n",
+        "repo/openspec/changes/0001_01_demo/tasks.md": "## 1. Work\n\n- [ ] 1.1 Add alpha; verify: node a.js exits 0\n- [ ] 1.2 Add beta; verify: node b.js exits 0\n- [ ] 1.3 Add gamma; verify: node c.js exits 0\n- [ ] 1.4 Add delta; verify: node d.js exits 0\n- [ ] 1.5 Add epsilon; verify: node e.js exits 0\n"
+      },
+      "cwd": "repo",
+      "argv": [
+        "--change",
+        "0001_01_demo",
+        "--repo",
+        ".",
+        "--assume-contract=ptp-compact",
+        "--format=json"
+      ],
+      "expect": {
+        "exitCode": 0,
+        "stdout": {
+          "contractVersion": 2,
+          "findings": [
+            {
+              "code": "TLDR_MISSING",
+              "severity": "low",
+              "artifact": "tldr.md",
+              "line": null,
+              "message": "No tldr.md in the change directory (any letter case); a plain-language tldr.md is an advisory, not a defect."
+            }
+          ],
+          "summary": {
+            "high": 0,
+            "medium": 0,
+            "low": 1
+          }
+        }
+      }
+    },
+    {
+      "id": "uppercase-tldr-satisfies",
+      "tree": {
+        "repo/.git": "dir",
+        "repo/openspec/changes/0001_01_demo/proposal.md": "## Why\n\nA demo story.\n\n## What Changes\n\n- One change.\n\n## Build state\n\nGREEN\n",
+        "repo/openspec/changes/0001_01_demo/effort.md": "opus.high\n",
+        "repo/openspec/changes/0001_01_demo/tasks.md": "## 1. Work\n\n- [ ] 1.1 Add alpha; verify: node a.js exits 0\n- [ ] 1.2 Add beta; verify: node b.js exits 0\n- [ ] 1.3 Add gamma; verify: node c.js exits 0\n- [ ] 1.4 Add delta; verify: node d.js exits 0\n- [ ] 1.5 Add epsilon; verify: node e.js exits 0\n",
+        "repo/openspec/changes/0001_01_demo/TLDR.md": "# TLDR\n\nThis demo adds five small scripts.\n"
+      },
+      "cwd": "repo",
+      "argv": [
+        "--change",
+        "0001_01_demo",
+        "--repo",
+        ".",
+        "--assume-contract=ptp-compact",
+        "--format=json"
+      ],
+      "expect": {
+        "exitCode": 0,
+        "stdout": {
+          "contractVersion": 2,
+          "findings": []
+        }
+      }
+    },
+    {
+      "id": "tldr-over-soft-budget",
+      "tree": {
+        "repo/.git": "dir",
+        "repo/openspec/changes/0001_01_demo/proposal.md": "## Why\n\nA demo story.\n\n## What Changes\n\n- One change.\n\n## Build state\n\nGREEN\n",
+        "repo/openspec/changes/0001_01_demo/effort.md": "opus.high\n",
+        "repo/openspec/changes/0001_01_demo/tasks.md": "## 1. Work\n\n- [ ] 1.1 Add alpha; verify: node a.js exits 0\n- [ ] 1.2 Add beta; verify: node b.js exits 0\n- [ ] 1.3 Add gamma; verify: node c.js exits 0\n- [ ] 1.4 Add delta; verify: node d.js exits 0\n- [ ] 1.5 Add epsilon; verify: node e.js exits 0\n",
+        "repo/openspec/changes/0001_01_demo/tldr.md": "word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word\n"
+      },
+      "cwd": "repo",
+      "argv": [
+        "--change",
+        "0001_01_demo",
+        "--repo",
+        ".",
+        "--assume-contract=ptp-compact",
+        "--format=json"
+      ],
+      "expect": {
+        "exitCode": 0,
+        "stdout": {
+          "contractVersion": 2,
+          "findings": [
+            {
+              "code": "BUDGET_OVERRUN",
+              "severity": "low",
+              "artifact": "tldr.md",
+              "line": null,
+              "message": "tldr.md is 151 words, over its 150-word soft budget, with no budget-exception marker."
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "uppercase-extension-tldr-over-soft-budget",
+      "tree": {
+        "repo/.git": "dir",
+        "repo/openspec/changes/0001_01_demo/proposal.md": "## Why\n\nA demo story.\n\n## What Changes\n\n- One change.\n\n## Build state\n\nGREEN\n",
+        "repo/openspec/changes/0001_01_demo/effort.md": "opus.high\n",
+        "repo/openspec/changes/0001_01_demo/tasks.md": "## 1. Work\n\n- [ ] 1.1 Add alpha; verify: node a.js exits 0\n- [ ] 1.2 Add beta; verify: node b.js exits 0\n- [ ] 1.3 Add gamma; verify: node c.js exits 0\n- [ ] 1.4 Add delta; verify: node d.js exits 0\n- [ ] 1.5 Add epsilon; verify: node e.js exits 0\n",
+        "repo/openspec/changes/0001_01_demo/TLDR.MD": "word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word\n"
+      },
+      "cwd": "repo",
+      "argv": [
+        "--change",
+        "0001_01_demo",
+        "--repo",
+        ".",
+        "--assume-contract=ptp-compact",
+        "--format=json"
+      ],
+      "expect": {
+        "exitCode": 0,
+        "stdout": {
+          "contractVersion": 2,
+          "findings": [
+            {
+              "code": "BUDGET_OVERRUN",
+              "severity": "low",
+              "artifact": "TLDR.MD",
+              "line": null,
+              "message": "TLDR.MD is 151 words, over its 150-word soft budget, with no budget-exception marker."
+            }
+          ]
         }
       }
     }

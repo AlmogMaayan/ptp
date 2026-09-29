@@ -221,7 +221,7 @@ An epic container is a story-`00` folder `XXXX_00_<slug>` that holds only epic-l
 
 | Command | Does |
 |---------|------|
-| `/ptp:plan [change-id]` | Writes `proposal.md`, `tasks.md`, `effort.md` (one `{model}.{effort}` line), and the spec deltas, plus `design.md` only when the change carries non-obvious decisions or invariants, then runs `npx -y openspec validate <id> --strict`. |
+| `/ptp:plan [change-id]` | Writes `proposal.md`, `tldr.md` (plain-language summary), `tasks.md`, `effort.md` (one `{model}.{effort}` line), and the spec deltas, plus `design.md` only when the change carries non-obvious decisions or invariants, then runs `npx -y openspec validate <id> --strict`. |
 | `/ptp:plan-multiple <request \| id>` | Decomposes oversized work into slices under one epic and runs `/ptp:plan` per slice. |
 | `/ptp:brainstorm-decompose <request \| id>` | Decomposes oversized work into slices under one epic and runs `/ptp:brainstorm` per slice, seeding each with only a `brainstorm.md` — leaving `/ptp:plan` per slice for later. |
 | `/ptp:review-plan [change-id]` | Read-only artifact-quality gate over proposal/design/tasks/spec deltas. Flags any `tasks.md` task needing manual QA, manual testing, or any human executor as **High**. Reports PASS / WARN / FAIL; advisory. |
@@ -371,6 +371,7 @@ Experimental     /opsx:explore | /opsx:propose | /opsx:apply | /opsx:archive
 
 | Version | Changes |
 |---------|---------|
+| **0.25.0** | Every planned story gets a plain-language `tldr.md`, written by `/ptp:plan` right after `proposal.md`. The compactness linter now reports a missing one as a low `TLDR_MISSING` advisory instead of flagging a `TLDR.md` as a defect, and `/ptp:review-plan` checks it against the proposal (0090_01). |
 | **0.24.0** | Brainstorming always runs `ptp-brainstorming`, while `tdd-plugin=superpowers` still switches planning, TDD, debugging, verification and review to their Superpowers skills (0089_01). |
 | **0.23.0** | The compact artifact contract's prose-readability rule now breaks at sentences rather than lines, covers `prompt.md` and `openspec/brainstorms/*.md`, and is cited by every writer (0088_01). |
 | **0.22.2** | Four archive-family skills (`ptp-archive-and-merge-to-master`, `ptp-archive-and-deploy`, `ptp-archive-force`, `ptp-backlog-continue`) pointed at `/ptp:archive` steps by number without ever instructing an agent to read `commands/archive.md` itself, so step 8 ("close epic containers") and the `stages/archive.json` write could be silently skipped; each skill now tells the agent to read `commands/archive.md` in full before running the numbered steps it points at. `commands/archive.md` step 8's report is now a required, per-candidate-epic line that a missing report is treated as an error for, and step 6's `stages/archive.json` write is now stated as required in the subagent prompt with a new outer-session check that fails the story if the file is missing after a reported success. |

@@ -93,6 +93,10 @@ one of that section's two delivery modes.
    - `proposal.md > Success criteria` is **conditional**: write it when a manual-verification intent has
      been relocated out of `tasks.md` (see the `tasks.md` bullet), or when an observable outcome would
      otherwise have no owner. Otherwise omit the section.
+   - `tldr.md` — written right after `proposal.md` and derived from it, in the plain-language shape the
+     compact artifact contract gives it. If the folder already holds a `tldr.md` or a legacy `TLDR.md`,
+     rewrite that file in place to match the current `proposal.md`, so no second summary file appears.
+     Never write one into an epic container.
    - `design.md` — **conditional**. Create it only when the change has at least one non-obvious decision,
      invariant, interface, or failure/migration behavior that no other artifact owns. Mechanical changes
      get no `design.md`. If the folder already holds one and that test now fails, **delete it** — a stale
@@ -123,8 +127,6 @@ one of that section's two delivery modes.
      `### Requirement: ...` with SHALL/MUST, then `#### Scenario:` blocks). If
      `openspec/specs/<capability>/` doesn't exist yet, treat this as a new capability.
    - `effort.md` — written after `tasks.md` exists. See step 5.
-   - Do **not** create `TLDR.md`. If the folder already holds one from before this contract, leave it in
-     place and never read it as an input.
 
 4. **Validate.** Run `npx -y openspec validate <change-id> --strict`. Fix any validation errors
    **without** changing the agreed direction. If validation forces a real direction change, stop and
@@ -184,7 +186,7 @@ one of that section's two delivery modes.
 - Do **not** write a `tasks.md` checkbox the implementing agent cannot complete unaided — no manual QA, no manual or exploratory testing, no "manually verify" / "verify by hand" / "check in the browser" / "have a human confirm" / "ask the user to try", and no paraphrase of those. Substitute an automated equivalent; if none exists, move the intent into `proposal.md > Success criteria` as a **non-checkbox** note rather than deleting it. This binds the final verification task too. The ban is **authoring-time only**: it does not retroactively rewrite existing changes, and it removes nothing from the downstream manual-only recovery path — `/ptp:apply` still refuses to check off a box whose acceptance condition was not verified, and `/ptp:backlog-continue` remains the recovery route for an epic halted that way.
 - Do **not** stop the flow and ask the user to run `/ptp:brainstorm` first. `/ptp:plan` is autonomous: if the design doc is missing, run brainstorming inline (autonomous mode — no clarifying questions, document assumptions instead) and continue all the way through validation.
 - Do **not** ask clarifying questions mid-flow. The autonomous contract is: take the request, make reasonable assumptions when ambiguous, document them clearly in `brainstorm.md`'s decision capsule, and produce validated artifacts. The user reviews the artifacts at the end; corrections happen during `/ptp:apply` or via a follow-up edit.
-- Do **not** create `TLDR.md`, and do **not** read a pre-existing one as an input.
+- Never read `tldr.md` (in any letter case) as an input to any other artifact; it is written from `proposal.md`, never the other way round.
 - Apply the compact artifact contract's **current-state-only** rule to every artifact you write or touch:
   replace obsolete text in place, delete contradicted text, and never append `Amendment`, `Correction`,
   `Previously`, `Earlier draft`, `Historical record`, `What changed`, or review-iteration narrative. After

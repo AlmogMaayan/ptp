@@ -130,9 +130,9 @@ selector, the one subagent handles the whole per-change pass.)
         its correction is defective even when the later statement is right.
    - Never block, and never raise a finding at any severity, on any of these six retired pressures:
      a fixed number of alternatives; boilerplate sections populated with `None`; rationale present in
-     both `proposal.md` and `design.md`; effort justification; the presence or consistency of a
-     legacy top-level summary file; restated happy-path / unhappy-path prose where the spec scenarios
-     already express those cases. A short proposal, an absent `design.md`, and a single-line
+     both `proposal.md` and `design.md`; effort justification; the absence of `tldr.md`, the
+     compactness lint's `TLDR_MISSING` report included; restated happy-path / unhappy-path prose where
+     the spec scenarios already express those cases. A short proposal, an absent `design.md`, and a single-line
      effort recommendation are all correct and raise nothing; a legacy folder carrying extra files
      or a multi-line effort recommendation raises nothing either.
    - Map the conditions onto the severity vocabulary: **Critical** — a missing `proposal.md`,
