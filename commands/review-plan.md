@@ -70,7 +70,9 @@ pipe it to `codex exec -s read-only` over stdin per *Role resolution* above.
      `specs/**/spec.md` (may be absent); and **line 1 only** of `effort.md` (may be absent — absence or
      a first line that does not match `{model}.{effort}` is at most Medium, never a High or Critical,
      and SHALL NOT block `/ptp:apply`; lines 2 and beyond are ignored, never validated).
-   - Do **not** load `TLDR.md`. It is not an input to this review, and a legacy folder carrying one is not a finding.
+   - `tldr.md` when one is present, matched without regard to case, so a legacy `TLDR.md` counts. A
+     `tldr.md` that contradicts `proposal.md` is blocking condition 7, and its absence raises nothing.
+     A closed-book Codex payload never inlines it, so the Codex readers skip that one check.
    - `brainstorm.md` is **not** a default input: read it only to adjudicate a **disputed** decision
      source, locating it by `ptp-change-selector` §4c's lookup — the change's own file first, then
      its epic container's. A `Source` path that does not resolve is **not** a blocking condition.
@@ -197,13 +199,14 @@ pipe it to `codex exec -s read-only` over stdin per *Role resolution* above.
    - boilerplate sections populated with `None`;
    - rationale present in both `proposal.md` and `design.md`;
    - effort justification;
-   - `TLDR.md` presence or consistency — a legacy folder carrying one raises nothing;
+   - the absence of `tldr.md`, the compactness lint's `TLDR_MISSING` report included;
    - restated happy-path / unhappy-path prose where the spec scenarios already express those cases.
 
    **Legacy tolerance.** A change folder created under the pre-compaction contract may carry
    a legacy `TLDR.md`, a legacy multi-line `effort.md`, and a `design.md` written for mechanical
    work. None of those legacy shapes is a finding at any severity, and none affects a verdict, a convergence decision, or a
-   terminal state. An absent `effort.md`, or a first line that does not match
+   terminal state. That exemption covers a legacy `TLDR.md`'s presence, not the `tldr.md` agreement
+   check: a `TLDR.md` that disagrees with `proposal.md` stays condition 7. An absent `effort.md`, or a first line that does not match
    `^(haiku|sonnet|opus)\.(low|medium|high|xhigh)$`, stays at most a **Medium** finding and never
    blocks `/ptp:apply`; content on lines 2 and beyond is ignored rather than validated.
 

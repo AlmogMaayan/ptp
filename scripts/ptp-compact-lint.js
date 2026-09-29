@@ -10,7 +10,10 @@
  * emission order, output shape, and detection heuristics below belong to this file (the
  * `compactness-linter` capability) and are not restated by the owner skill.
  *
- * This script reads one OpenSpec change directory and reports contract violations. It is
+ * This script reads one OpenSpec change directory and reports contract violations. A story folder
+ * without a plain-language `tldr.md` (matched without regard to case, an exact `tldr.md` preferred)
+ * gets one low TLDR_MISSING advisory, and that file carries the soft budget BUDGET_OVERRUN reports
+ * under its real name. It is
  * deterministic and reporting-only: it creates, modifies, and deletes no file, spawns no
  * subprocess of any kind, and issues no version-control command.
  *
@@ -38,7 +41,7 @@ const path = require('path');
 // criteria, and this file states none of that.
 const { configLayers, resolveConfigKey, REJECT } = require('./ptp-resolve-workspace.js');
 
-const CONTRACT_VERSION = 1;
+const CONTRACT_VERSION = 2;
 
 const EFFORT_RE = /^(haiku|sonnet|opus)\.(low|medium|high|xhigh)$/;
 
@@ -99,7 +102,7 @@ const KEYED_BUDGETS = [
   { artifact: 'specs/**/spec.md', key: 'artifact.maxSpecDeltaWords', fallback: 1200 },
 ];
 
-const SOFT_BUDGETS = {};
+const SOFT_BUDGETS = { 'tldr.md': 150 };
 
 // A RED declaration must name what breaks and the change that closes it: the contiguous-group rule
 // the contract owner states is unenforceable when the closing change is not identified.
@@ -134,7 +137,7 @@ function resolveBudgets(repoRoot) {
 }
 
 const CODE_ORDER = [
-  'TLDR_PRESENT',
+  'TLDR_MISSING',
   'EFFORT_FORMAT',
   'HISTORY_SECTION',
   'REQUIREMENT_UNCOVERED',
@@ -148,7 +151,7 @@ const CODE_ORDER = [
 ];
 
 const SEVERITY = {
-  TLDR_PRESENT: 'high',
+  TLDR_MISSING: 'low',
   EFFORT_FORMAT: 'high',
   HISTORY_SECTION: 'high',
   REQUIREMENT_UNCOVERED: 'high',
@@ -217,6 +220,23 @@ function readFileIfExists(dir, name) {
     usageError('Unable to read artifact: ' + full + ' (' + err.message + ')');
     return null;
   }
+}
+
+/**
+ * The change directory's top-level `tldr.md`, matched without regard to case by scanning its entries
+ * (existsSync is case-insensitive only on some filesystems). An exact `tldr.md` wins over any other
+ * spelling. Returns the real file name, or null.
+ */
+function findTldrName(dir) {
+  let entries;
+  try {
+    entries = fs.readdirSync(dir, { withFileTypes: true });
+  } catch (err) {
+    return null;
+  }
+  const names = entries.filter((e) => e.isFile() && e.name.toLowerCase() === 'tldr.md').map((e) => e.name).sort();
+  if (names.length === 0) return null;
+  return names.includes('tldr.md') ? 'tldr.md' : names[0];
 }
 
 function walkFiles(dir) {
@@ -464,7 +484,7 @@ function lintChange(dir, changeLabel, assumeContract, budgets, repoRoot) {
   const design = readFileIfExists(dir, 'design.md');
   const tasks = readFileIfExists(dir, 'tasks.md');
   const effort = readFileIfExists(dir, 'effort.md');
-  const tldrPath = path.join(dir, 'TLDR.md');
+  const tldrName = findTldrName(dir);
 
   const allArtifactFiles = walkFiles(dir).filter((f) => {
     const rel = toPosix(path.relative(dir, f));
@@ -482,9 +502,9 @@ function lintChange(dir, changeLabel, assumeContract, budgets, repoRoot) {
     }
   }
 
-  // 1. TLDR_PRESENT
-  if (fs.existsSync(tldrPath)) {
-    findings.push(makeFinding('TLDR_PRESENT', 'TLDR.md', null, 'TLDR.md exists in the change directory; the compact contract creates no TLDR.md.'));
+  // 1. TLDR_MISSING — an advisory, never a defect.
+  if (tldrName === null) {
+    findings.push(makeFinding('TLDR_MISSING', 'tldr.md', null, 'No tldr.md in the change directory (any letter case); a plain-language tldr.md is an advisory, not a defect.'));
   }
 
   // 2. EFFORT_FORMAT
@@ -716,9 +736,13 @@ function lintChange(dir, changeLabel, assumeContract, budgets, repoRoot) {
   }
 
   // 10b. BUDGET_OVERRUN — the soft budgets, where the exception marker still applies.
-  for (const [artifactName, budget] of Object.entries(SOFT_BUDGETS)) {
-    const text = artifactTexts[artifactName];
-    if (text === undefined) continue;
+  for (const [budgetName, budget] of Object.entries(SOFT_BUDGETS)) {
+    // tldr.md is looked up through the name TLDR_MISSING found, so a legacy TLDR.md reports as itself.
+    const artifactName = budgetName === 'tldr.md' ? tldrName : budgetName;
+    if (artifactName === null) continue;
+    // A found name outside the `.md` artifact walk (e.g. `TLDR.MD`) is read directly, never skipped.
+    const text = artifactName in artifactTexts ? artifactTexts[artifactName] : readFileIfExists(dir, artifactName);
+    if (text === null) continue;
     const words = countWords(text);
     const exception = findBudgetException(text);
     if (words > budget) {

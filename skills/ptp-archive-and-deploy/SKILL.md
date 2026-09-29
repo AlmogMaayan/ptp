@@ -208,7 +208,7 @@ Report at whichever terminal point is reached:
   **tasks-complete** and **validation-passes** remain absolute and unconditional, entirely unaffected
   by `review.minSeverity`. `commands/archive.md` owns the precise statement of the two facts Phase A
   inherits unchanged rather than restating: artifact presence is never a gate (so an absent
-  `design.md` / `TLDR.md` / `brainstorm.md` / `analysis.md` / `effort.md` never refuses, warns, or
+  `design.md` / `tldr.md` / `brainstorm.md` / `analysis.md` / `effort.md` never refuses, warns, or
   delays), and the archive rewrites, compacts, trims, reformats, or deletes no artifact of the change
   being archived or already under `openspec/changes/archive/`.
 - **Interactive confirmations stay outer.** The review-clean and confirm-action confirmations are

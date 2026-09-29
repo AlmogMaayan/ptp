@@ -14,12 +14,12 @@ budget, its required shape, the current-state-only policy, or the contract versi
 artifact grammar and a derived surface's own operational protocol (CLI, exit codes, finding codes,
 emission order, detection heuristics) are owned elsewhere and are not restated here.
 
-## 1. Ownership table (contract v1)
+## 1. Ownership table (contract v2)
 
 Eight rows. `Budget` is words. **A budget carrying a config key is an acceptance criterion, not
 guidance:** an artifact over it is defective, and the only two remedies are to remove text or to
 split the change. Review effort scales with the number of claims a document makes, so an unbounded
-artifact is an unbounded review. The one budget with no key (`brainstorm.md`) stays
+artifact is an unbounded review. The two budgets with no key (`brainstorm.md` and `tldr.md`) stay
 **soft** — exceeding it requires an explicit written justification in the artifact, never
 truncation. Under either posture the control is "no duplicate information and no claim the change
 does not need," never "delete necessary information."
@@ -36,7 +36,7 @@ layered per `ptp-workspace`.
 | `design.md` | Only non-obvious *implementation* decisions and the technical alternatives rejected within the chosen direction, plus invariants, interfaces, data flow, failure/migration behavior | Proposal repetition, the approach-level choice `brainstorm.md` already made, task list, history | 800 (absent for mechanical work) | `artifact.maxDesignWords` |
 | `tasks.md` | Ordered agent-executable actions and verification | Rationale essays, copied requirements, review history | 600; 5–15 checkboxes, each ≤ 60 words | `artifact.maxTasksWords`, `artifact.maxTaskCount`, `artifact.maxTaskWords` |
 | `effort.md` | The apply complexity recommendation | Explanation, blank section, Codex runtime configuration | one line | — |
-| `TLDR.md` | Nothing required by the model workflow | Everything | not created | — |
+| `tldr.md` | explain this openspec/change to an idiot | Anything `proposal.md` does not say, jargon left unexplained, task list, history | 150 (soft) | — |
 | `analysis.md` | Conclusion, evidence, unknowns | Investigation diary, revision history | none (current conclusions only) | — |
 
 **The spec deltas are budgeted, and the sum is what is budgeted.** They were historically the one
@@ -61,8 +61,10 @@ its payload are owned by `skills/ptp-writing-plans/SKILL.md`.
 
 ## 2. Shape rules
 
-- **No TLDR.** A change created under this contract does not create `TLDR.md`. Legacy changes keep
-  theirs; nothing deletes them.
+- **A plain-language `tldr.md` in every story folder.** It is the one sanctioned restatement of
+  `proposal.md` and an input to no other artifact. Its name matches without regard to case, so a
+  legacy `TLDR.md` counts. An epic container carries none. A missing `tldr.md` is an advisory, never a
+  defect.
 - **`effort.md` is exactly one line** matching `^(haiku|sonnet|opus)\.(low|medium|high|xhigh)$`, with
   no second line and no justification. The vocabulary is `effort-rubric`'s, unchanged.
 - **`design.md` is conditional** — created only for a cross-cutting change, a new architectural
@@ -159,7 +161,7 @@ wrapped-continuation) shape, with no blank line forced between it and the next i
 ## 5. Contract version and legacy interpretation
 
 The contract version is the pair **(schema name, schema `version` integer)** — here `ptp-compact` /
-`1`. There is no separate version file.
+`2`. There is no separate version file.
 
 - A change records its creating contract in OpenSpec's own `.openspec.yaml` (`schema: ptp-compact`),
   which OpenSpec already writes and reads.

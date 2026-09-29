@@ -189,7 +189,7 @@ ends, whether the loop finished every story or stopped at a blocker.
 - Do **not** edit the spec deltas to make validation pass — if validation fails, bounce back to `/ptp:plan`.
 - Prefer the `openspec` CLI; only fall back to a manual move when the CLI cannot handle the change name.
 - The archive gates are exactly tasks-complete, strict validation, and the review-clean confirmation —
-  artifact presence is never a gate, so an absent `design.md` / `TLDR.md` / `brainstorm.md` /
+  artifact presence is never a gate, so an absent `design.md` / `tldr.md` / `brainstorm.md` /
   `analysis.md` / `effort.md` never refuses, warns, or delays an archive.
 - The archive rewrites, compacts, trims, reformats, or deletes **no** artifact of the change being
   archived and **no** artifact already under `openspec/changes/archive/` — its only writes are the
