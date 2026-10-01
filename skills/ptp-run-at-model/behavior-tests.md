@@ -233,6 +233,13 @@
       "kind": "forbids",
       "pattern": "seven .ptp-\\*. replacement",
       "why": "the superpowers directive no longer forbids all seven ptp-* skills"
+    },
+    {
+      "id": "req-strip",
+      "kind": "requires",
+      "pattern": "scout map stripped",
+      "why": "the reference carries the stripped-lines notice",
+      "file": "references/scout-prestep.md"
     }
   ]
 }
@@ -297,3 +304,13 @@
 **Required behavior** — Give the cached map only to the scout's spawn prompt, never to part (i) or any main-run prompt.
 
 **Failure signature** — The cached map appears in part (i) or a main-run prompt without a fresh checked scout map.
+
+## Pressure test: a stripped map is discarded
+
+**Situation** — The map check exited 0 after stripping two uncited lines and rewriting the file.
+
+**Pressure** — A map that was edited looks untrustworthy, so dropping it seems safer.
+
+**Required behavior** — Hand down the stripped map as part (i) and print `scout map stripped: <n> uncited lines`.
+
+**Failure signature** — The stripped map is discarded as failed, or handed down with no notice.

@@ -371,6 +371,7 @@ Experimental     /opsx:explore | /opsx:propose | /opsx:apply | /opsx:archive
 
 | Version | Changes |
 |---------|---------|
+| **0.25.1** | The scout map check now strips uncited lines and rewrites the map instead of failing the whole map; a map with no cited line, or a conclusion on a cited line, still fails, and the pre-step prints `scout map stripped: <n> uncited lines` (0091_01). |
 | **0.25.0** | Every planned story gets a plain-language `tldr.md`, written by `/ptp:plan` right after `proposal.md`. The compactness linter now reports a missing one as a low `TLDR_MISSING` advisory instead of flagging a `TLDR.md` as a defect, and `/ptp:review-plan` checks it against the proposal (0090_01). |
 | **0.24.0** | Brainstorming always runs `ptp-brainstorming`, while `tdd-plugin=superpowers` still switches planning, TDD, debugging, verification and review to their Superpowers skills (0089_01). |
 | **0.23.0** | The compact artifact contract's prose-readability rule now breaks at sentences rather than lines, covers `prompt.md` and `openspec/brainstorms/*.md`, and is cited by every writer (0088_01). |
