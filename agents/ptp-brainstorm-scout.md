@@ -34,6 +34,6 @@ Return only the map, one line per item, in the form:
 
 `- <kind>: <what> — <path>:<line>`
 
-where `<kind>` is one of `entry`, `owner`, `state`, `caller`, `consumer`, `alt-path`, `permission` or `similar`. Every line carries a `path:line` citation. At most 60 lines and 900 words.
+where `<kind>` is one of `entry`, `owner`, `state`, `caller`, `consumer`, `alt-path`, `permission` or `similar`. Every line carries a `path:line` citation; a bare `path` is not a citation. Output begins with `-` or the sentinel, with no heading, preamble, blank line or closing line. At most 60 lines and 900 words.
 
 If nothing lies beyond the files the request already names, return the single line `Nothing beyond the named files` and nothing else.

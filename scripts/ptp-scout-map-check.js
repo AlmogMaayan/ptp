@@ -2,7 +2,8 @@
 "use strict";
 // Deterministic cap check for a brainstorm scout map (0084_03). Plain Node, zero dependencies.
 // Usage: node scripts/ptp-scout-map-check.js <map-file>
-// Prints { ok, lines, words, problems }; exit 0 valid, 1 invalid, 2 unreadable (empty stdout).
+// Uncited lines are stripped before judging; a passing map with stripped lines is rewritten in place.
+// Prints { ok, lines, words, stripped, problems }; exit 0 valid, 1 invalid, 2 unreadable (empty stdout).
 const fs = require("fs");
 
 const SENTINEL = "Nothing beyond the named files";
@@ -21,26 +22,38 @@ try {
   process.exit(2);
 }
 
-const lines = raw.replace(/\r\n?/g, "\n").split("\n").filter((l) => l.trim() !== "");
+const all = raw.replace(/\r\n?/g, "\n").split("\n").filter((l) => l.trim() !== "");
+const isSentinel = (l) => l.trim() === SENTINEL;
+const isCited = (l) => /[\w./\:-]+:\d+/.test(l);
+const lines = all.filter((l) => isSentinel(l) || isCited(l));
+const stripped = all.length - lines.length;
 const words = lines.join(" ").split(/\s+/).filter(Boolean).length;
 const problems = [];
 const add = (p) => { if (!problems.includes(p)) problems.push(p); };
 
-if (lines.length === 0) {
+if (all.length === 0) {
   add("empty");
+} else if (lines.length === 0) {
+  add("no-cited-lines");
 } else {
-  const isSentinel = (l) => l.trim() === SENTINEL;
   const sentinels = lines.filter(isSentinel).length;
   if (sentinels > 0 && lines.length > 1) add("sentinel-not-alone");
   if (lines.length > MAX_LINES) add("too-many-lines");
   if (words > MAX_WORDS) add("too-many-words");
   for (const l of lines) {
     if (isSentinel(l)) continue;
-    if (!/[\w./\\:-]+:\d+/.test(l)) add("uncited-line");
     if (CONCLUSION.test(l.replace(CITATION, " "))) add("conclusion");
   }
 }
 
+if (stripped > 0 && problems.length === 0) {
+  try {
+    fs.writeFileSync(file, lines.join("\n") + "\n");
+  } catch (e) {
+    add("rewrite-failed");
+  }
+}
+
 const ok = problems.length === 0;
-process.stdout.write(JSON.stringify({ ok, lines: lines.length, words, problems }) + "\n");
+process.stdout.write(JSON.stringify({ ok, lines: lines.length, words, stripped, problems }) + "\n");
 process.exit(ok ? 0 : 1);
