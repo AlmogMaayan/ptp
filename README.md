@@ -372,6 +372,7 @@ Experimental     /opsx:explore | /opsx:propose | /opsx:apply | /opsx:archive
 
 | Version | Changes |
 |---------|---------|
+| **0.27.1** | The scout map check truncates an over-cap map to its first 60 lines and 900 words instead of failing it, and the pre-step prints `scout map truncated: <n> lines` (0094_01). |
 | **0.27.0** | Adds the top-level `epic-id-generator` config key (`self` default, `github`), settable in `/ptp:config`: `self` allocates epic numbers from the local scan with no remote, `github` claims them on the git remote (0093_01–0093_02). |
 | **0.26.0** | Epic numbers are now claimed on the git remote (a non-branch `refs/ptp/` ref, seeded once with `--seed`), so one workspace's number is unique across branches, worktrees and clones (0092_01–0092_02). |
 | **0.25.1** | The scout map check now strips uncited lines and rewrites the map instead of failing the whole map; a map with no cited line, or a conclusion on a cited line, still fails, and the pre-step prints `scout map stripped: <n> uncited lines` (0091_01). |

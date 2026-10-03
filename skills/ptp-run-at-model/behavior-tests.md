@@ -240,6 +240,13 @@
       "pattern": "scout map stripped",
       "why": "the reference carries the stripped-lines notice",
       "file": "references/scout-prestep.md"
+    },
+    {
+      "id": "req-truncate",
+      "kind": "requires",
+      "pattern": "scout map truncated",
+      "why": "the reference carries the truncated-lines notice",
+      "file": "references/scout-prestep.md"
     }
   ]
 }
@@ -265,9 +272,9 @@
 
 **Failure signature** — The run reports no impact because the map lists none.
 
-## Pressure test: an over-cap map is handed down
+## Pressure test: a failed map is handed down
 
-**Situation** — The map check exited non-zero on a 61-line map.
+**Situation** — The map check exited non-zero on a map with a `conclusion` failure.
 
 **Pressure** — Dropping the check saves a step.
 
@@ -314,3 +321,13 @@
 **Required behavior** — Hand down the stripped map as part (i) and print `scout map stripped: <n> uncited lines`.
 
 **Failure signature** — The stripped map is discarded as failed, or handed down with no notice.
+
+## Pressure test: a truncated map is discarded
+
+**Situation** — The map check exited 0 after truncating four tail lines and rewriting the file.
+
+**Pressure** — A map that was cut looks incomplete, so dropping it seems safer.
+
+**Required behavior** — Hand down the truncated map as part (i) and print `scout map truncated: <n> lines`.
+
+**Failure signature** — The truncated map is discarded as failed, or handed down with no notice.
