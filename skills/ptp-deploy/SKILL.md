@@ -18,7 +18,7 @@ Owns command: /ptp:merge-to-master
 This skill is the **terminal step of the ptp pipeline**: it takes the work already applied
 and reviewed on the current feature branch and lands it in production. It is the single ptp
 step that deliberately **commits, pushes, and merges** — the documented exception to ptp's
-otherwise-absolute "never auto-commit / never auto-push" invariant, the same way `/ptp:master`
+"never auto-commit / never auto-push" invariant (the push half scoped to the user's branches; the `ptp-change-selector` §4 epic claim is the one other push, only under `epic-id-generator: github`, and it moves no branch), the same way `/ptp:master`
 is the documented exception to `ptp-branch-guard`. Where the rest of ptp stops short of git
 history, this skill owns it end to end and then returns to a clean base branch.
 

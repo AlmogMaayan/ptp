@@ -93,6 +93,7 @@ Any missing file, missing key, bad JSON, or invalid value is skipped for that ke
 | `parallel.mode` | `off` \| `on` | `off` | `on` permits eligible stages (`/ptp:plan-multiple`, `/ptp:full-plan`, `/ptp:full` Phase A) to run per-item runs concurrently. `/ptp:apply`, `/ptp:full-apply`, and `/ptp:archive` always run serially. |
 | `parallel.maxConcurrency` | `1`–`10` | `3` | Members run at once; extras run in batches. |
 | `brainstorm.scout` | `off` \| `on` | `off` | `on` runs the brainstorm scout; `scout:` overrides it (rule: `references/scout-prestep.md`). |
+| `epic-id-generator` | `self` \| `github` | `self` | `github` claims each epic number on the git remote; `self` allocates from the local scan and touches no remote. A clone whose layers lack `github` allocates under `self`. |
 | `artifact.maxProposalWords` | integer ≥ 1 | `400` | Word budget for `proposal.md`. An acceptance criterion, not guidance: an over-budget artifact is a defect, fixed by removing text or splitting the change. |
 | `artifact.maxDesignWords` | integer ≥ 1 | `800` | Word budget for `design.md`. |
 | `artifact.maxTasksWords` | integer ≥ 1 | `600` | Word budget for `tasks.md`. |
@@ -294,7 +295,7 @@ Every card on the board is a backlog entry. Cards inside `Ready` run **top-first
 | `/ptp:backlog-add-multiple "<free-text request>"` | Takes one free-text request, segments it into several deliverable epics, and creates one entry per epic, each parked in `Backlog`. Autonomous. |
 | `/ptp:backlog-draft-to-ready` | Promotes every `Backlog` (parked) entry to `Ready` in one invocation. Touches no entry in any other status. Autonomous. |
 | `/ptp:backlog-edit <node-id> "<what to change>"` | Edits one entry's title/description/notes and status along the transition table. Also the recovery path for an entry stuck `in-progress` (dispositions: claim → `blocked`, disown / rerun anyway → `ready`, plus per-prefix promote/dismiss). |
-| `/ptp:backlog-run [count:{count}] [ticket:<value>] [phase:{plan,full}]` | Runs the `Ready` entries through `/ptp:full`, top-first, 5 per invocation by default. Marks each `in-progress`, records the change ids it produced, leaves converged epics `in-review`, and halts the whole run on the first non-convergence, marking that epic `blocked`. The optional `ticket:<value>` selector (owned by the `ptp-backlog-run` skill) instead runs a single `Ready` entry chosen by board node id or exact title, then stops; it is mutually exclusive with `count:{count}`. The optional `phase:{plan,full}` token (owned by the same skill) picks which flow each epic runs: `phase:plan` runs `/ptp:full-plan` only and lands a converged epic on `planned`, while `phase:full` or an absent token runs the full flow and lands `in-review`; it combines freely with `count:{count}` and `ticket:<value>`. Never commits, pushes, merges, archives, or deploys. |
+| `/ptp:backlog-run [count:{count}] [ticket:<value>] [phase:{plan,full}]` | Runs the `Ready` entries through `/ptp:full`, top-first, 5 per invocation by default. Marks each `in-progress`, records the change ids it produced, leaves converged epics `in-review`, and halts the whole run on the first non-convergence, marking that epic `blocked`. The optional `ticket:<value>` selector (owned by the `ptp-backlog-run` skill) instead runs a single `Ready` entry chosen by board node id or exact title, then stops; it is mutually exclusive with `count:{count}`. The optional `phase:{plan,full}` token (owned by the same skill) picks which flow each epic runs: `phase:plan` runs `/ptp:full-plan` only and lands a converged epic on `planned`, while `phase:full` or an absent token runs the full flow and lands `in-review`; it combines freely with `count:{count}` and `ticket:<value>`. Never commits, pushes, merges, archives, or deploys, except the `ptp-change-selector` §4 epic claim (only under `epic-id-generator: github`) each run's `/ptp:full` makes. |
 | `/ptp:backlog-continue [phase:apply] ["<what went wrong>"]` | Bare: finishes the `blocked` or `in-review` epic — signs off remaining tasks, re-runs validate/build/tests, archives, and only then writes `done`. Never re-runs `/ptp:review-full`: `/ptp:full` already drove code review to convergence for the change before it could reach `blocked`/`in-review`. Per `ptp-backlog`, `blocked` is missing the human verification and `in-review` is missing the archive. With free text: one scoped fix pass against the same change, with no status change, no review, and no archive. With `phase:apply`: selects a `planned` epic and drives `/ptp:full-apply` over its slices, settling `in-review` on convergence or `blocked` on halt, with any accompanying text passed verbatim as a brief. |
 
 Status writes land on the shared board immediately, outside git; on an issue- or PR-backed card, title/body writes edit that issue's or PR's own title and body.
@@ -311,8 +312,8 @@ The `openspec-*` skills are edited only in `skills/openspec-*/`. `.claude/skills
 to verify there is no drift.
 
 Run `node scripts/ptp-test.js <change-id>` to run the repository's dogfooding suite — the skill
-behavior tests, the prompt-surface budgets, the OpenSpec skill-sync check, the agent-type check, and
-the compact-artifact lint for that change — in one pass, non-zero on any failure.
+behavior tests, the prompt-surface budgets, the OpenSpec skill-sync check, the epic-allocation self-test,
+the agent-type check, and the compact-artifact lint for that change — in one pass, non-zero on any failure.
 
 Every write-capable command runs a branch guard first: on `master` it stashes, pulls, and cuts a fresh `ptp/<…>` branch before writing anything.
 
@@ -371,6 +372,8 @@ Experimental     /opsx:explore | /opsx:propose | /opsx:apply | /opsx:archive
 
 | Version | Changes |
 |---------|---------|
+| **0.27.0** | Adds the top-level `epic-id-generator` config key (`self` default, `github`), settable in `/ptp:config`: `self` allocates epic numbers from the local scan with no remote, `github` claims them on the git remote (0093_01–0093_02). |
+| **0.26.0** | Epic numbers are now claimed on the git remote (a non-branch `refs/ptp/` ref, seeded once with `--seed`), so one workspace's number is unique across branches, worktrees and clones (0092_01–0092_02). |
 | **0.25.1** | The scout map check now strips uncited lines and rewrites the map instead of failing the whole map; a map with no cited line, or a conclusion on a cited line, still fails, and the pre-step prints `scout map stripped: <n> uncited lines` (0091_01). |
 | **0.25.0** | Every planned story gets a plain-language `tldr.md`, written by `/ptp:plan` right after `proposal.md`. The compactness linter now reports a missing one as a low `TLDR_MISSING` advisory instead of flagging a `TLDR.md` as a defect, and `/ptp:review-plan` checks it against the proposal (0090_01). |
 | **0.24.0** | Brainstorming always runs `ptp-brainstorming`, while `tdd-plugin=superpowers` still switches planning, TDD, debugging, verification and review to their Superpowers skills (0089_01). |

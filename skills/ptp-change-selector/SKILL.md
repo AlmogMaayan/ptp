@@ -169,7 +169,9 @@ reads differently from a genuinely missing change.
 
 ## 4. Epic allocation (producers only)
 
-Producers (`/ptp:plan-multiple`, `/ptp:brainstorm-decompose`, `/ptp:plan`, `/ptp:brainstorm`, `/ptp:brainstorm-full`, `/ptp:prompt-write`, and `/ptp:analyze`) allocate a fresh epic when creating a new change or epic container. The algorithm:
+Producers (`/ptp:plan-multiple`, `/ptp:brainstorm-decompose`, `/ptp:plan`, `/ptp:brainstorm`, `/ptp:brainstorm-full`, `/ptp:prompt-write`, and `/ptp:analyze`) allocate a fresh epic when creating a new change or epic container. A producer runs `node scripts/ptp-allocate-epic.js --workspace <root>`, citing the `epic-allocation` capability for its contract, and takes exit 0's stdout `NNNN` as `epic_str`. On exit 1 or 2 the stderr is relayed verbatim and nothing is written. Exit 0's stderr notice means the no-remote fallback, which only `github` can produce, and goes into the producer's report. A claimed number is never released.
+
+§4 owns the top-level `epic-id-generator` key: `self` (default) or `github`, matched exactly, an invalid layer skipped. The script resolves it, so producers run the one command under either value. Under `self` the script allocates from the local scan below and touches no git remote. Under `github` the script folds the local scan below into its max and falls back to it:
 
 ```
 1. candidates = folder names under <resolved workspace root>/openspec/changes/
@@ -184,12 +186,14 @@ Producers (`/ptp:plan-multiple`, `/ptp:brainstorm-decompose`, `/ptp:plan`, `/ptp
 4. epic_str = zero-pad(next, 4)   →  "0001", "0002", …
 ```
 
-This scans **both** active and archived folders so no active or archived epic number is ever reused. A second `plan-multiple` call in one session re-scans and sees the first run's new folders.
+The local scan covers **both** active and archived folders so no active or archived epic number is ever reused. A second `plan-multiple` call in one session re-scans and sees the first run's new folders.
 Both candidate folders sit under the **resolved workspace root** — the same one `ptp-workspace`
-resolved once for this invocation — so epic counters are **per-workspace**: two workspaces in one
-repository may allocate the same epic number, and that is intended. The branch-naming consequence of
+resolved once for this invocation. Under `github` with a seeded git remote, one workspace's number is unique across its branches, worktrees and clones; under `self` the local scan decides, so clones may share a number and no remote is touched. Two workspaces may still share one. The branch-naming consequence of
 that belongs to `ptp-branch-guard` and is not settled here.
 
+Under `github`, the claim push is the one push outside `ptp-deploy`; it writes an empty-tree commit to a non-branch ref under `refs/ptp/` and moves no branch. §4b re-cuts, §4c container input and a preserved full story id claim nothing.
+
+**One-time seed (`github` only; `--seed` is refused under `self`).** `openspec/` may be gitignored (ptp's `.gitignore:24`), so run the script once with `--seed` from the clone holding the workspace's `openspec/` history; until then another clone may reuse a number only that clone's folders hold.
 
 **Per-producer usage:**
 - `/ptp:plan-multiple` — calls this once, then assigns `epic_str_01`, `epic_str_02`, … to slices in dependency order. When it is instead re-cutting a change that returned `NEEDS SPLIT`, it allocates **no** epic and uses §4b's sub-story allocation. Handed a bare epic container id, it allocates **no** epic and follows §4c's "Decomposing with a container".

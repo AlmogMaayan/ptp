@@ -628,7 +628,7 @@ list below neither gaining an item nor being renumbered. The list states all six
    recomputed from a fresh read before every iteration: a mid-run hand edit, or a mid-run store defect
    that ends the run early, can change what is actually processed;
 4. the blast radius in plain words: **all of this lands on this one branch, uncommitted and
-   unarchived; this command never commits, pushes, merges, archives, or deploys**;
+   unarchived; this command never commits, pushes, merges, archives, or deploys (bar the §4 epic claim, only under `epic-id-generator: github`, each run's `/ptp:full` makes)**;
 5. what the user must do afterwards, **by the phase in effect**: under `phase:full`, review the branch,
    run `/ptp:archive <id>` per fully-processed slice, and ship manually; under `phase:plan` **nothing is
    applied, so there is nothing to archive or ship** — review the planned artifacts and settle each
@@ -868,7 +868,7 @@ work in a stash**.
 - **Never wrapped in a `ptp-run-at-model` main run** — not the runner, not an epic, in either
   direction.
 - **Never fan out across backlog epics** — one epic at a time, always.
-- **Never commit, push, merge, archive, or deploy.**
+- **Never commit, push, merge, archive, or deploy**, except the `ptp-change-selector` §4 epic claim under `github`, which each run's `/ptp:full` makes to allocate a fresh epic and which moves no branch.
 - **Run the branch guard exactly once per run**, never per epic.
 - **Never coalesce WRITE 1 into WRITE 2.**
 - **WRITE 2 is the only runner-side `runBaseline` clear.**
