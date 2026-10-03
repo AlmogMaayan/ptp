@@ -11,7 +11,7 @@ When present, the part is a block headed exactly `Scout map — INDEX, NOT EVIDE
 - Drop a map line your own read does not confirm.
 - A gap in the map is not absence of impact: re-scan rather than read a gap as "no impact".
 
-A caller MUST NOT supply a map that failed the map check (a map that passed after stripping uncited lines is not a failed one), or one that cites a file its own flow has since modified.
+A caller MUST NOT supply a map that failed the map check (a map that passed after stripping uncited lines or truncating tail lines is not a failed one), or one that cites a file its own flow has since modified.
 
 ## Brainstorm scout pre-step
 
@@ -21,8 +21,8 @@ Run only by an outer session, after step 4 and before step 5. A main run never s
 With a change id, consult the scout map cache per `references/scout-map-cache.md` around this spawn.
 2. Run a foreground spawn of `subagent_type: ptp:ptp-brainstorm-scout` at that model, with the effort directive.
 3. Write the returned map to an OS temp file outside the workspace.
-4. Run `node scripts/ptp-scout-map-check.js <file>`, named relative to the ptp checkout as `/ptp:plan` names its linter. The check strips uncited lines and rewrites the file in place when the map then passes.
-5. On a failed check, a spawn error or an empty result, omit part (i), emit the single line `scout map omitted: <reason>`, and continue. Never STOP and never retry. On a pass with `stripped` n > 0, emit the single line `scout map stripped: <n> uncited lines`; with n = 0 print nothing.
+4. Run `node scripts/ptp-scout-map-check.js <file>`, named relative to the ptp checkout as `/ptp:plan` names its linter. The check strips uncited lines, truncates an over-cap map to its first 60 lines and 900 words, and rewrites the file in place when the map then passes.
+5. On a failed check, a spawn error or an empty result, omit part (i), emit the single line `scout map omitted: <reason>`, and continue. Never STOP and never retry. On a pass with `stripped` n > 0, emit the single line `scout map stripped: <n> uncited lines`; with n = 0 print nothing. Likewise, with `truncated` n > 0, emit the single line `scout map truncated: <n> lines`.
 
 A multi-run caller may hand one checked map to several runs. The scout has no Codex twin key: it is always a Claude spawn.
 
