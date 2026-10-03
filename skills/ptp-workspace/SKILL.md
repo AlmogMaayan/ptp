@@ -408,7 +408,7 @@ It states no parameter's kind, domain, default, or validity. Each of those stays
 already owns that parameter — `codex.*` with `ptp-codex-mode`, `roles.*` with `ptp-agent-roles`,
 `review.*` with `ptp-review-loop`, `parallel.*` with `ptp-parallel-fanout`, `deploy.*` with
 `ptp-deploy`, `backlog.*` with `ptp-github-projects-gh`, `tdd` with `ptp-test-driven-development`,
-`tdd-plugin` with `ptp-skill-contract`
+`tdd-plugin` with `ptp-skill-contract`, `epic-id-generator` with `ptp-change-selector`
 — so this contract adds no second authority over any configuration key. A key whose value is
 interpreted relative to some root keeps that rule with its owner as well; this contract decides only
 which layer supplied it.

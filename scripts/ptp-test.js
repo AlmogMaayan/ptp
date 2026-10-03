@@ -10,12 +10,15 @@
  *   1. node scripts/ptp-skill-behavior-tests.js            (skill behavior + command-case fixtures)
  *   2. node scripts/check-prompt-budgets.js                (prompt-surface word budgets)
  *   3. node scripts/sync-openspec-skills.js --check        (vendored OpenSpec skill copies are in sync)
- *   4. node scripts/check-agent-types.js                   (every named agent type resolves)
- *   5. node scripts/ptp-compact-lint.js --change <id> ...  (compact artifact contract for one change)
+ *   4. node scripts/ptp-resolve-roles.js --self-test       (role resolver self-test)
+ *   5. node scripts/ptp-allocate-epic.js --self-test       (epic allocation self-test)
+ *   6. node scripts/ptp-apply-role-tests.js                (apply role tests)
+ *   7. node scripts/check-agent-types.js                   (every named agent type resolves)
+ *   8. node scripts/ptp-compact-lint.js --change <id> ...  (compact artifact contract for one change)
  *
  * The compact-lint step needs a change target. A change id may be given as the first positional
  * argument, via `--change <id>` / `--change=<id>`, or via the `PTP_TEST_CHANGE` environment
- * variable. Absent one, step 4 is `SKIP`ped as `no change id` and is non-fatal — every other step
+ * variable. Absent one, step 8 is `SKIP`ped as `no change id` and is non-fatal — every other step
  * still runs and still gates.
  *
  * `--help` and `--list` are bounded: each prints and exits 0 without running any sibling script, so
@@ -86,6 +89,12 @@ function buildSteps(changeId) {
       grade: (run) => run.status === 0,
     },
     {
+      name: 'allocate-epic-self-test',
+      command: 'node scripts/ptp-allocate-epic.js --self-test',
+      args: [scriptPath('scripts/ptp-allocate-epic.js'), '--self-test'],
+      grade: (run) => run.status === 0,
+    },
+    {
       name: 'apply-role-tests',
       command: 'node scripts/ptp-apply-role-tests.js',
       args: [scriptPath('scripts/ptp-apply-role-tests.js')],
@@ -145,7 +154,7 @@ function printUsage() {
       '  node scripts/ptp-test.js --help',
       '  node scripts/ptp-test.js --list',
       '',
-      'Runs, in order: skill-behavior-tests, prompt-budgets, openspec-skill-sync, roles-resolver-self-test, apply-role-tests, agent-types, compact-lint.',
+      'Runs, in order: skill-behavior-tests, prompt-budgets, openspec-skill-sync, roles-resolver-self-test, allocate-epic-self-test, apply-role-tests, agent-types, compact-lint.',
       'The compact-lint step is skipped when no change id is supplied. Exits non-zero on any failure.',
       '',
     ].join('\n') + '\n'
@@ -158,6 +167,7 @@ function printList() {
     'prompt-budgets',
     'openspec-skill-sync',
     'roles-resolver-self-test',
+    'allocate-epic-self-test',
     'apply-role-tests',
     'agent-types',
     'compact-lint',

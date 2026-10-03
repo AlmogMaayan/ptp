@@ -577,4 +577,5 @@ module.exports = {
   configLayers: configLayers,
   resolveConfigKey: resolveConfigKey,
   REJECT: REJECT,
+  deriveSlug: deriveSlug,
 };

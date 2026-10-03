@@ -295,11 +295,22 @@ parameters = [
       { value: "on",  desc: "Run the read-only scout before brainstorm main runs" }
     ],
     default: "off"
+  },
+  {
+    key:      "epic-id-generator",
+    label:    "Epic id generator",
+    jsonPath: ["epic-id-generator"],
+    kind:     "enum",
+    values: [
+      { value: "self",   desc: "Allocate from the local scan, touch no remote (default)" },
+      { value: "github", desc: "Claim the number on the git remote" }
+    ],
+    default: "self"
   }
 ]
 ```
 
-**Parameter menu:** The registry currently holds thirty-two entries. Step 2 builds an `AskUserQuestion`
+**Parameter menu:** The registry currently holds thirty-three entries. Step 2 builds an `AskUserQuestion`
 menu from each entry's `label` value and presents it to the user. The flow is data-driven: adding
 a new entry to the registry automatically adds it to the menu with no further edits to this flow.
 
@@ -385,6 +396,7 @@ Build an `AskUserQuestion` menu from the registry entries' `label` values:
 30. **Codex model for plan-review commands** (`codex.plan-review`)
 31. **Codex model for apply-review commands** (`codex.apply-review`)
 32. **Run the brainstorm scout** (`brainstorm.scout`)
+33. **Epic id generator** (`epic-id-generator`)
 
 Use the selected entry's `jsonPath`, `kind`, `values` (for enum entries), and `default` for the
 remaining steps. This is data-driven off the registry — adding a parameter requires only a new
@@ -632,6 +644,18 @@ State plainly at the point of selection: **no consumer reads this key yet** — 
 resolve-only, mirroring `tdd`'s own first slice. Setting `superpowers` or `ptp` today changes no
 command's behavior.
 
+#### kind = `enum` (e.g. `epic-id-generator`)
+
+Use `AskUserQuestion` to offer the parameter's `values`. The epic allocator (`ptp-change-selector` §4,
+`scripts/ptp-allocate-epic.js`) reads this key. The two valid values are:
+
+1. **`self`** — Allocate the next epic number from the local scan and touch no git remote (default)
+2. **`github`** — Claim the number on the git remote, so it is unique across clones
+
+These are the only options. **Never write a value that is not in the entry's `values` list** —
+never write an out-of-enum value for `epic-id-generator`. The value written is exactly the selected
+string, written directly at the root (`epic-id-generator` has no parent object).
+
 #### kind = `string` (e.g. `codex.model`)
 
 Prompt the user for a free-text value (no fixed options; e.g. a Codex model id like `gpt-5.6`). Then
@@ -851,7 +875,7 @@ With the resolved path, the base JSON object (from step 3), and the chosen value
      `backlog.projectOwner` or `backlog.projectNumber`: create
      `backlog` as `{}`; for `backlog.statusOptions`: create `backlog` as `{}` and then
      `statusOptions` as `{}` when absent, in the same manner as the existing parents. For `tdd` or
-     `tdd-plugin` — both **top-level** keys with no parent — there is no parent to create; the
+     `tdd-plugin`, or `epic-id-generator` — all **top-level** keys with no parent — there is no parent to create; the
      value is set on the root object directly.
    - Set the targeted key to the chosen value.
    - Leave **every other key** (e.g. `deploy`, any unknown keys) and every other nested value
@@ -932,6 +956,7 @@ Examples:
 | Chosen value equals current stored value | Report no-op; do not write. |
 | `tdd` selection outside `advisory|mandatory` | Not offered — the enum menu only presents the two valid values. |
 | `tdd-plugin` selection outside `superpowers|ptp` | Not offered — the enum menu only presents the two valid values. |
+| `epic-id-generator` selection outside `self|github` | Not offered — the enum menu only presents the two valid values. |
 
 ---
 
@@ -982,6 +1007,8 @@ Examples:
 - **Never write an out-of-enum value for `tdd`.** Only `advisory` or `mandatory` may be written.
   The value comes from the step 4 enum menu — never from free-form user input.
 - **Never write an out-of-enum value for `tdd-plugin`.** Only `superpowers` or `ptp` may be
+  written. The value comes from the step 4 enum menu — never from free-form user input.
+- **Never write an out-of-enum value for `epic-id-generator`.** Only `self` or `github` may be
   written. The value comes from the step 4 enum menu — never from free-form user input.
 - **Never write an invalid integer for an `artifact.*` budget.** Only a positive integer (`>= 1`)
   may be written for `artifact.maxProposalWords`, `artifact.maxDesignWords`, `artifact.maxTasksWords`,
