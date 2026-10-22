@@ -7,7 +7,7 @@ argument-hint: "[model:<model>.<effort>]"
 
 Parse and strip the per-invocation `model:<model>.<effort>` token; an invalid or duplicated candidate is a STOP in the outer session — before the branch guard and before any main run. The command takes no positional argument and does not STOP for a missing one.
 
-Run the `ptp-branch-guard` preamble, then start exactly one `ptp-run-at-model` main run at the resolved target, defaulting to `opus.high`. The main run's prompt states that the main run's own branch-guard check is a no-op and that it must not launch `ptp-branch-prep`. The main run starts no further main run.
+Run the `ptp-branch-guard` preamble, then start exactly one `ptp-run-at-model` main run at the resolved target, defaulting to `sonnet.medium`. The main run's prompt states that the main run's own branch-guard check is a no-op and that it must not launch `ptp-branch-prep`. The main run starts no further main run.
 
 ## Owner
 
