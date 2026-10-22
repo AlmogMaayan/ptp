@@ -15,7 +15,7 @@ Owns command: /ptp:backlog-edit
 
 ## Purpose
 
-**Model dispatch target.** `/ptp:backlog-add` and `/ptp:backlog-edit` run this skill's work at `opus.high` — or at the caller-side `model:<model>.<effort>` override token when one was supplied — via `ptp-run-at-model` (`skills/ptp-run-at-model/SKILL.md`), which owns the spawn-and-relay mechanics and requires its caller to supply the target. This names the target only; it restates none of that contract.
+**Model dispatch target.** `/ptp:backlog-add`, `/ptp:backlog-add-multiple` and `/ptp:backlog-edit` run this skill's work at `opus.high`, and `/ptp:backlog-draft-to-ready` runs it at `sonnet.medium` — each overridable by the caller-side `model:<model>.<effort>` token when one was supplied — via `ptp-run-at-model` (`skills/ptp-run-at-model/SKILL.md`), which owns the spawn-and-relay mechanics and requires its caller to supply the target. This names the target only; it restates none of that contract.
 
 ptp has no durable place to record the epics a user intends to build *before* they become change
 folders. The epic backlog is that place, and it is a **GitHub Projects v2 board**. Because a view, an
