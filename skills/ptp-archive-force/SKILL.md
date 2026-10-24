@@ -89,7 +89,7 @@ After the per-change procedure above finishes processing every id in `resolved-i
 run `/ptp:archive` step 8 ("Close epic containers") once, over `covered-epics`. It runs in the outer
 session, spawns nothing, and checks every epic with a story this run archived plus every
 `covered-epics` epic with a container and no active story, moving each eligible container to
-`openspec/epics_00/<YYYY-MM-DD>-<container-id>` per that step's move rule. A container failure is a
+`openspec/changes/archive/archive_00/<YYYY-MM-DD>-<container-id>` per that step's move rule. A container failure is a
 per-epic failure, reported alongside the change results, and never reopens or affects a change already
 archived by the main run above.
 

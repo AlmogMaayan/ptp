@@ -178,8 +178,8 @@ Producers (`/ptp:plan-multiple`, `/ptp:brainstorm-decompose`, `/ptp:plan`, `/ptp
                  (excluding "archive")
              + folder names under <resolved workspace root>/openspec/changes/archive/
                with each leading YYYY-MM-DD- date prefix stripped
-             + folder names under <resolved workspace root>/openspec/epics_00/
-               with each leading YYYY-MM-DD- date prefix stripped (a missing epics_00/ adds nothing)
+             + folder names under <resolved workspace root>/openspec/changes/archive/archive_00/
+               with each leading YYYY-MM-DD- date prefix stripped (a missing archive_00/ adds nothing)
 2. epics = { leading 4-digit group : name matches ^\d{4}_ }   (an epic container XXXX_00_* counts)
 3. next = max(epics) + 1   (if epics is non-empty)
         = 1                 (if no epic-prefixed folders exist)
@@ -209,7 +209,7 @@ as before, writes its one epic-level file there, and creates **no** story folder
 allocation creates a container, so an epic never gets a second one that way. **Second-container
 STOP:** `/ptp:brainstorm` or `/ptp:brainstorm-full` handed a `_00` id that names no folder STOPs when
 its epic `XXXX` already has another container, under `openspec/changes/` or (date prefix stripped)
-`openspec/epics_00/`, and names that container: "epic `XXXX` already has container `<existing-id>`; pass that id". With no
+`openspec/changes/archive/archive_00/`, and names that container: "epic `XXXX` already has container `<existing-id>`; pass that id". With no
 other container it creates the folder under the id it was given.
 
 ### 4b. Sub-story allocation (`NEEDS SPLIT` re-cuts only)
@@ -341,7 +341,7 @@ every epic's container and STOP with "no active changes" only when there is neit
 nor a container. `epic:XXXX` covers epic `XXXX`'s container and STOPs with "no changes in epic XXXX"
 only when that epic has neither an active story nor a container. `story:NN` and
 `epic:XXXX story:NN` never resolve to a container. An exact bare container id resolves even when no
-active folder has that name, so `/ptp:status` can look in `openspec/epics_00/`, and never reaches the
+active folder has that name, so `/ptp:status` can look in `openspec/changes/archive/archive_00/`, and never reaches the
 planning-artifact consumer guard above. A container orders as story `00`, before its epic's stories.
 
 **Single-context consumer — `/ptp:codex-review-uncommitted`** (not in the set-capable list above): it gains the `argument-hint` update and **resolves** its argument through this skill (satisfying the shared-grammar requirement), but because it grades a single working tree it requires the selector to resolve to **exactly one** change. If the selector resolves to more than one change (e.g. `epic:XXXX`), **STOP** and ask the user for a bare id or `epic:XXXX story:NN`. It never iterates and reviews the working tree once.
