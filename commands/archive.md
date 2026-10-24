@@ -77,7 +77,7 @@ the outer session**, in this exact order:
    tasks-complete and validation refusals it enforces today, and review-clean stays an outer human
    confirmation as it always was.
 
-5. **Confirm the action** (outer session — interactive) — show the user exactly what will happen (which change moves to `openspec/changes/archive/`, that delta specs under `specs/` will be merged into `openspec/specs/`, and whether `--skip-specs` will be used per the step-3 inspection). Also list the container moves step 8 will attempt: each candidate epic (per the §3 archive-family resolution) that has a container names its planned target `openspec/epics_00/<today>-<container-id>`, even when this run resolved to no story. Proceed once confirmed (the user invoking this command counts as intent, but show the summary first).
+5. **Confirm the action** (outer session — interactive) — show the user exactly what will happen (which change moves to `openspec/changes/archive/`, that delta specs under `specs/` will be merged into `openspec/specs/`, and whether `--skip-specs` will be used per the step-3 inspection). Also list the container moves step 8 will attempt: each candidate epic (per the §3 archive-family resolution) that has a container names its planned target `openspec/changes/archive/archive_00/<today>-<container-id>`, even when this run resolved to no story. Proceed once confirmed (the user invoking this command counts as intent, but show the summary first).
 
 6. **Run the already-confirmed archive operation via `ptp-run-at-model` at `sonnet.medium`.** Invoke
    the **`ptp-run-at-model`** skill with target `sonnet.medium` and the work below; it spawns one
@@ -148,8 +148,8 @@ ends, whether the loop finished every story or stopped at a blocker.
      than exactly `00`, at any depth, keep the container and name those folders in the report.
    - If the epic has two container folders, move neither and report both.
    - Otherwise move the container, unchanged, to
-     `openspec/epics_00/<YYYY-MM-DD>-<container-id>` (today's local date), creating
-     `openspec/epics_00/` when missing.
+     `openspec/changes/archive/archive_00/<YYYY-MM-DD>-<container-id>` (today's local date), creating
+     `openspec/changes/archive/archive_00/` when missing.
    - If the target already exists, fail that epic and leave the container in place.
 
    Each epic is independent — a failure is reported and the step continues to the next epic.
@@ -173,7 +173,7 @@ ends, whether the loop finished every story or stopped at a blocker.
 
    **Report — required, one line per candidate epic.** The terminal report **must** carry exactly one
    step-8 line for every candidate epic computed above: its target (`moved to
-   openspec/epics_00/<date>-<container-id>`) or why it was kept (no container, a non-`00` story path
+   openspec/changes/archive/archive_00/<date>-<container-id>`) or why it was kept (no container, a non-`00` story path
    still present, two container folders, a colliding target, or a failed move). A terminal report that
    omits a step-8 line for a candidate epic, or that omits the step-8 section entirely when at least one
    candidate epic exists, is **not** a valid completion of this command — treat it as an error requiring
@@ -194,4 +194,4 @@ ends, whether the loop finished every story or stopped at a blocker.
 - The archive rewrites, compacts, trims, reformats, or deletes **no** artifact of the change being
   archived and **no** artifact already under `openspec/changes/archive/` — its only writes are the
   folder move, the delta-spec sync, `stages/archive.json`, and step 8's unchanged move of an epic
-  container into `openspec/epics_00/`.
+  container into `openspec/changes/archive/archive_00/`.

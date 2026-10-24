@@ -142,13 +142,13 @@ const DATE_PREFIX = /^\d{4}-\d{2}-\d{2}-/;
 const EPIC_PREFIX = /^(\d{4})_/;
 
 // ptp-change-selector section 4: directory names under openspec/changes/ (minus archive) as is,
-// plus archive/ and epics_00/ names with a leading YYYY-MM-DD- stripped. Files are ignored and a
+// plus archive/ and archive/archive_00/ names with a leading YYYY-MM-DD- stripped. Files are ignored and a
 // missing directory adds nothing. Returns the highest epic, 0 when there is none.
 function scanLocal(root) {
   const openspec = path.join(root, "openspec");
   const names = dirNames(path.join(openspec, "changes")).filter((n) => n !== "archive");
   for (const n of dirNames(path.join(openspec, "changes", "archive"))) names.push(n.replace(DATE_PREFIX, ""));
-  for (const n of dirNames(path.join(openspec, "epics_00"))) names.push(n.replace(DATE_PREFIX, ""));
+  for (const n of dirNames(path.join(openspec, "changes", "archive", "archive_00"))) names.push(n.replace(DATE_PREFIX, ""));
   let max = 0;
   for (const n of names) {
     const m = EPIC_PREFIX.exec(n);
@@ -525,7 +525,7 @@ function makeFixture(tmp, name, spec) {
   mkdirp(path.join(openspec, "changes"));
   for (const n of s.changes || []) mkdirp(path.join(openspec, "changes", n));
   for (const n of s.archive || []) mkdirp(path.join(openspec, "changes", "archive", n));
-  for (const n of s.epics00 || []) mkdirp(path.join(openspec, "epics_00", n));
+  for (const n of s.epics00 || []) mkdirp(path.join(openspec, "changes", "archive", "archive_00", n));
   for (const f of s.files || []) {
     mkdirp(path.dirname(path.join(openspec, f)));
     fs.writeFileSync(path.join(openspec, f), "x\n");
@@ -581,7 +581,7 @@ function buildCases() {
   });
 
   /* 2.2 -- read side */
-  add("scan: changes/ as is, archive/ and epics_00/ date-stripped", (ctx) => {
+  add("scan: changes/ as is, archive/ and archive_00/ date-stripped", (ctx) => {
     const f = makeFixture(ctx.tmp, "scan", {
       remotes: [],
       changes: ["0003_01_a", "2026-01-01-0050_01_dated-in-changes"],
@@ -596,13 +596,13 @@ function buildCases() {
     const f = makeFixture(ctx.tmp, "files", {
       remotes: [],
       changes: ["0002_01_a"],
-      files: ["changes/0099_01_note.md", "changes/archive/2026-01-01-0098_01_x.md", "epics_00/0097_00_y.md"],
+      files: ["changes/0099_01_note.md", "changes/archive/2026-01-01-0098_01_x.md", "changes/archive/archive_00/0097_00_y.md"],
     });
     assertEq(scanLocal(f.ws), 2, "local max");
   });
-  add("scan: a missing epics_00/ adds nothing", (ctx) => {
-    const f = makeFixture(ctx.tmp, "no-epics00", { remotes: [], changes: ["0002_01_a"] });
-    assert(!isDirectory(path.join(f.ws, "openspec", "epics_00")), "fixture has no epics_00/");
+  add("scan: a missing archive_00/ adds nothing", (ctx) => {
+    const f = makeFixture(ctx.tmp, "no-archive00", { remotes: [], changes: ["0002_01_a"] });
+    assert(!isDirectory(path.join(f.ws, "openspec", "changes", "archive", "archive_00")), "fixture has no archive_00/");
     assertEq(scanLocal(f.ws), 2, "local max");
     const g = makeFixture(ctx.tmp, "empty", { remotes: [] });
     assertEq(scanLocal(g.ws), 0, "empty max");
