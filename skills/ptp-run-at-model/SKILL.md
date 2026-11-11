@@ -84,11 +84,10 @@ The skill then runs, **in this order**:
    directions** — neither the Agent-tool subagent (`main=claude`) nor the `codex exec` shell-out
    (`main=codex`) can pause to ask the user a question mid-run; each can only return a terminal state.
    Split by *when the need for the confirmation is known*:
-   - **Known before the work starts** (archive's review-clean confirm and its "confirm the action"
-     step; archive-force's empty/all scope-confirm STOP): the **outer session performs the
+   - **Known before the work starts**: the **outer session performs the
      confirmation before the main work starts** (before spawning the subagent, or before starting the
      `codex exec` shell-out), and the main run then executes only the already-confirmed,
-     non-interactive operation. This is the path for the archive-family commands.
+     non-interactive operation. No archive-family command has such a confirmation.
    - **Discovered only during the main run's work** (e.g. a deploy hitting a needs-PR-approval state):
      the main run returns the `needs-human-action` terminal state (see *Result relay*) with
      a reason and a precise follow-up command, and the outer session surfaces it.

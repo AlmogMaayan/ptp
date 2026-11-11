@@ -1,6 +1,6 @@
 ---
 description: Archive a reviewed change and then merge it to master without deploying, combining the archive and merge-only steps
-argument-hint: "<change-selector> — id, epic:all, epic:XXXX, story:NN, or epic:XXXX story:NN"
+argument-hint: "[change-selector] — id, epic:all, epic:XXXX, story:NN, or epic:XXXX story:NN; empty = `epic:all`"
 disable-model-invocation: true
 ---
 

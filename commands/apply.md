@@ -75,6 +75,6 @@ After all changes have been processed, the outer session reports per change: the
 ## Hard rules
 
 - Do **not** invent new tasks not in `tasks.md`. If a needed task is missing, stop and update the plan.
-- Do **not** archive in this command. Archiving happens only after review and only on explicit confirmation.
+- Do **not** archive in this command. Archiving happens only after review and through `/ptp:archive`.
 - Do **not** check off a task until its acceptance condition has actually been verified.
 - Do **not** commit (apply defers commit to deploy — the subagent is instructed accordingly).

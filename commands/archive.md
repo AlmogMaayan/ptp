@@ -1,6 +1,6 @@
 ---
 description: Archive a completed, reviewed change and sync its delta specs into the main specs
-argument-hint: "[change-selector] — id, epic:all, epic:XXXX, story:NN, or epic:XXXX story:NN; empty = all active changes (openspec list disambiguation)"
+argument-hint: "[change-selector] — id, epic:all, epic:XXXX, story:NN, or epic:XXXX story:NN; empty = `epic:all`"
 ---
 
 You are running **step 5** (the final step) of the ptp flow. The change has been implemented and reviewed. Your job is to **enforce the ptp archive gates, then archive the change via the OpenSpec CLI** (which also syncs the delta specs into the main specs).
@@ -16,8 +16,9 @@ archive-family resolution (`/ptp:archive` is a member of that family): the selec
 active stories to archive (never a container) and the epics it covers for the closing step (step 8
 below), following that section's `epic:XXXX`, bare-container-id, `epic:all`, story-selector and
 empty-selector rules. If it resolves to more than one story, archive each in story order, each
-through the existing per-change archive gates below. Preserve the existing empty-argument default:
-omitting `$ARGUMENTS` falls back to the `openspec list` disambiguation.
+through the existing per-change archive gates below. An empty `$ARGUMENTS` resolves exactly as
+`epic:all` per `ptp-change-selector` §5 and asks nothing; the branch guard names the branch after
+the first resolved story id.
 
 ## Branch safety (first step)
 
@@ -26,60 +27,51 @@ Archiving moves the change folder and rewrites `openspec/specs/`, so before any 
 ## Steps
 
 The archive work runs **at a deterministic model** via the **`ptp-run-at-model`** skill at
-`sonnet.medium` — but only the **non-interactive, already-confirmed** archive operation runs inside
-that subagent. Everything that needs the outer session (id resolution, the branch guard, the gate
-*inspection* that builds the confirmation, and the two interactive confirmations) runs **first, in
-the outer session**, in this exact order:
+`sonnet.medium` — but only the **non-interactive** archive operation runs inside that subagent.
+Everything that needs the outer session (id resolution, the branch guard, the gate *inspection* that
+builds the notices, and the two non-blocking notices) runs **first, in the outer session**, in this
+exact order. No step asks the user a question:
 
 1. **Resolve the change id** (outer session). The branch guard and the spawn both need the resolved
    id, so resolve it first:
-   - If `$ARGUMENTS` is empty, run `npx -y openspec list`, drop `_00` epic containers (`ptp-change-selector` §3), and, if it is ambiguous, ask the user which change to archive. **Never** guess or auto-select. (This is an abort-guaranteeing precondition — a guaranteed abort must never spawn a subagent.)
+   - If `$ARGUMENTS` is empty, resolve it exactly as `epic:all` per `ptp-change-selector` §5 and ask nothing; a resolution STOP ("no active changes") aborts here. (This is an abort-guaranteeing precondition — a guaranteed abort must never spawn a subagent.)
 
 2. **Run the `ptp-branch-guard` preamble** (outer session) per the *Branch safety* section above —
    the subagent cannot cut the branch (it cannot launch the `ptp-branch-prep` Workflow), so HEAD must
    already be on the feature branch before the spawn.
 
-3. **Inspect the ptp archive gates** (outer session — *inspection only*, to build the confirmation
-   payload; the gates are **re-enforced as hard refusals inside the subagent**, step 6):
+3. **Inspect the ptp archive gates** (outer session — *inspection only*, to build the step-4 and
+   step-5 notices; the gates are **re-enforced as hard refusals inside the subagent**, step 6):
    - **Tasks complete** — read `openspec/changes/<change-id>/tasks.md`. If any `- [ ]` remain, **STOP**, list them, and refuse — without spawning. (ptp hard prohibition: never archive with unchecked tasks.)
    - **Validation passes** — run `npx -y openspec validate <change-id> --strict`. If it fails, **STOP** and surface the error without spawning; do not archive a failing change.
-   - **Spec-delta path** — determine whether `openspec/changes/<change-id>/specs/` contains at least one delta `<capability>/spec.md` (so the confirmation can state whether the archive will use `--skip-specs`).
+   - **Spec-delta path** — determine whether `openspec/changes/<change-id>/specs/` contains at least one delta `<capability>/spec.md` (so the step-5 notice can state whether the archive will use `--skip-specs`).
 
-4. **Review-clean confirmation** (outer session — interactive).
+4. **Review-assumed-clean notice** (outer session — non-blocking).
 
    **Severity threshold.** Resolve `review.minSeverity` from layered ptp config **once**, here in the
-   **outer session** (the confirmation is interactive and must display it), and hold it fixed —
-   layered as `ptp-workspace` (`skills/ptp-workspace/SKILL.md`) defines, default `low`; a missing
-   file, missing key, unparseable JSON, or unrecognized value falls back to the prior valid value
-   (ultimately `low`) rather than erroring, and **never** STOPs the archive. The `/ptp:config`
-   parameter registry (`commands/config.md`, `skills/ptp-config/`) owns the key, its domain, and its
-   validation — this is a pointer to that contract, not a second reader definition. Severity order
-   is `low < medium < high < critical`. A finding is **actionable** when its severity is **at or
-   above** the resolved threshold; a Critical or High finding **below** the resolved threshold does
-   not block the archive. Because this gate never counted Medium or Low toward a refusal, `low`,
-   `medium`, and `high` behave identically here; only `critical` changes an outcome, by demoting
-   High to non-blocking — do **not** "repair" that apparent no-op by making Medium findings block.
-   **Never** reword this gate as "unresolved findings at or above the resolved
-   `review.minSeverity`": at the default `low` that admits *every* severity and would make an
-   unresolved **Low** nit block the archive. The *actionable* qualifier only ever **narrows** the
-   pre-existing Critical/High test, never widens it. State the resolved threshold **and the layer it
-   resolved from** (a `ptp-workspace` provenance label) **in the confirmation prompt**, and when it
-   is not the default, name which severities it is no longer blocking on, so the user confirms with
-   that in view.
+   **outer session** (the notice must display it), and hold it fixed — layered as `ptp-workspace`
+   (`skills/ptp-workspace/SKILL.md`) defines, default `low`; a missing file, missing key,
+   unparseable JSON, or unrecognized value falls back to the prior valid value (ultimately `low`)
+   rather than erroring, and **never** STOPs the archive. The `/ptp:config` parameter registry
+   (`commands/config.md`, `skills/ptp-config/`) owns the key, its domain, and its validation — this
+   is a pointer to that contract, not a second reader definition.
 
-   `/ptp:review <change-id>` must have been run with no unresolved **actionable** Critical or High findings — Critical or High findings whose severity is at or above the resolved `review.minSeverity` (at the default `low`, that is Critical and High, exactly as today). OpenSpec does not track review state, so **ask the user to confirm** review is done and the actionable Critical/High findings are resolved before continuing. If they haven't reviewed, redirect them to `/ptp:review <change-id>` first. This confirmation must happen in the outer session — the subagent is non-interactive and cannot ask the user.
+   Print one line naming the resolved threshold **and the layer it resolved from** (a
+   `ptp-workspace` provenance label), for example
+   `review assumed clean (review.minSeverity = high, from project config)`. OpenSpec does not track
+   review state and this command does not either: review findings are **not** an archive gate, and
+   review state is the user's responsibility before invoking this command. This step never asks,
+   never waits, and never STOPs — it prints the line and continues to step 5.
 
-   **The other two gates are unaffected by the threshold.** `review.minSeverity` governs **only** this
-   review-clean confirmation. The **tasks-complete** gate (step 3) and the
-   `npx -y openspec validate <change-id> --strict` gate (step 3, re-enforced in step 6) are not
-   severity-based: they remain **absolute** at every threshold, and no threshold value can soften
-   them. The `sonnet.medium` subagent likewise gains **no new refusal** — it re-enforces exactly the
-   tasks-complete and validation refusals it enforces today, and review-clean stays an outer human
-   confirmation as it always was.
+   **The two gates are unaffected by the threshold.** The **tasks-complete** gate (step 3) and the
+   `npx -y openspec validate <change-id> --strict` gate (step 3, re-enforced in step 6) are the only
+   archive gates. They are not severity-based: they remain **absolute** at every threshold, and no
+   threshold value can soften them. The `sonnet.medium` subagent gains **no new refusal** — it
+   re-enforces exactly the tasks-complete and validation refusals it enforces today.
 
-5. **Confirm the action** (outer session — interactive) — show the user exactly what will happen (which change moves to `openspec/changes/archive/`, that delta specs under `specs/` will be merged into `openspec/specs/`, and whether `--skip-specs` will be used per the step-3 inspection). Also list the container moves step 8 will attempt: each candidate epic (per the §3 archive-family resolution) that has a container names its planned target `openspec/changes/archive/archive_00/<today>-<container-id>`, even when this run resolved to no story. Proceed once confirmed (the user invoking this command counts as intent, but show the summary first).
+5. **Action summary notice** (outer session — non-blocking) — print exactly what will happen before this change's archive runs (which change moves to `openspec/changes/archive/`, that delta specs under `specs/` will be merged into `openspec/specs/`, and whether `--skip-specs` will be used per the step-3 inspection). Also list the container moves step 8 will attempt: each candidate epic (per the §3 archive-family resolution) that has a container names its planned target `openspec/changes/archive/archive_00/<today>-<container-id>`, even when this run resolved to no story. Then proceed — the user invoking this command counts as intent, and this step asks nothing.
 
-6. **Run the already-confirmed archive operation via `ptp-run-at-model` at `sonnet.medium`.** Invoke
+6. **Run the archive operation via `ptp-run-at-model` at `sonnet.medium`.** Invoke
    the **`ptp-run-at-model`** skill with target `sonnet.medium` and the work below; it spawns one
    foreground `sonnet` subagent (medium effort directive) that performs **only the non-interactive
    archive operation** and **re-enforces the gates as hard refusals** (any refusal relays back per
@@ -122,14 +114,14 @@ the outer session**, in this exact order:
    disclosure and changes nothing. If the report gave **no** such disclosure (i.e. it implied the write
    happened) but the file is **absent**, treat **this story** as failed rather than `completed` — report
    it as a stage-record omission (naming the change id and the expected path) rather than silently
-   accepting the success report, and do not advance to the next story's confirmations as if this one had
+   accepting the success report, and do not advance to the next story's notices as if this one had
    cleanly finished. This check exists precisely to catch a subagent that silently skips the stage-record
    write while still reporting success; it adds no new gate to a subagent that reports its own stage-record
    failure honestly, per the leniency in step 6 above. The flow is then complete for this story.
 
 If `$ARGUMENTS` resolved to more than one change, repeat steps 1–7 per change in story order — one
 sequential `ptp-run-at-model` invocation (one blocking subagent) per change, never a parallel
-fan-out (the branch guard is a no-op after the first cut). A step 3 or step 4 STOP ends only this
+fan-out (the branch guard is a no-op after the first cut). A step 3 STOP ends only this
 story loop — it does not end the whole command — so step 8 below still runs once, after the loop
 ends, whether the loop finished every story or stopped at a blocker.
 
@@ -184,12 +176,12 @@ ends, whether the loop finished every story or stopped at a blocker.
 
 ## Hard rules
 
-- **Never** archive a change with unchecked tasks or unresolved **actionable** Critical/High review findings (Critical/High at or above the resolved `review.minSeverity`; default `low` ⇒ Critical/High, exactly as today). Refuse and redirect. The unchecked-tasks half of this rule is absolute and unaffected by the threshold.
+- **Never** archive a change with unchecked tasks or a failing `npx -y openspec validate <change-id> --strict`. Refuse and redirect. Both refusals are absolute and unaffected by `review.minSeverity`. Review state is **not** a gate.
 - **Never** silently skip the spec sync. Use `--skip-specs` only for changes that genuinely have no spec deltas, and say so in the report.
 - Do **not** edit the spec deltas to make validation pass — if validation fails, bounce back to `/ptp:plan`.
 - Prefer the `openspec` CLI; only fall back to a manual move when the CLI cannot handle the change name.
-- The archive gates are exactly tasks-complete, strict validation, and the review-clean confirmation —
-  artifact presence is never a gate, so an absent `design.md` / `tldr.md` / `brainstorm.md` /
+- The archive gates are exactly two: tasks-complete and strict validation. Steps 4 and 5 print
+  their notices and never ask. Artifact presence is never a gate, so an absent `design.md` / `tldr.md` / `brainstorm.md` /
   `analysis.md` / `effort.md` never refuses, warns, or delays an archive.
 - The archive rewrites, compacts, trims, reformats, or deletes **no** artifact of the change being
   archived and **no** artifact already under `openspec/changes/archive/` — its only writes are the

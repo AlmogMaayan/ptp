@@ -9,7 +9,7 @@ description: Own force-archiving, bypassing the archive gates while still syncin
 
 **Model dispatch target.** `/ptp:archive-force` runs this skill's work at `sonnet.medium` via `ptp-run-at-model` (`skills/ptp-run-at-model/SKILL.md`), which owns the spawn-and-relay mechanics and requires its caller to supply the target. This names the target only; it restates none of that contract.
 
-This is the gate-bypass escape hatch for abandoned, superseded, or done-but-never-reviewed changes that cannot pass `/ptp:archive`'s three gates. It archives (moves to `openspec/changes/archive/` and syncs delta specs) without requiring tasks to be complete, review to be clean, or `openspec validate --strict` to pass.
+This is the gate-bypass escape hatch for abandoned or superseded changes that cannot pass `/ptp:archive`'s two gates. It archives (moves to `openspec/changes/archive/` and syncs delta specs) without requiring tasks to be complete or `openspec validate --strict` to pass.
 
 **`/ptp:archive` stays the default safe path.** This skill is invoked only by `/ptp:archive-force` — an explicit escape hatch, never the default archive route.
 
@@ -18,31 +18,26 @@ This is the gate-bypass escape hatch for abandoned, superseded, or done-but-neve
 This skill receives from the calling command `/ptp:archive-force`:
 
 - **`resolved-ids`** — an ordered list of change folder names (story order) already resolved via the `ptp-change-selector` skill. Do **not** re-resolve the selector grammar here; ids arrive fully resolved.
-- **`from_all`** — boolean; `true` if the command was invoked with no argument (the empty/all default), `false` for any explicit selector.
 - **`covered-epics`** — the epics the selector covers for the closing step, per the `ptp-change-selector`
-  §3 archive-family resolution: `epic:XXXX`/bare-container-id cover that one epic, `epic:all` and the
-  empty/all default cover every epic with a container, and a story selector covers no extra epic.
+  §5 archive-family resolution: `epic:XXXX`/bare-container-id cover that one epic, `epic:all` (an empty
+  selector resolves exactly as `epic:all`) covers every epic with a container, and a story selector
+  covers no extra epic.
 
 ## Gate-bypass contract
 
 For every change in `resolved-ids`, this skill:
 
 - **Does NOT** block on unchecked `- [ ]` items in `tasks.md`.
-- **Does NOT** ask for review-clean confirmation.
 - **Does NOT** block on `openspec validate --strict` failure.
 
 These gates are bypassed by design. They are still **reported** per change (see Reporting), but they never prevent archiving.
 
-## Scope confirmation
+## Scope line
 
-**Only when `from_all` is `true`:**
-
-1. Print the full resolved id list, plus any `covered-epics` epic that has a container and no active
-   story (a lone-container epic) — named as a closing-step candidate, not a change to archive.
-2. **STOP** (conversational stop) and ask the user to confirm they want to force-archive all listed changes, including the lone-container epics named above.
-3. On the user's in-conversation confirmation, proceed with that **same already-resolved list** — do **not** re-resolve the empty selector. This ensures the confirmed run cannot re-trigger the stop.
-
-**When `from_all` is `false`** (explicit selector: `id`, `epic:XXXX`, `story:NN`, `epic:XXXX story:NN`): proceed immediately — no scope stop.
+Before the first archive, for every selector, print the full resolved id list, plus any
+`covered-epics` epic that has a container and no active story (a lone-container epic) — named as a
+closing-step candidate, not a change to archive. The line is information only: never wait for a
+reply, and proceed immediately with that same already-resolved list.
 
 ## Per-change procedure
 
@@ -115,6 +110,6 @@ archived by the main run above.
 - **Never silently skip a real spec sync.** Use `--skip-specs` only when `openspec/changes/<id>/specs/` contains no delta `<capability>/spec.md` file (searched recursively), and report it.
 - **On a malformed delta, do NOT half-sync** the main spec. The manual fallback dry-runs every delta before writing any, so a malformed delta aborts the change with all main specs untouched (even if an earlier delta in the same change applied cleanly in the dry run). Record the change as a per-change failure and leave the folder in place.
 - **Always report bypassed gates** — force is never silent.
-- **Scope-confirm once on empty/all** (conversational STOP), then proceed with the already-resolved list. Do not re-resolve the empty selector after confirmation.
+- **Never ask a scope question.** Print the scope line and proceed with the already-resolved list.
 - **`/ptp:archive` remains the default safe path.** `/ptp:archive-force` is the explicit escape hatch — it is never the default archive route.
 - **Continue on error** across a batch — a per-change failure does not abort remaining changes.

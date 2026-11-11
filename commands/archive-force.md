@@ -1,12 +1,12 @@
 ---
 description: Archive changes while bypassing the archive gates, still syncing delta specs into the main specs
-argument-hint: "id, epic:XXXX, story:NN, epic:XXXX story:NN, or empty for all active changes"
+argument-hint: "id, epic:all, epic:XXXX, story:NN, epic:XXXX story:NN, or empty (= `epic:all`)"
 disable-model-invocation: true
 ---
 
 ## Arguments
 
-Take `$ARGUMENTS` as a change selector, empty meaning every active change. Resolve the change selector through the `ptp-change-selector` skill.
+Take `$ARGUMENTS` as a change selector, empty resolving exactly as `epic:all` per `ptp-change-selector` §5. Resolve the change selector through the `ptp-change-selector` skill.
 
 ## Owner
 
