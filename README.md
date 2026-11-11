@@ -106,7 +106,7 @@ Any missing file, missing key, bad JSON, or invalid value is skipped for that ke
 | `deploy.mergeMethod` | `squash` \| `merge` \| `rebase` | `squash` | `gh pr merge` strategy. |
 | `deploy.maxFixRounds` | integer | `3` | Cap on each autonomous fix loop (PR stage and deploy stage bounded separately). |
 | `deploy.workflow` | filename \| `null` | `null` | Deploy workflow file; `null` auto-detects `deploy`/`release`/`publish` under `.github/workflows`. |
-| `deploy.inputs` | object | `{}` | `workflow_dispatch` inputs, e.g. `{ "confirm": "deploy" }`. |
+| `deploy.inputs` | object | `{}` | `workflow_dispatch` inputs, e.g. `{ "confirm": "deploy" }`. Optional for a confirmation input: when unset, the deploy commands read the required value from the workflow file and dispatch without asking. Every other input (environment, version, mode) is never inferred — set it here or the workflow's default applies. |
 
 ### `backlog.statusOptions`
 
@@ -372,6 +372,7 @@ Experimental     /opsx:explore | /opsx:propose | /opsx:apply | /opsx:archive
 
 | Version | Changes |
 |---------|---------|
+| **0.28.1** | `/ptp:deploy`, `/ptp:deploy-pr-approved`, `/ptp:deploy-master` and `/ptp:archive-and-deploy` no longer stop at a deploy workflow's confirmation input (e.g. `confirm=deploy`) to ask whether to dispatch or to hand back the `gh workflow run` command. Invoking the deploy command is the confirmation: the input is filled from `deploy.inputs`, else read from the workflow file (the literal the workflow accepts, a one-option choice, or the value its description names), and the workflow is dispatched and watched. Only a confirmation input is inferred, never a target, version or mode. When the value cannot be derived, a required non-confirmation input is unset, or `gh` rejects the dispatch, the deploy is reported as not run — with `deploy.inputs.<name>` as the fix for an input problem, or `gh`'s error otherwise — still without asking. |
 | **0.28.0** | `/ptp:archive`, `/ptp:archive-and-deploy`, `/ptp:archive-and-merge-to-master` and the bare `/ptp:backlog-continue` no longer ask a per-change review-clean or confirm-action question: archive steps 4 and 5 print a review-assumed-clean notice (the resolved `review.minSeverity` and its layer) and an action summary notice, then proceed. Tasks-complete and strict validation are the only archive gates; review state is the user's responsibility before invoking. With 0.27.4's change to `/ptp:archive-force`, the archive family now asks nothing (0096_02). |
 | **0.27.4** | An empty selector on `/ptp:archive`, `/ptp:archive-force`, `/ptp:archive-and-deploy` and `/ptp:archive-and-merge-to-master` now resolves exactly as `epic:all` and asks nothing; archive-force prints its scope line instead of stopping to confirm (0096_01). |
 | **0.27.3** | Closed epic containers now move to `openspec/changes/archive/archive_00/` instead of `openspec/epics_00/`; the epic allocator scans the new location. |
