@@ -179,7 +179,8 @@ An epic container is a story-`00` folder `XXXX_00_<slug>` that holds only epic-l
   `/ptp:plan-multiple`, `/ptp:brainstorm-decompose` and `/ptp:full` create one on a fresh split, or
   read an existing one when handed a container id.
 - **Planning from a container.** `/ptp:plan <container-id>` plans the epic's next story, reading the
-  container's files in place and writing nothing into it.
+  container's files in place and writing nothing into it. Such a story's `NEEDS SPLIT` leaves no folder,
+  and `/ptp:plan-multiple <story-id>` still re-cuts it from the container.
 - **Selectors and status.** Every selector consumer except the archive family and `/ptp:status`
   skips containers. An exact bare container id always resolves. `/ptp:status` renders a container as
   one "container, not plannable" row.
@@ -195,8 +196,8 @@ An epic container is a story-`00` folder `XXXX_00_<slug>` that holds only epic-l
 
 | Command | Does |
 |---------|------|
-| `/ptp:full "<request \| change-id>"` | Brainstorm phase (Phase 0: brainstorm + dual brainstorm-review, skipped when `brainstorm.md` or `proposal.md` exists; must converge to continue), then plan phase (decompose → dual plan-review per slice); if every slice converges, continues into apply + dual code-review per story. Never archives. |
-| `/ptp:full-plan "<request \| change-id>"` | The planning half only. Decompose + dual artifact review per slice. Writes no code. |
+| `/ptp:full "<request \| change-id>"` | Brainstorm phase (Phase 0: brainstorm + dual brainstorm-review, skipped when `brainstorm.md` or `proposal.md` exists; must converge to continue), then plan phase (decompose → dual plan-review per slice; a slice whose planner returns `NEEDS SPLIT` is re-cut automatically under the existing caps); if every slice converges, continues into apply + dual code-review per story. Never archives. |
+| `/ptp:full-plan "<request \| change-id>"` | The planning half only. Decompose + dual artifact review per slice; a slice whose planner returns `NEEDS SPLIT` is re-cut automatically under the existing caps. Writes no code. |
 | `/ptp:full-apply [selector \| id …]` | The execution half only. Runs `apply → review-full` per story sequentially, each at the model from its `effort.md` (review floored at `sonnet`/`high`, or set by a valid `models.apply-review` entry). Omit the argument to run all active changes. |
 
 ### Prompt
@@ -372,6 +373,8 @@ Experimental     /opsx:explore | /opsx:propose | /opsx:apply | /opsx:archive
 
 | Version | Changes |
 |---------|---------|
+| **0.30.0** | `/ptp:full` and `/ptp:full-plan` re-cut a slice whose own plan returns `NEEDS SPLIT` themselves, before plan review, under the auto re-cut caps shared with the budget trigger; they stop only when that lineage stops (0097_02). |
+| **0.29.0** | `/ptp:plan-multiple` re-cuts a folderless story (one whose `NEEDS SPLIT` left no folder) from its active epic container, moving and deleting nothing (0097_01). |
 | **0.28.1** | `/ptp:deploy`, `/ptp:deploy-pr-approved`, `/ptp:deploy-master` and `/ptp:archive-and-deploy` no longer stop at a deploy workflow's confirmation input (e.g. `confirm=deploy`) to ask whether to dispatch or to hand back the `gh workflow run` command. Invoking the deploy command is the confirmation: the input is filled from `deploy.inputs`, else read from the workflow file (the literal the workflow accepts, a one-option choice, or the value its description names), and the workflow is dispatched and watched. Only a confirmation input is inferred, never a target, version or mode. When the value cannot be derived, a required non-confirmation input is unset, or `gh` rejects the dispatch, the deploy is reported as not run — with `deploy.inputs.<name>` as the fix for an input problem, or `gh`'s error otherwise — still without asking. |
 | **0.28.0** | `/ptp:archive`, `/ptp:archive-and-deploy`, `/ptp:archive-and-merge-to-master` and the bare `/ptp:backlog-continue` no longer ask a per-change review-clean or confirm-action question: archive steps 4 and 5 print a review-assumed-clean notice (the resolved `review.minSeverity` and its layer) and an action summary notice, then proceed. Tasks-complete and strict validation are the only archive gates; review state is the user's responsibility before invoking. With 0.27.4's change to `/ptp:archive-force`, the archive family now asks nothing (0096_02). |
 | **0.27.4** | An empty selector on `/ptp:archive`, `/ptp:archive-force`, `/ptp:archive-and-deploy` and `/ptp:archive-and-merge-to-master` now resolves exactly as `epic:all` and asks nothing; archive-force prints its scope line instead of stopping to confirm (0096_01). |

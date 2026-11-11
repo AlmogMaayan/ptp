@@ -254,9 +254,9 @@ all-or-nothing; only which gate it reads changes.
   one-permitted-nesting-level contract is untouched, in fact smaller.
 
 **The non-converged `blocked`/halt branch is byte-identical in both phases.** A non-converged epic —
-anything short of the phase's convergence gate, including a `/ptp:full-plan` slice that returned
-`NEEDS SPLIT`, which is non-convergence and introduces **no** new loop-terminal state and **no** new
-bucket — is marked `blocked` when WRITE 2's group completes, its terminal-state line appended to
+anything short of the phase's convergence gate, including a `/ptp:full-plan` `NEEDS SPLIT` slice
+left standing because its automatic re-cut lineage stopped (`ptp-full` Phase A step 1), which is
+non-convergence and introduces **no** new loop-terminal state and **no** new bucket — is marked `blocked` when WRITE 2's group completes, its terminal-state line appended to
 `notes`, `runBaseline` cleared, and the whole run **halts**. Only the gate that classifies
 convergence differs; the halt mechanism, the all-or-nothing slice-to-epic collapse, and every
 `store-write halt` scoping around a WRITE 2 that does not complete are unchanged from `phase:full`.
