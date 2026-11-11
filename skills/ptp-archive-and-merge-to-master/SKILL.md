@@ -18,7 +18,7 @@ if all** archives succeeded (a partial archive followed by a merge would ship an
 state).
 
 It does **not** restate the methodology of the two underlying flows. Phase A **is** the `/ptp:archive`
-command's flow (its gates, its outer-session confirmations, its `ptp-run-at-model` spawn at
+command's flow (its gates, its two outer-session notices, its `ptp-run-at-model` spawn at
 `sonnet.medium`); Phase B **is** the `ptp-deploy` skill's flow (driven exactly as `/ptp:merge-to-master`
 drives it). This skill owns only the **glue and the archive-convergence gate between the two phases** —
 mirroring how `skills/ptp-full/SKILL.md` owns the gate between `/ptp:full`'s plan and apply phases and
@@ -32,14 +32,13 @@ without having read `commands/archive.md`, risks silently skipping one of its nu
 
 | Input | Values | Source |
 |-------|--------|--------|
-| selector | `epic:all` \| `epic:XXXX` \| bare id \| `story:NN` \| empty | Passed through from `$ARGUMENTS`; resolved via the `ptp-change-selector` skill as a set-capable consumer (Role B). |
+| selector | `epic:all` \| `epic:XXXX` \| bare id \| `story:NN` \| empty (= `epic:all`) | Passed through from `$ARGUMENTS`; resolved via the `ptp-change-selector` skill as a set-capable consumer (Role B). |
 
 Resolve the selector via `ptp-change-selector` (§2 grammar, §3 resolution). Operate on the **resolved
 id(s)**, never the raw selector string (§3 output rule). When the selector resolves to more than one
 change, the resolved set is processed in `(epic, story)` ascending order (legacy/unprefixed appended
-after). An **empty** selector defers to **archive's existing empty default / disambiguation** (the
-`openspec list` disambiguation in `/ptp:archive` step 1) — it does **not** silently archive every
-change and does **not** auto-substitute `epic:all`.
+after). An **empty** selector resolves exactly as `epic:all` per `ptp-change-selector` §5 and asks
+nothing.
 
 ## Outer preconditions (once, up front)
 
@@ -51,8 +50,8 @@ spawn a subagent (per `ptp-run-at-model`):
   spawn.
 - **`gh` is authenticated** — `gh auth status`. If not, **STOP** with `gh auth login` install/login
   guidance.
-- **Selector resolves** — an empty selector defers to archive's `openspec list` disambiguation; **no**
-  silent archive-all.
+- **Selector resolves** — an empty selector resolves exactly as `epic:all` per `ptp-change-selector`
+  §5; a resolution STOP (for example "no active changes") aborts here, before any spawn.
 
 The branch guard does **not** run here. This command is the documented `ptp-branch-guard` **deploy
 exemption**: it operates on the **already-cut** current feature branch and never cuts a branch — cutting
@@ -90,45 +89,20 @@ gate below keys only on story terminal states.
 
 For each `c`, in order:
 
-1. **Outer session (interactive, before the spawn — the subagent is non-interactive per
-   `ptp-run-at-model`):** resolve `c`'s id, then run `/ptp:archive` steps 1–3 unweakened and in their
-   existing order — inspect the gates to build the confirmation payload (tasks-complete, validation,
-   spec-delta `--skip-specs` determination). Per those steps, if `c`'s `tasks.md` still has any `- [ ]`
-   **or** `npx -y openspec validate <c> --strict` fails, **STOP the whole command here in the outer
-   session — before the confirmations below and before any subagent is spawned** (see the gate; name
-   the blocking change and the gate it failed; do **not** merge). Only once tasks-complete and
-   validation pass, perform the two interactive confirmations:
-   - **review-clean confirmation** (`/ptp:archive` step 4) — confirm `/ptp:review <c>` ran with no
-     unresolved **actionable** Critical/High findings — Critical or High findings whose severity is
-     at or above the resolved `review.minSeverity`.
-
-     **Severity threshold.** Resolve `review.minSeverity` from layered ptp config **once**, here in
-     the **outer session** (this confirmation is interactive and must display it), and hold it fixed
-     — layered as **`ptp-workspace`** (`skills/ptp-workspace/SKILL.md`) defines, whose layer list and
-     precedence this skill restates not at all; default `low`; a missing file, missing key,
-     unparseable JSON, or unrecognized value falls back to the prior valid value (ultimately `low`)
-     rather than erroring, and **never** STOPs the command. The `/ptp:config` parameter registry (`commands/config.md`, `skills/ptp-config/`) owns
-     the key, its domain, and its validation — this is a pointer to that contract, not a second
-     reader definition. Severity order is `low < medium < high < critical`. A finding is
-     **actionable** when its severity is **at or above** the resolved threshold; a Critical or High
-     finding **below** the resolved threshold does not block the archive. Because this gate never
-     counted Medium or Low toward a refusal, `low`, `medium`, and `high` behave identically here;
-     only `critical` changes an outcome, by demoting High to non-blocking. **Never** reword this gate
-     as "unresolved findings at or above the resolved `review.minSeverity`": at the default `low`
-     that admits *every* severity and would make an unresolved **Low** nit block the archive — the
-     *actionable* qualifier only ever **narrows** the pre-existing Critical/High test, never widens
-     it. State the resolved threshold **and the layer it resolved from**, named by one of the
-     provenance labels `ptp-workspace` defines, **in the confirmation prompt**, and when it is not the default, name which severities
-     it is no longer blocking on. This mirrors `/ptp:archive` step 4 exactly — Phase A **is** that
-     flow and never diverges from it. The threshold governs **only** this confirmation: the
-     tasks-complete and validation gates above are not severity-based and stay absolute.
-   - **confirm-action confirmation** (`/ptp:archive` step 5) — show exactly what will move and whether
-     `--skip-specs` applies.
-   If either confirmation is **not given**, **STOP the whole command before this change's archive
-   subagent is even spawned** (see the gate below) — name the blocking change and the confirmation it
-   failed; do **not** merge.
-2. **Archive subagent:** invoke `ptp-run-at-model` at `sonnet.medium` to run the **already-confirmed,
-   non-interactive** archive operation (`/ptp:archive` step 6) — one foreground `sonnet` subagent that
+1. **Outer session (before the spawn — the subagent is non-interactive per `ptp-run-at-model`):**
+   resolve `c`'s id, then run `/ptp:archive` steps 1–3 unweakened and in their existing order —
+   inspect the gates to build the notices (tasks-complete, validation, spec-delta `--skip-specs`
+   determination). Per those steps, if `c`'s `tasks.md` still has any `- [ ]` **or**
+   `npx -y openspec validate <c> --strict` fails, **STOP the whole command here in the outer
+   session — before the notices below and before any subagent is spawned** (see the gate; name the
+   blocking change and the gate it failed; do **not** merge). Otherwise print `/ptp:archive` steps 4
+   and 5's two non-blocking notices exactly as `commands/archive.md` words them — the
+   review-assumed-clean notice (the resolved `review.minSeverity` and the layer it resolved from)
+   and the action summary notice (what will move and whether `--skip-specs` applies) — and
+   continue. Phase A asks no question and gates on no review finding; `commands/archive.md` step 4
+   owns the threshold's resolution, which this skill does not restate.
+2. **Archive subagent:** invoke `ptp-run-at-model` at `sonnet.medium` to run the **non-interactive**
+   archive operation (`/ptp:archive` step 6) — one foreground `sonnet` subagent that
    **re-enforces tasks-complete and validation as hard refusals** inside the subagent and then runs
    `openspec archive <c> --yes` (with `--skip-specs` only where the inspection found no spec deltas).
 3. **Relay `c`'s terminal state:** `completed` → continue to the next change; `refused` → record `c` as
@@ -139,19 +113,17 @@ For each `c`, in order:
 Phase B (merge) runs **only if every** resolved change reached the `completed` archive terminal state
 — this gate keys **only** on story terminal states; the closing step's container moves run before this
 gate and never affect it, so a container failure never blocks Phase B.
-A change fails to converge in any of these ways, and **all** STOP the whole command **before**
+A change fails to converge in either of these ways, and **both** STOP the whole command **before**
 Phase B (no partial merge):
 
 - **(a) an outer gate fails** — `/ptp:archive` step 3's outer tasks-complete or validation check finds
   unchecked tasks or a failing `openspec validate`; **STOP in the outer session before `c`'s
-  confirmations and before its archive subagent is spawned**; or
-- **(b) an outer confirmation is not given** — the review-clean or confirm-action confirmation for `c`
-  is declined/withheld; **STOP before `c`'s archive subagent is even spawned**; or
-- **(c) the archive subagent returns `refused`** — its re-enforced hard gate found unchecked tasks or a
+  notices and before its archive subagent is spawned**; or
+- **(b) the archive subagent returns `refused`** — its re-enforced hard gate found unchecked tasks or a
   failing `openspec validate`.
 
 The **first** such failure STOPs the command before the merge phase, and the terminal report **names
-the blocking change and the gate/confirmation it failed**. There is **no** partial merge after a
+the blocking change and the gate it failed**. There is **no** partial merge after a
 failed archive. This mirrors `/ptp:full`'s plan-convergence gate blocking the apply phase — the gate is
 the whole reason the command exists.
 
@@ -186,9 +158,8 @@ Report at whichever terminal point is reached:
   lines (step 8: each checked container's target, or why it stayed or failed), then the ship summary
   (PR merged, branch deleted, deploy phase skipped by design (no run id), clean base branch).
 - **Blocking-change STOP** (Phase A did not converge) — name the blocking change and the
-  gate/confirmation it failed: an **outer** tasks-complete or validation gate failed (mode (a)), **or**
-  an outer review-clean/confirm-action confirmation was not given (mode (b)), **or** an archive
-  subagent returned `refused` (mode (c), and which gate — unchecked tasks or failing validation). State
+  gate it failed: an **outer** tasks-complete or validation gate failed (mode (a)), **or** an archive
+  subagent returned `refused` (mode (b), and which gate — unchecked tasks or failing validation). State
   plainly that the merge phase was **not** entered (no partial merge), list the
   changes that archived before the blocker, and include step 8's container lines for the epics
   checked before the loop stopped.
@@ -202,24 +173,18 @@ Report at whichever terminal point is reached:
 - **Branch-guard deploy exemption.** Operates on the current feature branch; **refuses on
   `master`/`main`** (outer abort-precondition); does **not** cut a branch. The exemption lives in
   `ptp-branch-guard` as the single source of truth — referenced, not restated.
-- **Archive gates reused unweakened.** Phase A drives `/ptp:archive`'s existing gates (tasks-complete,
-  validation-passes, review-clean) — never weakened, reordered, or removed; never archive a change with
-  unchecked tasks or a failing validation. The review-clean gate's consulting the resolved
-  `review.minSeverity` is **not** a weakening: the gate is structurally unchanged and still refuses on
-  unresolved **actionable** Critical/High findings — its severity cutoff is now *configured* rather
-  than hardcoded, and at the default `low` it blocks on Critical and High exactly as today.
-  **tasks-complete** and **validation-passes** remain absolute and unconditional, entirely unaffected
-  by `review.minSeverity`. `commands/archive.md` owns the precise statement of the two facts Phase A
+- **Archive gates reused unweakened.** Phase A drives `/ptp:archive`'s existing gates (tasks-complete
+  and validation-passes) — never weakened, reordered, or removed; never archive a change with
+  unchecked tasks or a failing validation. Both stay absolute and unconditional, entirely unaffected
+  by `review.minSeverity`; review findings are not a gate, and steps 4 and 5 only print their
+  notices. `commands/archive.md` owns the precise statement of the two facts Phase A
   inherits unchanged rather than restating: artifact presence is never a gate (so an absent
   `design.md` / `tldr.md` / `brainstorm.md` / `analysis.md` / `effort.md` never refuses, warns, or
   delays), and the archive rewrites, compacts, trims, reformats, or deletes no artifact of the change
   being archived or already under `openspec/changes/archive/`.
-- **Interactive confirmations stay outer.** The review-clean and confirm-action confirmations are
-  performed in the outer session **before** each change's archive subagent is spawned, because the
-  subagent is non-interactive.
 - **Archive-convergence gate — no partial merge.** The merge runs only if **every** resolved change
-  archived; the first failure (a failed outer tasks-complete/validation gate, a declined outer
-  confirmation, **or** an archive-subagent `refused`) STOPs
+  archived; the first failure (a failed outer tasks-complete/validation gate **or** an
+  archive-subagent `refused`) STOPs
   the whole command before the merge and names the blocker.
 - **Merge runs exactly once** at the end, on the current branch (not per change).
 - **Merge inline at one nesting level** — the wrapped `ptp-deploy` resolves its fix loops inline and

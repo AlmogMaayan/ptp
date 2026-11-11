@@ -143,7 +143,8 @@ inputs: selector string; resolved workspace root
        if none    → STOP "no active change with story NN"
        if several → STOP "ambiguous story NN across epics <list>; qualify with epic:XXXX story:NN"
    - empty:
-       defer to the command's existing default, which drops every epic container (§1)
+       an archive-family command (§5) resolves it exactly as `epic:all`
+       any other command defers to its own existing default, which drops every epic container (§1)
        before it orders, confirms or disambiguates, and never offers one as a choice
 ```
 
@@ -306,7 +307,7 @@ These **allocate** a fresh epic and **name** the change folder. The pure produce
 
 ### Role B — Set-capable consumers (resolve + iterate)
 
-Commands: `review`, `review-loop`, `review-full`, `codex-review`, `codex-review-loop`, `codex-review-plan`, `codex-review-plan-loop`, `review-plan`, `review-plan-loop`, `review-plan-full`, `review-fix`, `apply`, `effort`, `archive`, `archive-force`, `archive-and-deploy`, `status`, `full-apply`
+Commands: `review`, `review-loop`, `review-full`, `codex-review`, `codex-review-loop`, `codex-review-plan`, `codex-review-plan-loop`, `review-plan`, `review-plan-loop`, `review-plan-full`, `review-fix`, `apply`, `effort`, `archive`, `archive-force`, `archive-and-deploy`, `archive-and-merge-to-master`, `status`, `full-apply`
 
 `epic:all` is immediately available to every consumer in this list the moment it lands — no per-command change is required. Any set-capable consumer that receives `epic:all` resolves it through §3 and operates on all active changes.
 
@@ -327,11 +328,11 @@ epics the selector covers for the closing step.
   neither an active story nor a container.
 - A bare container id resolves exactly as `epic:XXXX` for its epic. It never reaches the
   planning-artifact consumer guard above, and no archive gate validates the container.
-- `epic:all`, and `/ptp:archive-force`'s empty/all default, cover every epic that has a container.
+- `epic:all` covers every epic that has a container.
   `epic:all` STOPs with "no active changes" only when there is neither an active story nor a
   container.
 - `story:NN` and `epic:XXXX story:NN` cover no epic beyond those of the stories they resolve.
-- An empty-selector disambiguation never offers a container.
+- An empty selector resolves exactly as `epic:all` for all four commands and asks nothing.
 
 Every other selector consumer, except `/ptp:status`, keeps skipping containers.
 

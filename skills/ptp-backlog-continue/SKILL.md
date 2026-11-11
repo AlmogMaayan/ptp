@@ -38,7 +38,7 @@ the single backlog write, and the terminal report all happen **in the outer sess
 
 **Why, precisely.** `ptp-run-at-model`'s *Nesting caveat* forbids naively wrapping a command whose
 work itself spawns a subagent or a Workflow. This command's work does exactly that, twice:
-`/ptp:archive` runs its already-confirmed archive operation as one `ptp-run-at-model` main run at
+`/ptp:archive` runs its archive operation as one `ptp-run-at-model` main run at
 `sonnet.medium`, and the issue-text flow's fix pass runs its own main run the same way. Both of those
 spawns are level 1 **only because this command took no level of its own**.
 
@@ -61,10 +61,6 @@ verification only (see *Invocation shape*). **Apply-mode** is the one flow whose
 applied code and so must be reviewed — but it, too, invokes `/ptp:review-full` **nowhere directly**: it
 drives `/ptp:full-apply`, which owns per-slice review (*The apply flow*). On no flow does this command
 run a review gate itself.
-
-A second consequence of staying outer: `/ptp:archive`'s **interactive** outer-session steps are
-reachable at all (a subagent is non-interactive), exactly as `ptp-archive-and-deploy` keeps them
-outer for the same reason.
 
 ## The `phase:apply` mode selector
 
@@ -366,29 +362,22 @@ step 4 above) refer to that file's numbered steps, and driving `/ptp:archive` fr
 alone, without having read `commands/archive.md`, risks silently skipping one of its numbered steps.
 
 `/ptp:archive`'s flow is used **as it is written** — its gates are never weakened, reordered, or
-removed, exactly as `ptp-archive-and-deploy` reuses them. Two notes on its two outer-session
-confirmations, which are reachable because this command stayed unwrapped:
+removed, exactly as `ptp-archive-and-deploy` reuses them. Its steps 4 and 5 are two non-blocking
+outer-session notices that ask nothing; two notes on what this command prints in them:
 
-- **Review-clean** — **performed, never self-answered.** `ptp-archive-and-deploy` runs this
-  confirmation rather than deciding it, and so does this command: it is put to the user in the outer
-  session, carrying as its **evidence** that this change reached `blocked` or `in-review` only by
+- **Review-assumed-clean notice** — printed, never asked. Alongside `/ptp:archive` step 4's line,
+  this command prints as its **evidence** that this change reached `blocked` or `in-review` only by
   passing through `/ptp:full`'s apply-convergence gate, which required `/ptp:review-full` to reach
   `BOTH PHASES DONE` (or the `ptp-codex-mode` mode-skip success state) for this very change before it
   could leave `ptp-full-apply`'s `processed` bucket — this command's own invocation is the sign-off
   that the remaining, human-only half of verification is now also done (see *Invocation shape*). It is
-  **never** phrased as a review that ran in this invocation, since none does.
-
-  This is the confirmation's *substance*, not its *answer* — keeping it reachable is the whole point of
-  staying unwrapped, and auto-answering it would hollow that rationale out. **Withheld or declined →
-  that prefix stops** exactly as an archive gate refusal does, and the entry stays in its existing
-  status (`blocked` or `in-review`). The report names the evidence that was offered. This is the same
-  durable proof guard 3 rests on.
-- **Confirm-action** — the user's own `/ptp:backlog-continue` invocation is the intent, mirroring
-  `/ptp:archive` step 5's own "the user invoking this command counts as intent, but show the summary
-  first". **"First" is honored literally**: the summary (what moves, whether `--skip-specs` applies)
-  is shown in the session **before** that change's archive runs — never deferred to the terminal
-  report, which would show it only after the fact and would be exactly the gate weakening the hard
-  rules forbid. The report then **restates** it per *Report contract* shape 1.
+  **never** phrased as a review that ran in this invocation, since none does. The report names the
+  evidence that was printed. This is the same durable proof guard 3 rests on.
+- **Action summary notice** — the user's own `/ptp:backlog-continue` invocation is the intent,
+  mirroring `/ptp:archive` step 5. The summary (what moves, whether `--skip-specs` applies) is
+  shown in the session **before** that change's archive runs — never deferred to the terminal report,
+  which would show it only after the fact. The report then **restates** it per *Report contract*
+  shape 1.
 
 The tasks-complete and validation gates are re-enforced by `/ptp:archive` itself, inside its
 subagent, unchanged. An archive **refusal** stops that prefix exactly as a review non-convergence
@@ -490,7 +479,7 @@ all**.
    with issue text that says which.
 
    **That ask is an in-session interactive question, not a terminal refusal** — the same outer-session
-   interactivity that keeps `/ptp:archive`'s confirmations reachable (see *Execution contract*). The
+   execution this command keeps by staying unwrapped (see *Execution contract*). The
    user's answer is consumed **in this same invocation**, which then proceeds against the named change
    with the issue text unchanged. It is deliberately **not** a "re-invoke with a selector" instruction:
    this command accepts no selector, so a re-invocation would meet the identical ambiguity and ask
@@ -732,5 +721,5 @@ selected — the report names them **all** instead, per *Target selection*). Bey
 | spawn-and-relay, effort directives, the nesting caveat | `ptp-run-at-model` |
 | apply-mode's per-slice apply loop, its `processed` bucket and apply-convergence gate, and the `/ptp:review-full` and `codex.mode` it owns | `ptp-full-apply` |
 | the two-phase review loop, its convergence gate, and the `stages/code.json` marker schema | `/ptp:review-full` / `ptp-review-loop` — driven only by `/ptp:full` and `/ptp:full-apply`, never directly by this command |
-| the archive gates, the confirmations, and the spec sync | `/ptp:archive` |
+| the archive gates, the notices, and the spec sync | `/ptp:archive` |
 | the fix pass's implementation discipline and hard rules | `agents/ptp-apply.md` |
