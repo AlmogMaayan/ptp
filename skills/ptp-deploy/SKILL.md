@@ -77,7 +77,7 @@ missing file/key/invalid value (never fail to start over a config typo):
 | `mergeMethod` | `"squash"` | `gh pr merge --<method>`. |
 | `maxFixRounds` | `3` | Cap for both fix loops (each bounded independently). |
 | `workflow` | `null` | Explicit deploy workflow file; else auto-detect. |
-| `inputs` | `{}` | `workflow_dispatch` inputs for the deploy workflow. |
+| `inputs` | `{}` | `workflow_dispatch` inputs for the deploy workflow. Optional for a confirmation input: left unset, its value is read from the workflow file (step 7). |
 
 There is no approval/auto-approve key of any kind — see *The approval reality* above.
 
@@ -230,11 +230,49 @@ in `merge-only` mode) — do not retry with `--admin`. Other merge failures → 
 - Else auto-detect: scan `.github/workflows/*.yml` for a workflow whose name/file matches
   `deploy` / `release` / `publish` (prefer an exact `deploy.yml`).
 If a workflow is found and it declares `workflow_dispatch`, dispatch it:
-`gh workflow run <wf> [-f key=value …]` using `deploy.inputs`. If it is not dispatchable,
+`gh workflow run <wf> [-f key=value …]` with the inputs resolved under *Dispatch inputs* below.
+If it is not dispatchable,
 identify the run the merge push triggered on the base branch instead. Either way,
 `gh run watch <run-id>` (or poll `gh run list --workflow <wf>`) to completion and capture the
 conclusion. **No deploy workflow found** → report "no deploy action detected; skipping deploy"
 and continue to step 9.
+
+**Dispatch inputs — the deploy command is the confirmation; never ask, never hand the dispatch
+back.** The user invoked a deploy command, and that invocation is the authorization to deploy. A
+workflow's confirmation input (e.g. a `confirm` input that must equal `deploy`) guards against an
+accidental dispatch from the Actions UI; it is **not** a second question for this skill to relay.
+Build the `-f` set in this order:
+
+1. Every `deploy.inputs` pair, verbatim. A configured value always wins and is never overridden.
+2. For each **confirmation input** `deploy.inputs` does not supply, read the value from the
+   workflow file. A confirmation input only acknowledges the dispatch: its name or description
+   says so (`confirm`, `confirmation`, `approve`, `Type "deploy" to confirm`) and it selects
+   nothing about what or where to deploy. Take the value the workflow **accepts**: the literal a
+   deploy job's `if:` requires it to equal, or a validation step fails on when it is *not* equal
+   (`inputs.confirm == 'deploy'` to proceed, `!= 'deploy'` to fail); else the only entry of a
+   one-option `choice`; else the literal its `description` tells the caller to type. Mind
+   polarity — a literal the workflow rejects is never the value — and when the sources disagree,
+   the value is not derivable.
+3. **Never infer any other input.** A target environment, version, mode, or anything else that
+   selects what or where to deploy comes only from `deploy.inputs`; unset, pass nothing so the
+   workflow's own default applies. A comparison such as `inputs.environment == 'production'` is
+   not a confirmation and never picks the value.
+
+Then dispatch. Never stop to ask whether to dispatch, never offer the dispatch as a choice, and
+never print the `gh workflow run` command for the user to run. The terminal report names every
+input derived by rule 2, its value, and the workflow line it came from.
+
+**Deploy not run.** These cases skip or abandon the dispatch — still without asking: go to
+step 9 and report the deploy as **not run**. For an input-related case name the input and the
+fix, set `deploy.inputs.<name>`; for any other rejection report `gh`'s error and the next action
+it implies:
+
+- a confirmation input **not supplied by `deploy.inputs`** whose accepted value is not
+  unambiguously derivable (free-form, no literal, or conflicting literals);
+- a `required` non-confirmation input with no `default` that `deploy.inputs` does not supply;
+- `gh` rejects the dispatch. If the rejection names an unset confirmation input, derive it by
+  rule 2 and retry **once**; any other rejection, a rejected configured value, or a failed retry
+  is reported with `gh`'s error text.
 
 ### Phase `deploy-fix`
 
@@ -315,5 +353,10 @@ branch. On any STOP, state exactly what blocked and the single next action.
   found (graceful degradation), but because the caller explicitly requested the merge-only
   pipeline. This applies even when a deploy workflow is present and detectable.
 - **Deploy degrades gracefully**: no detectable deploy workflow → report and skip, do not error.
+- **The deploy command is the confirmation.** A workflow confirmation input (`confirm=deploy`
+  and the like) is filled from `deploy.inputs`, else from the workflow file, and the dispatch
+  runs. Never ask the user whether to dispatch and never hand them the `gh workflow run` command.
+  Only a confirmation input is ever inferred — never a target, version, or mode. Step 7's
+  *Deploy not run* cases are reported with their fix, never asked about.
 - **Config typos never crash** — every `deploy` key falls back to its default.
 - **End by invoking `ptp-master`** to land on a clean base branch; do not hand-roll the switch.

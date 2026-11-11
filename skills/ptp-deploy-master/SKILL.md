@@ -24,7 +24,7 @@ here:
 | Key | Default | Use |
 |-----|---------|-----|
 | `workflow` | `null` | Explicit deploy workflow file; else auto-detect. |
-| `inputs` | `{}` | `workflow_dispatch` inputs for the deploy workflow. |
+| `inputs` | `{}` | `workflow_dispatch` inputs for the deploy workflow. Optional for a confirmation input: left unset, its value is read from the workflow file. |
 
 `mergeMethod` and `maxFixRounds` are **irrelevant** here — this skill never merges and runs no
 fix loop. As with `ptp-deploy`, config typos or a missing file fall back to defaults; never fail
@@ -63,8 +63,14 @@ Resolve the deploy workflow and dispatch it **exactly as `ptp-deploy` Phase `dep
 - Else auto-detect: scan `.github/workflows/*.yml` for a workflow whose name/file matches
   `deploy` / `release` / `publish` (prefer an exact `deploy.yml`).
 - If a workflow is found and it declares `workflow_dispatch`, dispatch it:
-  `gh workflow run <wf> [-f key=value …]` using `deploy.inputs`. Then `gh run watch <run-id>`
-  (or poll `gh run list --workflow <wf>`) to completion and capture the conclusion.
+  `gh workflow run <wf> [-f key=value …]` with the inputs resolved by step 7's *Dispatch inputs*
+  rule (`deploy.inputs`, then a confirmation input read from the workflow file; no other input
+  is ever inferred). Then
+  `gh run watch <run-id>` (or poll `gh run list --workflow <wf>`) to completion and capture the
+  conclusion.
+- **The deploy command is the confirmation**, here exactly as in step 7: a workflow confirmation
+  input (`confirm=deploy` and the like) is filled and the dispatch runs. Never ask the user
+  whether to dispatch and never hand them the `gh workflow run` command.
 
 **One explicit divergence from step 7:** `ptp-deploy` step 7 has a non-dispatch fallback —
 "identify the run the merge push triggered on the base branch instead." That fallback does
@@ -82,6 +88,12 @@ to adopt. A resolved workflow that is **not** `workflow_dispatch`-able therefore
 - **Deploy run concludes `failure`** → report the failing run id and logs, then STOP. This skill
   runs **no** `deploy-fix` loop — that loop requires the PR/merge mini-flow, which this skill
   deliberately excludes.
+- **Any of step 7's *Deploy not run* cases** (a confirmation input not supplied by
+  `deploy.inputs` whose value is not derivable, a required non-confirmation input left unset, a
+  dispatch `gh` rejects) → STOP, reporting the deploy as not run: for an input-related case the
+  input and the fix, set `deploy.inputs.<name>`; for any other rejection `gh`'s error and the
+  next action it implies. Step 7 sends these to its step 9; here there is no land
+  phase, so they STOP. A derivable confirmation input never stops the command.
 - **No `land` phase.** HEAD is already a clean `master`; there is nothing to switch to or pull.
 
 ## Terminal report
@@ -100,6 +112,8 @@ explicit note that nothing was committed, pushed, or merged.
 - **Degrades gracefully when no deploy workflow is detected** — report and STOP, not an error.
 - **A non-`workflow_dispatch` workflow is an explicit STOP**, not a silent no-op (the fallback
   `ptp-deploy` uses for that case does not apply here).
+- **Never asks whether to dispatch.** Invoking the command is the confirmation; a workflow
+  confirmation input is filled per step 7's *Dispatch inputs* rule and the dispatch runs.
 - **Config typos never crash** — `deploy.workflow` / `deploy.inputs` fall back to their defaults.
 - **References `ptp-deploy` Phase `deploy` / step 7 rather than forking it** — a future change to
   that step's detection/dispatch logic must flow here without a second edit.
