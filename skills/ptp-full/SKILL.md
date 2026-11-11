@@ -51,8 +51,9 @@ typo, the same forgiving-reader posture `ptp-codex-mode` uses for `codex.mode`. 
 site covers **both** `/ptp:full` and `/ptp:full-plan` — `/ptp:full-plan` is a command this skill owns
 (see the front-matter ownership declaration), so no separate resolution section is needed for it. The
 resolved value governs only the plan-convergence gate's reaction to a slice's `ARTIFACT BUDGET
-EXCEEDED` / `PHASE 2 ARTIFACT BUDGET EXCEEDED` (see *Auto re-cut on budget exceeded* under Phase A
-step 3); it changes nothing else.
+EXCEEDED` / `PHASE 2 ARTIFACT BUDGET EXCEEDED` — the budget trigger of *Auto re-cut* under Phase A
+step 3; it changes nothing else. The key never governs that step's planner trigger (a slice's own
+`/ptp:plan` returning `NEEDS SPLIT`), which is always on whatever the key's value.
 
 ## Phase 0 — brainstorm (the `ptp-brainstorm-full` flow), `/ptp:full` only
 
@@ -102,9 +103,11 @@ Run the `/ptp:full-plan` flow exactly as that command specifies:
    regress to an earlier, less-refined request. This precedence is what makes the check safe to run
    unconditionally on every invocation: a folder with no `prompt.md` sees no change from today, and a
    folder that has already been planned or brainstormed is never touched by this step.
-1. **Decompose.** Invoke the `ptp:plan-multiple` skill with `$ARGUMENTS` **plus the resolved `parallel` posture** as an explicit input (the token was already parsed and stripped by `commands/full.md`; never re-parse it here). **When Phase 0 ran**, hand `plan-multiple` Phase 0's **change id** in place of the free text — for a fresh request that is the container id, so `plan-multiple` runs in container mode; passing the text again would allocate a second epic and orphan the reviewed brainstorm. **When a `/ptp:full` invocation carried a `scout:` token** (stripped by `commands/full.md`; `/ptp:full-plan` strips none, so its `$ARGUMENTS` already holds it and nothing is re-appended), re-append that token verbatim to the text handed to `plan-multiple` (its own parse consumes it); with no token, append nothing. Take the slice set — every slice's full `XXXX_NN_<desc>` change id, its one-line scope, **and** its declared dependencies (step 3's parallel-path recheck walks those dependency edges) — from `plan-multiple`'s **step-6 report**, the deterministic ascending-change-id report it emits after joining its members, exactly as `commands/full-plan.md` step 1 specifies. Do **not** re-derive the set from `npx -y openspec list`, and do **not** parse the internal `PLAN-MULTIPLE-SLICES` / `PLAN-MULTIPLE-FALLBACK` beat sentinels — they are `plan-multiple`'s own beat-2 → beat-3 handoff, not its return to a caller. **Single-change fallback:** if the work is one coherent unit, `plan-multiple` falls back to one `/ptp:plan` and reports exactly one id — that is fine, the slice set is one id. The slice set is **story ids only**: an epic container is never in it, so it is never plan-reviewed, applied, or handed to Phase B. If `plan-multiple` reports a refusal, or reports any slice as failed, unsuccessful, or cross-reference-unverified, **STOP** before step 2 and do not enter the apply phase.
+1. **Decompose.** Invoke the `ptp:plan-multiple` skill with `$ARGUMENTS` **plus the resolved `parallel` posture** as an explicit input (the token was already parsed and stripped by `commands/full.md`; never re-parse it here). **When Phase 0 ran**, hand `plan-multiple` Phase 0's **change id** in place of the free text — for a fresh request that is the container id, so `plan-multiple` runs in container mode; passing the text again would allocate a second epic and orphan the reviewed brainstorm. **When a `/ptp:full` invocation carried a `scout:` token** (stripped by `commands/full.md`; `/ptp:full-plan` strips none, so its `$ARGUMENTS` already holds it and nothing is re-appended), re-append that token verbatim to the text handed to `plan-multiple` (its own parse consumes it); with no token, append nothing. Take the slice set — every slice's full `XXXX_NN_<desc>` change id, its one-line scope, **and** its declared dependencies (step 3's parallel-path recheck walks those dependency edges) — from `plan-multiple`'s **step-6 report**, the deterministic ascending-change-id report it emits after joining its members, exactly as `commands/full-plan.md` step 1 specifies. Do **not** re-derive the set from `npx -y openspec list`, and do **not** parse the internal `PLAN-MULTIPLE-SLICES` / `PLAN-MULTIPLE-FALLBACK` beat sentinels — they are `plan-multiple`'s own beat-2 → beat-3 handoff, not its return to a caller. **Single-change fallback:** if the work is one coherent unit, `plan-multiple` falls back to one `/ptp:plan` and reports exactly one id — that is fine, the slice set is one id. The slice set is **story ids only**: an epic container is never in it, so it is never plan-reviewed, applied, or handed to Phase B. If `plan-multiple` reports a refusal, or reports any slice as failed, unsuccessful, or cross-reference-unverified, **STOP** before step 2 and do not enter the apply phase. A slice that returned `NEEDS SPLIT` is none of these: it goes to the planner trigger below.
 
-   **`NEEDS SPLIT` is a decomposition instruction, never a failure and never a silent stop.** If `plan-multiple`'s report names any slice that returned `NEEDS SPLIT` (a slice that is still more than one unit of work), **STOP** before step 2 and do not enter the apply phase — but report it as the **success state it is**, separately from the failures above: name each such slice, reproduce its proposed **child ids** and their one-line scopes verbatim, and recommend `/ptp:plan-multiple <that-slice-id>` — `plan-multiple`'s **re-cut** mode, which replaces that slice with its children in place per `ptp-change-selector` §4b. Never re-run the slice unchanged, and never plan-review a slice that was never planned. **Do not delete or move the un-planned slice's folder here**: the re-cut owns the parent's replacement, and it needs the brainstorm still in place.
+   **`NEEDS SPLIT` is a decomposition instruction, never a failure and never a silent stop — and Phase A performs the re-cut itself (the planner trigger).** If `plan-multiple`'s report names any slice that returned `NEEDS SPLIT` (a slice that is still more than one unit of work), do **not** stop and do not ask the user to run the re-cut. Before step 2, walk the slice set in **ascending change id order** and re-cut each `NEEDS SPLIT` slice it meets, one at a time, via *Auto re-cut* under step 3 — its **planner trigger**, which is always on and reads no configuration key. A child id such as `0099_02_01` sorts after `0099_02` and before `0099_03`, so the walk reaches a fresh child before the next original slice: a child whose own `/ptp:plan` returned `NEEDS SPLIT` is re-cut in turn, depth-first per lineage, under that step's shared caps. Step 2 starts only when no slice in the set stands as `NEEDS SPLIT`. Never re-run the slice unchanged, and never plan-review a slice that was never planned. **Do not delete or move the un-planned slice's folder here**: the re-cut owns the parent's replacement (`ptp-change-selector` §4b), and it needs the brainstorm still in place.
+
+   **A stopped planner trigger lineage STOPs before step 2.** The first lineage stop — a cap, an id already re-cut this run, the folderless guard, or a single-change fallback whose plan returns `NEEDS SPLIT` again (all under *Auto re-cut*) — ends step 1, fail-fast: do not enter step 2 or the apply phase. Report every slice still standing as `NEEDS SPLIT` as the **success state it is**, separately from the failures above: name each such slice, reproduce its proposed **child ids** and their one-line scopes verbatim, state the reason auto re-cut stopped, and recommend `/ptp:plan-multiple <that-slice-id>` — `plan-multiple`'s **re-cut** mode, which replaces that slice with its children in place per `ptp-change-selector` §4b. A planner trigger re-cut that reports a refusal, a failed or cross-reference-unverified member, or its implementation-already-started STOP likewise **STOPs** before step 2, reported exactly as for the first decomposition above.
 2. **Plan-review the slices.** Each slice's plan review is one `ptp:review-plan-full` run (two-phase main-agent→reviewer-agent artifact-review loop; default `roles.main=claude`: Claude→Codex) run to its terminal state. Which path is taken mirrors `commands/full-plan.md` step 2 exactly — assert the four `ptp-parallel-fanout` safety conditions (per-slice artifact **and** `openspec/changes/<id>/stages/` marker writes, so there is no shared review store; the branch guard already run once in the outer session; results sorted by ascending change id; gate applied after the join), then resolve the effective decision from the `parallel` input and downgrade it to serial if any condition is unestablished:
    - **Parallel** (effective `on` **and** all four conditions established): fan out **one `review-plan-full` member per slice** at the `plan-review` family default target (`skills/ptp-run-at-model/references/family-default-target.md`; `opus.high` built in), capped by `parallel.maxConcurrency` and batched per the `ptp-parallel-fanout` contract (cited, not restated). Each member is exactly **one `ptp-run-at-model` main run** and starts no further main run — the per-direction mechanism is `0034_01`'s `run-at-model` amendment, cited rather than reproduced. **Join every member**, recording a failed, refused, throttled, or `needs-human-action` member rather than dropping it, and collect each member's **fixes-applied signal** (an unavailable signal ⇒ treat that slice as dirty) alongside its terminal state.
    - **Serial** (effective `off`, or any condition unestablished): review the slices one at a time in ascending story order, with the fail-fast STOP in step 3 — unchanged from before this change.
@@ -118,78 +121,114 @@ Run the `/ptp:full-plan` flow exactly as that command specifies:
 
    Under fan-out the Phase-B block is **strengthened, never relaxed**: the gate now sees **every** slice's outcome — including any slice made non-green by its recheck — before deciding, instead of short-circuiting on the first failure, so it names every problem the user must fix rather than only the earliest one. A non-green slice **anywhere** in the joined set prevents Phase B entirely.
 
-   **Auto re-cut on budget exceeded (`review.autoRecutOnBudgetExceeded`).** When the resolved config
-   value is `true` (see *Precondition* above), a slice whose terminal state is **exactly**
-   `ARTIFACT BUDGET EXCEEDED` or `PHASE 2 ARTIFACT BUDGET EXCEEDED` is **not** treated as a run-stopping
-   failure — subject to the recursion caps below. Instead: invoke `/ptp:plan-multiple <that-slice-id>`
-   in **re-cut mode**, take its step-6 report **verbatim** (children ids, their one-line scopes,
-   dependencies, and where each moved artifact — `brainstorm.md`, `analysis.md` — landed).
+   **Auto re-cut (two triggers, one procedure).** Two triggers hand a slice to this one procedure,
+   which re-cuts it instead of stopping the run — subject to the guards and recursion caps below:
+
+   - **Planner trigger — always on.** A slice whose own `/ptp:plan` returned `NEEDS SPLIT`, named in a
+     `plan-multiple` step-6 report: the first decomposition's (step 1) or any later re-cut's. It reads
+     **no** configuration key. It fires in step 1, before any plan review, and again inside any later
+     re-cut whose report names a `NEEDS SPLIT` child — so a budget-trigger re-cut re-cuts its
+     `NEEDS SPLIT` children before those children are plan-reviewed.
+   - **Budget trigger — keyed by `review.autoRecutOnBudgetExceeded`.** When the resolved config value
+     is `true` (see *Precondition* above), a slice whose plan-review terminal state is **exactly**
+     `ARTIFACT BUDGET EXCEEDED` or `PHASE 2 ARTIFACT BUDGET EXCEEDED` is **not** treated as a
+     run-stopping failure. With the value `false`, a budget halt STOPs the run exactly as before this
+     change — a re-cut child's budget halt included.
+
+   Invoke `/ptp:plan-multiple <that-slice-id>` in **re-cut mode**, with the resolved **`parallel`
+   posture** as an explicit input exactly as step 1 passes it (never a re-parsed token), and take its
+   step-6 report **verbatim** (children ids, their one-line scopes, their dependencies, every sibling
+   dependency it repointed, and where each moved artifact — `brainstorm.md`, `analysis.md` — landed).
+   A re-cut that reports a refusal, a failed or cross-reference-unverified member, or its
+   implementation-already-started STOP **STOPs** the run, reported exactly as step 1 reports the first
+   decomposition's.
 
    - **If it splits** (the normal outcome), splice the children into the slice set at the parent's own
      position in ascending story order (`ptp-change-selector` §4b — children inherit the parent's
-     position; no sibling is renumbered). Plan-review (`ptp:review-plan-full`) only the children that
-     were themselves **successfully planned**; a child whose own `/ptp:plan` returns `NEEDS SPLIT` is
-     **excluded** from plan-review, and per the scope decision below its lineage falls back to STOP,
-     reporting that child's proposed grandchild ids/scopes exactly as Phase A step 1 already reports a
-     plain `NEEDS SPLIT`. Once every plan-reviewable child has been reviewed, **re-apply this same
-     gate** over the updated set.
-   - **If it falls back** (`plan-multiple` decides the budget-halted content is one coherent unit and
-     returns its single-change fallback rather than splitting) — a budget halt on plan **review** is not
-     resolved by re-declaring the same planned content "one unit", since that reproduces the identical
-     oversized artifact — this **is** a recursion-cap outcome for that lineage: fall back to today's
-     STOP, reporting that re-cut analysis found no viable split.
+     position; no sibling is renumbered). **Adopt the reported dependencies**: each child carries the
+     dependencies the re-cut reported for it, and every sibling dependency the re-cut repointed onto
+     its last child is repointed in the slice set too, so step 3's post-join recheck walk reads the new
+     edges. A child whose own `/ptp:plan` returns `NEEDS SPLIT` is **excluded** from plan-review and
+     re-cut again by the planner trigger, one lineage depth deeper, under the caps below and before any
+     review; only when its lineage stops does it stand, reported with its proposed grandchild
+     ids/scopes exactly as Phase A step 1 reports a standing `NEEDS SPLIT`. Plan-review
+     (`ptp:review-plan-full`) only the children that were themselves **successfully planned**. Under the
+     budget trigger, once every plan-reviewable child has been reviewed, **re-apply this same gate**
+     over the updated set.
+   - **If it falls back** (`plan-multiple` decides the content is one coherent unit and returns its
+     single-change fallback rather than splitting), the outcome depends on the trigger:
+     - **Planner trigger:** a fallback whose one `/ptp:plan` succeeds **keeps its id** — the slice now
+       counts as planned and stays in the set under that id, for plan review and for Phase B. A fallback
+       whose plan returns `NEEDS SPLIT` again **stops that lineage** (the no-id-twice rule below forbids a
+       second re-cut).
+     - **Budget trigger:** a budget halt on plan **review** is not resolved by re-declaring the same
+       planned content "one unit", since that reproduces the identical oversized artifact — this **is**
+       a recursion-cap outcome for that lineage: fall back to today's STOP, reporting that re-cut
+       analysis found no viable split.
 
-   This trigger fires for **only** the two named budget states — `ITERATION CAP REACHED` and `PHASE 2
-   ITERATION CAP REACHED` are review-quality caps, not size verdicts, and always STOP the run
-   regardless of this setting, exactly as before this change.
+   The budget trigger fires for **only** the two named budget states — `ITERATION CAP REACHED` and
+   `PHASE 2 ITERATION CAP REACHED` are review-quality caps, not size verdicts, and always STOP the run
+   regardless of `review.autoRecutOnBudgetExceeded`, exactly as before this change.
 
-   **Scope, stated precisely: plan-review budget halts only.** This setting governs `review-plan-full`'s
-   budget halt and nothing else. A slice's own `/ptp:plan` returning `NEEDS SPLIT` (Phase A step 1's
-   existing handling, above) is **unaffected** — it is still reported as a success recommending a
-   manual `/ptp:plan-multiple <that-slice-id>`, never auto-invoked by this setting. An auto-recut
-   child whose own `/ptp:plan` itself returns `NEEDS SPLIT` is treated as **immediately hitting that
-   lineage's recursion cap** (below) rather than being auto-chained further — a freshly-cut piece
-   declaring itself still too big is evidence the automatic split is not working for that lineage.
+   **Scope of the key, stated precisely.** `review.autoRecutOnBudgetExceeded` governs the budget
+   trigger — `review-plan-full`'s budget halt — and nothing else. The planner trigger is always on and
+   behaves identically whatever the key's value.
 
-   **Recursion safety — two caps, checked before every auto re-cut.**
-   - **Per-lineage depth cap = 2.** The original slice is depth 0. Its auto-recut children are depth 1.
-     A depth-1 child's own auto-recut children are depth 2. A depth-2 slice halting on budget again
-     would require depth 3 and instead **falls back to today's STOP** for that lineage. This cap is
-     checked directly — the depth of the slice about to be re-cut is always already known — and never
-     needs an estimate.
-   - **Total growth cap, checked in two passes because the child count is unknown before `/ptp:plan-multiple`
-     runs (and its re-cut mode replaces the parent before returning it).**
-     `/ptp:plan-multiple`'s own hard rule guarantees **at least two** children on a split (never a
-     one-child "split"), so one re-cut's **minimum** net growth is `+1` slice (2 children − 1 parent).
-     **Pre-check** (before invoking): if `currentTotal + 1` would already exceed
-     `max(originalCount * 3, originalCount + 2)` — where `originalCount` is the slice count Beat 2's
-     decomposition originally produced for the epic and `currentTotal` is the epic's slice count right
+   **Recursion safety — two guards and two caps, checked before every auto re-cut by either
+   trigger.** A lineage that any of them stops **falls back to stopping**: in step 1 that is step 1's
+   lineage STOP (a standing `NEEDS SPLIT`); in step 3 it is today's plan-convergence STOP.
+   - **No id is re-cut twice.** Phase A keeps the set of ids it has re-cut in this invocation. An id
+     in that set is never handed to `/ptp:plan-multiple` again, whatever the trigger: its lineage
+     stops instead. This also stops a budget-trigger re-cut of a slice whose planner-trigger re-cut fell
+     back to one plan.
+   - **Folderless guard.** Hand an id to `/ptp:plan-multiple` only when `openspec/changes/<id>/`
+     exists, or when the id meets `plan-multiple`'s **folderless re-cut** reading — a full story id
+     whose epic has an active `XXXX_00_*` container and that names no archived change. Otherwise
+     `plan-multiple` would read the id as a fresh request and allocate a new epic
+     (`commands/plan-multiple.md`, its four-way argument interpretation), so the id is not handed over
+     and its lineage stops.
+   - **Per-lineage depth cap = 2**, counting re-cuts by **either** trigger. A slice from the first
+     decomposition is depth 0. Its auto-recut children are depth 1. A depth-1 child's own auto-recut
+     children are depth 2. A depth-2 slice needing another re-cut — by its own `NEEDS SPLIT` or by a
+     budget halt — would require depth 3 and instead **falls back to stopping** for that lineage. This
+     cap is checked directly — the depth of the slice about to be re-cut is always already known — and
+     never needs an estimate.
+   - **Total growth cap, one budget for both triggers, checked in two passes because the child count is
+     unknown before `/ptp:plan-multiple` runs (and its re-cut mode replaces the parent before returning
+     it).** `/ptp:plan-multiple`'s own hard rule guarantees **at least two** children on a split (never
+     a one-child "split"), so one split's **minimum** net growth is `+1` slice (2 children − 1 parent);
+     a fallback re-cut that plans one change adds nothing to the total. **Pre-check** (before invoking):
+     if `currentTotal + 1` would already exceed `max(originalCount * 3, originalCount + 2)` — where
+     `originalCount` is the slice count the first decomposition (step 1) produced for the epic,
+     standing `NEEDS SPLIT` slices included, and `currentTotal` counts every slice in the set right
      now — **refuse the re-cut before invoking `/ptp:plan-multiple`**, and that lineage **falls back to
-     today's STOP**; no parent is deleted and no work is lost. **Post-check** (after a split returns):
-     if the *actual* child count makes the real total exceed the cap despite passing the pre-check, the
+     stopping**; no parent is deleted and no work is lost. **Post-check** (after a split returns): if
+     the *actual* child count makes the real total exceed the cap despite passing the pre-check, the
      children are still spliced in and reviewed — discarding validated planning artifacts that already
      exist on disk would be strictly worse — but the terminal report **names the cap as exceeded** for
      that lineage's growth (see *Terminal report*) and **no further slice in this run may be
-     auto-re-cut**, cap or no cap, for the remainder of this invocation: one over-cap surprise is
-     tolerated and disclosed, never compounded.
-   - Either cap firing reports the cap and the lineage plainly (see *Terminal report*) and recommends
-     the manual `/ptp:plan-multiple <that-slice-id>` command — identical to an un-recut budget halt's
-     report, just naming the cap as the reason auto re-cut stopped rather than never having tried.
+     auto-re-cut** by either trigger, cap or no cap, for the remainder of this invocation: one over-cap
+     surprise is tolerated and disclosed, never compounded.
+   - Any guard or cap firing reports it and the lineage plainly (see *Terminal report*) and recommends
+     the manual `/ptp:plan-multiple <that-slice-id>` command — identical to an un-recut halt's report,
+     just naming the reason auto re-cut stopped rather than never having tried.
 
    **Both gate paths, one content.** The auto-recut step runs **identically** on the serial and
-   parallel paths: same trigger, same scope decision, same splice rule, same caps, same report
-   content. On the **serial** path it splices the children into the walk at the parent's position and
+   parallel paths: same triggers, same scope decision, same guards, same splice rule, same caps, same
+   report content. The planner trigger runs before any plan review on both paths (step 1 and the
+   split above); only the budget trigger's scheduling is path-dependent. On the **serial** path it splices the children into the walk at the parent's position and
    continues the walk through them before any later original slice. On the **parallel** path it runs
    **after** the post-join cross-slice recheck, over every non-green slice in the joined set, and the
    join → recheck → gate cycle repeats over the updated set until every remaining slice is green, a
-   non-budget non-green slice blocks the gate, or a cap is hit. Neither path ever reaches Phase B
+   non-budget non-green slice blocks the gate, or a guard or cap stops a lineage. Neither path ever reaches Phase B
    through a different rule than the other.
 
-   **The auto-recut *decision* is always evaluated one lineage at a time, even on the parallel path.**
-   Fan-out governs how the *children's own plan reviews* run, never how many `/ptp:plan-multiple`
-   re-cut invocations are decided at once: when more than one non-green slice in the joined set is
-   eligible for auto re-cut, evaluate them **serially, in ascending change id order**, updating
-   `currentTotal` after each one's pre-check/post-check outcome before evaluating the next. This is
+   **The auto-recut *decision* is always evaluated one lineage at a time, by either trigger, even on
+   the parallel path.** Fan-out governs how the *children's own plan reviews* run, never how many
+   `/ptp:plan-multiple` re-cut invocations are decided at once: when more than one slice is eligible
+   for auto re-cut — several `NEEDS SPLIT` slices in step 1, or several non-green slices in the joined
+   set — evaluate them **serially, in ascending change id order**, updating `currentTotal` and the
+   re-cut id set after each one's guard, pre-check and post-check outcome before evaluating the next. This is
    what keeps the growth cap meaningful under fan-out — two concurrent pre-checks against the same
    stale `currentTotal` could each pass individually and compound past the cap together, which serial
    evaluation of the decision itself (not of the reviews it triggers) prevents.
@@ -207,7 +246,7 @@ Phase A is read-only: it never applies code and never archives. It always writes
 
 ## Phase B — apply (the `ptp-full-apply` flow), only on full plan convergence
 
-Enter Phase B **only if every** captured slice reached a green plan-convergence state in Phase A (`BOTH PHASES DONE` **or** `PHASE 1 DONE — CODEX SKIPPED (mode=…)` — both are gate-success per `ptp-codex-mode`). **"Captured slice ids" here means Phase A's *final* set** — if any auto re-cut ran, every re-cut parent id is already replaced by its children ids in that set (the parent folder no longer exists; `ptp-change-selector` §4b's splice already happened), so Phase B never receives a deleted parent id and never omits a converged child. Then run the `ptp-full-apply` skill's flow with the captured slice ids treated as an **explicit, ordered id list** (the plan order *is* the apply/dependency order):
+Enter Phase B **only if every** captured slice reached a green plan-convergence state in Phase A (`BOTH PHASES DONE` **or** `PHASE 1 DONE — CODEX SKIPPED (mode=…)` — both are gate-success per `ptp-codex-mode`). **"Captured slice ids" here means Phase A's *final* set** — if any auto re-cut split a slice, every split parent id is already replaced by its children ids in that set (the parent folder no longer exists; `ptp-change-selector` §4b's splice already happened), so Phase B never receives a deleted parent id and never omits a converged child; a planner-trigger re-cut whose single-change fallback planned successfully kept its id, which stays in the set. Then run the `ptp-full-apply` skill's flow with the captured slice ids treated as an **explicit, ordered id list** (the plan order *is* the apply/dependency order):
 
 1. **Read each slice's effort.** For each captured id, `Read` `openspec/changes/<id>/effort.md` and parse line 1 as `{model}.{effort}`. Missing or unparseable → default to `opus.high` and **note the defaulting** (never crash, never stop on it). Then derive that slice's **review target** from the same pair: `reviewModel` = `model` floored at `sonnet` (`haiku` → `sonnet`), `reviewEffort` = `effort` floored at `high` (`low`/`medium` → `high`); the defaulted `opus.high` yields `opus` / `high` for the review too. Then apply the `models.apply-review` rule of `skills/ptp-full-apply/SKILL.md` step 2 (cited, not restated): a valid entry replaces every slice's review target, a `fable` entry is skipped with a note, and no valid entry leaves the derivation unchanged. This yields `{ id, model, effort, reviewModel, reviewEffort }` per slice.
 
@@ -234,21 +273,25 @@ Report at whichever terminal point is reached:
 - **Phase 0 section** (`/ptp:full` only) — every report after the Phase 0 decision renders it **before** the plan-phase summary: the absolute `brainstorm.md` path, the gate status (`passed`, `STOP` or `skipped`), and Phase 0's terminal state verbatim. Render Phase 0's review tally as one table in the shared format (`skills/ptp-review-loop/references/review-tally-table.md`, cited not restated), taken from the relayed `ptp-brainstorm-full` outcome. On the brainstorm-gate STOP, where the review never ran, print the line `Review tally: unknown` instead; a refused or failed run renders `unknown` per that format's unknown rule; a skipped Phase 0 renders no tally.
 - **Brainstorm-convergence STOP** (Phase 0 non-green) → the Phase 0 section, then state plainly that Phases A and B were **not** entered and no slices exist. Relay `ptp-brainstorm-full`'s next-step recommendation verbatim. When `brainstorm.md` exists, say to converge it first with `/ptp:review-brainstorm-full <id>` and only then re-run `/ptp:full <id>` — a plain re-run would skip Phase 0 on the existing file and plan from an unconverged brainstorm.
 - **Plan-convergence STOP** (a slice reached a non-green state that was not — or could no longer be —
-  auto re-cut; see *Auto re-cut on budget exceeded* above: with `review.autoRecutOnBudgetExceeded =
+  auto re-cut; see *Auto re-cut* above: with `review.autoRecutOnBudgetExceeded =
   true`, a slice's `ARTIFACT BUDGET EXCEEDED` / `PHASE 2 ARTIFACT BUDGET EXCEEDED` reaches this STOP
-  only after its lineage hit a recursion cap) → the slices covered by this run, **sorted by ascending change id** and byte-stable with respect to member completion order, each with its one-line scope and per-slice plan-review terminal state (`BOTH PHASES DONE` / `PHASE 1 DONE — CODEX SKIPPED (mode=…)` / `ITERATION CAP REACHED` / `PHASE 2 ITERATION CAP REACHED` / `ARTIFACT BUDGET EXCEEDED` / `PHASE 2 ARTIFACT BUDGET EXCEEDED`); **name every slice that did not converge** — on the parallel path that is every non-green slice in the joined set, not just the earliest — plus any slice that received a post-join cross-slice recheck, and make the report's coverage evident (parallel: every slice in the set; serial fail-fast: the slices reviewed up to and including the first non-green one, later slices not reviewed). State plainly that the apply phase was **not** entered. A slice that ended in `PHASE 1 DONE — CODEX SKIPPED` is **converged**, not a reason to stop. Recommend fixing the non-converged slice's artifacts (return to `/ptp:plan` for a Phase-1 cap, or `/ptp:review-fix` for Phase-2 Codex findings; for either budget-exceeded state recommend `/ptp:plan-multiple <that-slice-id>` instead — passing the **id**, so re-cut mode replaces that slice with its children rather than allocating a new epic — the slice is too large, and another review round is the thing that failed) and re-running `/ptp:full` (or `/ptp:review-plan-full <id>` for just that slice). The earlier slices that already reached `BOTH PHASES DONE` can be run on their own with `/ptp:full-apply <converged-ids…>` if the user prefers to proceed with them first.
+  only after a guard or recursion cap stopped its lineage) → the slices covered by this run, **sorted by ascending change id** and byte-stable with respect to member completion order, each with its one-line scope and per-slice plan-review terminal state (`BOTH PHASES DONE` / `PHASE 1 DONE — CODEX SKIPPED (mode=…)` / `ITERATION CAP REACHED` / `PHASE 2 ITERATION CAP REACHED` / `ARTIFACT BUDGET EXCEEDED` / `PHASE 2 ARTIFACT BUDGET EXCEEDED`); **name every slice that did not converge** — on the parallel path that is every non-green slice in the joined set, not just the earliest — plus any slice that received a post-join cross-slice recheck, and make the report's coverage evident (parallel: every slice in the set; serial fail-fast: the slices reviewed up to and including the first non-green one, later slices not reviewed). State plainly that the apply phase was **not** entered. A slice that ended in `PHASE 1 DONE — CODEX SKIPPED` is **converged**, not a reason to stop. Recommend fixing the non-converged slice's artifacts (return to `/ptp:plan` for a Phase-1 cap, or `/ptp:review-fix` for Phase-2 Codex findings; for either budget-exceeded state recommend `/ptp:plan-multiple <that-slice-id>` instead — passing the **id**, so re-cut mode replaces that slice with its children rather than allocating a new epic — the slice is too large, and another review round is the thing that failed) and re-running `/ptp:full` (or `/ptp:review-plan-full <id>` for just that slice). The earlier slices that already reached `BOTH PHASES DONE` can be run on their own with `/ptp:full-apply <converged-ids…>` if the user prefers to proceed with them first.
 
   **Per-slice review tally.** Beside each slice entry this report covers, render one review-tally table in the shared format — `skills/ptp-review-loop/references/review-tally-table.md`, owned by `0059_02_review-tally-table-format` — cited, never restated here (no caption, column, row-set, totals, or edge rendering is reproduced). The tables follow the report's existing **ascending change id** order and are byte-stable with respect to member completion order, so the serial and parallel paths render byte-identical tables over identical joined results. Take each slice's tally from that slice's `review-plan-full` terminal outcome **as joined**; never re-derive it by reading `stages/plan.json` or any other file. A slice whose member was unsuccessful, refused, throttled, or reported no tally renders `unknown` per the shared format's unknown rule — never a fabricated or zeroed table. A slice this run never reviewed — on the serial fail-fast path, every slice after the first non-green one — renders **no** table at all; the coverage statement above stays the record of why.
 - **Ran to completion / apply-phase halt** → first the plan-phase summary (slices in order, each one-line scope, each with its actual green plan-convergence state — `BOTH PHASES DONE` or `PHASE 1 DONE — CODEX SKIPPED (mode=…)`; never collapse a mode-skipped slice into a plain both-phases label, so the skip stays visible), then the `ptp-full-apply` **three-bucket terminal report** exactly as that skill specifies — `processed` / `applied (review pending)` / `never-started`, the per-slice outcome table, the resume command for the unprocessed tail, and a `/ptp:archive <id>` recommendation per fully-processed slice (never auto-run). Defer the bucket math to `ptp-full-apply`; do not restate it here.
 
   **Per-slice review tally, plan phase only.** The plan-phase summary carries one review-tally table per slice it lists, under exactly the same rule as the plan-convergence STOP bullet above — same shared format (`skills/ptp-review-loop/references/review-tally-table.md`, `0059_02_review-tally-table-format`'s, cited not restated), same ascending change id order, same "from the joined `review-plan-full` outcome, never re-read from a file" sourcing, same `unknown` rule, same no-table-for-an-unreviewed-slice rule. The **apply-phase** tally tables belong to `ptp-full-apply` and are rendered inside its report by that skill; do not restate them here and do not render a second copy.
 
-- **Auto re-cut slices** — rendered on **both** report shapes above whenever any auto re-cut ran
-  during this invocation (never rendered when none did). For each auto-recut parent, name: the parent
-  id, its children ids and one-line scopes, and where each moved artifact (`brainstorm.md`,
-  `analysis.md`) landed — relayed **verbatim** from that triggering `plan-multiple` re-cut's own
-  step-6 report, never summarized or re-derived. When a lineage hit a recursion cap, name the cap
-  (per-lineage depth, or total growth) and the lineage it stopped, exactly as the *Plan-convergence
+- **Auto re-cut slices** — rendered on **every** STOP report (Phase A step 1's lineage and re-cut
+  failure STOPs included) and on the ran-to-completion report whenever any auto re-cut ran during this
+  invocation (never rendered when none did). For each auto-recut parent, name: the trigger that fired
+  — `NEEDS SPLIT` for the planner trigger, or the budget halt's terminal state verbatim
+  (`ARTIFACT BUDGET EXCEEDED` / `PHASE 2 ARTIFACT BUDGET EXCEEDED`) for the budget trigger — the parent
+  id, its children ids and one-line scopes (or, for a planner-trigger fallback, the one id it kept),
+  and where each moved artifact (`brainstorm.md`, `analysis.md`) landed — relayed **verbatim** from
+  that triggering `plan-multiple` re-cut's own step-6 report, never summarized or re-derived. When a
+  lineage stopped on a guard or a recursion cap, name it (an id already re-cut, the folderless guard,
+  per-lineage depth, or total growth) and the lineage it stopped, exactly as the *Plan-convergence
   STOP* bullet's recommendation names the fallback manual command. Silence here would hide exactly the
   kind of automatic epic restructuring a user must be able to see and undo.
 
@@ -262,9 +305,9 @@ There is **no effort gate** and no model/effort-switch suggestion. The plan phas
 - **Codex per `codex.mode`** (see the `ptp-codex-mode` skill) — resolve the mode once up front; only `required` hard-requires Codex (STOP with no work if `codex --version` fails). Under `auto`/`off` the command proceeds and each phase applies its own non-silent Codex skip — a mode-skipped phase is convergence, not a fallback failure.
 - **The brainstorm-convergence gate blocks the plan phase.** Under `/ptp:full`, enter Phase A only after Phase 0 ended green (`BOTH PHASES DONE` or `PHASE 1 DONE — CODEX SKIPPED`) or was skipped; any other Phase 0 outcome STOPs before Phase A, and Phase B is never entered. `/ptp:full-plan` never runs Phase 0, and Phase A step 0 is unchanged.
 - **`scout:` is parsed once, by `commands/full.md`.** This skill never re-parses it: it hands the resolved `scout` to Phase 0 and re-appends a given token verbatim to Phase A's `plan-multiple` text (never under `/ptp:full-plan`). An absent `scout` input resolves `brainstorm.scout` (default `off`) and never STOPs.
-- **`NEEDS SPLIT` from Phase A is a re-cut instruction, reported as a success and never as a silent failure.** A slice returning it was not planned, so Phase B is not entered; report its proposed child ids and recommend `/ptp:plan-multiple <that-slice-id>`. Never treat it as a refusal, never let it pass the gate, and never renumber a sibling to accommodate it — the children take the parent's own position (`ptp-change-selector` §4b).
-- **The plan-convergence gate blocks the apply phase.** Enter the apply phase only if **every** slice reached a green state (`BOTH PHASES DONE` or `PHASE 1 DONE — CODEX SKIPPED`). If any slice ends in `ITERATION CAP REACHED` (Phase-1 cap), `PHASE 2 ITERATION CAP REACHED` (Phase-2 cap), `ARTIFACT BUDGET EXCEEDED`, or `PHASE 2 ARTIFACT BUDGET EXCEEDED`, do not apply any code — STOP after the plan phase and report. A `PHASE 1 DONE — CODEX SKIPPED` slice is converged and does NOT block the apply phase. **This is evaluated over the whole set on both paths**: on the parallel path that means the joined set as updated by the post-join cross-slice recheck, so a non-green slice *anywhere* in it blocks Phase B — the block is strengthened by fan-out, never relaxed. **Exception:** with `review.autoRecutOnBudgetExceeded = true`, a slice ending in either budget-exceeded state is first offered to the auto re-cut step (above) — it blocks Phase B only after its lineage exhausts that step's recursion caps; `ITERATION CAP REACHED` and `PHASE 2 ITERATION CAP REACHED` are never offered to auto re-cut and always block Phase B directly.
-- **`review.autoRecutOnBudgetExceeded` is a plan-review-only, capped, path-symmetric setting.** It fires for exactly `ARTIFACT BUDGET EXCEEDED` / `PHASE 2 ARTIFACT BUDGET EXCEEDED`, never for an iteration cap and never for a slice's own `/ptp:plan` `NEEDS SPLIT`; it is bounded by a per-lineage depth cap of 2 and a total growth cap of `max(originalCount*3, originalCount+2)`; it behaves identically on the serial and parallel gate paths; and it never touches `ptp-full-apply`'s apply-convergence gate. See *Auto re-cut on budget exceeded* under Phase A step 3 for the full contract.
+- **`NEEDS SPLIT` from Phase A is a re-cut instruction, performed by Phase A itself and never a silent failure.** Phase A re-cuts every `NEEDS SPLIT` slice by *Auto re-cut*'s planner trigger — always on, one at a time in ascending change id order, before any plan review, under the shared guards and caps. A slice still standing as `NEEDS SPLIT` after its lineage stopped was not planned, so Phase A stops and Phase B is not entered; report it as a success with its proposed child ids, the reason auto re-cut stopped, and the manual `/ptp:plan-multiple <that-slice-id>`. Never treat it as a refusal, never let it pass the gate, never re-cut an id twice in one invocation, and never renumber a sibling to accommodate it — the children take the parent's own position (`ptp-change-selector` §4b).
+- **The plan-convergence gate blocks the apply phase.** Enter the apply phase only if **every** slice reached a green state (`BOTH PHASES DONE` or `PHASE 1 DONE — CODEX SKIPPED`). If any slice ends in `ITERATION CAP REACHED` (Phase-1 cap), `PHASE 2 ITERATION CAP REACHED` (Phase-2 cap), `ARTIFACT BUDGET EXCEEDED`, or `PHASE 2 ARTIFACT BUDGET EXCEEDED`, do not apply any code — STOP after the plan phase and report. A `PHASE 1 DONE — CODEX SKIPPED` slice is converged and does NOT block the apply phase. **This is evaluated over the whole set on both paths**: on the parallel path that means the joined set as updated by the post-join cross-slice recheck, so a non-green slice *anywhere* in it blocks Phase B — the block is strengthened by fan-out, never relaxed. **Exception:** with `review.autoRecutOnBudgetExceeded = true`, a slice ending in either budget-exceeded state is first offered to the auto re-cut step (above) — it blocks Phase B only after one of that step's guards or recursion caps stops its lineage; `ITERATION CAP REACHED` and `PHASE 2 ITERATION CAP REACHED` are never offered to auto re-cut and always block Phase B directly.
+- **`review.autoRecutOnBudgetExceeded` is a plan-review-only, capped, path-symmetric setting.** It keys only *Auto re-cut*'s budget trigger, which fires for exactly `ARTIFACT BUDGET EXCEEDED` / `PHASE 2 ARTIFACT BUDGET EXCEEDED` and never for an iteration cap; the planner trigger (a slice's own `/ptp:plan` returning `NEEDS SPLIT`) reads no key and is always on. Both triggers share one per-lineage depth cap of 2 and one total growth cap of `max(originalCount*3, originalCount+2)`; the step behaves identically on the serial and parallel gate paths; and it never touches `ptp-full-apply`'s apply-convergence gate. See *Auto re-cut* under Phase A step 3 for the full contract.
 - **Phase A's paths differ only in join point, never in verdict.** On the serial path the gate is applied after each slice and fails fast; on the parallel path every member is joined, the post-join cross-slice recheck runs, and only then does the gate apply. The decision rule — every slice green — is identical, and the parallel path never reaches Phase B without the recheck having run first.
 - **Consume the `ptp-parallel-fanout` contract in Phase A; never redefine it.** Cite the skill for the four conditions, the config resolution, the cap and its batching, the aggregation rule, and the join-then-gate rule. With the shipped default `parallel.mode` = `off`, with `parallel:off`, or with any condition unestablished, Phase A's per-slice reviews run serially in ascending story order exactly as before this change — that path stays live and is never bypassed.
 - **The parallel posture never reaches the apply phase.** It is a Phase-A input only: threaded into the delegated `ptp:plan-multiple` and used for Phase A step 2's fan-out decision. Phase B, the workflow launch, and its `stories`/`fast` args receive no parallel input and stay strictly sequential.
