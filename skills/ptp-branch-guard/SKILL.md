@@ -58,6 +58,14 @@ command invokes the prep **conditionally from its own step 1**, after a tree cla
 guard itself does not perform. It also has no deploy phase and therefore cuts no
 `deploy-fix-<id>` branch.
 
+**Continue-then-ship from a feature branch — `/ptp:backlog-continue-and-deploy`:** this command
+refuses **up front** on `master`/`main`, in its outer preconditions, before it reads the backlog or
+writes anything. Its continue phase runs `/ptp:backlog-continue`'s flow unchanged, guard preamble
+included — but since HEAD is already a feature branch by then, that guard is **always a no-op** and
+never cuts a branch. Its deploy phase then uses the same ship-from-a-feature-branch exemption as
+`/ptp:deploy` above. It is deliberately **not** added to the write-capable list: the guard it runs is
+`backlog-continue`'s own, and it can never cut a branch here.
+
 ## The guard (first write-affecting action, before writing any file)
 
 ### Branch safety

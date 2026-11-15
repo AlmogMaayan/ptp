@@ -23,6 +23,7 @@ skill, and reports. A command that owns itself carries its own contract.
 | `commands/archive-force.md` | `skills/ptp-archive-force/SKILL.md` |
 | `commands/archive.md` | `commands/archive.md` |
 | `commands/backlog-add.md` | `skills/ptp-backlog/SKILL.md` |
+| `commands/backlog-continue-and-deploy.md` | `skills/ptp-backlog-continue-and-deploy/SKILL.md` |
 | `commands/backlog-continue.md` | `skills/ptp-backlog-continue/SKILL.md` |
 | `commands/backlog-edit.md` | `skills/ptp-backlog/SKILL.md` |
 | `commands/backlog-run.md` | `skills/ptp-backlog-run/SKILL.md` |
