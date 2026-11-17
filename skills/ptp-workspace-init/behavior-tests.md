@@ -95,10 +95,15 @@
       "patterns": [
         "Gate\\s+1[\\s\\S]{0,10}any\\s+supplied\\s+argument",
         "Gate\\s+2[\\s\\S]{0,120}not\\s+a\\s+directory",
-        "Gate\\s+3[\\s\\S]{0,40}.openspec.\\s+directory",
-        "Gate\\s+4[\\s\\S]{0,80}no-git-root"
+        "Gate\\s+3[\\s\\S]{0,40}.openspec.\\s+directory"
       ],
-      "why": "the four preflight gates are stated in their fixed order: any argument, a non-directory entry, an openspec directory, then no-git-root"
+      "why": "the three preflight gates are stated in their fixed order: any argument, a non-directory entry, then an openspec directory"
+    },
+    {
+      "id": "no-gate-4",
+      "kind": "forbids",
+      "pattern": "Gate\\s+4",
+      "why": "no-git-root is no longer a refusing gate; only three gates remain"
     },
     {
       "id": "first-gate-decides",
@@ -143,10 +148,29 @@
       "why": "the gate-3 refusal names the idempotent repair so a half-made workspace is not stranded"
     },
     {
-      "id": "no-git-root-refuses",
+      "id": "no-git-root-runs-git-init",
+      "kind": "ordered",
+      "patterns": [
+        "Step\\s+0[\\s\\S]{0,300}`git init`",
+        "Step\\s+1[\\s\\S]{0,40}create\\s+the\\s+openspec\\s+tree"
+      ],
+      "why": "on no-git-root the run executes git init at step 0, before the openspec init of step 1"
+    },
+    {
+      "id": "gate3-names-git-init",
       "kind": "requires",
-      "pattern": "born\\s+unusable",
-      "why": "a workspace outside a git repository would be unusable, so no-git-root refuses"
+      "pattern": "refusal\\s+also\\s+names\\s+.git\\s+init.",
+      "why": "gate 3's refusal also names git init when the entry resolution reported no-git-root"
+    },
+    {
+      "id": "git-root-report",
+      "kind": "ordered",
+      "patterns": [
+        "git\\s+repository\\s+was\\s+created",
+        "Deleting\\s+.\\.git.\\s+undoes\\s+it",
+        "first\\s+commit\\s+must\\s+come"
+      ],
+      "why": "after step 0 the report carries three git facts: a repository was created, deleting .git undoes it, and a first commit must come before write-capable ptp commands"
     },
     {
       "id": "refusal-writes-nothing",
@@ -211,14 +235,14 @@
       "why": "an unwritable seed is a warning naming the path and the config command"
     },
     {
-      "id": "one-needs-human-action",
+      "id": "two-needs-human-action",
       "kind": "ordered",
       "patterns": [
-        "Exactly\\s+one\\s+case\\s+is[\\s\\S]{0,6}needs-human-action",
+        "Exactly\\s+two\\s+cases\\s+are[\\s\\S]{0,6}needs-human-action",
         "exiting\\s+non-zero",
         "exact\\s+follow-up\\s+command"
       ],
-      "why": "exactly one case is needs-human-action, the CLI failing or leaving a directory absent, and it carries the exact follow-up command"
+      "why": "exactly two cases are needs-human-action, the git step failing and then the CLI failing or leaving a directory absent, each carrying the exact follow-up command"
     },
     {
       "id": "report-fields",

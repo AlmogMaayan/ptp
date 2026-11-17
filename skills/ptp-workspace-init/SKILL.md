@@ -30,6 +30,14 @@ a single verifiable outcome — which is why the cheapest tier is the right one.
 
 Reached only once every preflight gate below has passed.
 
+**Step 0 — create the git repository, only on `no-git-root`.** When the entry resolution reported
+`no-git-root`, run `git init` with the working directory at the invocation's current directory, then
+check that a `.git` entry exists there. Any other entry resolution skips this step. It creates no
+commit, no remote, no `.gitignore`, and no branch. Continuing past `no-git-root` to this one call is
+the fifth departure covered by the command-scoped exemption in `skills/ptp-workspace/SKILL.md`. If
+`git init` exits non-zero or leaves no `.git` entry, the run is `needs-human-action` and step 1 does
+not run.
+
 **Step 1 — create the openspec tree.** Run, with the working directory at the invocation's current
 directory:
 
@@ -83,18 +91,20 @@ predicate resolution tests** — an `openspec` **directory** at the path — so 
 `ptp-workspace`'s walk can never disagree about whether a directory is already a workspace. An empty
 `openspec/` counts. One missing its `changes/` subdirectory counts. The refusal names
 `npx -y openspec init --tools none .`, run from the current directory, as the **idempotent repair**
-for a partial tree, so a user holding a half-made workspace is not stranded.
+for a partial tree, so a user holding a half-made workspace is not stranded. When the entry
+resolution also reported `no-git-root`, the refusal also names `git init`, because the repaired tree
+resolves only inside a git repository.
 
-**Gate 4 — the workspace resolution reporting `no-git-root` → `refused`.** `ptp-workspace` makes that
-code a STOP for every later step, so a workspace created outside a git repository would be born
-unusable: it would resolve for nothing. The OpenSpec CLI itself needs no git repository; ptp does, and
-this gate is ptp's rule rather than the CLI's.
-
-### The two resolutions that let the run proceed
+### The three resolutions that let the run proceed
 
 A resolution reporting **`no-workspace`** lets the run **proceed**. That code is the ordinary case
 here — a git repository holding no `openspec/` at or above the current directory is exactly the tree
 this command exists to populate.
+
+A resolution reporting **`no-git-root`** also lets the run **proceed**, through step 0 of the creation
+action: `git init` first, then the unchanged creation. The workspace it creates is always the
+git-root workspace, because the repository step 0 makes is rooted at the current directory. Every
+other ptp step still STOPs on `no-git-root`.
 
 A **successful** entry resolution can only name an **ancestor**, gate 3 having already excluded the
 current directory itself, and likewise lets the run proceed — under the ancestor warning below.
@@ -104,11 +114,11 @@ current directory itself, and likewise lets the run proceed — under the ancest
 This command resolves twice, which departs from `ptp-workspace`'s one-resolution-at-entry rule, and
 the second resolution runs inside the spawned `ptp-run-at-model` main run, which departs from that
 skill's rule that a spawned run never resolves a root of its own. Both departures — and the
-`no-workspace` continue above — are permitted by the **command-scoped exemption**
+`no-workspace` and `no-git-root` continues above — are permitted by the **command-scoped exemption**
 `skills/ptp-workspace/SKILL.md` carries. That paragraph is the licence; this section only says what
 each of the two resolutions is used for.
 
-- The **entry** resolution decides the **preflight only** — gate 4, the `no-workspace` continue, and
+- The **entry** resolution decides the **preflight only** — the `no-workspace` and `no-git-root` continues, and
   the ancestor case. It is deliberately **not** a root that any path is built from or any CLI call is
   anchored to, because at entry the root this command is about to create does not exist yet. It
   leaves behind exactly one value the report later quotes: the **ancestor's own path**, retained
@@ -126,7 +136,7 @@ each of the two resolutions is used for.
   reporting agent assembled itself, and the rest of the report — the seed outcome, the warnings, the
   terminal state — is the run's own observed result rather than a derived one.
 
-## Warnings inside a completed run, and the one case that needs a human
+## Warnings inside a completed run, and the two cases that need a human
 
 **An ancestor workspace is a warning, never a prompt and never a refusal.** Where the entry
 resolution named an ancestor and the creation then succeeded, the run is **`completed`** and the
@@ -141,7 +151,13 @@ a descendant holding its own `openspec/` is unaffected.
 path it could not write and points at `/ptp:config`, and it is **not** a terminal state of its own:
 the workspace was created and it resolves, and an unwritten `{}` is inert.
 
-**Exactly one case is `needs-human-action`,** and it is discovered mid-run: the OpenSpec CLI exiting
+**Exactly two cases are `needs-human-action`,** both discovered mid-run.
+
+The first is the git step: `git init` (step 0) failing, meaning it exits non-zero or leaves no `.git`
+entry at the current directory. The report carries `git init` as the exact follow-up, to be run
+from the current directory, and the OpenSpec CLI is not run.
+
+The second is the OpenSpec CLI exiting
 non-zero, or exiting zero without producing both `openspec/changes/archive/` and `openspec/specs/`.
 The report carries the exact follow-up command, to be run from the current directory:
 
@@ -155,14 +171,14 @@ cannot stand in for that test and never substitutes for it: the resolver's predi
 **directory** at the path, which — as gate 3 says of the same predicate — an empty or partial tree
 already satisfies. The direct check is the whole of this trigger.
 
-**Why the completion check adds no terminal state.** Once gate 4 has excluded `no-git-root` and that
+**Why the completion check adds no terminal state.** Once step 0 has found or created the git root and that
 direct check has passed, an `openspec` directory provably exists at the current directory and a git
-root provably exists above it — which is exactly what the resolver tests, on the very first directory
+root provably exists at or above it — which is exactly what the resolver tests, on the very first directory
 it examines, invoking no git of its own. The post-creation resolution therefore **cannot** fail to
 name the current directory, and it stays what the section above says it is: the completion check and
 the source of the report's workspace values, not a third trigger. A resolver that fails anyway has
 failed to *execute*, which is a tool error the harness surfaces — not an outcome this command
-enumerates, and not a reason to widen its single `needs-human-action` case.
+enumerates, and not a reason to widen its two `needs-human-action` cases.
 
 ## The report
 
@@ -180,6 +196,10 @@ uninteresting. It never demands a field the run has no resolution to supply: a *
 created no workspace and reports the gate that fired and what it refused, and a
 **`needs-human-action`** run reports that state, the failure that produced it, and the exact follow-up
 command above. Neither prints a workspace field, there being no workspace to describe.
+
+After step 0 succeeded in a `completed` run, the report prints three git facts, and only then: a git
+repository was created in the current directory; deleting `.git` undoes it; and a first commit must
+come before any write-capable ptp command. A failed step 0 reports only the failure and its follow-up.
 
 Where the workspace configuration path **coincides** with the project one — the git-root workspace —
 the report names **Project** as the `/ptp:config` target rather than **Workspace**. `/ptp:config`
