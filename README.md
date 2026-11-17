@@ -267,7 +267,7 @@ An epic container is a story-`00` folder `XXXX_00_<slug>` that holds only epic-l
 | `/ptp:status [change-id]` | Active changes, validation status, task progress, recommended next command. An epic container renders as one "container, not plannable" row instead of the lifecycle table. |
 | `/ptp:analyze "<bug \| question>"` | Read-only investigation → `analysis.md` in the change folder. Produces no proposal, changes no source. |
 | `/ptp:config` | Interactive config editor for every key above. |
-| `/ptp:workspace-init` | Declares the current directory a ptp workspace: `openspec init --tools none .` plus a `{}` seed at `<cwd>/.claude/ptp/config.json` when absent. No arguments; refuses when an `openspec` entry is already there or no git root is found. |
+| `/ptp:workspace-init` | Declares the current directory a ptp workspace: `openspec init --tools none .` plus a `{}` seed at `<cwd>/.claude/ptp/config.json` when absent. No arguments; refuses when an `openspec` entry is already there. Outside a git repository it runs `git init` first (no commit, remote or branch), and a first commit must come before any write-capable ptp command. |
 | `/ptp:version` | Installed vs. latest version verdict. Read-only. |
 | `/ptp:update` | Runs `claude plugin update ptp@ptp`. Restart Claude Code afterwards. |
 | `/opsx:explore [topic]` · `/opsx:propose [name]` · `/opsx:apply [name]` · `/opsx:archive [name]` | Experimental OpenSpec-only commands (no PtP discipline layer). |
@@ -375,6 +375,7 @@ Experimental     /opsx:explore | /opsx:propose | /opsx:apply | /opsx:archive
 
 | Version | Changes |
 |---------|---------|
+| **0.32.0** | `/ptp:workspace-init` now works in a folder outside any git repository: it runs `git init` (no commit, remote, `.gitignore` or branch) before `openspec init`, producing a git-root workspace, and reports that a first commit must precede any write-capable ptp command. A failed `git init` is `needs-human-action`; every other ptp step still stops on `no-git-root` (0100_01). |
 | **0.31.0** | New `/ptp:backlog-continue-and-deploy` command and `ptp-backlog-continue-and-deploy` skill: runs the `/ptp:backlog-continue` flow unchanged, then deploys once on the current branch (`ptp-deploy` at `sonnet.medium`, start `commit`, mode `deploy`) only when the bare flow settled every prefix. Issue text, `phase:apply`, a refusal, or a stalled prefix means the deploy was not reached; the `done` write never gates the deploy and a failed deploy never reverts `done`. Refuses on `master`/`main` and on unauthenticated `gh`; never self-approves (0098_01). |
 | **0.30.0** | `/ptp:full` and `/ptp:full-plan` re-cut a slice whose own plan returns `NEEDS SPLIT` themselves, before plan review, under the auto re-cut caps shared with the budget trigger; they stop only when that lineage stops (0097_02). |
 | **0.29.0** | `/ptp:plan-multiple` re-cuts a folderless story (one whose `NEEDS SPLIT` left no folder) from its active epic container, moving and deleting nothing (0097_01). |

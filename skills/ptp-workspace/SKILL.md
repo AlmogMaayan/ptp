@@ -207,22 +207,25 @@ path, and nothing else makes it one, so the creating surface and this resolver c
 about whether a directory is already a workspace.
 
 One exemption from this skill's rules is granted, **scoped to `/ptp:workspace-init`** and to no other
-step, and it covers all four of that command's departures: it **continues** on a `no-workspace`
+step, and it covers all five of that command's departures: it **continues** on a `no-workspace`
 resolution instead of STOPping, which is the ordinary case for a directory about to become a
 workspace; it resolves a **second** time, after creation, despite *One resolution, at the step's
 entry*; that second resolution runs **inside the spawned `ptp-run-at-model` main run**, despite
 *A spawned run never resolves a root of its own*; and it runs the OpenSpec CLI with its working
 directory at the **invocation's current directory** rather than at a resolved workspace root, despite
-*The openspec CLI runs with cwd at the resolved root*. The third and fourth departures are **forced
+*The openspec CLI runs with cwd at the resolved root*; and it **continues** on a `no-git-root`
+resolution, running `git init` at the invocation's current directory before creation, instead of
+STOPping. The third and fourth departures are **forced
 rather than chosen**. The third: that rule works by having the parent hand its already-resolved root
 down to the child, and no parent can hand down a root that does not exist until the child creates it.
 The fourth: that rule exists to *aim* the CLI at an already-resolved workspace, and `openspec init` is
 the one CLI call whose purpose is to create the root the rule presupposes — at the moment it runs
 there is no resolved root to aim at, only the directory it is about to make resolvable. The exemption
-reaches that one `openspec init` invocation and no other CLI call: every openspec call
+reaches that one `openspec init` invocation and no other OpenSpec CLI call: every openspec call
 `/ptp:workspace-init` might make **after** creation is anchored to the post-creation resolution like
-any other step's. This is a
-command-scoped exemption, not a general licence: no other step acquires any of these four
+any other step's. The fifth departure reaches that one `git init` call and no other step: every
+other step still STOPs on `no-git-root`. This is a
+command-scoped exemption, not a general licence: no other step acquires any of these five
 departures by analogy to it, and extending it to a second command requires amending this skill.
 
 ## Branch-name shape
