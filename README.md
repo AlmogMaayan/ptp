@@ -94,6 +94,7 @@ Any missing file, missing key, bad JSON, or invalid value is skipped for that ke
 | `parallel.maxConcurrency` | `1`–`10` | `3` | Members run at once; extras run in batches. |
 | `brainstorm.scout` | `off` \| `on` | `off` | `on` runs the brainstorm scout; `scout:` overrides it (rule: `references/scout-prestep.md`). |
 | `epic-id-generator` | `self` \| `github` | `self` | `github` claims each epic number on the git remote; `self` allocates from the local scan and touches no remote. A clone whose layers lack `github` allocates under `self`. |
+| `learning-mode` | `off` \| `learn-only` \| `learn-and-suggest` \| `learn-and-use` | `off` | Learning is opt-in: `off` records nothing and reads nothing back; `learn-only` records insights but never reads them back; `learn-and-suggest` records and suggests them; `learn-and-use` records and applies them. Set it in the global layer `~/.claude/ptp/config.json` to cover all repos; a repo opts out by setting `off`. |
 | `artifact.maxProposalWords` | integer ≥ 1 | `400` | Word budget for `proposal.md`. An acceptance criterion, not guidance: an over-budget artifact is a defect, fixed by removing text or splitting the change. |
 | `artifact.maxDesignWords` | integer ≥ 1 | `800` | Word budget for `design.md`. |
 | `artifact.maxTasksWords` | integer ≥ 1 | `600` | Word budget for `tasks.md`. |
@@ -142,8 +143,8 @@ Tokens placed anywhere in a command's argument text. Nothing is persisted.
 | `ticket:<value>` | `/ptp:backlog-run` | Selects a single `Ready` entry to run by its board node id or its exact `title` (double-quote a title containing whitespace, e.g. `ticket:"Add dark mode"`), then stops. Mutually exclusive with `count:{count}`. Owned by the `ptp-backlog-run` skill. |
 | `phase:{plan,full}` | `/ptp:backlog-run` | Which flow each taken epic runs. `phase:plan` runs `/ptp:full-plan` only, landing a converged epic on `planned`; `phase:full` (or an absent token) runs the full plan-and-apply flow, landing `in-review`. Enum body, `plan` or `full`; combines freely with `count:{count}` and `ticket:<value>`. Owned by the `ptp-backlog-run` skill. |
 | `phase:apply` | `/ptp:backlog-continue` | Switches into apply mode: selects a `planned` epic, drives `/ptp:full-apply` over its already-planned slices, and settles the entry `in-review` on convergence or `blocked` on halt. Enum body, exactly `apply`; any accompanying text is passed verbatim as a brief to the apply work. Owned by the `ptp-backlog-continue` skill. |
-| `model:<model>.<effort>` | `/ptp:brainstorm`, `/ptp:brainstorm-full`, `/ptp:analyze`, `/ptp:prompt`, `/ptp:prompt-fix`, `/ptp:prompt-write` | Overrides the target model/effort for this invocation. |
-| `codex-model:<model>--<effort>` | `/ptp:brainstorm`, `/ptp:brainstorm-full`, `/ptp:analyze`, `/ptp:prompt`, `/ptp:prompt-fix`, `/ptp:prompt-write` (same commands as `model:`; parse step not yet wired into those command files — see `skills/ptp-run-at-model/SKILL.md`) | Overrides the Codex model/reasoning-effort for this invocation, but only when `main=codex` resolves; a no-op under `main=claude`. Effort ∈ `{minimal, low, medium, high}`. |
+| `model:<model>.<effort>` | `/ptp:brainstorm`, `/ptp:brainstorm-full`, `/ptp:analyze`, `/ptp:prompt`, `/ptp:prompt-fix`, `/ptp:learn`, `/ptp:prompt-write` | Overrides the target model/effort for this invocation. |
+| `codex-model:<model>--<effort>` | `/ptp:brainstorm`, `/ptp:brainstorm-full`, `/ptp:analyze`, `/ptp:prompt`, `/ptp:prompt-fix`, `/ptp:learn`, `/ptp:prompt-write` (same commands as `model:`; parse step not yet wired into those command files — see `skills/ptp-run-at-model/SKILL.md`) | Overrides the Codex model/reasoning-effort for this invocation, but only when `main=codex` resolves; a no-op under `main=claude`. Effort ∈ `{minimal, low, medium, high}`. |
 | `parallel:on` / `parallel:off` | `/ptp:plan-multiple`, `/ptp:full-plan`, `/ptp:full` | Overrides `parallel.mode` for this invocation. |
 | `scout:on` / `scout:off` | `/ptp:brainstorm`, `/ptp:brainstorm-only`, `/ptp:plan`, `/ptp:brainstorm-full`, `/ptp:plan-multiple`, `/ptp:brainstorm-decompose`, `/ptp:full` | Overrides `brainstorm.scout` once. |
 
@@ -192,6 +193,16 @@ An epic container is a story-`00` folder `XXXX_00_<slug>` that holds only epic-l
 
 ## Commands
 
+**Learnings size line.** Only when `learning-mode` is not `off`, every command you invoke ends its report with one line that sizes the project and user `learnings.md`, printed by `node scripts/ptp-learn.js --size`, for example:
+
+```
+learnings — project: 12 issues, 340 lines · user: 30 issues, 810 lines
+```
+
+A missing file reads `0 issues, 0 lines (no file yet)`; when both copies are one file the line shows one shared figure. Under `off` (the default) nothing is printed, and a command run inside another command, a subagent or a Codex run never prints it.
+
+**Learnings read-back.** Under `learn-and-suggest` and `learn-and-use`, `/ptp:prompt`, `/ptp:prompt-fix`, `/ptp:brainstorm`, `/ptp:brainstorm-only`, the brainstorm phase of `/ptp:brainstorm-full` and the `/ptp:brainstorm-decompose` members read stored insights back, through `node scripts/ptp-learn.js --list-insights`. Suggest shows an insight beside the run's own default as `Suggested by learned insight <id>` without applying it; use adopts it as the default and names it `Assumed from learned insight <id>`. When a project insight and a user insight disagree, the project insight wins. `off` and `learn-only` read nothing back, and the prompt is unchanged.
+
 ### Autonomous
 
 | Command | Does |
@@ -205,8 +216,9 @@ An epic container is a story-`00` folder `XXXX_00_<slug>` that holds only epic-l
 | Command | Does |
 |---------|------|
 | `/ptp:prompt "<free text>"` | Restates the assistant's understanding of a request conversationally; writes no file. |
-| `/ptp:prompt-fix "<correction>"` | Corrects the understanding held from a prior `/ptp:prompt` turn in this conversation, then restates it. |
+| `/ptp:prompt-fix "<correction>"` | Corrects the understanding held from a prior `/ptp:prompt` turn in this conversation, then restates it. Writes no file unless `learning-mode` is not `off`; then it records the correction as a lesson in the project and user `learnings.md`. |
 | `/ptp:prompt-write [change-id \| selector]` | Persists the conversation's accumulated `/ptp:prompt` understanding to `prompt.md` — into the resolved existing change, or a freshly allocated one. |
+| `/ptp:learn "<paste>"` | Records one lesson from a pasted model message and your answer to it, in the project and user `learnings.md`, through one prompt-family main run. Writes nothing while `learning-mode` is `off`; then it says to set the key via `/ptp:config`. |
 | `/ptp:prompt-write-to-backlog` | Persists the conversation's accumulated `/ptp:prompt` understanding as one new backlog entry (parked in `Backlog`) instead of a `prompt.md`; it writes the entry as `/ptp:backlog-add` does. |
 
 ### Brainstorm
@@ -306,7 +318,7 @@ Status writes land on the shared board immediately, outside git; on an issue- or
 
 ## Skills
 
-Claude invokes these automatically; you don't call them directly. `ptp`, `ptp-change-selector`, `ptp-branch-guard`, `ptp-branch-prep`, `ptp-run-at-model`, `ptp-agent-roles`, `ptp-codex-mode`, `ptp-full`, `ptp-full-apply`, `ptp-brainstorm-full`, `ptp-review-brainstorm`, `ptp-review-brainstorm-full`, `ptp-review-loop`, `ptp-parallel-fanout`, `ptp-backlog`, `ptp-backlog-write`, `ptp-backlog-run`, `ptp-backlog-continue`, `ptp-backlog-continue-and-deploy`, `ptp-github-projects-gh`, `ptp-archive-force`. The `openspec-*` skills back the `opsx:` commands.
+Claude invokes these automatically; you don't call them directly. `ptp`, `ptp-change-selector`, `ptp-branch-guard`, `ptp-branch-prep`, `ptp-run-at-model`, `ptp-agent-roles`, `ptp-codex-mode`, `ptp-full`, `ptp-full-apply`, `ptp-brainstorm-full`, `ptp-review-brainstorm`, `ptp-review-brainstorm-full`, `ptp-review-loop`, `ptp-parallel-fanout`, `ptp-backlog`, `ptp-backlog-write`, `ptp-backlog-run`, `ptp-backlog-continue`, `ptp-backlog-continue-and-deploy`, `ptp-github-projects-gh`, `ptp-archive-force`, `ptp-learn`. The `openspec-*` skills back the `opsx:` commands.
 
 The `openspec-*` skills are edited only in `skills/openspec-*/`. `.claude/skills/openspec-*/` and
 `.codex/skills/openspec-*/` are generated from that single source and must not be hand-edited — run
@@ -314,7 +326,7 @@ The `openspec-*` skills are edited only in `skills/openspec-*/`. `.claude/skills
 to verify there is no drift.
 
 Run `node scripts/ptp-test.js <change-id>` to run the repository's dogfooding suite — the skill
-behavior tests, the prompt-surface budgets, the OpenSpec skill-sync check, the epic-allocation self-test,
+behavior tests, the prompt-surface budgets, the OpenSpec skill-sync check, the epic-allocation self-test, the learnings resolver self-test,
 the agent-type check, and the compact-artifact lint for that change — in one pass, non-zero on any failure.
 
 Every write-capable command runs a branch guard first: on `master` it stashes, pulls, and cuts a fresh `ptp/<…>` branch before writing anything.
@@ -330,7 +342,8 @@ Whole thing at once
   → /ptp:full-apply [sel | id …]      # execution half only
 
 Step by step
-  → /ptp:prompt "<request>" | /ptp:prompt-fix "<correction>"  # conversational, writes no file
+  → /ptp:prompt "<request>" | /ptp:prompt-fix "<correction>"  # conversational; prompt-fix records a lesson only when learning-mode is not off
+  → /ptp:learn "<paste>"                                      # record one lesson from a pasted message + your answer; writes nothing while learning-mode is off
   → /ptp:prompt-write [change-id | selector]                  # persist the conversation to prompt.md
   → /ptp:analyze "<subject>"          # read-only investigation → analysis doc
   → /ptp:brainstorm "<request>" | /ptp:brainstorm-only "<topic>" | /ptp:brainstorm-full "<request>"
@@ -375,6 +388,12 @@ Experimental     /opsx:explore | /opsx:propose | /opsx:apply | /opsx:archive
 
 | Version | Changes |
 |---------|---------|
+| **0.38.0** | New `/ptp:learn "<paste>"` command, owned by `ptp-learn`: when `learning-mode` is not `off` one prompt-family main run splits a pasted model message and your answer into a lesson, the outer session checks that Reference and Response occur word for word in the paste and appends one lesson with source `learn` to the project and user `learnings.md`, reporting the lesson id, paths and git sentence. Under `off` it starts no run, writes nothing and says to set `learning-mode` via `/ptp:config`; it runs no branch guard (0101_06). |
+| **0.37.0** | `/ptp:config` can set the top-level `learning-mode` key (`off` default, `learn-only`, `learn-and-suggest`, `learn-and-use`) (0101_05). |
+| **0.36.0** | Learnings read-back: under `learn-and-suggest` and `learn-and-use` the outer session of `/ptp:prompt`, `/ptp:prompt-fix`, `/ptp:brainstorm`, `/ptp:brainstorm-only`, `ptp-brainstorm-full` Phase A and `/ptp:brainstorm-decompose` beat 3 runs the new read-only `node scripts/ptp-learn.js --list-insights` and hands its block to the main run as the new optional `ptp-run-at-model` part (j), owned by `skills/ptp-run-at-model/references/learnings-readback.md`. Project lessons come first and win a shared id; suggest shows an insight beside the run's default, use adopts and names it, and a project insight beats a user insight. `off` and `learn-only` read nothing back and the spawned prompt stays byte-identical; a failed listing prints `learned insights omitted: <reason>` and never stops the command (0101_04). |
+| **0.35.0** | Learnings size line: when `learning-mode` is not `off`, the outer session of every invoked command ends its report with `learnings — project: <n> issues, <m> lines · user: <n> issues, <m> lines`, from the new read-only `node scripts/ptp-learn.js --size` (missing file `0 issues, 0 lines (no file yet)`, shared file one figure, unreadable path `unreadable`; nothing under `off`). The `ptp-learn` skill owns the placement rule in a new `## Size line` section, every `commands/*.md` file carries the one-line pointer sentence, and the new `scripts/check-learnings-size-line.js` enforces it as the `learnings-size-line` and `learnings-size-line-self-test` steps of `ptp-test.js` (0101_03). |
+| **0.34.0** | `/ptp:prompt-fix` records a lesson when `learning-mode` is not `off`: on a correcting turn its main run also returns a specific insight, a general insight and a scope, and the outer session appends one lesson (the prior restatement as Reference, the correction as Response) to the project and user `learnings.md` through the new `node scripts/ptp-learn.js --append <input.json>`, then reports the lesson id, paths and whether git ignores the project copy. The `ptp-learn` skill now owns the append-only lesson format and exports `LESSON_HEADING_RE`; the script never stages or records anything in git. Under `off` (the default) and on a first-request fallback nothing is written, as before; `prompt-fix` joins the branch guard's utility-writes exemption (0101_02). |
+| **0.33.0** | New `ptp-learn` skill and `scripts/ptp-learn.js` resolver: the top-level `learning-mode` key (`off` \| `learn-only` \| `learn-and-suggest` \| `learn-and-use`, exact match, default `off`) and the fixed project and user `learnings.md` locations, with same-file detection. Nothing records or reads back yet; `ptp-resolve-workspace.js` now exports `findGitRoot`, `findWorkspaceRoot` and `homeDir`, and `ptp-test.js` gains a `learn-self-test` step (0101_01). |
 | **0.32.0** | `/ptp:workspace-init` now works in a folder outside any git repository: it runs `git init` (no commit, remote, `.gitignore` or branch) before `openspec init`, producing a git-root workspace, and reports that a first commit must precede any write-capable ptp command. A failed `git init` is `needs-human-action`; every other ptp step still stops on `no-git-root` (0100_01). |
 | **0.31.0** | New `/ptp:backlog-continue-and-deploy` command and `ptp-backlog-continue-and-deploy` skill: runs the `/ptp:backlog-continue` flow unchanged, then deploys once on the current branch (`ptp-deploy` at `sonnet.medium`, start `commit`, mode `deploy`) only when the bare flow settled every prefix. Issue text, `phase:apply`, a refusal, or a stalled prefix means the deploy was not reached; the `done` write never gates the deploy and a failed deploy never reverts `done`. Refuses on `master`/`main` and on unauthenticated `gh`; never self-approves (0098_01). |
 | **0.30.0** | `/ptp:full` and `/ptp:full-plan` re-cut a slice whose own plan returns `NEEDS SPLIT` themselves, before plan review, under the auto re-cut caps shared with the budget trigger; they stop only when that lineage stops (0097_02). |

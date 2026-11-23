@@ -332,6 +332,8 @@ having missed one — which is why "authoritative for the run" is safe here and 
    - **The epic container:** in container mode, the container id, named as untouched; on a fresh split, the new container id, what was moved into it, and whether its `brainstorm.md` is beat 2's capsule.
    - **Only when every member completed successfully and no member returned `NEEDS SPLIT`:** the exact next command `/ptp:apply <first-slice-id>`. When any member was unsuccessful, returned `NEEDS SPLIT`, or was left cross-reference-unverified, **name those slices and offer no apply command** — a failed run never recommends applying an unplanned slice. (Reporting the next command is not chaining; actually invoking `/ptp:apply` remains forbidden.)
 
+If the user invoked this command and you are the outer session, the `ptp-learn` size line ends your report.
+
 ## Hard rules
 
 - Do **not** force a split. If the change is one coherent unit, fall back to a single `/ptp:plan` (step 3).

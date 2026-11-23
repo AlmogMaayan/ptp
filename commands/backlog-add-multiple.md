@@ -22,3 +22,5 @@ Ask no clarifying question and pause for no approval. Do not chain `/ptp:backlog
 ## Report
 
 For each settled entry, report its `id`, `title`, and `status`, state that the entry is not yet ready to run, and name `/ptp:backlog-edit` performing `backlog` → `ready` — citing the status-transitions table's row, never copying it — as the promotion that makes `/ptp:backlog-run` able to take it. Report the change id where the command resolved one, the resulting state, any failures, and the next command to run.
+
+If the user invoked this command and you are the outer session, the `ptp-learn` size line ends your report.

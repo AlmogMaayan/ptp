@@ -39,6 +39,8 @@ methodology lives in the `ptp-version` skill, not here.
 
 5. **STOP.**
 
+If the user invoked this command and you are the outer session, the `ptp-learn` size line ends your report.
+
 ## Hard rules
 
 - **CLI-only mutation.** Mutates only the installed plugin cache via `claude plugin update ptp@ptp`.

@@ -190,6 +190,8 @@ selector, the one subagent handles the whole per-change pass.)
 
 7. **Guidance, not a hard block**: a threshold-correct `WARN`/`FAIL` verdict (per step 6) means the user should re-run `/ptp:plan` (or `/ptp:review-fix` for targeted fixes) before `/ptp:apply`. It does **not** auto-block apply. The threshold changes which findings produce that verdict; it does not make this gate any more or less blocking than it is today.
 
+If the user invoked this command and you are the outer session, the `ptp-learn` size line ends your report.
+
 ## Hard rules
 
 - **This command only reviews and displays findings. It NEVER fixes anything.** Do not edit the artifacts, the code, or anything else — not even if findings are obvious. Report the findings and stop. To fix, the user runs `/ptp:review-fix` or re-runs `/ptp:plan`.

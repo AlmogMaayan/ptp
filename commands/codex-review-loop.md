@@ -16,3 +16,5 @@ Its per-iteration confirmation drives `ptp-receiving-code-review` (or `superpowe
 ## Report
 
 Report the change id where the command resolved one, the resulting state, any failures, and the next command to run.
+
+If the user invoked this command and you are the outer session, the `ptp-learn` size line ends your report.

@@ -160,6 +160,8 @@ session MAY supply its beat-1 `npx -y openspec list` / `npx -y openspec list --s
 first fan-out batch, or the first serial member); later members omit it. Under `roles.main=codex`,
 no part (f) input applies.
 
+**Learned insights (part (j)).** Before starting the first member, the outer session runs `node scripts/ptp-learn.js [--workspace <root>] --list-insights` once (named relative to the ptp checkout; `--workspace <root>` only when this command resolved a workspace root) per `ptp-learn` § *Read-back*. Non-empty output is the same block for every member, under either `roles.main`: unlike part (f), no member write makes it stale, because members never write learnings. Empty output gives no member part (j) and adds no line. A non-zero exit gives no member part (j), prints the single line `learned insights omitted: <reason>`, and never stops the command. Beat 2 receives no part (j).
+
 1. **Assert the four `ptp-parallel-fanout` safety conditions** exactly as `/ptp:plan-multiple` does:
    write sets provably disjoint (each member writes only its own pre-allocated
    `openspec/changes/<slice-id>/brainstorm.md`; the epic container is written at most once, by
@@ -182,6 +184,9 @@ no part (f) input applies.
      write only your own story folder, never the container* (§4c);
    - under `roles.main=claude` only, and only for a member started before any member has written,
      `ptp-run-at-model`'s optional part (f): the beat-1 capture inlined verbatim;
+   - under either `roles.main`, when the listing above printed a block, `ptp-run-at-model`'s
+     optional part (j): that block verbatim (`skills/ptp-run-at-model/references/learnings-readback.md`),
+     inline in the `codex exec` prompt under `roles.main=codex`; the member runs no listing of its own;
    - *you are already the `ptp-run-at-model` main run for this slice — run `/ptp:brainstorm`'s steps
      inline in your own context;*
    - *do **NOT** invoke `ptp-run-at-model`; do **NOT** start any further main run;*
@@ -200,6 +205,8 @@ no part (f) input applies.
    was deleted — it was not), and the epic container — a container input named as untouched, or the
    fresh-split container holding beat 2's capsule. **Only when every member completed successfully:** the next command
    `/ptp:plan <first-slice-id>`. This command never invokes or chains `/ptp:plan` or `/ptp:apply`.
+
+If the user invoked this command and you are the outer session, the `ptp-learn` size line ends your report.
 
 ## Hard rules
 

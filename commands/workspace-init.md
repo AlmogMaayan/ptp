@@ -16,3 +16,5 @@ Invoke the `ptp-workspace-init` skill (`skills/ptp-workspace-init/SKILL.md`).
 
 Report the change id where the command resolved one (this command resolves none), the resulting
 state, any failures or warnings, and the next command to run.
+
+If the user invoked this command and you are the outer session, the `ptp-learn` size line ends your report.

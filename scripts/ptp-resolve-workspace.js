@@ -16,6 +16,7 @@
  *   configLayers(options)   -> the ordered, deduplicated layer list, each entry labelled
  *   resolveConfigKey(...)   -> one key resolved over that list through a caller-supplied normalizer
  *   REJECT                  -> the sentinel a normalizer returns to reject a layer for a key
+ *   findGitRoot, findWorkspaceRoot, homeDir -> the walk and home helpers, exported unchanged
  *
  * Usage: node scripts/ptp-resolve-workspace.js [--workspace <path>]
  *        node scripts/ptp-resolve-workspace.js --self-test
@@ -578,4 +579,7 @@ module.exports = {
   resolveConfigKey: resolveConfigKey,
   REJECT: REJECT,
   deriveSlug: deriveSlug,
+  findGitRoot: findGitRoot,
+  findWorkspaceRoot: findWorkspaceRoot,
+  homeDir: homeDir,
 };

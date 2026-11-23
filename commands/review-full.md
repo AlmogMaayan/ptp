@@ -96,6 +96,8 @@ After both phases complete, report:
    - If PHASE 1 DONE — CODEX SKIPPED → `/ptp:archive <change-id>` (the main phase signed off; Codex was skipped by mode — this is a successful single-reviewer run, not a halt). To add the Codex reviewer, set `codex.mode` via `/ptp:config` (and install `codex`) then run `/ptp:codex-review-loop <change-id>`.
    - If PHASE 2 ITERATION CAP REACHED → resolve remaining Codex findings (e.g., `/ptp:review-fix`), then re-run `/ptp:review-full <change-id>` or run `/ptp:codex-review-loop <change-id>` directly.
 
+If the user invoked this command and you are the outer session, the `ptp-learn` size line ends your report.
+
 ### Review-convergence marker (single combined write)
 
 This orchestrator drives **both** phase loops with **`deferMarker = true`** (per `ptp-review-loop`'s **## Review-convergence marker** section), so **no phase writes the marker itself** — each phase returns its terminal outcome (`terminalState`, `reviewer`, `iterations`, `minSeverity`, `reviewTally`) to this orchestrator. After the run resolves, the orchestrator performs **exactly ONE** `openspec/changes/<change-id>/stages/code.json` write, structurally identical to `/ptp:review-plan-full`'s combined `stages/plan.json` write:

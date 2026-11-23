@@ -19,3 +19,5 @@ Invoke the `ptp-prompt-write` skill (`skills/ptp-prompt-write/SKILL.md`).
 
 Report the change id where `prompt.md` was written (resolved or newly allocated), the resulting
 state, any failures, and the next command to run.
+
+If the user invoked this command and you are the outer session, the `ptp-learn` size line ends your report.

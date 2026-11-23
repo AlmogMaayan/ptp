@@ -18,3 +18,5 @@ Restate the assistant's understanding of the request and ask the user to confirm
 `/ptp:prompt-fix`); write no file. There is no change id, since nothing is persisted. Report the
 resulting state, any failures, and the next command to run (`/ptp:prompt-fix` to correct, or proceed
 straight to `/ptp:brainstorm`/`/ptp:plan` once confirmed).
+
+If the user invoked this command and you are the outer session, the `ptp-learn` size line ends your report.

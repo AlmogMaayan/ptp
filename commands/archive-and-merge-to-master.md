@@ -15,3 +15,5 @@ Invoke the `ptp-archive-and-merge-to-master` skill (`skills/ptp-archive-and-merg
 ## Report
 
 Report the change id where the command resolved one, the resulting state, any failures, and the next command to run.
+
+If the user invoked this command and you are the outer session, the `ptp-learn` size line ends your report.

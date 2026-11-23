@@ -88,6 +88,8 @@ This command writes `effort.md`, so before writing it run the **`ptp-branch-guar
    or backticks. Persist no justification. The on-screen report is the single line
    `effort: <model>.<effort>`.
 
+   If the user invoked this command and you are the outer session, the `ptp-learn` size line ends your report.
+
 6. **Write** that line, plus a trailing newline, as **line 1** of
    `openspec/changes/<change-id>/effort.md` (create or overwrite), immediately followed by the **line 2**
    Codex apply line defined in the next subsection, plus its own trailing newline. The file contains

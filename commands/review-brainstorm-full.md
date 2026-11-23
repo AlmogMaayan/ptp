@@ -14,3 +14,5 @@ Invoke the `ptp-review-brainstorm-full` skill (`skills/ptp-review-brainstorm-ful
 ## Report
 
 Report the change id where the command resolved one, the resulting state, any failures, and the next command to run.
+
+If the user invoked this command and you are the outer session, the `ptp-learn` size line ends your report.

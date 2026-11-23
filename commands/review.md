@@ -124,6 +124,8 @@ per change.)
    - If **actionable** Critical or High findings exist: list them, suggest fixes, and tell the user to address them. Do **not** archive.
    - Otherwise (only Medium / Low, or a High demoted below the threshold — Critical is actionable at every threshold): report every finding — including the below-threshold ones, under their own severity and marked non-blocking — and tell the user the change is ready to archive via `/ptp:archive <change-id>` (or `/ptp:status` to double-check first). A report in which every finding is below the threshold still enumerates those findings; it is never rendered as "no findings".
 
+If the user invoked this command and you are the outer session, the `ptp-learn` size line ends your report.
+
 ## Hard rules
 
 - Do **not** count required manual tests that have not yet been performed as findings. Manual tests are a future verification step; their absence is not a code defect.
