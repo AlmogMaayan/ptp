@@ -12,8 +12,11 @@
  *   3. node scripts/sync-openspec-skills.js --check        (vendored OpenSpec skill copies are in sync)
  *   4. node scripts/ptp-resolve-roles.js --self-test       (role resolver self-test)
  *   5. node scripts/ptp-allocate-epic.js --self-test       (epic allocation self-test)
+ *   5b. node scripts/ptp-learn.js --self-test              (learnings resolver self-test)
  *   6. node scripts/ptp-apply-role-tests.js                (apply role tests)
  *   7. node scripts/check-agent-types.js                   (every named agent type resolves)
+ *   7b. node scripts/check-learnings-size-line.js          (every command carries the size-line sentence)
+ *   7c. node scripts/check-learnings-size-line.js --self-test (size-line marker check self-test)
  *   8. node scripts/ptp-compact-lint.js --change <id> ...  (compact artifact contract for one change)
  *
  * The compact-lint step needs a change target. A change id may be given as the first positional
@@ -95,6 +98,12 @@ function buildSteps(changeId) {
       grade: (run) => run.status === 0,
     },
     {
+      name: 'learn-self-test',
+      command: 'node scripts/ptp-learn.js --self-test',
+      args: [scriptPath('scripts/ptp-learn.js'), '--self-test'],
+      grade: (run) => run.status === 0,
+    },
+    {
       name: 'apply-role-tests',
       command: 'node scripts/ptp-apply-role-tests.js',
       args: [scriptPath('scripts/ptp-apply-role-tests.js')],
@@ -104,6 +113,18 @@ function buildSteps(changeId) {
       name: 'agent-types',
       command: 'node scripts/check-agent-types.js',
       args: [scriptPath('scripts/check-agent-types.js')],
+      grade: (run) => run.status === 0,
+    },
+    {
+      name: 'learnings-size-line',
+      command: 'node scripts/check-learnings-size-line.js',
+      args: [scriptPath('scripts/check-learnings-size-line.js')],
+      grade: (run) => run.status === 0,
+    },
+    {
+      name: 'learnings-size-line-self-test',
+      command: 'node scripts/check-learnings-size-line.js --self-test',
+      args: [scriptPath('scripts/check-learnings-size-line.js'), '--self-test'],
       grade: (run) => run.status === 0,
     },
   ];
@@ -154,7 +175,7 @@ function printUsage() {
       '  node scripts/ptp-test.js --help',
       '  node scripts/ptp-test.js --list',
       '',
-      'Runs, in order: skill-behavior-tests, prompt-budgets, openspec-skill-sync, roles-resolver-self-test, allocate-epic-self-test, apply-role-tests, agent-types, compact-lint.',
+      'Runs, in order: skill-behavior-tests, prompt-budgets, openspec-skill-sync, roles-resolver-self-test, allocate-epic-self-test, learn-self-test, apply-role-tests, agent-types, learnings-size-line, learnings-size-line-self-test, compact-lint.',
       'The compact-lint step is skipped when no change id is supplied. Exits non-zero on any failure.',
       '',
     ].join('\n') + '\n'
@@ -168,8 +189,11 @@ function printList() {
     'openspec-skill-sync',
     'roles-resolver-self-test',
     'allocate-epic-self-test',
+    'learn-self-test',
     'apply-role-tests',
     'agent-types',
+    'learnings-size-line',
+    'learnings-size-line-self-test',
     'compact-lint',
   ];
   for (const n of names) process.stdout.write(n + '\n');

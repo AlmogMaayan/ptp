@@ -14,6 +14,9 @@ Invoke the `ptp-prompt-draft` skill (`skills/ptp-prompt-draft/SKILL.md`).
 
 ## Report
 
-Restate the updated understanding and ask the user to confirm or keep correcting; write no file.
-There is no change id, since nothing is persisted. Report the resulting state, any failures, and the
+Restate the updated understanding and ask the user to confirm or keep correcting; write no file
+unless `learning-mode` is not `off`.
+There is no change id. Report the resulting state, any failures, and the
 next command to run (another `/ptp:prompt-fix` to correct further, or proceed once confirmed).
+
+If the user invoked this command and you are the outer session, the `ptp-learn` size line ends your report.

@@ -72,6 +72,8 @@ After all changes have been processed, the outer session reports per change: the
 
 **This report carries no review tally**, at any outcome. `/ptp:apply` wraps no review orchestrator, so there is no tally to relay: print no tally table and no `unknown` placeholder in its place. `unknown` is reserved for a report whose wrapped review step returned nothing — it is not a stand-in for "no review ran". The code-stage tally appears in `/ptp:review-full`, which is where the code review actually happens.
 
+If the user invoked this command and you are the outer session, the `ptp-learn` size line ends your report.
+
 ## Hard rules
 
 - Do **not** invent new tasks not in `tasks.md`. If a needed task is missing, stop and update the plan.

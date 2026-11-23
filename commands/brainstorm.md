@@ -39,6 +39,8 @@ section of **`ptp-run-at-model`** — do not restate that grammar/validation her
 
 **Scout gate (outer session, beside the `model:` parse).** Parse and strip `scout:on|off` and resolve the gate per `ptp-run-at-model`'s `references/scout-prestep.md` § *The scout gate*; when it resolves on, invoke `ptp-run-at-model` below with its *Brainstorm scout pre-step* requested. A `/ptp:brainstorm-decompose` member runs no scout. Gate off adds nothing.
 
+**Learned insights read-back (outer session).** After the branch guard and step 1's change-id allocation, right before the `ptp-run-at-model` call below, run `node scripts/ptp-learn.js [--workspace <root>] --list-insights` (named relative to the ptp checkout; `--workspace <root>` only when this command resolved a workspace root) per `ptp-learn` § *Read-back*. Pass non-empty output verbatim as `ptp-run-at-model` part (j) (`references/learnings-readback.md`); empty output passes no part (j) and adds no line. A non-zero exit passes no part (j), prints the single line `learned insights omitted: <reason>`, and never stops the command. A `/ptp:brainstorm-decompose` member runs no listing; its outer session hands it part (j).
+
 Step 1 (pick the change id) and the "Branch safety (first step)" preamble above run **in the outer
 session**, over the now token-free `$ARGUMENTS`. The actual brainstorm work — steps 2–8 — **runs at a
 deterministic model** via the **`ptp-run-at-model`** skill at the resolved target (the `brainstorm` family default target by
@@ -103,6 +105,8 @@ closure must reach the Codex main run, per `ptp-run-at-model`'s *The `main=codex
 
    Prose in every markdown artifact this step writes follows skills/ptp-artifact-contract/SKILL.md §4 "Prose readability".
 8. **STOP.** Do not write `proposal.md`, `design.md`, `tasks.md`, or spec deltas — those belong to `/ptp:plan`. The next step is `/ptp:plan <change-id>`, which transcribes `brainstorm.md` into the OpenSpec artifacts.
+
+If the user invoked this command and you are the outer session, the `ptp-learn` size line ends your report.
 
 ## Hard rules
 

@@ -39,6 +39,12 @@
       "why": "scout pre-step on brainstorm-full"
     },
     {
+      "id": "readback-req-0",
+      "kind": "requires",
+      "pattern": "Phase A carries part \\(j\\)[^\\n]*Phase B carries no part \\(j\\)",
+      "why": "learned insights reach Phase A only"
+    },
+    {
       "id": "scout-req-3",
       "kind": "requires",
       "pattern": "once, on the Phase A",

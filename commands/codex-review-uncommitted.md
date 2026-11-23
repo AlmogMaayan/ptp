@@ -109,6 +109,8 @@ config), and relaying the verdict — **fixing nothing**, and the subagent's out
    - Sandbox noise (`blocked by policy`, `spawn setup refresh`) is harmless here — the diff is inlined, so Codex needs no commands. Proceed to relay the verdict.
 5. **Relay Codex's output** to the user, then add a one-line summary with the resolved threshold and the layer it came from, the verdict, and finding counts by severity (below-threshold findings still counted and listed, marked non-blocking; an all-below-threshold report still enumerates them and is never rendered as "no findings"). Note that the review covers the diff you inlined. **Apply the threshold rule yourself** rather than trusting Codex's line blindly: if Codex's emitted verdict line disagrees with the threshold-correct verdict (for example `FIX BEFORE COMMIT` for a High the resolved threshold demoted), **say so explicitly** and report the threshold-correct verdict.
 
+If the user invoked this command and you are the outer session, the `ptp-learn` size line ends your report.
+
 ## Hard rules
 
 - Do **not** count required manual tests that have not yet been performed as findings. Manual tests are a future verification step; their absence is not a code defect.

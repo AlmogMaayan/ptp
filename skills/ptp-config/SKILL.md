@@ -306,11 +306,24 @@ parameters = [
       { value: "github", desc: "Claim the number on the git remote" }
     ],
     default: "self"
+  },
+  {
+    key:      "learning-mode",
+    label:    "Learning mode",
+    jsonPath: ["learning-mode"],
+    kind:     "enum",
+    values: [
+      { value: "off",               desc: "Record nothing, read nothing back (default)" },
+      { value: "learn-only",        desc: "Record insights, never read them back" },
+      { value: "learn-and-suggest", desc: "Record insights and suggest them" },
+      { value: "learn-and-use",     desc: "Record insights and apply them" }
+    ],
+    default: "off"
   }
 ]
 ```
 
-**Parameter menu:** The registry currently holds thirty-three entries. Step 2 builds an `AskUserQuestion`
+**Parameter menu:** The registry currently holds thirty-four entries. Step 2 builds an `AskUserQuestion`
 menu from each entry's `label` value and presents it to the user. The flow is data-driven: adding
 a new entry to the registry automatically adds it to the menu with no further edits to this flow.
 
@@ -397,6 +410,7 @@ Build an `AskUserQuestion` menu from the registry entries' `label` values:
 31. **Codex model for apply-review commands** (`codex.apply-review`)
 32. **Run the brainstorm scout** (`brainstorm.scout`)
 33. **Epic id generator** (`epic-id-generator`)
+34. **Learning mode** (`learning-mode`)
 
 Use the selected entry's `jsonPath`, `kind`, `values` (for enum entries), and `default` for the
 remaining steps. This is data-driven off the registry — adding a parameter requires only a new
@@ -656,6 +670,21 @@ These are the only options. **Never write a value that is not in the entry's `va
 never write an out-of-enum value for `epic-id-generator`. The value written is exactly the selected
 string, written directly at the root (`epic-id-generator` has no parent object).
 
+#### kind = `enum` (e.g. `learning-mode`)
+
+Use `AskUserQuestion` to offer the parameter's `values`. `ptp-learn` reads this key. The four valid
+values, in order, are:
+
+1. **`off`** — Record nothing and read nothing back (default; learning is opt-in)
+2. **`learn-only`** — Record insights, never read them back
+3. **`learn-and-suggest`** — Record insights and suggest them
+4. **`learn-and-use`** — Record insights and apply them
+
+`off` is the default, so learning is opt-in; every other value records. Recommend the User target so
+one setting covers all repos; a repo opts out by setting `off`. **Never write a value that is not in
+the entry's `values` list.** The value is written directly at the root (`learning-mode` has no parent
+object).
+
 #### kind = `string` (e.g. `codex.model`)
 
 Prompt the user for a free-text value (no fixed options; e.g. a Codex model id like `gpt-5.6`). Then
@@ -688,7 +717,7 @@ Family to command mapping:
 | Family | Commands |
 |--------|----------|
 | `analyze` | `/ptp:analyze` |
-| `prompt` | `/ptp:prompt`, `/ptp:prompt-fix`, `/ptp:prompt-write`, `/ptp:prompt-write-to-backlog` |
+| `prompt` | `/ptp:prompt`, `/ptp:prompt-fix`, `/ptp:prompt-write`, `/ptp:prompt-write-to-backlog`, `/ptp:learn` |
 | `brainstorm` | `/ptp:brainstorm`, `/ptp:brainstorm-only`, `/ptp:brainstorm-full`, `/ptp:review-brainstorm`, `/ptp:review-brainstorm-full` |
 | `plan-review` | `/ptp:review-plan`, `/ptp:review-plan-loop`, `/ptp:review-plan-full` |
 | `apply-review` | `/ptp:review`, `/ptp:review-loop`, `/ptp:review-full`, and the review step inside `/ptp:full-apply` |
@@ -875,7 +904,7 @@ With the resolved path, the base JSON object (from step 3), and the chosen value
      `backlog.projectOwner` or `backlog.projectNumber`: create
      `backlog` as `{}`; for `backlog.statusOptions`: create `backlog` as `{}` and then
      `statusOptions` as `{}` when absent, in the same manner as the existing parents. For `tdd` or
-     `tdd-plugin`, or `epic-id-generator` — all **top-level** keys with no parent — there is no parent to create; the
+     `tdd-plugin`, `epic-id-generator`, or `learning-mode` — all **top-level** keys with no parent — there is no parent to create; the
      value is set on the root object directly.
    - Set the targeted key to the chosen value.
    - Leave **every other key** (e.g. `deploy`, any unknown keys) and every other nested value
@@ -957,6 +986,7 @@ Examples:
 | `tdd` selection outside `advisory|mandatory` | Not offered — the enum menu only presents the two valid values. |
 | `tdd-plugin` selection outside `superpowers|ptp` | Not offered — the enum menu only presents the two valid values. |
 | `epic-id-generator` selection outside `self|github` | Not offered — the enum menu only presents the two valid values. |
+| `learning-mode` selection outside `off|learn-only|learn-and-suggest|learn-and-use` | Not offered — the enum menu only presents the four valid values. |
 
 ---
 
@@ -1010,6 +1040,9 @@ Examples:
   written. The value comes from the step 4 enum menu — never from free-form user input.
 - **Never write an out-of-enum value for `epic-id-generator`.** Only `self` or `github` may be
   written. The value comes from the step 4 enum menu — never from free-form user input.
+- **Never write an out-of-enum value for `learning-mode`.** Only `off`, `learn-only`,
+  `learn-and-suggest`, or `learn-and-use` may be written. The value comes from the step 4 enum menu —
+  never from free-form user input.
 - **Never write an invalid integer for an `artifact.*` budget.** Only a positive integer (`>= 1`)
   may be written for `artifact.maxProposalWords`, `artifact.maxDesignWords`, `artifact.maxTasksWords`,
   `artifact.maxTaskCount`, `artifact.maxTaskWords`, or `artifact.maxSpecDeltaWords`; anything else is

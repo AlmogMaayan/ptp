@@ -19,6 +19,8 @@ Before creating or updating **any** file, run the **`ptp-branch-guard`** preambl
 
 **Scout gate (outer session, a read-only token parse before the branch guard).** Parse and strip `scout:on|off` from the topic and resolve the gate per `ptp-run-at-model`'s `references/scout-prestep.md` § *The scout gate*; when it resolves on, invoke `ptp-run-at-model` below with its *Brainstorm scout pre-step* requested. Gate off adds nothing.
 
+**Learned insights read-back (outer session).** After the branch guard, right before the `ptp-run-at-model` call below, run `node scripts/ptp-learn.js [--workspace <root>] --list-insights` (named relative to the ptp checkout; `--workspace <root>` only when this command resolved a workspace root) per `ptp-learn` § *Read-back*. Pass non-empty output verbatim as `ptp-run-at-model` part (j) (`references/learnings-readback.md`); empty output passes no part (j) and adds no line. A non-zero exit passes no part (j), prints the single line `learned insights omitted: <reason>`, and never stops the command.
+
 The "Branch safety (first step)" preamble above runs **in the outer session** and is this command's
 **only** outer-session write precondition — `/ptp:brainstorm-only` is epic-less (it allocates no change id, so
 there is no step-1 id allocation to keep outer). The actual brainstorm work — steps 1–7 — **runs at a
@@ -64,6 +66,8 @@ closure must reach the Codex main run, per `ptp-run-at-model`'s *The `main=codex
 
    Prose in every markdown artifact this step writes follows skills/ptp-artifact-contract/SKILL.md §4 "Prose readability".
 7. **STOP.** Do not write any files under `openspec/changes/`. This command is intentionally epic-less — it writes only to `openspec/brainstorms/`, with no change folder yet. The epic is allocated when `/ptp:plan` turns this brainstorm into a change. When the exploration crystallizes into a concrete change, run `/ptp:plan <change-id>` — it will find this brainstorm in `openspec/brainstorms/`, copy it into `openspec/changes/<change-id>/brainstorm.md`, and proceed.
+
+If the user invoked this command and you are the outer session, the `ptp-learn` size line ends your report.
 
 ## Hard rules
 

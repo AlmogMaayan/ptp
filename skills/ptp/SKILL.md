@@ -45,6 +45,7 @@ skill, and reports. A command that owns itself carries its own contract.
 | `commands/full-apply.md` | `skills/ptp-full-apply/SKILL.md` |
 | `commands/full-plan.md` | `skills/ptp-full/SKILL.md` |
 | `commands/full.md` | `skills/ptp-full/SKILL.md` |
+| `commands/learn.md` | `skills/ptp-learn/SKILL.md` |
 | `commands/master.md` | `skills/ptp-master/SKILL.md` |
 | `commands/merge-to-master.md` | `skills/ptp-deploy/SKILL.md` |
 | `commands/plan-multiple.md` | `commands/plan-multiple.md` |

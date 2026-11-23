@@ -177,6 +177,8 @@ one of that section's two delivery modes.
    review ran". The plan-stage tally appears in `/ptp:review-plan-full`, which is where the artifact
    review actually happens.
 
+If the user invoked this command and you are the outer session, the `ptp-learn` size line ends your report.
+
 ## Hard rules
 
 - Do **not** call `/opsx:propose` (nor the vendored `ptp:openspec-propose` skill) to generate proposal/design text. The PTP planning skills produced the thinking; you are just transcribing it into OpenSpec's file format.

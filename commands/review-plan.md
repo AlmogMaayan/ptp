@@ -256,6 +256,8 @@ pipe it to `codex exec -s read-only` over stdin per *Role resolution* above.
      - WARN/FAIL → `/ptp:plan` to revise the artifacts (do not hand-edit them here).
    - **All changes:** the resolved threshold and its source layer stated **once for the pass** alongside the summary table (`change-id → PASS/WARN/FAIL` + finding counts), then a detail block for **each non-PASS change**. PASS changes need no detail — except a PASS carrying **any** below-threshold finding: it gets a detail block listing those findings under their own severity, marked non-blocking, so the threshold never makes a finding invisible; and a PASS that only passes because the threshold **demoted** a finding additionally says so on its row. (At the default `low` no finding is ever below the threshold, so this exception never fires and the table reads exactly as today.)
 
+If the user invoked this command and you are the outer session, the `ptp-learn` size line ends your report.
+
 ## Hard rules
 
 - This command is **read-only**. Do **not** edit any files. Do **not** run `openspec apply` / `openspec archive`.

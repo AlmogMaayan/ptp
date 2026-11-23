@@ -19,6 +19,36 @@
       "why": "part (i) sits after (h) and before the foreground sentence"
     },
     {
+      "id": "order-j",
+      "kind": "ordered",
+      "patterns": [
+        "- \\(i\\) \\*\\*\\(optional\\)\\*\\*",
+        "- \\(j\\) \\*\\*\\(optional\\)\\*\\*",
+        "The spawn is \\*\\*foreground\\*\\*"
+      ],
+      "why": "part (j) sits after (i) and before the foreground sentence"
+    },
+    {
+      "id": "req-j",
+      "kind": "requires",
+      "pattern": "references/learnings-readback\\.md",
+      "why": "SKILL.md points at the learnings read-back reference"
+    },
+    {
+      "id": "readback-0",
+      "kind": "requires",
+      "pattern": "Learned insights —",
+      "why": "the reference carries the part (j) header",
+      "file": "references/learnings-readback.md"
+    },
+    {
+      "id": "readback-1",
+      "kind": "requires",
+      "pattern": "follow the project insight",
+      "why": "the reference carries the project-wins rule",
+      "file": "references/learnings-readback.md"
+    },
+    {
       "id": "req-1",
       "kind": "requires",
       "pattern": "Scout map — INDEX, NOT EVIDENCE",

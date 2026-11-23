@@ -192,6 +192,8 @@ Follow the table with the **recommendation** (as a row at the bottom of the tabl
 
 Repeat Steps A–F for every remaining change in story order.
 
+If the user invoked this command and you are the outer session, the `ptp-learn` size line ends your report.
+
 ## Hard rules
 
 - This command is **read-only**. Do not edit any file. Do not run `openspec apply` or `openspec archive`. Do not run a branch guard.

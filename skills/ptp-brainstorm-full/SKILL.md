@@ -61,6 +61,16 @@ Apply the pre-resolved `scout`; the pre-step is `skills/ptp-run-at-model/referen
 
 ---
 
+## Learned insights read-back
+
+Phase A carries part (j) and Phase B carries no part (j): only Phase A states assumptions, so only it receives learned insights (`ptp-learn` § *Read-back*).
+
+- Right before the Phase A `ptp-run-at-model` call, the outer session runs `node scripts/ptp-learn.js [--workspace <root>] --list-insights` (named relative to the ptp checkout; `--workspace <root>` only when the command resolved a workspace root) and passes non-empty output verbatim as part (j) (`skills/ptp-run-at-model/references/learnings-readback.md`), inline in `$WORK_PROMPT` under `main=codex`.
+- Empty output passes no part (j) and adds no line, so the Phase A prompt is byte-identical to today's.
+- A non-zero exit passes no part (j), prints the single line `learned insights omitted: <reason>`, and never STOPs.
+
+---
+
 ## Phase A — brainstorm
 
 Invoke **`ptp-run-at-model`** at the resolved `target` with the work being the brainstorm-production steps

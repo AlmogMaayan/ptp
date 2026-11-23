@@ -174,6 +174,8 @@ ends, whether the loop finished every story or stopped at a blocker.
    that drives this flow (e.g. `ptp-archive-and-merge-to-master`, `ptp-archive-and-deploy`,
    `ptp-archive-force`, `ptp-backlog-continue`) cites this paragraph rather than restating it.
 
+If the user invoked this command and you are the outer session, the `ptp-learn` size line ends your report.
+
 ## Hard rules
 
 - **Never** archive a change with unchecked tasks or a failing `npx -y openspec validate <change-id> --strict`. Refuse and redirect. Both refusals are absolute and unaffected by `review.minSeverity`. Review state is **not** a gate.

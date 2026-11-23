@@ -98,6 +98,8 @@ After both phases complete, report:
    - If PHASE 2 ITERATION CAP REACHED → resolve remaining Codex artifact findings (e.g., `/ptp:review-fix`), then re-run `/ptp:review-plan-full $ARGUMENTS` or run `/ptp:codex-review-plan-loop $ARGUMENTS` directly.
    - If ARTIFACT BUDGET EXCEEDED or PHASE 2 ARTIFACT BUDGET EXCEEDED → `/ptp:plan-multiple <change-id>` (the resolved id, so re-cut mode applies). Do **not** recommend another review round; the artifact is over budget or still growing, and more review rounds is the thing that failed.
 
+If the user invoked this command and you are the outer session, the `ptp-learn` size line ends your report.
+
 ### Review-convergence marker (single combined write)
 
 This orchestrator drives **both** phase loops with **`deferMarker = true`** (per `ptp-review-loop`'s **## Review-convergence marker** section), so **no phase writes the marker itself** — each phase returns its terminal outcome (`terminalState`, `reviewer`, `iterations`, `minSeverity`, `reviewTally`) to this orchestrator. After the run resolves (after Phase 2, or after Phase 1 if Phase 2 is gated off), the orchestrator performs **exactly ONE** combined `stages/plan.json` write per the combined-outcome rule:

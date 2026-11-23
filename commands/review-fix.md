@@ -102,6 +102,8 @@ Reviews in this workflow are **displayed in the conversation, not persisted to a
 
    Write via the atomic write-temp-then-rename protocol; a write failure is **reported, not fatal** (the fix pass already happened), and on a re-review a failed overwrite leaves the prior marker intact.
 
+If the user invoked this command and you are the outer session, the `ptp-learn` size line ends your report.
+
 ## Hard rules
 
 - **Runs only on explicit invocation.** Never trigger this command automatically from review findings or from a phrase like "fix the findings" issued to a review command — those commands report and stop; this is a separate, deliberate user action.

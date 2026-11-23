@@ -24,3 +24,5 @@ The command is autonomous — ask no clarifying question and pause for no approv
 ## Report
 
 Name each entry's outcome and, on a halt, the halting entry with its reason. Do not describe a mid-run failure as leaving the store unchanged, and scope the refusal-writes-nothing guarantee to the backlog store, since the outer-session branch guard may already have cut a feature branch. Report the resulting state, any failures, and the next command to run.
+
+If the user invoked this command and you are the outer session, the `ptp-learn` size line ends your report.
