@@ -9,8 +9,9 @@ Owns command: /ptp:prompt-write
 
 ## Purpose
 
-`/ptp:prompt` and `/ptp:prompt-fix` (`ptp-prompt-draft`, epic `0068` story `01`) hold an accumulated
-understanding of a request purely in conversation, writing nothing to disk. `/ptp:prompt-write` closes
+The prompt commands of `ptp-prompt-draft` (epic `0068` story `01`) hold an understanding of a
+request purely in conversation, writing nothing to disk — the held understanding of its *Held
+understanding* section. `/ptp:prompt-write` closes
 that gap: it takes the conversation's accumulated understanding and writes it to a durable
 `prompt.md`, either into an existing change folder or into a freshly allocated one.
 
@@ -25,8 +26,9 @@ or allocation, and the branch guard all run outer, **before** the main run start
 
 ## No accumulated understanding — STOP
 
-If this conversation holds no accumulated understanding from a prior `/ptp:prompt` / `/ptp:prompt-fix`
-turn, **STOP** and say so. Never write an empty or fabricated `prompt.md`.
+The accumulated understanding is the held understanding defined in `ptp-prompt-draft`'s *Held
+understanding* section. If nothing is held in this conversation, **STOP** and say so. Never write an
+empty or fabricated `prompt.md`.
 
 ## Argument resolution
 
@@ -42,8 +44,8 @@ turn, **STOP** and say so. Never write an empty or fabricated `prompt.md`.
      argument" (below).
 2. **No argument, or an argument resolving to no existing change.** Allocate a fresh epic per
    `ptp-change-selector` §4 (epic allocation) and create its epic container `XXXX_00_<desc>` (§4
-   *Container writers*), `<desc>` derived from the accumulated understanding's subject (≤ 5
-   kebab-case words): create `openspec/changes/<XXXX_00_desc>/` and write `prompt.md` there. No story
+   *Container writers*), `<desc>` derived from the held understanding's subject (≤ 5
+   kebab-case words, read by `ptp-prompt-draft`'s *Held understanding* definition): create `openspec/changes/<XXXX_00_desc>/` and write `prompt.md` there. No story
    folder is created.
 
 ## Branch guard for this write
@@ -63,7 +65,7 @@ downstream parses fields out of:
 
 ## Understanding
 
-<the current, final restated understanding from the /ptp:prompt / /ptp:prompt-fix conversation>
+<the current, final restated understanding: the held understanding>
 
 ## Assumptions
 
@@ -71,7 +73,7 @@ downstream parses fields out of:
 
 ## Source
 
-Captured via /ptp:prompt-write from a /ptp:prompt / /ptp:prompt-fix conversation on <date>.
+Captured via /ptp:prompt-write on <date>.
 ```
 
 Prose in every markdown artifact this step writes follows skills/ptp-artifact-contract/SKILL.md §4 "Prose readability".
@@ -98,10 +100,10 @@ allocation, and the branch guard all run in the **outer session, before the main
    subagent by default, or the `codex exec` shell-out when `main=codex`) execute, at the resolved
    target (the `prompt` family default target per `family-default-target.md` by default, or the valid `model:` override) — writing `prompt.md` into the
    resolved or allocated change folder per *`prompt.md` shape* above. The main run does **not**
-   inherit the outer session's conversation, so its prompt MUST carry: the accumulated understanding
-   held from this conversation's prior `/ptp:prompt` / `/ptp:prompt-fix` turns (the content to
-   persist), the resolved or newly allocated change id/folder path to write into, and the
-   token-stripped argument text. Because the outer session already ran the branch guard, the main
+   inherit the outer session's conversation, so its prompt MUST carry: the held understanding per
+   `ptp-prompt-draft`'s *Held understanding* (the content to persist), the resolved or newly
+   allocated change id/folder path to write into, and the token-stripped argument text. It carries no
+   part of any turn outside the held understanding. Because the outer session already ran the branch guard, the main
    run's own branch-guard check is a no-op.
 6. **Relay**: the outer session surfaces the main run's terminal result per `ptp-run-at-model`'s
    *Result relay* — the resolved or allocated change id, the resulting state, any failure, and the

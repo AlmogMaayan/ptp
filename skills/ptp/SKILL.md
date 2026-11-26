@@ -51,6 +51,7 @@ skill, and reports. A command that owns itself carries its own contract.
 | `commands/plan-multiple.md` | `commands/plan-multiple.md` |
 | `commands/plan.md` | `commands/plan.md` |
 | `commands/prompt-fix.md` | `skills/ptp-prompt-draft/SKILL.md` |
+| `commands/prompt-new.md` | `skills/ptp-prompt-new/SKILL.md` |
 | `commands/prompt-write-to-backlog.md` | `skills/ptp-prompt-write-to-backlog/SKILL.md` |
 | `commands/prompt-write.md` | `skills/ptp-prompt-write/SKILL.md` |
 | `commands/prompt.md` | `skills/ptp-prompt-draft/SKILL.md` |

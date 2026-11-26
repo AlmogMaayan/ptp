@@ -30,11 +30,24 @@ file — there is no merge-write step at all — except `/ptp:prompt-fix`'s less
   the only write, `/ptp:prompt-fix`'s lesson append, is `.claude/ptp/` tool state — so there is
   nothing to protect `master` from (the wrap's branch-guard step is therefore a no-op).
 - It does **not** write `prompt.md` or any other file, except `/ptp:prompt-fix`'s lesson append when
-  `learning-mode` is not `off`. State lives **only** in this conversation's
-  context, across `/ptp:prompt` → `/ptp:prompt-fix` → `/ptp:prompt-fix` → … turns in one session.
+  `learning-mode` is not `off`. State — the held understanding, per *Held understanding* below —
+  lives **only** in this conversation's context.
   Persisting it is out of scope here — see `/ptp:prompt-write` (epic `0068`, story `02`).
 - It does **not** invoke `/ptp:brainstorm`, `/ptp:plan`, or any other producer. It only restates
   understanding and waits for the user's next turn.
+
+## Held understanding
+
+The held understanding is what this conversation's `/ptp:prompt`, `/ptp:prompt-new` and
+`/ptp:prompt-fix` turns established, counting from the latest `/ptp:prompt-new` turn that printed its
+discard line, that turn included. With no such turn, all of those turns count. A turn whose main run
+failed established nothing. This is the one definition: every use of the accumulated understanding
+in the prompt skills (`ptp-prompt-draft`, `ptp-prompt-write`, `ptp-prompt-write-to-backlog`) means
+the held understanding, and each consumer cites this section rather than listing commands.
+
+The earlier turns stay in the outer session's context, and nothing can remove them, so the rule binds
+what crosses into a main run: no main-run prompt carries any part of a turn outside the held
+understanding.
 
 ## `/ptp:prompt <free text>`
 
@@ -59,9 +72,8 @@ file — there is no merge-write step at all — except `/ptp:prompt-fix`'s less
 
 1. In the **outer session**: parse-and-strip an optional `model:<model>.<effort>` override token
    from the argument text, exactly as `/ptp:prompt` step 1.
-2. Run the merge-and-restate work — reading the token-stripped correction text and the accumulated
-   understanding held from this same conversation's prior `/ptp:prompt` / `/ptp:prompt-fix` turns —
-   through **one foreground `ptp-run-at-model` main run** at the resolved target, per *Run at model*
+2. Run the merge-and-restate work — reading the token-stripped correction text and the held
+   understanding (per *Held understanding*) — through **one foreground `ptp-run-at-model` main run** at the resolved target, per *Run at model*
    below. A correction narrows, replaces, or adds to what was previously understood — it does not
    start over from nothing unless the user's correction plainly says to. The main run restates the
    updated understanding in the same structured shape as `/ptp:prompt` step 2. On a correcting turn,
@@ -73,13 +85,11 @@ file — there is no merge-write step at all — except `/ptp:prompt-fix`'s less
 4. Write no file unless `learning-mode` is not `off`, and then only the lesson append and its input
    file per *Lesson recording*.
 
-**If `/ptp:prompt-fix` is invoked with no prior `/ptp:prompt` or `/ptp:prompt-fix` turn in this
-conversation** — i.e. no understanding has been established yet — treat its argument as the first
-request: the main run restates understanding exactly as `/ptp:prompt` step 2 would, rather than
-refusing for lack of prior context. Once an understanding exists (from either command), every later
-`/ptp:prompt-fix` call merges into it per step 2 above; the fallback never fires again for that
-conversation, so an established correction loop is never reset back to a first request. The
-first-request fallback records no lesson in any mode.
+**If `/ptp:prompt-fix` is invoked while nothing is held** — no held understanding per *Held
+understanding*, however many prompt turns came before — treat its argument as the first request: the
+main run restates understanding exactly as `/ptp:prompt` step 2 would, rather than refusing for lack
+of prior context. Whenever a held understanding exists, `/ptp:prompt-fix` merges into it per step 2
+above. The first-request fallback records no lesson in any mode.
 
 ## Lesson recording
 
@@ -135,8 +145,8 @@ skill, referenced here rather than restated:
    the command. The main run applies part (j) only to the assumptions and open questions it records.
 5. **Run the main work**: one foreground `ptp-run-at-model` main run (the Claude subagent by default,
    or the `codex exec` shell-out when `main=codex`), carrying the token-stripped argument text,
-   part (j) when step 4 produced one, and — for `/ptp:prompt-fix` — the accumulated understanding from
-   this conversation's prior turns. The main run performs the restatement (or merge-and-restatement)
+   part (j) when step 4 produced one, and — for `/ptp:prompt-fix` — the held understanding (per *Held
+   understanding*) and no part of any turn outside it. The main run performs the restatement (or merge-and-restatement)
    work described above and returns it as its terminal result; it writes no file and invokes no other
    command.
 6. **Relay**: the outer session surfaces the main run's restatement verbatim (minus any
@@ -146,9 +156,9 @@ skill, referenced here rather than restated:
    subagent nor the `codex exec` shell-out can pause mid-run). A main run that reaches a real choice
    records it as an assumption or open question inside its restatement instead of pausing.
 
-The accumulated understanding continues to live **only** in the outer session's context across turns
-— the main run holds no cross-turn state of its own; the outer session passes the prior understanding
-into the main run's prompt each time.
+The held understanding continues to live **only** in the outer session's context across turns — the
+main run holds no cross-turn state of its own; the outer session passes the held understanding into
+the main run's prompt each time.
 
 ## Hard rules
 

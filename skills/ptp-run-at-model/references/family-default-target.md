@@ -12,7 +12,7 @@ The entry names and the command membership are owned by the `models.<family>` ro
 | Family | Config entry | Commands |
 |--------|--------------|----------|
 | `analyze` | `models.analyze` | `/ptp:analyze` |
-| `prompt` | `models.prompt` | `/ptp:prompt`, `/ptp:prompt-fix`, `/ptp:prompt-write`, `/ptp:prompt-write-to-backlog`, `/ptp:learn` |
+| `prompt` | `models.prompt` | `/ptp:prompt`, `/ptp:prompt-fix`, `/ptp:prompt-new`, `/ptp:prompt-write`, `/ptp:prompt-write-to-backlog`, `/ptp:learn` |
 | `brainstorm` | `models.brainstorm` | `/ptp:brainstorm`, `/ptp:brainstorm-only`, `/ptp:brainstorm-full`, `/ptp:review-brainstorm`, `/ptp:review-brainstorm-full` |
 | `plan-review` | `models.plan-review` | `/ptp:review-plan`, `/ptp:review-plan-loop`, `/ptp:review-plan-full` |
 | `apply-review` | `models.apply-review` | `/ptp:review`, `/ptp:review-loop`, `/ptp:review-full` |

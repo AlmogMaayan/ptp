@@ -717,7 +717,7 @@ Family to command mapping:
 | Family | Commands |
 |--------|----------|
 | `analyze` | `/ptp:analyze` |
-| `prompt` | `/ptp:prompt`, `/ptp:prompt-fix`, `/ptp:prompt-write`, `/ptp:prompt-write-to-backlog`, `/ptp:learn` |
+| `prompt` | `/ptp:prompt`, `/ptp:prompt-fix`, `/ptp:prompt-new`, `/ptp:prompt-write`, `/ptp:prompt-write-to-backlog`, `/ptp:learn` |
 | `brainstorm` | `/ptp:brainstorm`, `/ptp:brainstorm-only`, `/ptp:brainstorm-full`, `/ptp:review-brainstorm`, `/ptp:review-brainstorm-full` |
 | `plan-review` | `/ptp:review-plan`, `/ptp:review-plan-loop`, `/ptp:review-plan-full` |
 | `apply-review` | `/ptp:review`, `/ptp:review-loop`, `/ptp:review-full`, and the review step inside `/ptp:full-apply` |
